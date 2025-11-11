@@ -31,10 +31,21 @@ export const create = createRoute({
   },
   tags,
   responses: {
-    [HttpStatusCodes.OK]: jsonContent(
-      selectUsersSchema,
-      'The created user'
-    ),
+    [HttpStatusCodes.CREATED]: {
+      ...jsonContent(
+        selectUsersSchema,
+        'The created user'
+      ),
+      headers: {
+        Location: {
+          description: 'Relative URL of the created user resource',
+          schema: {
+            type: 'string',
+            format: 'uri-reference'
+          }
+        }
+      }
+    },
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
       createErrorSchema(insertUsersSchema),
       'The validation error(s)'

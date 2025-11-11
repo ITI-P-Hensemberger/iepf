@@ -1,3 +1,4 @@
+import { LibsqlError } from '@libsql/client'
 import argon2 from 'argon2'
 import { eq } from 'drizzle-orm'
 import * as HttpStatusCodes from 'stoker/http-status-codes'
@@ -11,6 +12,26 @@ import env from '@/env'
 import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
 
 import type { CreateRoute, GetOneRoute, ListRoute, PatchRoute, RemoveRoute } from './users.routes'
+
+function buildDuplicateEmailError() {
+  return {
+    success: false,
+    error: {
+      issues: [
+        {
+          code: ZOD_ERROR_CODES.DUPLICATE_KEY,
+          path: ['email'],
+          message: ZOD_ERROR_MESSAGES.EMAIL_ALREADY_EXISTS
+        }
+      ],
+      name: 'ZodError'
+    }
+  }
+}
+
+function isUniqueConstraintError(error: unknown): error is LibsqlError {
+  return error instanceof LibsqlError && error.code.startsWith('SQLITE_CONSTRAINT')
+}
 
 export async function hashPassword(password: string) {
   return argon2.hash(env.PASSWORD_SALT + password, { type: argon2.argon2id })
@@ -41,42 +62,38 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
   })
 
   if (existing) {
-    return c.json(
-      {
-        success: false,
-        error: {
-          issues: [
-            {
-              code: ZOD_ERROR_CODES.DUPLICATE_KEY,
-              path: ['email'],
-              message: ZOD_ERROR_MESSAGES.EMAIL_ALREADY_EXISTS
-            }
-          ],
-          name: 'ZodError'
-        }
-      },
-      HttpStatusCodes.CONFLICT
-    )
+    return c.json(buildDuplicateEmailError(), HttpStatusCodes.CONFLICT)
   }
 
-  // insert with server-generated hash
-  const [inserted] = await db
-    .insert(users)
-    .values({
-      ...user,
-      passwordHash
-    })
-    .returning({
-      id: users.id,
-      email: users.email,
-      firstName: users.firstName,
-      lastName: users.lastName,
-      role: users.role,
-      createdAt: users.createdAt,
-      updatedAt: users.updatedAt
-    })
+  try {
+    // insert with server-generated hash
+    const [inserted] = await db
+      .insert(users)
+      .values({
+        ...user,
+        passwordHash
+      })
+      .returning({
+        id: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        role: users.role,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt
+      })
 
-  return c.json(inserted, HttpStatusCodes.OK)
+    const location = `/users/${inserted.id}`
+    c.header('Location', location)
+
+    return c.json(inserted, HttpStatusCodes.CREATED)
+  }
+  catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return c.json(buildDuplicateEmailError(), HttpStatusCodes.CONFLICT)
+    }
+    throw error
+  }
 }
 
 export const getOne: AppRouteHandler<GetOneRoute> = async (c) => {
@@ -140,38 +157,33 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     })
 
     if (existing && existing.id !== id) {
-      return c.json(
-        {
-          success: false,
-          error: {
-            issues: [
-              {
-                code: ZOD_ERROR_CODES.DUPLICATE_KEY,
-                path: ['email'],
-                message: ZOD_ERROR_MESSAGES.EMAIL_ALREADY_EXISTS
-              }
-            ],
-            name: 'ZodError'
-          }
-        },
-        HttpStatusCodes.CONFLICT
-      )
+      return c.json(buildDuplicateEmailError(), HttpStatusCodes.CONFLICT)
     }
   }
 
-  const [user] = await db
-    .update(users)
-    .set(values)
-    .where(eq(users.id, id))
-    .returning({
-      id: users.id,
-      email: users.email,
-      firstName: users.firstName,
-      lastName: users.lastName,
-      role: users.role,
-      createdAt: users.createdAt,
-      updatedAt: users.updatedAt
-    })
+  let user
+  try {
+    const [updated] = await db
+      .update(users)
+      .set(values)
+      .where(eq(users.id, id))
+      .returning({
+        id: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        role: users.role,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt
+      })
+    user = updated
+  }
+  catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return c.json(buildDuplicateEmailError(), HttpStatusCodes.CONFLICT)
+    }
+    throw error
+  }
 
   if (!user) {
     return c.json(
