@@ -46,7 +46,7 @@ export const insertUsersSchema = toZodV4SchemaTyped(createInsertSchema(
 export const patchUsersSchema = insertUsersSchema.partial().superRefine((value, ctx) => {
   if (Object.keys(value).length === 0) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: 'custom',
       path: [],
       message: ZOD_ERROR_MESSAGES.NO_UPDATES,
       params: {
