@@ -129,25 +129,6 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     delete values.password
   }
 
-  if (Object.keys(updates).length === 0) {
-    return c.json(
-      {
-        success: false,
-        error: {
-          issues: [
-            {
-              code: ZOD_ERROR_CODES.INVALID_UPDATES,
-              path: [],
-              message: ZOD_ERROR_MESSAGES.NO_UPDATES
-            }
-          ],
-          name: 'ZodError'
-        }
-      },
-      HttpStatusCodes.UNPROCESSABLE_ENTITY
-    )
-  }
-
   if (typeof updates.email === 'string') {
     const existing = await db.query.users.findFirst({
       where(fields, operators) {
