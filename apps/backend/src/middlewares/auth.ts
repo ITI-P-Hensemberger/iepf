@@ -1,11 +1,10 @@
 import type { Context, MiddlewareHandler } from 'hono'
 
-import * as HttpStatusCodes from 'stoker/http-status-codes'
-import * as HttpStatusPhrases from 'stoker/http-status-phrases'
-
 import type { AppBindings } from '@/lib/types'
 
 import { verifyAccessToken } from '@/lib/auth'
+import * as HttpStatusCodes from '@/lib/http-status-codes'
+import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 
 function unauthorized(c: Context<AppBindings>) {
   return c.json(

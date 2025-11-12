@@ -1,10 +1,11 @@
 import { createRoute, z } from '@hono/zod-openapi'
-import * as HttpStatusCodes from 'stoker/http-status-codes'
-import { jsonContent, jsonContentRequired } from 'stoker/openapi/helpers'
-import { createErrorSchema, IdUUIDParamsSchema } from 'stoker/openapi/schemas'
 
 import { insertUsersSchema, patchUsersSchema, selectUsersSchema } from '@/db/schemas/users.schema'
 import { notFoundSchema } from '@/lib/constants'
+import * as HttpStatusCodes from '@/lib/http-status-codes'
+import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
+import { createErrorSchema, createMessageObjectSchema, IdUUIDParamsSchema } from '@/lib/openapi/schemas'
 
 const tags = ['Users']
 const bearerAuth = [{
@@ -20,6 +21,10 @@ export const list = createRoute({
     [HttpStatusCodes.OK]: jsonContent(
       z.array(selectUsersSchema),
       'The list of users'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
     )
   }
 })
@@ -60,6 +65,10 @@ export const create = createRoute({
         email: z.string().min(1)
       })),
       'Given email already exists'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
     )
   }
 })
@@ -84,6 +93,10 @@ export const getOne = createRoute({
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
       createErrorSchema(IdUUIDParamsSchema),
       'Invalid id error'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
     )
   }
 })
@@ -119,6 +132,10 @@ export const patch = createRoute({
         email: z.string().min(1)
       })),
       'Given email already exists'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
     )
   }
 })
@@ -142,6 +159,10 @@ export const remove = createRoute({
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
       createErrorSchema(IdUUIDParamsSchema),
       'Invalid id error'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
     )
   }
 })

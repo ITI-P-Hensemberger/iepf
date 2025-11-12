@@ -1,12 +1,11 @@
 import type { Context } from 'hono'
 
-import * as HttpStatusCodes from 'stoker/http-status-codes'
-import * as HttpStatusPhrases from 'stoker/http-status-phrases'
-
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
 import { createAccessToken } from '@/lib/auth'
+import * as HttpStatusCodes from '@/lib/http-status-codes'
+import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { verifyPassword } from '@/lib/password'
 import { issueRefreshToken, rotateRefreshToken } from '@/lib/refresh-tokens'
 

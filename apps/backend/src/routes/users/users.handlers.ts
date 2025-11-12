@@ -3,14 +3,14 @@ import type { Context } from 'hono'
 import { LibsqlError } from '@libsql/client'
 import { eq } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
-import * as HttpStatusCodes from 'stoker/http-status-codes'
-import * as HttpStatusPhrases from 'stoker/http-status-phrases'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
 import { users } from '@/db/schemas/users.schema'
 import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
+import * as HttpStatusCodes from '@/lib/http-status-codes'
+import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { hashPassword } from '@/lib/password'
 import { revokeUserRefreshTokens } from '@/lib/refresh-tokens'
 
@@ -74,7 +74,7 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
       passwordHash: false
     }
   })
-  return c.json(users)
+  return c.json(users, HttpStatusCodes.OK)
 }
 
 export const create: AppRouteHandler<CreateRoute> = async (c) => {

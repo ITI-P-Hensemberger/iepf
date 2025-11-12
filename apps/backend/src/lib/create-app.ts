@@ -2,10 +2,12 @@ import type { Schema } from 'hono'
 
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { requestId } from 'hono/request-id'
-import { notFound, onError, serveEmojiFavicon } from 'stoker/middlewares'
-import { defaultHook } from 'stoker/openapi'
 
+import { defaultHook } from '@/lib/openapi/default-hook'
+import notFound from '@/middlewares/not-found'
+import onError from '@/middlewares/on-error'
 import { pinoLogger } from '@/middlewares/pino-logger'
+import { serveEmojiFavicon } from '@/middlewares/serve-emoji-favicon'
 
 import type { AppBindings, AppOpenAPI } from './types'
 
