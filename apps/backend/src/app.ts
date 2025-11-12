@@ -1,5 +1,6 @@
 import configureOpenAPI from '@/lib/configure-open-api'
 import createApp from '@/lib/create-app'
+import auth from '@/routes/auth/auth.index'
 import health from '@/routes/health.route'
 import users from '@/routes/users/users.index'
 
@@ -8,6 +9,7 @@ const app = createApp()
 configureOpenAPI(app)
 
 const routes = [
+  auth,
   health,
   users
 ] as const

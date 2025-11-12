@@ -17,7 +17,14 @@ const EnvSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']),
   DATABASE_URL: z.url(),
   DATABASE_AUTH_TOKEN: z.string().optional(),
-  PASSWORD_SALT: z.string()
+  PASSWORD_SALT: z.string(),
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
+  ACCESS_TOKEN_TTL: z.coerce.number().int().positive().default(3600),
+  REFRESH_TOKEN_TTL: z.coerce.number().int().positive().default(60 * 60 * 24 * 7),
+  ADMIN_EMAIL: z.string().email().optional(),
+  ADMIN_PASSWORD: z.string().min(8).optional(),
+  ADMIN_FIRST_NAME: z.string().min(1).default('Admin'),
+  ADMIN_LAST_NAME: z.string().min(1).default('User')
 }).superRefine((input, ctx) => {
   if (input.NODE_ENV === 'production' && !input.DATABASE_AUTH_TOKEN) {
     ctx.addIssue({

@@ -10,8 +10,17 @@ export default function configureOpenAPI(app: AppOpenAPI) {
     info: {
       version: packageJSON.version,
       title: 'Tasks API'
+    },
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT'
+        }
+      }
     }
-  })
+  } as any)
 
   app.get(
     '/reference',

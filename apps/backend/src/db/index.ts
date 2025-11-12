@@ -2,10 +2,12 @@ import { drizzle } from 'drizzle-orm/libsql'
 
 import env from '@/env'
 
+import { refreshTokens } from './schemas/refresh-tokens.schema'
 import { users } from './schemas/users.schema'
 
 const schema = {
-  users
+  users,
+  refreshTokens
 }
 
 const db = drizzle({

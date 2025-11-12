@@ -7,11 +7,15 @@ import { insertUsersSchema, patchUsersSchema, selectUsersSchema } from '@/db/sch
 import { notFoundSchema } from '@/lib/constants'
 
 const tags = ['Users']
+const bearerAuth = [{
+  bearerAuth: [] as string[]
+}]
 
 export const list = createRoute({
   path: '/users',
   method: 'get',
   tags,
+  security: bearerAuth,
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
       z.array(selectUsersSchema),
@@ -30,6 +34,7 @@ export const create = createRoute({
     )
   },
   tags,
+  security: bearerAuth,
   responses: {
     [HttpStatusCodes.CREATED]: {
       ...jsonContent(
@@ -66,6 +71,7 @@ export const getOne = createRoute({
     params: IdUUIDParamsSchema
   },
   tags,
+  security: bearerAuth,
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
       selectUsersSchema,
@@ -93,6 +99,7 @@ export const patch = createRoute({
     )
   },
   tags,
+  security: bearerAuth,
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
       selectUsersSchema,
@@ -123,6 +130,7 @@ export const remove = createRoute({
     params: IdUUIDParamsSchema
   },
   tags,
+  security: bearerAuth,
   responses: {
     [HttpStatusCodes.NO_CONTENT]: {
       description: 'User deleted'

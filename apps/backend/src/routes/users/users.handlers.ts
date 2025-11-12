@@ -1,17 +1,22 @@
+import type { Context } from 'hono'
+
 import { LibsqlError } from '@libsql/client'
-import argon2 from 'argon2'
 import { eq } from 'drizzle-orm'
+import { HTTPException } from 'hono/http-exception'
 import * as HttpStatusCodes from 'stoker/http-status-codes'
 import * as HttpStatusPhrases from 'stoker/http-status-phrases'
 
-import type { AppRouteHandler } from '@/lib/types'
+import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
 import { users } from '@/db/schemas/users.schema'
-import env from '@/env'
 import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
+import { hashPassword } from '@/lib/password'
+import { revokeUserRefreshTokens } from '@/lib/refresh-tokens'
 
 import type { CreateRoute, GetOneRoute, ListRoute, PatchRoute, RemoveRoute } from './users.routes'
+
+type HandlerContext = Context<AppBindings>
 
 function buildDuplicateEmailError() {
   return {
@@ -33,15 +38,37 @@ function isUniqueConstraintError(error: unknown): error is LibsqlError {
   return error instanceof LibsqlError && error.code.startsWith('SQLITE_CONSTRAINT')
 }
 
-export async function hashPassword(password: string) {
-  return argon2.hash(env.PASSWORD_SALT + password, { type: argon2.argon2id })
+function forbid(): never {
+  throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
+    message: HttpStatusPhrases.FORBIDDEN
+  })
 }
 
-export async function verifyPassword(storedHash: string, password: string) {
-  return argon2.verify(storedHash, env.PASSWORD_SALT + password)
+function ensureAdmin(c: HandlerContext) {
+  const currentUser = c.get('currentUser')
+  if (!currentUser || currentUser.role !== 'admin') {
+    forbid()
+  }
+
+  return currentUser
+}
+
+function ensureSelfOrAdmin(c: HandlerContext, userId: string) {
+  const currentUser = c.get('currentUser')
+  if (!currentUser) {
+    forbid()
+  }
+
+  if (currentUser.role === 'admin' || currentUser.id === userId) {
+    return currentUser
+  }
+
+  forbid()
 }
 
 export const list: AppRouteHandler<ListRoute> = async (c) => {
+  ensureAdmin(c)
+
   const users = await db.query.users.findMany({
     columns: {
       passwordHash: false
@@ -51,6 +78,8 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
 }
 
 export const create: AppRouteHandler<CreateRoute> = async (c) => {
+  ensureAdmin(c)
+
   const user = c.req.valid('json')
   const passwordHash = await hashPassword(user.password)
 
@@ -98,6 +127,8 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
 
 export const getOne: AppRouteHandler<GetOneRoute> = async (c) => {
   const { id } = c.req.valid('param')
+  ensureSelfOrAdmin(c, id)
+
   const user = await db.query.users.findFirst({
     where(fields, operators) {
       return operators.eq(fields.id, id)
@@ -122,11 +153,14 @@ export const getOne: AppRouteHandler<GetOneRoute> = async (c) => {
 export const patch: AppRouteHandler<PatchRoute> = async (c) => {
   const { id } = c.req.valid('param')
   const updates = c.req.valid('json')
+  ensureSelfOrAdmin(c, id)
 
   const values = { ...updates }
+  let passwordChanged = false
   if (updates.password) {
     values.passwordHash = await hashPassword(updates.password)
     delete values.password
+    passwordChanged = true
   }
 
   if (typeof updates.email === 'string') {
@@ -175,10 +209,16 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     )
   }
 
+  if (passwordChanged) {
+    await revokeUserRefreshTokens(id)
+  }
+
   return c.json(user, HttpStatusCodes.OK)
 }
 
 export const remove: AppRouteHandler<RemoveRoute> = async (c) => {
+  ensureAdmin(c)
+
   const { id } = c.req.valid('param')
   const result = await db.delete(users)
     .where(eq(users.id, id))
