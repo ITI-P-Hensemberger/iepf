@@ -1,3 +1,4 @@
+// Purpose: Bearer auth middleware.
 import type { Context, MiddlewareHandler } from 'hono'
 
 import type { AppBindings } from '@/lib/types'

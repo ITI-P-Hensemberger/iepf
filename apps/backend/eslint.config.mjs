@@ -1,3 +1,4 @@
+// Purpose: ESLint configuration for the project.
 // eslint.config.ts
 import antfu from '@antfu/eslint-config'
 

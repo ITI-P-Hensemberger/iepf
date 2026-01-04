@@ -1,3 +1,4 @@
+// Purpose: Environment loading and validation.
 /* eslint-disable node/no-process-env */
 import { config } from 'dotenv'
 import { expand } from 'dotenv-expand'
@@ -21,6 +22,8 @@ const EnvSchema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   ACCESS_TOKEN_TTL: z.coerce.number().int().positive().default(3600),
   REFRESH_TOKEN_TTL: z.coerce.number().int().positive().default(60 * 60 * 24 * 7),
+  EMAIL_VERIFICATION_TTL: z.coerce.number().int().positive().default(60 * 60 * 24),
+  PASSWORD_RESET_TTL: z.coerce.number().int().positive().default(60 * 15),
   ADMIN_EMAIL: z.email().optional(),
   ADMIN_PASSWORD: z.string().min(8).optional(),
   ADMIN_FIRST_NAME: z.string().min(1).default('Admin'),

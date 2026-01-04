@@ -1,3 +1,4 @@
+// Purpose: Zod helper utilities.
 import type { z } from '@hono/zod-openapi'
 import type { z as z4 } from 'zod/v4'
 

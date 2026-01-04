@@ -1,3 +1,4 @@
+// Purpose: OpenAPI docs and reference UI setup.
 import { Scalar } from '@scalar/hono-api-reference'
 
 import type { AppOpenAPI } from './types'

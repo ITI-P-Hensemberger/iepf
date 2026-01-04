@@ -1,3 +1,4 @@
+// Purpose: Users route handlers.
 import type { Context } from 'hono'
 
 import { LibsqlError } from '@libsql/client'
@@ -100,6 +101,8 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
       .insert(users)
       .values({
         ...user,
+        // Role is validated by the admin-only schema.
+        role: user.role,
         passwordHash
       })
       .returning({
@@ -108,6 +111,10 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
         firstName: users.firstName,
         lastName: users.lastName,
         role: users.role,
+        parentFirstName: users.parentFirstName,
+        parentLastName: users.parentLastName,
+        parentEmail: users.parentEmail,
+        emailVerifiedAt: users.emailVerifiedAt,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt
       })
@@ -188,6 +195,10 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
         firstName: users.firstName,
         lastName: users.lastName,
         role: users.role,
+        parentFirstName: users.parentFirstName,
+        parentLastName: users.parentLastName,
+        parentEmail: users.parentEmail,
+        emailVerifiedAt: users.emailVerifiedAt,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt
       })

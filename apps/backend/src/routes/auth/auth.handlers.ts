@@ -1,21 +1,53 @@
+// Purpose: Auth route handlers.
 import type { Context } from 'hono'
+
+import { eq } from 'drizzle-orm'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
+import { users } from '@/db/schemas/users.schema'
 import { createAccessToken } from '@/lib/auth'
+import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
+import { consumeEmailVerificationToken, issueEmailVerificationToken } from '@/lib/email-verification'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
-import { verifyPassword } from '@/lib/password'
-import { issueRefreshToken, rotateRefreshToken } from '@/lib/refresh-tokens'
+import { hashPassword, verifyPassword } from '@/lib/password'
+import { consumePasswordResetToken, issuePasswordResetToken } from '@/lib/password-reset'
+import { issueRefreshToken, revokeRefreshToken, revokeUserRefreshTokens, rotateRefreshToken } from '@/lib/refresh-tokens'
 
-import type { LoginRoute, RefreshRoute } from './auth.routes'
+import type {
+  ConfirmEmailVerificationRoute,
+  ConfirmPasswordResetRoute,
+  LoginRoute,
+  LogoutRoute,
+  RefreshRoute,
+  RegisterRoute,
+  RequestEmailVerificationRoute,
+  RequestPasswordResetRoute
+} from './auth.routes'
 
 function unauthorized(c: Context<AppBindings>) {
   return c.json(
     { message: HttpStatusPhrases.UNAUTHORIZED },
     HttpStatusCodes.UNAUTHORIZED
   )
+}
+
+function buildDuplicateEmailError() {
+  return {
+    success: false,
+    error: {
+      issues: [
+        {
+          code: ZOD_ERROR_CODES.DUPLICATE_KEY,
+          path: ['email'],
+          message: ZOD_ERROR_MESSAGES.EMAIL_ALREADY_EXISTS
+        }
+      ],
+      name: 'ZodError'
+    }
+  }
 }
 
 export const login: AppRouteHandler<LoginRoute> = async (c) => {
@@ -28,7 +60,8 @@ export const login: AppRouteHandler<LoginRoute> = async (c) => {
       id: true,
       email: true,
       role: true,
-      passwordHash: true
+      passwordHash: true,
+      emailVerifiedAt: true
     }
   })
 
@@ -40,6 +73,13 @@ export const login: AppRouteHandler<LoginRoute> = async (c) => {
 
   if (!isValid) {
     return unauthorized(c)
+  }
+
+  if (!user.emailVerifiedAt) {
+    return c.json(
+      { message: 'Email not verified' },
+      HttpStatusCodes.FORBIDDEN
+    )
   }
 
   const [accessToken, refreshToken] = await Promise.all([
@@ -71,6 +111,10 @@ export const refreshTokensHandler: AppRouteHandler<RefreshRoute> = async (c) => 
     return unauthorized(c)
   }
 
+  if (!rotation.user.emailVerifiedAt) {
+    return unauthorized(c)
+  }
+
   const accessToken = await createAccessToken({
     id: rotation.user.id,
     email: rotation.user.email,
@@ -85,6 +129,149 @@ export const refreshTokensHandler: AppRouteHandler<RefreshRoute> = async (c) => 
       refreshToken: rotation.refresh.token,
       refreshTokenExpiresIn: rotation.refresh.expiresIn
     },
+    HttpStatusCodes.OK
+  )
+}
+
+export const logout: AppRouteHandler<LogoutRoute> = async (c) => {
+  const payload = c.req.valid('json')
+  await revokeRefreshToken(payload.refreshToken)
+  return c.body(null, HttpStatusCodes.NO_CONTENT)
+}
+
+export const register: AppRouteHandler<RegisterRoute> = async (c) => {
+  const payload = c.req.valid('json')
+  // Student registration accepts optional parent contact fields.
+  const { password, ...userData } = payload
+  const passwordHash = await hashPassword(password)
+
+  const existing = await db.query.users.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.email, payload.email)
+    },
+    columns: { id: true }
+  })
+
+  if (existing) {
+    return c.json(buildDuplicateEmailError(), HttpStatusCodes.CONFLICT)
+  }
+
+  const [inserted] = await db
+    .insert(users)
+    .values({
+      ...userData,
+      passwordHash,
+      role: 'student'
+    })
+    .returning({
+      id: users.id,
+      email: users.email,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      role: users.role,
+      parentFirstName: users.parentFirstName,
+      parentLastName: users.parentLastName,
+      parentEmail: users.parentEmail,
+      emailVerifiedAt: users.emailVerifiedAt,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt
+    })
+
+  const verification = await issueEmailVerificationToken(inserted.id)
+  // eslint-disable-next-line no-console
+  console.log(`Email verification token for ${inserted.email}: ${verification.token}`)
+
+  c.header('Location', `/users/${inserted.id}`)
+  return c.json(inserted, HttpStatusCodes.CREATED)
+}
+
+export const requestPasswordReset: AppRouteHandler<RequestPasswordResetRoute> = async (c) => {
+  const payload = c.req.valid('json')
+  const user = await db.query.users.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.email, payload.email)
+    },
+    columns: {
+      id: true,
+      email: true
+    }
+  })
+
+  if (user) {
+    const reset = await issuePasswordResetToken(user.id)
+    // eslint-disable-next-line no-console
+    console.log(`Password reset token for ${user.email}: ${reset.token}`)
+  }
+
+  return c.json(
+    { message: 'If the account exists, a reset email has been sent.' },
+    HttpStatusCodes.OK
+  )
+}
+
+export const confirmPasswordReset: AppRouteHandler<ConfirmPasswordResetRoute> = async (c) => {
+  const payload = c.req.valid('json')
+  const user = await consumePasswordResetToken(payload.token)
+
+  if (!user) {
+    return unauthorized(c)
+  }
+
+  const passwordHash = await hashPassword(payload.password)
+
+  await db.update(users)
+    .set({ passwordHash })
+    .where(eq(users.id, user.id))
+
+  await revokeUserRefreshTokens(user.id)
+
+  return c.json(
+    { message: 'Password reset successfully.' },
+    HttpStatusCodes.OK
+  )
+}
+
+export const requestEmailVerification: AppRouteHandler<RequestEmailVerificationRoute> = async (c) => {
+  const payload = c.req.valid('json')
+  const user = await db.query.users.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.email, payload.email)
+    },
+    columns: {
+      id: true,
+      email: true,
+      emailVerifiedAt: true
+    }
+  })
+
+  if (user && !user.emailVerifiedAt) {
+    const verification = await issueEmailVerificationToken(user.id)
+    // eslint-disable-next-line no-console
+    console.log(`Email verification token for ${user.email}: ${verification.token}`)
+  }
+
+  return c.json(
+    { message: 'If the account exists, a verification email has been sent.' },
+    HttpStatusCodes.OK
+  )
+}
+
+export const confirmEmailVerification: AppRouteHandler<ConfirmEmailVerificationRoute> = async (c) => {
+  const payload = c.req.valid('json')
+  const user = await consumeEmailVerificationToken(payload.token)
+
+  if (!user) {
+    return unauthorized(c)
+  }
+
+  if (!user.emailVerifiedAt) {
+    await db.update(users)
+      .set({ emailVerifiedAt: new Date() })
+      .where(eq(users.id, user.id))
+  }
+
+  return c.json(
+    { message: 'Email verified.' },
     HttpStatusCodes.OK
   )
 }

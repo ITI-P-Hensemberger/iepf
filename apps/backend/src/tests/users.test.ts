@@ -1,5 +1,6 @@
+// Purpose: Users and auth integration tests.
+import { eq } from 'drizzle-orm'
 import { testClient } from 'hono/testing'
-import { execSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import { afterAll, beforeAll, beforeEach, describe, expect, expectTypeOf, it } from 'vitest'
@@ -12,10 +13,14 @@ import env from '@/env'
 import { createAccessToken } from '@/lib/auth'
 import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
 import { createTestApp } from '@/lib/create-app'
+import { issueEmailVerificationToken } from '@/lib/email-verification'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { issuePasswordResetToken } from '@/lib/password-reset'
+import { resetRateLimiters } from '@/middlewares/rate-limit'
 import authRouter from '@/routes/auth/auth.index'
 import router from '@/routes/users/users.index'
+import { ensureTestSchema } from '@/tests/test-setup'
 
 if (env.NODE_ENV !== 'test') {
   throw new Error('NODE_ENV must be \'test\'')
@@ -42,6 +47,10 @@ interface UserResponse {
   firstName: string
   lastName: string
   role: string
+  emailVerifiedAt?: string | null
+  parentFirstName?: string | null
+  parentLastName?: string | null
+  parentEmail?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -67,11 +76,19 @@ interface AuthTokenResponse {
   refreshTokenExpiresIn: number
 }
 
+interface MessageResponse {
+  message: string
+}
+
 interface CreateUserPayload {
   email: string
   firstName: string
   lastName: string
   password: string
+  parentFirstName?: string
+  parentLastName?: string
+  parentEmail?: string
+  role?: 'student' | 'tutor'
 }
 
 const baseUser: Omit<CreateUserPayload, 'email'> = {
@@ -103,12 +120,19 @@ async function tokenForUser(user: UserResponse) {
 
 function buildUserPayload(overrides: Partial<CreateUserPayload> = {}): CreateUserPayload {
   emailCounter += 1
-  return {
+  const payload: CreateUserPayload = {
     email: overrides.email ?? `user${emailCounter}@example.com`,
     firstName: overrides.firstName ?? `${baseUser.firstName}${emailCounter}`,
     lastName: overrides.lastName ?? baseUser.lastName,
-    password: overrides.password ?? baseUser.password
+    password: overrides.password ?? baseUser.password,
+    parentFirstName: overrides.parentFirstName,
+    parentLastName: overrides.parentLastName,
+    parentEmail: overrides.parentEmail
   }
+  if (overrides.role) {
+    payload.role = overrides.role
+  }
+  return payload
 }
 
 async function createUserFixture(overrides: Partial<CreateUserPayload> = {}) {
@@ -129,14 +153,21 @@ async function createUserFixture(overrides: Partial<CreateUserPayload> = {}) {
   }
 }
 
+async function verifyUserEmail(userId: string) {
+  await db.update(users)
+    .set({ emailVerifiedAt: new Date() })
+    .where(eq(users.id, userId))
+}
+
 beforeAll(async () => {
-  execSync('pnpm drizzle-kit push')
+  await ensureTestSchema()
   adminToken = await issueToken(adminIdentity)
 })
 
 beforeEach(async () => {
   emailCounter = 0
   await db.delete(users)
+  resetRateLimiters()
 })
 
 afterAll(async () => {
@@ -189,6 +220,56 @@ describe('users routes', () => {
     expect(new Date(body.createdAt).toString()).not.toBe('Invalid Date')
     expect(new Date(body.updatedAt).toString()).not.toBe('Invalid Date')
     expect(body).not.toHaveProperty('password')
+  })
+
+  // Validate student-only parent fields and tutor role creation.
+  it('stores parent contact fields for student accounts', async () => {
+    const payload = buildUserPayload({
+      parentFirstName: 'Pat',
+      parentLastName: 'Guardian',
+      parentEmail: 'parent@example.com'
+    })
+    const response = await client.users.$post({
+      json: payload,
+      header: bearer(adminToken)
+    })
+    expect(response.status).toBe(HttpStatusCodes.CREATED)
+    const body = (await response.json()) as UserResponse
+    expect(body).toMatchObject({
+      parentFirstName: payload.parentFirstName,
+      parentLastName: payload.parentLastName,
+      parentEmail: payload.parentEmail
+    })
+  })
+
+  it('allows admins to create tutor users', async () => {
+    const payload = buildUserPayload({
+      email: 'tutor@example.com',
+      role: 'tutor'
+    })
+    const response = await client.users.$post({
+      json: payload,
+      header: bearer(adminToken)
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.CREATED)
+    const body = (await response.json()) as UserResponse
+    expect(body.role).toBe('tutor')
+    expect(body.parentEmail ?? null).toBeNull()
+  })
+
+  it('rejects parent info when creating tutors', async () => {
+    const payload = buildUserPayload({
+      email: 'tutor-parent@example.com',
+      role: 'tutor',
+      parentEmail: 'not-allowed@example.com'
+    })
+    const response = await client.users.$post({
+      json: payload,
+      header: bearer(adminToken)
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY)
   })
 
   it('lists existing users without exposing password data', async () => {
@@ -465,8 +546,89 @@ describe('users routes', () => {
 })
 
 describe('auth routes', () => {
+  it('registers a student user and requires verification before login', async () => {
+    const payload = buildUserPayload({ email: 'register-user@example.com' })
+    const response = await authClient.auth.register.$post({
+      json: payload
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.CREATED)
+    const body = (await response.json()) as UserResponse
+    expect(body).toMatchObject({
+      email: payload.email,
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      role: 'student'
+    })
+    expect(body.emailVerifiedAt ?? null).toBeNull()
+
+    const loginResponse = await authClient.auth.login.$post({
+      json: {
+        email: payload.email,
+        password: payload.password
+      }
+    })
+
+    expect(loginResponse.status).toBe(HttpStatusCodes.FORBIDDEN)
+  })
+
+  it('accepts parent information during student registration', async () => {
+    const payload = buildUserPayload({
+      email: 'register-parent@example.com',
+      parentFirstName: 'Jamie',
+      parentLastName: 'Guardian',
+      parentEmail: 'guardian@example.com'
+    })
+
+    const response = await authClient.auth.register.$post({
+      json: payload
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.CREATED)
+    const body = (await response.json()) as UserResponse
+    expect(body).toMatchObject({
+      parentFirstName: payload.parentFirstName,
+      parentLastName: payload.parentLastName,
+      parentEmail: payload.parentEmail
+    })
+  })
+
+  it('rejects duplicate registration emails', async () => {
+    const payload = buildUserPayload({ email: 'duplicate-register@example.com' })
+    const first = await authClient.auth.register.$post({ json: payload })
+    expect(first.status).toBe(HttpStatusCodes.CREATED)
+
+    const second = await authClient.auth.register.$post({ json: payload })
+    expect(second.status).toBe(HttpStatusCodes.CONFLICT)
+  })
+
+  it('logs out by revoking refresh tokens', async () => {
+    const { payload, user } = await createUserFixture({ email: 'logout-user@example.com' })
+    await verifyUserEmail(user.id)
+
+    const loginResponse = await authClient.auth.login.$post({
+      json: {
+        email: payload.email,
+        password: payload.password
+      }
+    })
+    expect(loginResponse.status).toBe(HttpStatusCodes.OK)
+    const tokens = await loginResponse.json() as AuthTokenResponse
+
+    const logoutResponse = await authClient.auth.logout.$post({
+      json: { refreshToken: tokens.refreshToken }
+    })
+    expect(logoutResponse.status).toBe(HttpStatusCodes.NO_CONTENT)
+
+    const refreshResponse = await authClient.auth.refresh.$post({
+      json: { refreshToken: tokens.refreshToken }
+    })
+    expect(refreshResponse.status).toBe(HttpStatusCodes.UNAUTHORIZED)
+  })
+
   it('returns access and refresh tokens for valid credentials', async () => {
-    const { payload } = await createUserFixture({ email: 'auth-user@example.com' })
+    const { payload, user } = await createUserFixture({ email: 'auth-user@example.com' })
+    await verifyUserEmail(user.id)
 
     const response = await authClient.auth.login.$post({
       json: {
@@ -498,7 +660,8 @@ describe('auth routes', () => {
   })
 
   it('rotates refresh tokens and invalidates the previous token', async () => {
-    const { payload } = await createUserFixture({ email: 'refresh-user@example.com' })
+    const { payload, user } = await createUserFixture({ email: 'refresh-user@example.com' })
+    await verifyUserEmail(user.id)
 
     const loginResponse = await authClient.auth.login.$post({
       json: {
@@ -532,5 +695,91 @@ describe('auth routes', () => {
     })
 
     expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED)
+  })
+
+  it('returns ok for password reset requests even when user is missing', async () => {
+    const response = await authClient.auth.password.reset.request.$post({
+      json: { email: 'missing-user@example.com' }
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.OK)
+    const body = (await response.json()) as MessageResponse
+    expect(body.message).toMatch(/reset email/i)
+  })
+
+  it('resets password with a valid reset token', async () => {
+    const { payload, user } = await createUserFixture({ email: 'reset-user@example.com' })
+    await verifyUserEmail(user.id)
+
+    const reset = await issuePasswordResetToken(user.id)
+    const response = await authClient.auth.password.reset.confirm.$post({
+      json: {
+        token: reset.token,
+        password: 'BrandNewSecret123!'
+      }
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.OK)
+    const body = (await response.json()) as MessageResponse
+    expect(body.message).toMatch(/reset/i)
+
+    const loginResponse = await authClient.auth.login.$post({
+      json: {
+        email: payload.email,
+        password: 'BrandNewSecret123!'
+      }
+    })
+    expect(loginResponse.status).toBe(HttpStatusCodes.OK)
+  })
+
+  it('verifies email with a valid verification token', async () => {
+    const { user } = await createUserFixture({ email: 'verify-user@example.com' })
+
+    const verification = await issueEmailVerificationToken(user.id)
+    const response = await authClient.auth['verify-email'].confirm.$post({
+      json: { token: verification.token }
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.OK)
+    const body = (await response.json()) as MessageResponse
+    expect(body.message).toMatch(/verified/i)
+
+    const updated = await db.query.users.findFirst({
+      where(fields, operators) {
+        return operators.eq(fields.id, user.id)
+      },
+      columns: { emailVerifiedAt: true }
+    })
+    expect(updated?.emailVerifiedAt).toBeDefined()
+  })
+
+  it('returns ok for email verification requests even when user is missing', async () => {
+    const response = await authClient.auth['verify-email'].request.$post({
+      json: { email: 'missing-verify@example.com' }
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.OK)
+    const body = (await response.json()) as MessageResponse
+    expect(body.message).toMatch(/verification email/i)
+  })
+
+  it('rate limits login attempts', async () => {
+    const { payload } = await createUserFixture({ email: 'rate-limit-user@example.com' })
+
+    const statuses: number[] = []
+    for (let i = 0; i < 6; i += 1) {
+      const response = await authClient.auth.login.$post({
+        json: {
+          email: payload.email,
+          password: 'WrongPassword!'
+        }
+      })
+      statuses.push(response.status)
+    }
+
+    expect(statuses.slice(0, 5)).toEqual(
+      Array.from({ length: 5 }, () => HttpStatusCodes.UNAUTHORIZED)
+    )
+    expect(statuses[5]).toBe(HttpStatusCodes.TOO_MANY_REQUESTS)
   })
 })

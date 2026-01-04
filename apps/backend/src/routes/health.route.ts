@@ -1,3 +1,4 @@
+// Purpose: Health check route.
 import { createRoute } from '@hono/zod-openapi'
 
 import { createRouter } from '@/lib/create-app'

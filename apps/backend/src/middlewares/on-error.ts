@@ -1,3 +1,4 @@
+// Purpose: Global error handler.
 import type { ErrorHandler } from 'hono'
 import type { ContentfulStatusCode, ContentlessStatusCode } from 'hono/utils/http-status'
 

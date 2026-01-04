@@ -1,3 +1,4 @@
+// Purpose: Favicon middleware.
 import type { MiddlewareHandler } from 'hono'
 
 export function serveEmojiFavicon(emoji: string): MiddlewareHandler {

@@ -1,3 +1,4 @@
+// Purpose: Admin seed script.
 import db from '@/db'
 import { users } from '@/db/schemas/users.schema'
 import env from '@/env'
@@ -27,7 +28,8 @@ async function main() {
     firstName: env.ADMIN_FIRST_NAME,
     lastName: env.ADMIN_LAST_NAME,
     role: 'admin',
-    passwordHash
+    passwordHash,
+    emailVerifiedAt: new Date()
   })
 
   // eslint-disable-next-line no-console

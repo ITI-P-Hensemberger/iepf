@@ -1,3 +1,4 @@
+// Purpose: Password hashing and verification helpers.
 import argon2 from 'argon2'
 
 import env from '@/env'

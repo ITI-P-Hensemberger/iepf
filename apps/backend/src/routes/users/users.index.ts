@@ -1,3 +1,4 @@
+// Purpose: Users router wiring.
 import { createRouter } from '@/lib/create-app'
 import { authenticate } from '@/middlewares/auth'
 

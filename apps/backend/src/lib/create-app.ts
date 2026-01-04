@@ -1,3 +1,4 @@
+// Purpose: App factory and core middleware wiring.
 import type { Schema } from 'hono'
 
 import { OpenAPIHono } from '@hono/zod-openapi'

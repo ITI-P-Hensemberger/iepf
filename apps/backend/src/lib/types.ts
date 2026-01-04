@@ -1,3 +1,4 @@
+// Purpose: Shared app types and bindings.
 import type { OpenAPIHono, RouteConfig, RouteHandler } from '@hono/zod-openapi'
 import type { Schema } from 'hono'
 import type { PinoLogger } from 'hono-pino'
@@ -6,6 +7,7 @@ export interface AuthenticatedUser {
   id: string
   email: string
   role: string
+  emailVerifiedAt?: Date | null
 }
 
 export interface AppBindings {

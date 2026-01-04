@@ -1,3 +1,4 @@
+// Purpose: Drizzle configuration for schema and migrations.
 import { defineConfig } from 'drizzle-kit'
 
 import env from '@/env'

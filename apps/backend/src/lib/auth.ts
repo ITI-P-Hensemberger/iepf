@@ -1,3 +1,4 @@
+// Purpose: JWT access token creation and verification helpers.
 import { sign, verify } from 'hono/jwt'
 import { randomUUID } from 'node:crypto'
 

@@ -1,3 +1,4 @@
+// Purpose: Not-found handler.
 import type { Context } from 'hono'
 
 import { NOT_FOUND } from '@/lib/http-status-codes'

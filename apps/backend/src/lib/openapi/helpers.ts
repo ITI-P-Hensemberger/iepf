@@ -1,3 +1,4 @@
+// Purpose: OpenAPI response helper builders.
 import type { ZodTypeAny } from 'zod'
 
 interface JsonMediaTypeObject<T extends ZodTypeAny> {

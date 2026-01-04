@@ -1,3 +1,4 @@
+// Purpose: Server entrypoint that starts the Hono app.
 import { serve } from '@hono/node-server'
 
 import app from './app'

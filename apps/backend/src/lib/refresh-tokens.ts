@@ -1,5 +1,6 @@
+// Purpose: Refresh token lifecycle helpers.
 import { eq } from 'drizzle-orm'
-import { createHash, randomBytes } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 
 import db from '@/db'
 import { refreshTokens } from '@/db/schemas/refresh-tokens.schema'
@@ -7,19 +8,17 @@ import env from '@/env'
 
 import type { AuthenticatedUser } from './types'
 
+import { hashToken } from './token-utils'
+
 const TOKEN_BYTE_LENGTH = 48
 
 function buildExpiryDate() {
   return new Date(Date.now() + (env.REFRESH_TOKEN_TTL * 1000))
 }
 
-export function hashRefreshToken(token: string) {
-  return createHash('sha256').update(token).digest('hex')
-}
-
 export async function issueRefreshToken(userId: string) {
   const token = randomBytes(TOKEN_BYTE_LENGTH).toString('hex')
-  const tokenHash = hashRefreshToken(token)
+  const tokenHash = hashToken(token)
   const expiresAt = buildExpiryDate()
 
   await db.insert(refreshTokens).values({
@@ -36,7 +35,7 @@ export async function issueRefreshToken(userId: string) {
 }
 
 export async function rotateRefreshToken(refreshToken: string) {
-  const tokenHash = hashRefreshToken(refreshToken)
+  const tokenHash = hashToken(refreshToken)
 
   const found = await db.query.refreshTokens.findFirst({
     where(fields, operators) {
@@ -65,7 +64,8 @@ export async function rotateRefreshToken(refreshToken: string) {
     columns: {
       id: true,
       email: true,
-      role: true
+      role: true,
+      emailVerifiedAt: true
     }
   })
 
@@ -82,6 +82,11 @@ export async function rotateRefreshToken(refreshToken: string) {
     user: user as AuthenticatedUser,
     refresh: next
   }
+}
+
+export async function revokeRefreshToken(refreshToken: string) {
+  const tokenHash = hashToken(refreshToken)
+  await db.delete(refreshTokens).where(eq(refreshTokens.tokenHash, tokenHash))
 }
 
 export async function revokeUserRefreshTokens(userId: string) {

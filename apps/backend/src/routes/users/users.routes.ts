@@ -1,6 +1,7 @@
+// Purpose: Users route schemas.
 import { createRoute, z } from '@hono/zod-openapi'
 
-import { insertUsersSchema, patchUsersSchema, selectUsersSchema } from '@/db/schemas/users.schema'
+import { adminInsertUsersSchema, patchUsersSchema, selectUsersSchema } from '@/db/schemas/users.schema'
 import { notFoundSchema } from '@/lib/constants'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
@@ -34,7 +35,8 @@ export const create = createRoute({
   method: 'post',
   request: {
     body: jsonContentRequired(
-      insertUsersSchema,
+      // Admin-only user creation supports assigning tutor roles.
+      adminInsertUsersSchema,
       'The user to create'
     )
   },
@@ -57,7 +59,7 @@ export const create = createRoute({
       }
     },
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
-      createErrorSchema(insertUsersSchema),
+      createErrorSchema(adminInsertUsersSchema),
       'The validation error(s)'
     ),
     [HttpStatusCodes.CONFLICT]: jsonContent(

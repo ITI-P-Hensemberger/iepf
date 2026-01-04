@@ -1,3 +1,4 @@
+// Purpose: HTTP status phrase constants.
 export const CONTINUE = 'Continue'
 export const SWITCHING_PROTOCOLS = 'Switching Protocols'
 export const PROCESSING = 'Processing'

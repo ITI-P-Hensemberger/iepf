@@ -1,3 +1,4 @@
+// Purpose: HTTP status code constants.
 export const CONTINUE = 100
 export const SWITCHING_PROTOCOLS = 101
 export const PROCESSING = 102

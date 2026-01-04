@@ -1,3 +1,4 @@
+// Purpose: Default OpenAPI error hook.
 import type { Hook } from '@hono/zod-openapi'
 
 import type { AppBindings } from '@/lib/types'

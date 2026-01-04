@@ -1,3 +1,4 @@
+// Purpose: Shared constants and Zod error metadata.
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { createMessageObjectSchema } from '@/lib/openapi/schemas'
 
@@ -6,7 +7,9 @@ export const ZOD_ERROR_MESSAGES = {
   EXPECTED_NUMBER: 'Invalid input: expected number, received NaN',
   NO_UPDATES: 'No updates provided',
   EXPECTED_STRING: 'Invalid input: expected string, received undefined',
-  EMAIL_ALREADY_EXISTS: 'A user with this email already exists'
+  EMAIL_ALREADY_EXISTS: 'A user with this email already exists',
+  CANONICAL_NAME_EXISTS: 'A subject with this canonical name already exists',
+  TUTOR_SUBJECT_EXISTS: 'Tutor already assigned to this subject'
 }
 
 export const ZOD_ERROR_CODES = {

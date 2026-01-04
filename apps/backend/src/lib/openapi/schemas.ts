@@ -1,3 +1,4 @@
+// Purpose: Reusable OpenAPI schemas.
 import { z } from '@hono/zod-openapi'
 
 export const IdUUIDParamsSchema = z.object({
