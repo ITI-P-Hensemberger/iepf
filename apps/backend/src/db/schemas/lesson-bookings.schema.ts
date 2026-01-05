@@ -1,6 +1,6 @@
 // Purpose: Lesson bookings for students with per-student topics.
 import { relations } from 'drizzle-orm'
-import { integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { randomUUID } from 'node:crypto'
 
 import { lessons } from './lessons.schema'
@@ -22,10 +22,7 @@ export const lessonBookings = sqliteTable('lesson_bookings', {
   updatedAt: integer({ mode: 'timestamp' })
     .$defaultFn(() => new Date())
     .$onUpdate(() => new Date())
-}, table => [
-  uniqueIndex('lesson_bookings_lesson_student_unique')
-    .on(table.lessonId, table.studentId)
-])
+})
 
 export const lessonBookingsRelations = relations(lessonBookings, ({ one }) => ({
   lesson: one(lessons, {

@@ -24,6 +24,7 @@ import type {
   GetLessonConfirmationsRoute,
   ListLessonConfirmationsRoute,
   OverrideLessonConfirmationsRoute,
+  RescheduleLessonRoute,
   ResolveLessonRoute
 } from './lessons.routes'
 
@@ -49,11 +50,6 @@ function ensureAdmin(c: HandlerContext) {
     forbid()
   }
   return currentUser
-}
-
-function timeToMinutes(value: string) {
-  const [hours, minutes] = value.split(':').map(Number)
-  return (hours * 60) + minutes
 }
 
 function lessonEndTime(lesson: { startAt: Date | number, durationMinutes: number }) {
@@ -129,25 +125,6 @@ async function ensureTutorExists(tutorId: string) {
   })
 }
 
-async function getTutorSettings(tutorId: string) {
-  const existing = await db.query.tutorSettings.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.tutorId, tutorId)
-    },
-    columns: {
-      defaultStartTime: true,
-      defaultDurationMinutes: true,
-      defaultSeats: true
-    }
-  })
-
-  return existing ?? {
-    defaultStartTime: '15:00',
-    defaultDurationMinutes: 60,
-    defaultSeats: 2
-  }
-}
-
 async function isSubjectAllowed(tutorId: string, subjectId: string) {
   const link = await db.query.tutorSubjects.findFirst({
     where(fields, operators) {
@@ -159,39 +136,6 @@ async function isSubjectAllowed(tutorId: string, subjectId: string) {
     columns: { id: true }
   })
   return Boolean(link)
-}
-
-async function isSlotAvailable(tutorId: string, startAt: Date, durationMinutes: number) {
-  const weekday = startAt.getDay()
-  if (weekday < 1 || weekday > 5) {
-    return false
-  }
-
-  const availability = await db.query.tutorAvailability.findMany({
-    where(fields, operators) {
-      return operators.and(
-        operators.eq(fields.tutorId, tutorId),
-        operators.eq(fields.weekday, weekday)
-      )
-    },
-    columns: {
-      startTime: true,
-      endTime: true
-    }
-  })
-
-  if (availability.length === 0) {
-    return false
-  }
-
-  const slotStartMinutes = (startAt.getHours() * 60) + startAt.getMinutes()
-  const slotEndMinutes = slotStartMinutes + durationMinutes
-
-  return availability.some((window) => {
-    const windowStart = timeToMinutes(window.startTime)
-    const windowEnd = timeToMinutes(window.endTime)
-    return slotStartMinutes >= windowStart && slotEndMinutes <= windowEnd
-  })
 }
 
 export const bookLesson: AppRouteHandler<BookLessonRoute> = async (c) => {
@@ -220,11 +164,21 @@ export const bookLesson: AppRouteHandler<BookLessonRoute> = async (c) => {
     return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
   }
 
-  const settings = await getTutorSettings(tutorId)
-  const startAt = new Date(payload.startAt)
+  const availability = await db.query.tutorAvailability.findFirst({
+    where(fields, operators) {
+      return operators.and(
+        operators.eq(fields.id, payload.availabilityId),
+        operators.eq(fields.tutorId, tutorId)
+      )
+    }
+  })
 
-  const slotOk = await isSlotAvailable(tutorId, startAt, settings.defaultDurationMinutes)
-  if (!slotOk) {
+  if (!availability) {
+    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+  }
+
+  const startAt = new Date(availability.startAt)
+  if (sameDayOrAfter(new Date(), startAt)) {
     return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
   }
 
@@ -243,10 +197,7 @@ export const bookLesson: AppRouteHandler<BookLessonRoute> = async (c) => {
 
   let lesson = await db.query.lessons.findFirst({
     where(fields, operators) {
-      return operators.and(
-        operators.eq(fields.tutorId, tutorId),
-        operators.eq(fields.startAt, startAt)
-      )
+      return operators.eq(fields.availabilityId, availability.id)
     }
   })
 
@@ -262,13 +213,15 @@ export const bookLesson: AppRouteHandler<BookLessonRoute> = async (c) => {
     const [created] = await db.insert(lessons).values({
       tutorId,
       subjectId: payload.subjectId,
+      availabilityId: availability.id,
       startAt,
-      durationMinutes: settings.defaultDurationMinutes,
-      seats: settings.defaultSeats
+      durationMinutes: availability.durationMinutes,
+      seats: availability.seats
     }).returning({
       id: lessons.id,
       tutorId: lessons.tutorId,
       subjectId: lessons.subjectId,
+      availabilityId: lessons.availabilityId,
       startAt: lessons.startAt,
       durationMinutes: lessons.durationMinutes,
       seats: lessons.seats,
@@ -289,7 +242,8 @@ export const bookLesson: AppRouteHandler<BookLessonRoute> = async (c) => {
     where(fields, operators) {
       return operators.and(
         operators.eq(fields.lessonId, lesson!.id),
-        operators.eq(fields.studentId, student.id)
+        operators.eq(fields.studentId, student.id),
+        operators.eq(fields.status, 'booked')
       )
     },
     columns: { id: true }
@@ -913,6 +867,95 @@ export const resolveLesson: AppRouteHandler<ResolveLessonRoute> = async (c) => {
   }
 
   return c.json({ message: 'Lesson resolved' }, HttpStatusCodes.OK)
+}
+
+export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c) => {
+  const { lessonId } = c.req.valid('param')
+  const payload = c.req.valid('json')
+  ensureAdmin(c)
+
+  const lesson = await db.query.lessons.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.id, lessonId)
+    }
+  })
+
+  if (!lesson) {
+    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+  }
+
+  if (lesson.status === 'completed' || lesson.status === 'canceled') {
+    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+  }
+
+  const availability = await db.query.tutorAvailability.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.id, payload.availabilityId)
+    }
+  })
+
+  if (!availability) {
+    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+  }
+
+  const subjectAllowed = await isSubjectAllowed(availability.tutorId, lesson.subjectId)
+  if (!subjectAllowed) {
+    return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
+  }
+
+  const newStartAt = new Date(availability.startAt)
+  if (sameDayOrAfter(new Date(), newStartAt)) {
+    return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
+  }
+
+  const slotLesson = await db.query.lessons.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.availabilityId, availability.id)
+    },
+    columns: { id: true }
+  })
+
+  if (slotLesson && slotLesson.id !== lesson.id) {
+    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+  }
+
+  const bookingCount = await db.query.lessonBookings.findMany({
+    where(fields, operators) {
+      return operators.and(
+        operators.eq(fields.lessonId, lesson.id),
+        operators.eq(fields.status, 'booked')
+      )
+    },
+    columns: { id: true }
+  })
+
+  if (bookingCount.length > availability.seats) {
+    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+  }
+
+  await db.update(lessons)
+    .set({
+      tutorId: availability.tutorId,
+      availabilityId: availability.id,
+      startAt: newStartAt,
+      durationMinutes: availability.durationMinutes,
+      seats: availability.seats,
+      status: 'scheduled',
+      tutorConfirmed: null,
+      tutorConfirmedAt: null,
+      tutorConfirmationNote: payload.note ?? null
+    })
+    .where(eq(lessons.id, lesson.id))
+
+  await db.update(lessonBookings)
+    .set({
+      studentConfirmed: null,
+      studentConfirmedAt: null,
+      studentConfirmationNote: null
+    })
+    .where(eq(lessonBookings.lessonId, lesson.id))
+
+  return c.json({ message: 'Lesson rescheduled' }, HttpStatusCodes.OK)
 }
 
 export const overrideLessonConfirmations: AppRouteHandler<OverrideLessonConfirmationsRoute> = async (c) => {

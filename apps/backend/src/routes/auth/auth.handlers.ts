@@ -7,9 +7,10 @@ import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
+import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { users } from '@/db/schemas/users.schema'
 import { createAccessToken } from '@/lib/auth'
-import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
+import { DEFAULT_TUTOR_SETTINGS, ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
 import { consumeEmailVerificationToken, issueEmailVerificationToken } from '@/lib/email-verification'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
@@ -283,6 +284,29 @@ export const confirmEmailVerification: AppRouteHandler<ConfirmEmailVerificationR
     await db.update(users)
       .set({ emailVerifiedAt: new Date() })
       .where(eq(users.id, user.id))
+  }
+
+  const roleRecord = await db.query.users.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.id, user.id)
+    },
+    columns: { role: true }
+  })
+
+  if (roleRecord?.role === 'tutor') {
+    const existing = await db.query.tutorSettings.findFirst({
+      where(fields, operators) {
+        return operators.eq(fields.tutorId, user.id)
+      },
+      columns: { id: true }
+    })
+
+    if (!existing) {
+      await db.insert(tutorSettings).values({
+        tutorId: user.id,
+        ...DEFAULT_TUTOR_SETTINGS
+      })
+    }
   }
 
   return c.json(

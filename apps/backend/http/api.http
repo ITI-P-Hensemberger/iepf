@@ -1,0 +1,333 @@
+### Purpose: Manual API testing flow (VS Code REST Client / HTTP file).
+
+@baseUrl = http://localhost:3001
+@adminEmail = admin@example.com
+@adminPassword = 12345678
+@tutorEmail = tutor@example.com
+@tutorPassword = TutorPass123!
+@studentEmail = student@example.com
+@studentPassword = NewStudentPass123!
+
+### Admin login
+# @name adminLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+
+@adminToken = {{adminLogin.response.body.accessToken}}
+
+### Create a subject (admin)
+# @name createSubject
+POST {{baseUrl}}/subjects
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Matematica",
+  "canonicalName": "matematica"
+}
+
+###
+
+@subjectId = {{createSubject.response.body.id}}
+
+### Create tutor (admin)
+# @name createTutor
+POST {{baseUrl}}/users
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "email": "{{tutorEmail}}",
+  "firstName": "Taylor",
+  "lastName": "Tutor",
+  "password": "{{tutorPassword}}",
+  "role": "tutor"
+}
+
+###
+
+@tutorId = {{createTutor.response.body.id}}
+
+### Request tutor email verification (copy token from server logs)
+POST {{baseUrl}}/auth/verify-email/request
+Content-Type: application/json
+
+{
+  "email": "{{tutorEmail}}"
+}
+
+###
+
+@tutorVerifyToken = 3eaefc630bb6076a625531d953b38f2fc61cc24e862865e2e54ac650a7eefbe8
+
+### Confirm tutor email verification
+POST {{baseUrl}}/auth/verify-email/confirm
+Content-Type: application/json
+
+{
+  "token": "{{tutorVerifyToken}}"
+}
+
+### Tutor login
+# @name tutorLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{tutorEmail}}",
+  "password": "{{tutorPassword}}"
+}
+
+###
+
+@tutorToken = {{tutorLogin.response.body.accessToken}}
+
+### Tutor adds subject to self
+POST {{baseUrl}}/tutors/{{tutorId}}/subjects
+Authorization: Bearer {{tutorToken}}
+Content-Type: application/json
+
+{
+  "subjectId": "{{subjectId}}"
+}
+
+### Tutor adds availability (next week date)
+# @name createAvailability
+POST {{baseUrl}}/tutors/{{tutorId}}/availability
+Authorization: Bearer {{tutorToken}}
+Content-Type: application/json
+
+{
+  "date": "2026-01-13"
+}
+
+###
+
+@availabilityId = {{createAvailability.response.body.id}}
+
+### Admin adds availability for tutor
+# @name createAvailabilityAdmin
+POST {{baseUrl}}/tutors/{{tutorId}}/availability
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "date": "2026-01-14"
+}
+
+### Student registration (copy token from server logs)
+# @name registerStudent
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "{{studentEmail}}",
+  "firstName": "Sam",
+  "lastName": "Student",
+  "password": "{{studentPassword}}",
+  "parentFirstName": "Pat",
+  "parentLastName": "Guardian",
+  "parentEmail": "parent@example.com"
+}
+
+###
+
+@studentVerifyToken = 15fce023bd6b4e2c29b5c3fa7501f7768891c1de7d8d270c27a8f42820cee507
+
+### Confirm student email verification
+POST {{baseUrl}}/auth/verify-email/confirm
+Content-Type: application/json
+
+{
+  "token": "{{studentVerifyToken}}"
+}
+
+### Student login
+# @name studentLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{studentEmail}}",
+  "password": "{{studentPassword}}"
+}
+
+###
+
+@studentToken = {{studentLogin.response.body.accessToken}}
+
+### Request password reset (copy token from server logs)
+POST {{baseUrl}}/auth/password/reset/request
+Content-Type: application/json
+
+{
+  "email": "{{studentEmail}}"
+}
+
+###
+
+@passwordResetToken = 441daef7499025d460de5acbc6062a52fa649b509c918ae6bb8689ea0995f6c4
+
+### Confirm password reset
+POST {{baseUrl}}/auth/password/reset/confirm
+Content-Type: application/json
+
+{
+  "token": "{{passwordResetToken}}",
+  "password": "NewStudentPass123!"
+}
+
+### Book a lesson (uses availability id)
+# @name bookLesson
+POST {{baseUrl}}/tutors/{{tutorId}}/lessons/book
+Authorization: Bearer {{studentToken}}
+Content-Type: application/json
+
+{
+  "availabilityId": "{{availabilityId}}",
+  "subjectId": "{{subjectId}}",
+  "topic": "Linear equations"
+}
+
+###
+
+@lessonId = {{bookLesson.response.body.lesson.id}}
+@bookingId = {{bookLesson.response.body.booking.id}}
+
+### Student confirms lesson completion (use after scheduled end time)
+POST {{baseUrl}}/lessons/{{lessonId}}/bookings/{{bookingId}}/confirm
+Authorization: Bearer {{studentToken}}
+Content-Type: application/json
+
+{
+  "completed": true,
+  "note": "Lesson went well"
+}
+
+### Tutor confirms lesson completion (use after scheduled end time)
+POST {{baseUrl}}/lessons/{{lessonId}}/confirm/tutor
+Authorization: Bearer {{tutorToken}}
+Content-Type: application/json
+
+{
+  "completed": true,
+  "note": "Student was prepared"
+}
+
+### Admin view pending confirmations
+GET {{baseUrl}}/lessons/confirmations?state=pending
+Authorization: Bearer {{adminToken}}
+
+### Admin view a lesson's confirmations
+GET {{baseUrl}}/lessons/{{lessonId}}/confirmations
+Authorization: Bearer {{adminToken}}
+
+### Admin resolve stalled lesson (complete or cancel)
+POST {{baseUrl}}/lessons/{{lessonId}}/resolve
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "action": "complete",
+  "note": "Resolved by admin"
+}
+
+### Admin override confirmations (optional)
+POST {{baseUrl}}/lessons/{{lessonId}}/confirmations/override
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "tutorConfirmed": true,
+  "tutorNote": "Override confirmation",
+  "bookings": [
+    {
+      "bookingId": "{{bookingId}}",
+      "completed": true,
+      "note": "Confirmed by admin"
+    }
+  ]
+}
+
+### Student cancel booking (refunds only before lesson day)
+DELETE {{baseUrl}}/lessons/{{lessonId}}/bookings/{{bookingId}}
+Authorization: Bearer {{studentToken}}
+
+### Student rebooks the same lesson after canceling
+# @name rebookLesson
+POST {{baseUrl}}/tutors/{{tutorId}}/lessons/book
+Authorization: Bearer {{studentToken}}
+Content-Type: application/json
+
+{
+  "availabilityId": "{{availabilityId}}",
+  "subjectId": "{{subjectId}}",
+  "topic": "Rebooked lesson"
+}
+
+### Admin list audit logs
+GET {{baseUrl}}/audit/logs?limit=25
+Authorization: Bearer {{adminToken}}
+
+### Admin update user profile (email/name)
+PATCH {{baseUrl}}/users/{{studentId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "firstName": "Updated",
+  "lastName": "Student",
+  "email": "student.updated@example.com"
+}
+
+### Admin update student parent info
+PATCH {{baseUrl}}/users/{{studentId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "parentFirstName": "Updated",
+  "parentLastName": "Guardian",
+  "parentEmail": "parent.updated@example.com"
+}
+
+### Admin cancel a lesson (refunds all booked students)
+POST {{baseUrl}}/lessons/{{lessonId}}/cancel
+Authorization: Bearer {{adminToken}}
+
+### Admin resolve a stalled lesson (complete)
+POST {{baseUrl}}/lessons/{{lessonId}}/resolve
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "action": "complete",
+  "note": "Admin resolved"
+}
+
+### Admin reschedule a lesson to a new availability slot
+POST {{baseUrl}}/lessons/{{lessonId}}/reschedule
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "availabilityId": "{{availabilityId}}",
+  "note": "Rescheduled by admin"
+}
+
+### Admin reschedule to another tutor (create tutor B availability first)
+POST {{baseUrl}}/lessons/{{lessonId}}/reschedule
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "availabilityId": "{{availabilityId}}",
+  "note": "Assigned to another tutor"
+}

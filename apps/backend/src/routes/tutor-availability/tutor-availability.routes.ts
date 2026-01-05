@@ -38,15 +38,13 @@ const AvailabilityIdParamsSchema = z.object({
 export const availabilitySchema = z.object({
   id: z.string(),
   tutorId: z.string(),
-  weekday: z.number().int(),
-  startTime: z.string(),
-  endTime: z.string()
+  startAt: z.string(),
+  durationMinutes: z.number().int(),
+  seats: z.number().int()
 })
 
 export const createAvailabilitySchema = z.object({
-  weekday: z.number().int().min(1).max(5),
-  startTime: z.string().regex(/^\d{2}:\d{2}$/),
-  endTime: z.string().regex(/^\d{2}:\d{2}$/)
+  date: z.iso.date()
 })
 
 export const listAvailability = createRoute({
@@ -77,6 +75,30 @@ export const listAvailability = createRoute({
   }
 })
 
+export const listAvailableSlots = createRoute({
+  path: '/tutors/{tutorId}/availability/slots',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  request: {
+    params: TutorIdParamsSchema
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      z.array(availabilitySchema),
+      'Available slots'
+    ),
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.NOT_FOUND),
+      'Tutor not found'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
 export const createAvailability = createRoute({
   path: '/tutors/{tutorId}/availability',
   method: 'post',
@@ -93,6 +115,14 @@ export const createAvailability = createRoute({
     [HttpStatusCodes.CREATED]: jsonContent(
       availabilitySchema,
       'Availability created'
+    ),
+    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.BAD_REQUEST),
+      'Availability must be within next week'
+    ),
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.CONFLICT),
+      'Availability slot already exists'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
       createMessageObjectSchema(HttpStatusPhrases.NOT_FOUND),
@@ -145,5 +175,6 @@ export const deleteAvailability = createRoute({
 })
 
 export type ListAvailabilityRoute = typeof listAvailability
+export type ListAvailableSlotsRoute = typeof listAvailableSlots
 export type CreateAvailabilityRoute = typeof createAvailability
 export type DeleteAvailabilityRoute = typeof deleteAvailability

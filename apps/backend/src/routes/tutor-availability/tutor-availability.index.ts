@@ -11,6 +11,7 @@ router.use('/tutors', authenticate())
 router.use('/tutors/*', authenticate())
 
 router.openapi(routes.listAvailability, handlers.listAvailability)
+router.openapi(routes.listAvailableSlots, handlers.listAvailableSlots)
 router.openapi(routes.createAvailability, handlers.createAvailability)
 router.openapi(routes.deleteAvailability, handlers.deleteAvailability)
 

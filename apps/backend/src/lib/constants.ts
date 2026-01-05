@@ -17,4 +17,10 @@ export const ZOD_ERROR_CODES = {
   DUPLICATE_KEY: 'duplicate_key'
 }
 
+export const DEFAULT_TUTOR_SETTINGS = {
+  defaultStartTime: '15:00',
+  defaultDurationMinutes: 60,
+  defaultSeats: 2
+}
+
 export const notFoundSchema = createMessageObjectSchema(HttpStatusPhrases.NOT_FOUND)

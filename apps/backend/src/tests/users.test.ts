@@ -8,6 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, expectTypeOf, it } f
 import type { AuthenticatedUser } from '@/lib/types'
 
 import db from '@/db'
+import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { users } from '@/db/schemas/users.schema'
 import env from '@/env'
 import { createAccessToken } from '@/lib/auth'
@@ -167,6 +168,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   emailCounter = 0
   await db.delete(users)
+  await db.delete(tutorSettings)
   resetRateLimiters()
 })
 
@@ -774,6 +776,25 @@ describe('auth routes', () => {
       columns: { emailVerifiedAt: true }
     })
     expect(updated?.emailVerifiedAt).toBeDefined()
+  })
+
+  it('creates tutor settings when a tutor verifies email', async () => {
+    const { user } = await createUserFixture({ email: 'verify-tutor@example.com', role: 'tutor' })
+
+    const verification = await issueEmailVerificationToken(user.id)
+    const response = await authClient.auth['verify-email'].confirm.$post({
+      json: { token: verification.token }
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.OK)
+
+    const settings = await db.query.tutorSettings.findFirst({
+      where(fields, operators) {
+        return operators.eq(fields.tutorId, user.id)
+      },
+      columns: { id: true }
+    })
+    expect(settings).toBeDefined()
   })
 
   it('rejects invalid email verification tokens', async () => {

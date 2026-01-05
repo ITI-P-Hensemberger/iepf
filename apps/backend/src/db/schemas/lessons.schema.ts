@@ -4,12 +4,14 @@ import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { randomUUID } from 'node:crypto'
 
 import { subjects } from './subjects.schema'
+import { tutorAvailability } from './tutor-availability.schema'
 import { users } from './users.schema'
 
 export const lessons = sqliteTable('lessons', {
   id: text().primaryKey().$defaultFn(() => randomUUID()),
   tutorId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
   subjectId: text().notNull().references(() => subjects.id, { onDelete: 'restrict' }),
+  availabilityId: text().references(() => tutorAvailability.id, { onDelete: 'set null' }),
   startAt: integer({ mode: 'timestamp' }).notNull(),
   durationMinutes: integer().notNull(),
   seats: integer().notNull(),
@@ -31,6 +33,10 @@ export const lessonsRelations = relations(lessons, ({ one }) => ({
   tutor: one(users, {
     fields: [lessons.tutorId],
     references: [users.id]
+  }),
+  availability: one(tutorAvailability, {
+    fields: [lessons.availabilityId],
+    references: [tutorAvailability.id]
   }),
   subject: one(subjects, {
     fields: [lessons.subjectId],

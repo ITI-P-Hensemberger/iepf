@@ -8,9 +8,9 @@ import { users } from './users.schema'
 export const tutorAvailability = sqliteTable('tutor_availability', {
   id: text().primaryKey().$defaultFn(() => randomUUID()),
   tutorId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
-  weekday: integer().notNull(),
-  startTime: text().notNull(),
-  endTime: text().notNull(),
+  startAt: integer({ mode: 'timestamp' }).notNull(),
+  durationMinutes: integer().notNull(),
+  seats: integer().notNull(),
   createdAt: integer({ mode: 'timestamp' })
     .$defaultFn(() => new Date()),
   updatedAt: integer({ mode: 'timestamp' })

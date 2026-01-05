@@ -87,6 +87,11 @@ const resolveLessonSchema = z.object({
   note: z.string().min(1).max(500).optional()
 })
 
+const rescheduleLessonSchema = z.object({
+  availabilityId: z.uuid(),
+  note: z.string().min(1).max(500).optional()
+})
+
 const overrideConfirmationsSchema = z.object({
   tutorConfirmed: z.boolean().optional(),
   tutorNote: z.string().min(1).max(500).optional(),
@@ -136,9 +141,9 @@ const confirmationDetailSchema = z.object({
 })
 
 const bookLessonSchema = z.object({
+  availabilityId: z.uuid(),
   subjectId: z.uuid(),
-  topic: z.string().min(1).max(200),
-  startAt: z.iso.datetime()
+  topic: z.string().min(1).max(200)
 })
 
 export const bookLesson = createRoute({
@@ -355,6 +360,50 @@ export const resolveLesson = createRoute({
   }
 })
 
+export const rescheduleLesson = createRoute({
+  path: '/lessons/{lessonId}/reschedule',
+  method: 'post',
+  tags,
+  security: bearerAuth,
+  request: {
+    params: LessonIdParamsSchema,
+    body: jsonContentRequired(
+      rescheduleLessonSchema,
+      'Admin reschedule payload'
+    )
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      createMessageObjectSchema('Lesson rescheduled'),
+      'Lesson rescheduled'
+    ),
+    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.BAD_REQUEST),
+      'Availability invalid'
+    ),
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.CONFLICT),
+      'Lesson already finalized or slot unavailable'
+    ),
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.NOT_FOUND),
+      'Lesson or availability not found'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      'Admin access required'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(rescheduleLessonSchema).or(createErrorSchema(LessonIdParamsSchema)),
+      'Validation error(s)'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
 export const overrideLessonConfirmations = createRoute({
   path: '/lessons/{lessonId}/confirmations/override',
   method: 'post',
@@ -494,6 +543,7 @@ export type CancelLessonRoute = typeof cancelLesson
 export type ListLessonConfirmationsRoute = typeof listLessonConfirmations
 export type GetLessonConfirmationsRoute = typeof getLessonConfirmations
 export type ResolveLessonRoute = typeof resolveLesson
+export type RescheduleLessonRoute = typeof rescheduleLesson
 export type OverrideLessonConfirmationsRoute = typeof overrideLessonConfirmations
 export type ConfirmLessonTutorRoute = typeof confirmLessonTutor
 export type ConfirmLessonBookingRoute = typeof confirmLessonBooking
