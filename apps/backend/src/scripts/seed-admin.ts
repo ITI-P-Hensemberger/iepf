@@ -1,5 +1,6 @@
 // Purpose: Admin seed script.
 import db from '@/db'
+import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
 import env from '@/env'
 import { hashPassword } from '@/lib/password'
@@ -31,6 +32,19 @@ async function main() {
     passwordHash,
     emailVerifiedAt: new Date()
   })
+
+  const created = await db.query.users.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.email, env.ADMIN_EMAIL!)
+    },
+    columns: { id: true }
+  })
+
+  if (created) {
+    await db.insert(adminProfiles).values({
+      userId: created.id
+    })
+  }
 
   // eslint-disable-next-line no-console
   console.log(`Seeded admin user ${env.ADMIN_EMAIL}`)

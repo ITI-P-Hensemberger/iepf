@@ -2,7 +2,7 @@
 import { createRoute, z } from '@hono/zod-openapi'
 
 import { selectSubjectsSchema } from '@/db/schemas/subjects.schema'
-import { selectUsersSchema } from '@/db/schemas/users.schema'
+import { selectUsersWithProfilesSchema } from '@/db/schemas/users.schema'
 import { notFoundSchema } from '@/lib/constants'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
@@ -83,7 +83,7 @@ export const listTutorsForSubject = createRoute({
   },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      z.array(selectUsersSchema),
+      z.array(selectUsersWithProfilesSchema),
       'Tutors for the subject'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(

@@ -14,10 +14,6 @@ export const users = sqliteTable('users', {
   lastName: text().notNull(),
   passwordHash: text().notNull(),
   role: text().notNull().default('student'),
-  // Parent contact fields apply to student accounts only.
-  parentFirstName: text(),
-  parentLastName: text(),
-  parentEmail: text(),
   emailVerifiedAt: integer({ mode: 'timestamp' }),
   createdAt: integer({ mode: 'timestamp' })
     .$defaultFn(() => new Date()),
@@ -36,10 +32,7 @@ export const insertUsersSchema = toZodV4SchemaTyped(createInsertSchema(
   {
     firstName: field => field.min(1).max(100),
     lastName: field => field.min(1).max(100),
-    email: () => z.intersection(z.email(), z.string().max(100)),
-    parentFirstName: field => field.min(1).max(100).optional(),
-    parentLastName: field => field.min(1).max(100).optional(),
-    parentEmail: () => z.intersection(z.email(), z.string().max(100)).optional()
+    email: () => z.intersection(z.email(), z.string().max(100))
   }
 ).omit({
   id: true,
@@ -52,27 +45,30 @@ export const insertUsersSchema = toZodV4SchemaTyped(createInsertSchema(
   password: z.string().min(8).max(200)
 }).strict())
 
-// Admins can set the role when creating users; tutors cannot include parent info.
-export const adminInsertUsersSchema = toZodV4SchemaTyped(createInsertSchema(
-  users,
-  {
-    firstName: field => field.min(1).max(100),
-    lastName: field => field.min(1).max(100),
-    email: () => z.intersection(z.email(), z.string().max(100)),
-    parentFirstName: field => field.min(1).max(100).optional(),
-    parentLastName: field => field.min(1).max(100).optional(),
-    parentEmail: () => z.intersection(z.email(), z.string().max(100)).optional()
-  }
-).omit({
-  id: true,
-  emailVerifiedAt: true,
-  passwordHash: true,
-  createdAt: true,
-  updatedAt: true
-}).extend({
+// Student-only parent contact fields for registration and profile updates.
+export const studentProfileInputSchema = z.object({
+  parentFirstName: z.string().min(1).max(100).optional(),
+  parentLastName: z.string().min(1).max(100).optional(),
+  parentEmail: z.intersection(z.email(), z.string().max(100)).optional()
+})
+
+const baseUserInputSchema = z.object({
+  email: z.intersection(z.email(), z.string().max(100)),
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
   password: z.string().min(8).max(200),
+  parentFirstName: z.string().min(1).max(100).optional(),
+  parentLastName: z.string().min(1).max(100).optional(),
+  parentEmail: z.intersection(z.email(), z.string().max(100)).optional()
+}).strict()
+
+// Student registration includes optional parent contact fields.
+export const studentRegisterSchema = toZodV4SchemaTyped(baseUserInputSchema)
+
+// Admins can set the role when creating users; tutors cannot include parent info.
+export const adminCreateUserSchema = toZodV4SchemaTyped(baseUserInputSchema.extend({
   role: z.enum(['student', 'tutor']).default('student')
-}).strict()).superRefine((value, ctx) => {
+})).superRefine((value, ctx) => {
   if (value.role !== 'student') {
     const hasParentInfo = Boolean(value.parentFirstName || value.parentLastName || value.parentEmail)
     if (hasParentInfo) {
@@ -85,8 +81,23 @@ export const adminInsertUsersSchema = toZodV4SchemaTyped(createInsertSchema(
   }
 })
 
-// @ts-expect-error partial exists on zod v4 type
-export const patchUsersSchema = insertUsersSchema.partial().superRefine((value, ctx) => {
+export const selectUsersWithProfilesSchema = toZodV4SchemaTyped(
+  selectUsersSchema.and(z.object({
+    parentFirstName: z.string().nullable().optional(),
+    parentLastName: z.string().nullable().optional(),
+    parentEmail: z.string().nullable().optional()
+  }))
+)
+
+export const patchUsersSchema = toZodV4SchemaTyped(z.object({
+  email: z.intersection(z.email(), z.string().max(100)).optional(),
+  firstName: z.string().min(1).max(100).optional(),
+  lastName: z.string().min(1).max(100).optional(),
+  password: z.string().min(8).max(200).optional(),
+  parentFirstName: z.string().min(1).max(100).optional(),
+  parentLastName: z.string().min(1).max(100).optional(),
+  parentEmail: z.intersection(z.email(), z.string().max(100)).optional()
+}).strict()).superRefine((value, ctx) => {
   if (Object.keys(value).length === 0) {
     ctx.addIssue({
       code: 'custom',

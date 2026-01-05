@@ -126,9 +126,6 @@ export const listTutorsForSubject: AppRouteHandler<ListTutorsForSubjectRoute> = 
       firstName: users.firstName,
       lastName: users.lastName,
       role: users.role,
-      parentFirstName: users.parentFirstName,
-      parentLastName: users.parentLastName,
-      parentEmail: users.parentEmail,
       emailVerifiedAt: users.emailVerifiedAt,
       createdAt: users.createdAt,
       updatedAt: users.updatedAt
@@ -137,7 +134,14 @@ export const listTutorsForSubject: AppRouteHandler<ListTutorsForSubjectRoute> = 
     .innerJoin(users, eq(tutorSubjects.tutorId, users.id))
     .where(eq(tutorSubjects.subjectId, subjectId))
 
-  return c.json(rows, HttpStatusCodes.OK)
+  const withProfiles = rows.map(row => ({
+    ...row,
+    parentFirstName: null,
+    parentLastName: null,
+    parentEmail: null
+  }))
+
+  return c.json(withProfiles, HttpStatusCodes.OK)
 }
 
 export const addSubjectToTutor: AppRouteHandler<AddSubjectToTutorRoute> = async (c) => {

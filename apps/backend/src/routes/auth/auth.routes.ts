@@ -1,7 +1,7 @@
 // Purpose: Auth route schemas.
 import { createRoute, z } from '@hono/zod-openapi'
 
-import { insertUsersSchema, selectUsersSchema } from '@/db/schemas/users.schema'
+import { selectUsersWithProfilesSchema, studentRegisterSchema } from '@/db/schemas/users.schema'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
@@ -106,13 +106,13 @@ export const register = createRoute({
   tags,
   request: {
     body: jsonContentRequired(
-      insertUsersSchema,
+      studentRegisterSchema,
       'Student registration payload'
     )
   },
   responses: {
     [HttpStatusCodes.CREATED]: jsonContent(
-      selectUsersSchema,
+      selectUsersWithProfilesSchema,
       'Registered student'
     ),
     [HttpStatusCodes.CONFLICT]: jsonContent(
@@ -122,7 +122,7 @@ export const register = createRoute({
       'Given email already exists'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
-      createErrorSchema(insertUsersSchema),
+      createErrorSchema(studentRegisterSchema),
       'The validation error(s)'
     ),
     [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(

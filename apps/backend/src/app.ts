@@ -1,9 +1,14 @@
 // Purpose: App composition and route registration.
 import configureOpenAPI from '@/lib/configure-open-api'
 import createApp from '@/lib/create-app'
+import audit from '@/routes/audit/audit.index'
 import auth from '@/routes/auth/auth.index'
 import health from '@/routes/health.route'
+import lessons from '@/routes/lessons/lessons.index'
 import subjects from '@/routes/subjects/subjects.index'
+import tokens from '@/routes/tokens/tokens.index'
+import tutorAvailability from '@/routes/tutor-availability/tutor-availability.index'
+import tutorSettings from '@/routes/tutor-settings/tutor-settings.index'
 import tutorSubjects from '@/routes/tutor-subjects/tutor-subjects.index'
 import users from '@/routes/users/users.index'
 
@@ -13,9 +18,14 @@ configureOpenAPI(app)
 
 // Route modules to register on the app.
 const routes = [
+  audit,
   auth,
   health,
+  lessons,
   subjects,
+  tokens,
+  tutorAvailability,
+  tutorSettings,
   tutorSubjects,
   users
 ] as const

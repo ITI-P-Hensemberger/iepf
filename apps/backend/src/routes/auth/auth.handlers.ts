@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
+import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
 import { createAccessToken } from '@/lib/auth'
 import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
@@ -159,7 +160,9 @@ export const register: AppRouteHandler<RegisterRoute> = async (c) => {
   const [inserted] = await db
     .insert(users)
     .values({
-      ...userData,
+      email: userData.email,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
       passwordHash,
       role: 'student'
     })
@@ -169,20 +172,32 @@ export const register: AppRouteHandler<RegisterRoute> = async (c) => {
       firstName: users.firstName,
       lastName: users.lastName,
       role: users.role,
-      parentFirstName: users.parentFirstName,
-      parentLastName: users.parentLastName,
-      parentEmail: users.parentEmail,
       emailVerifiedAt: users.emailVerifiedAt,
       createdAt: users.createdAt,
       updatedAt: users.updatedAt
     })
+
+  await db.insert(studentProfiles).values({
+    userId: inserted.id,
+    parentFirstName: userData.parentFirstName,
+    parentLastName: userData.parentLastName,
+    parentEmail: userData.parentEmail
+  })
 
   const verification = await issueEmailVerificationToken(inserted.id)
   // eslint-disable-next-line no-console
   console.log(`Email verification token for ${inserted.email}: ${verification.token}`)
 
   c.header('Location', `/users/${inserted.id}`)
-  return c.json(inserted, HttpStatusCodes.CREATED)
+  return c.json(
+    {
+      ...inserted,
+      parentFirstName: userData.parentFirstName ?? null,
+      parentLastName: userData.parentLastName ?? null,
+      parentEmail: userData.parentEmail ?? null
+    },
+    HttpStatusCodes.CREATED
+  )
 }
 
 export const requestPasswordReset: AppRouteHandler<RequestPasswordResetRoute> = async (c) => {

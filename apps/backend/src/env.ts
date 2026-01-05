@@ -24,6 +24,8 @@ const EnvSchema = z.object({
   REFRESH_TOKEN_TTL: z.coerce.number().int().positive().default(60 * 60 * 24 * 7),
   EMAIL_VERIFICATION_TTL: z.coerce.number().int().positive().default(60 * 60 * 24),
   PASSWORD_RESET_TTL: z.coerce.number().int().positive().default(60 * 15),
+  // Auto-stall lessons if confirmations are missing after this window (minutes).
+  LESSON_CONFIRMATION_STALL_MINUTES: z.coerce.number().int().positive().default(60 * 24),
   ADMIN_EMAIL: z.email().optional(),
   ADMIN_PASSWORD: z.string().min(8).optional(),
   ADMIN_FIRST_NAME: z.string().min(1).default('Admin'),

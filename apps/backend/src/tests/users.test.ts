@@ -593,6 +593,18 @@ describe('auth routes', () => {
     })
   })
 
+  it('rejects role overrides during student registration', async () => {
+    const payload = buildUserPayload({ email: 'register-tutor@example.com' })
+    const response = await authClient.auth.register.$post({
+      json: {
+        ...payload,
+        role: 'tutor'
+      }
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY)
+  })
+
   it('rejects duplicate registration emails', async () => {
     const payload = buildUserPayload({ email: 'duplicate-register@example.com' })
     const first = await authClient.auth.register.$post({ json: payload })
@@ -732,6 +744,17 @@ describe('auth routes', () => {
     expect(loginResponse.status).toBe(HttpStatusCodes.OK)
   })
 
+  it('rejects invalid password reset tokens', async () => {
+    const response = await authClient.auth.password.reset.confirm.$post({
+      json: {
+        token: 'invalid-token',
+        password: 'BrandNewSecret123!'
+      }
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED)
+  })
+
   it('verifies email with a valid verification token', async () => {
     const { user } = await createUserFixture({ email: 'verify-user@example.com' })
 
@@ -751,6 +774,14 @@ describe('auth routes', () => {
       columns: { emailVerifiedAt: true }
     })
     expect(updated?.emailVerifiedAt).toBeDefined()
+  })
+
+  it('rejects invalid email verification tokens', async () => {
+    const response = await authClient.auth['verify-email'].confirm.$post({
+      json: { token: 'invalid-token' }
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED)
   })
 
   it('returns ok for email verification requests even when user is missing', async () => {

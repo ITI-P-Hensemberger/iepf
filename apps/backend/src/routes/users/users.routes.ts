@@ -1,7 +1,7 @@
 // Purpose: Users route schemas.
 import { createRoute, z } from '@hono/zod-openapi'
 
-import { adminInsertUsersSchema, patchUsersSchema, selectUsersSchema } from '@/db/schemas/users.schema'
+import { adminCreateUserSchema, patchUsersSchema, selectUsersWithProfilesSchema } from '@/db/schemas/users.schema'
 import { notFoundSchema } from '@/lib/constants'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
@@ -20,7 +20,7 @@ export const list = createRoute({
   security: bearerAuth,
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      z.array(selectUsersSchema),
+      z.array(selectUsersWithProfilesSchema),
       'The list of users'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
@@ -36,7 +36,7 @@ export const create = createRoute({
   request: {
     body: jsonContentRequired(
       // Admin-only user creation supports assigning tutor roles.
-      adminInsertUsersSchema,
+      adminCreateUserSchema,
       'The user to create'
     )
   },
@@ -45,7 +45,7 @@ export const create = createRoute({
   responses: {
     [HttpStatusCodes.CREATED]: {
       ...jsonContent(
-        selectUsersSchema,
+        selectUsersWithProfilesSchema,
         'The created user'
       ),
       headers: {
@@ -59,7 +59,7 @@ export const create = createRoute({
       }
     },
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
-      createErrorSchema(adminInsertUsersSchema),
+      createErrorSchema(adminCreateUserSchema),
       'The validation error(s)'
     ),
     [HttpStatusCodes.CONFLICT]: jsonContent(
@@ -85,7 +85,7 @@ export const getOne = createRoute({
   security: bearerAuth,
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      selectUsersSchema,
+      selectUsersWithProfilesSchema,
       'The requested user'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
@@ -117,7 +117,7 @@ export const patch = createRoute({
   security: bearerAuth,
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      selectUsersSchema,
+      selectUsersWithProfilesSchema,
       'The updated user'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(

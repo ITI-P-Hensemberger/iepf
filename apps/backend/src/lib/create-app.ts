@@ -5,6 +5,7 @@ import { OpenAPIHono } from '@hono/zod-openapi'
 import { requestId } from 'hono/request-id'
 
 import { defaultHook } from '@/lib/openapi/default-hook'
+import { auditLogger } from '@/middlewares/audit-logger'
 import notFound from '@/middlewares/not-found'
 import onError from '@/middlewares/on-error'
 import { pinoLogger } from '@/middlewares/pino-logger'
@@ -24,6 +25,7 @@ export default function createApp() {
   app.use(requestId())
     .use(serveEmojiFavicon('📝'))
     .use(pinoLogger())
+    .use(auditLogger())
 
   app.notFound(notFound)
   app.onError(onError)
