@@ -16,9 +16,9 @@ export const tutorSettings = sqliteTable('tutor_settings', {
   updatedAt: integer({ mode: 'timestamp' })
     .$defaultFn(() => new Date())
     .$onUpdate(() => new Date())
-}, table => ({
-  uniqueTutor: uniqueIndex('tutor_settings_tutor_unique').on(table.tutorId)
-}))
+}, table => [
+  uniqueIndex('tutor_settings_tutor_unique').on(table.tutorId)
+])
 
 export const tutorSettingsRelations = relations(tutorSettings, ({ one }) => ({
   tutor: one(users, {

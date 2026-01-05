@@ -38,7 +38,7 @@ const SubjectIdParamsSchema = z.object({
   })
 })
 
-const TutorSubjectParamsSchema = TutorIdParamsSchema.merge(SubjectIdParamsSchema)
+const TutorSubjectParamsSchema = TutorIdParamsSchema.extend(SubjectIdParamsSchema.shape)
 
 const tutorSubjectBodySchema = z.object({
   subjectId: z.uuid()

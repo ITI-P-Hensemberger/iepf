@@ -1,26 +1,26 @@
 // Purpose: OpenAPI response helper builders.
-import type { ZodTypeAny } from 'zod'
+import type { ZodType } from 'zod'
 
-interface JsonMediaTypeObject<T extends ZodTypeAny> {
+interface JsonMediaTypeObject<T extends ZodType> {
   schema: T
 }
 
-interface JsonContent<T extends ZodTypeAny> {
+interface JsonContent<T extends ZodType> {
   content: {
     'application/json': JsonMediaTypeObject<T>
   }
 }
 
-type JsonResponse<T extends ZodTypeAny> = JsonContent<T> & {
+type JsonResponse<T extends ZodType> = JsonContent<T> & {
   description: string
 }
 
-type JsonRequestBody<T extends ZodTypeAny> = JsonContent<T> & {
+type JsonRequestBody<T extends ZodType> = JsonContent<T> & {
   description: string
   required: true
 }
 
-export function jsonContent<T extends ZodTypeAny>(schema: T, description: string): JsonResponse<T> {
+export function jsonContent<T extends ZodType>(schema: T, description: string): JsonResponse<T> {
   return {
     content: {
       'application/json': {
@@ -31,7 +31,7 @@ export function jsonContent<T extends ZodTypeAny>(schema: T, description: string
   }
 }
 
-export function jsonContentRequired<T extends ZodTypeAny>(schema: T, description: string): JsonRequestBody<T> {
+export function jsonContentRequired<T extends ZodType>(schema: T, description: string): JsonRequestBody<T> {
   return {
     description,
     required: true,

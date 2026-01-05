@@ -23,7 +23,7 @@ export function createMessageObjectSchema(exampleMessage = 'Hello World') {
   })
 }
 
-export function createErrorSchema(schema: z.ZodTypeAny) {
+export function createErrorSchema(schema: z.ZodType) {
   const invalidSample = schema instanceof z.ZodArray ? [{}] : {}
   let exampleError: z.ZodError | undefined
 

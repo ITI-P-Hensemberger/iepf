@@ -13,9 +13,9 @@ export const adminProfiles = sqliteTable('admin_profiles', {
   updatedAt: integer({ mode: 'timestamp' })
     .$defaultFn(() => new Date())
     .$onUpdate(() => new Date())
-}, table => ({
-  uniqueUser: uniqueIndex('admin_profiles_user_unique').on(table.userId)
-}))
+}, table => [
+  uniqueIndex('admin_profiles_user_unique').on(table.userId)
+])
 
 export const adminProfilesRelations = relations(adminProfiles, ({ one }) => ({
   user: one(users, {

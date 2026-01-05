@@ -138,7 +138,7 @@ const confirmationDetailSchema = z.object({
 const bookLessonSchema = z.object({
   subjectId: z.uuid(),
   topic: z.string().min(1).max(200),
-  startAt: z.string().datetime()
+  startAt: z.iso.datetime()
 })
 
 export const bookLesson = createRoute({
@@ -194,7 +194,7 @@ export const cancelBooking = createRoute({
   tags,
   security: bearerAuth,
   request: {
-    params: LessonIdParamsSchema.merge(BookingIdParamsSchema)
+    params: LessonIdParamsSchema.extend(BookingIdParamsSchema.shape)
   },
   responses: {
     [HttpStatusCodes.NO_CONTENT]: {
@@ -209,7 +209,7 @@ export const cancelBooking = createRoute({
       'Admin or booking owner required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
-      createErrorSchema(LessonIdParamsSchema.merge(BookingIdParamsSchema)),
+      createErrorSchema(LessonIdParamsSchema.extend(BookingIdParamsSchema.shape)),
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
@@ -445,7 +445,7 @@ export const confirmLessonBooking = createRoute({
   tags,
   security: bearerAuth,
   request: {
-    params: LessonIdParamsSchema.merge(BookingIdParamsSchema),
+    params: LessonIdParamsSchema.extend(BookingIdParamsSchema.shape),
     body: jsonContentRequired(
       confirmationBodySchema,
       'Student confirmation payload'
@@ -476,7 +476,9 @@ export const confirmLessonBooking = createRoute({
       'Student access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
-      createErrorSchema(confirmationBodySchema).or(createErrorSchema(LessonIdParamsSchema.merge(BookingIdParamsSchema))),
+      createErrorSchema(confirmationBodySchema).or(
+        createErrorSchema(LessonIdParamsSchema.extend(BookingIdParamsSchema.shape))
+      ),
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(

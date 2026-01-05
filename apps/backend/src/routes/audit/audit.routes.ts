@@ -47,8 +47,8 @@ const listQuerySchema = z.object({
   path: z.string().optional(),
   status: z.coerce.number().int().optional(),
   requestId: z.string().optional(),
-  from: z.string().datetime().optional(),
-  to: z.string().datetime().optional(),
+  from: z.iso.datetime().optional(),
+  to: z.iso.datetime().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0)
 })

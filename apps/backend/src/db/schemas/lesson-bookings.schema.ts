@@ -22,10 +22,10 @@ export const lessonBookings = sqliteTable('lesson_bookings', {
   updatedAt: integer({ mode: 'timestamp' })
     .$defaultFn(() => new Date())
     .$onUpdate(() => new Date())
-}, table => ({
-  uniqueLessonStudent: uniqueIndex('lesson_bookings_lesson_student_unique')
+}, table => [
+  uniqueIndex('lesson_bookings_lesson_student_unique')
     .on(table.lessonId, table.studentId)
-}))
+])
 
 export const lessonBookingsRelations = relations(lessonBookings, ({ one }) => ({
   lesson: one(lessons, {

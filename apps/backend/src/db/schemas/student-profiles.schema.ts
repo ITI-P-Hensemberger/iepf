@@ -17,9 +17,9 @@ export const studentProfiles = sqliteTable('student_profiles', {
   updatedAt: integer({ mode: 'timestamp' })
     .$defaultFn(() => new Date())
     .$onUpdate(() => new Date())
-}, table => ({
-  uniqueUser: uniqueIndex('student_profiles_user_unique').on(table.userId)
-}))
+}, table => [
+  uniqueIndex('student_profiles_user_unique').on(table.userId)
+])
 
 export const studentProfilesRelations = relations(studentProfiles, ({ one }) => ({
   user: one(users, {

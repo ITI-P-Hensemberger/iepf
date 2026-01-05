@@ -33,5 +33,17 @@ export default antfu(
         ignore: ['README.md']
       }]
     }
+  },
+  {
+    files: ['**/*.ts', '**/*.tsx'],
+    languageOptions: {
+      parserOptions: {
+        project: './tsconfig.json',
+        tsconfigRootDir: new URL('.', import.meta.url).pathname
+      }
+    },
+    rules: {
+      '@typescript-eslint/no-deprecated': 'error'
+    }
   }
 )

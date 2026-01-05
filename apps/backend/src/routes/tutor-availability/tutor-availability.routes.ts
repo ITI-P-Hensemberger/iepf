@@ -119,7 +119,7 @@ export const deleteAvailability = createRoute({
   tags,
   security: bearerAuth,
   request: {
-    params: TutorIdParamsSchema.merge(AvailabilityIdParamsSchema)
+    params: TutorIdParamsSchema.extend(AvailabilityIdParamsSchema.shape)
   },
   responses: {
     [HttpStatusCodes.NO_CONTENT]: {
@@ -134,7 +134,7 @@ export const deleteAvailability = createRoute({
       'Admin or self access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
-      createErrorSchema(TutorIdParamsSchema.merge(AvailabilityIdParamsSchema)),
+      createErrorSchema(TutorIdParamsSchema.extend(AvailabilityIdParamsSchema.shape)),
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
