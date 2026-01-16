@@ -1,0 +1,160 @@
+### Purpose: Lesson booking/confirmation flow (VS Code REST Client).
+### Flow notes:
+### - Paste `tutorId`, `availabilityId`, and `subjectId` from other flows.
+### - Use after admin/tutor/student flows so tokens and IDs exist.
+### Environment:
+### - Select "local" in VS Code REST Client environments (from .vscode/settings.json).
+
+### Admin login
+# @name adminLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+
+@adminToken = {{adminLogin.response.body.accessToken}}
+
+### Tutor login
+# @name tutorLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{tutorEmail}}",
+  "password": "{{tutorPassword}}"
+}
+
+###
+
+@tutorToken = {{tutorLogin.response.body.accessToken}}
+
+### Student login
+# @name studentLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{studentEmail}}",
+  "password": "{{studentPassword}}"
+}
+
+###
+
+@studentToken = {{studentLogin.response.body.accessToken}}
+
+### Book a lesson (uses availability id)
+# @name bookLesson
+POST {{baseUrl}}/tutors/{{tutorId}}/lessons/book
+Authorization: Bearer {{studentToken}}
+Content-Type: application/json
+
+{
+  "availabilityId": "{{availabilityId}}",
+  "subjectId": "{{subjectId}}",
+  "topic": "Linear equations"
+}
+
+###
+
+@lessonId = {{bookLesson.response.body.lesson.id}}
+@bookingId = {{bookLesson.response.body.booking.id}}
+
+### Student confirms lesson completion (use after scheduled end time)
+POST {{baseUrl}}/lessons/{{lessonId}}/bookings/{{bookingId}}/confirm
+Authorization: Bearer {{studentToken}}
+Content-Type: application/json
+
+{
+  "completed": true,
+  "note": "Lesson went well"
+}
+
+### Tutor confirms lesson completion (use after scheduled end time)
+POST {{baseUrl}}/lessons/{{lessonId}}/confirm/tutor
+Authorization: Bearer {{tutorToken}}
+Content-Type: application/json
+
+{
+  "completed": true,
+  "note": "Student was prepared"
+}
+
+### Admin view pending confirmations
+GET {{baseUrl}}/lessons/confirmations?state=pending
+Authorization: Bearer {{adminToken}}
+
+### Admin view a lesson's confirmations
+GET {{baseUrl}}/lessons/{{lessonId}}/confirmations
+Authorization: Bearer {{adminToken}}
+
+### Admin resolve stalled lesson (complete or cancel)
+POST {{baseUrl}}/lessons/{{lessonId}}/resolve
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "action": "complete",
+  "note": "Resolved by admin"
+}
+
+### Admin override confirmations (optional)
+POST {{baseUrl}}/lessons/{{lessonId}}/confirmations/override
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "tutorConfirmed": true,
+  "tutorNote": "Override confirmation",
+  "bookings": [
+    {
+      "bookingId": "{{bookingId}}",
+      "completed": true,
+      "note": "Confirmed by admin"
+    }
+  ]
+}
+
+### Student cancel booking (refunds only before lesson day)
+DELETE {{baseUrl}}/lessons/{{lessonId}}/bookings/{{bookingId}}
+Authorization: Bearer {{studentToken}}
+
+### Student rebooks the same lesson after canceling
+# @name rebookLesson
+POST {{baseUrl}}/tutors/{{tutorId}}/lessons/book
+Authorization: Bearer {{studentToken}}
+Content-Type: application/json
+
+{
+  "availabilityId": "{{availabilityId}}",
+  "subjectId": "{{subjectId}}",
+  "topic": "Rebooked lesson"
+}
+
+### Admin cancel a lesson (refunds all booked students)
+POST {{baseUrl}}/lessons/{{lessonId}}/cancel
+Authorization: Bearer {{adminToken}}
+
+### Admin resolve a stalled lesson (complete)
+POST {{baseUrl}}/lessons/{{lessonId}}/resolve
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "action": "complete",
+  "note": "Admin resolved"
+}
+
+### Admin reschedule a lesson to a new availability slot
+POST {{baseUrl}}/lessons/{{lessonId}}/reschedule
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "availabilityId": "{{availabilityId}}",
+  "note": "Rescheduled by admin"
+}

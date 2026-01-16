@@ -53,6 +53,21 @@ function ensureAuthenticated(c: HandlerContext) {
   return currentUser
 }
 
+async function ensureActiveStudent(currentUser: { id: string, role: string }) {
+  if (currentUser.role !== 'student') {
+    return
+  }
+  const profile = await db.query.studentProfiles.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.userId, currentUser.id)
+    },
+    columns: { isActive: true }
+  })
+  if (!profile?.isActive) {
+    forbid()
+  }
+}
+
 async function ensureTutorExists(tutorId: string) {
   return db.query.users.findFirst({
     where(fields, operators) {
@@ -143,7 +158,9 @@ export const listAvailability: AppRouteHandler<ListAvailabilityRoute> = async (c
 
 export const listAvailableSlots: AppRouteHandler<ListAvailableSlotsRoute> = async (c) => {
   const { tutorId } = c.req.valid('param')
-  ensureAuthenticated(c)
+  const currentUser = ensureAuthenticated(c)
+  // Only activated students may browse available lesson slots.
+  await ensureActiveStudent(currentUser)
 
   const tutor = await ensureTutorExists(tutorId)
   if (!tutor) {

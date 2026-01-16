@@ -9,7 +9,8 @@ export const ZOD_ERROR_MESSAGES = {
   EXPECTED_STRING: 'Invalid input: expected string, received undefined',
   EMAIL_ALREADY_EXISTS: 'A user with this email already exists',
   CANONICAL_NAME_EXISTS: 'A subject with this canonical name already exists',
-  TUTOR_SUBJECT_EXISTS: 'Tutor already assigned to this subject'
+  TUTOR_SUBJECT_EXISTS: 'Tutor already assigned to this subject',
+  CLASS_SECTION_EXISTS: 'A class section with this name already exists'
 }
 
 export const ZOD_ERROR_CODES = {

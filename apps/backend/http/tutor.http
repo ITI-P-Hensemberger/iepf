@@ -1,0 +1,54 @@
+### Purpose: Tutor API testing flow (VS Code REST Client).
+### Flow notes:
+### - Paste `tutorId` and `subjectId` from the admin flow.
+### - Use this after tutor email verification is completed.
+### Environment:
+### - Select "local" in VS Code REST Client environments (from .vscode/settings.json).
+
+### Tutor login
+# @name tutorLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{tutorEmail}}",
+  "password": "{{tutorPassword}}"
+}
+
+###
+
+@tutorToken = {{tutorLogin.response.body.accessToken}}
+
+### Tutor adds subject to self
+POST {{baseUrl}}/tutors/{{tutorId}}/subjects
+Authorization: Bearer {{tutorToken}}
+Content-Type: application/json
+
+{
+  "subjectId": "{{subjectId}}"
+}
+
+### Tutor adds availability (next week date)
+# @name createAvailability
+POST {{baseUrl}}/tutors/{{tutorId}}/availability
+Authorization: Bearer {{tutorToken}}
+Content-Type: application/json
+
+{
+  "date": "2026-01-13"
+}
+
+###
+
+@availabilityId = {{createAvailability.response.body.id}}
+
+### Tutor confirms lesson completion (use after scheduled end time)
+@lessonId = 00000000-0000-0000-0000-000000000000
+POST {{baseUrl}}/lessons/{{lessonId}}/confirm/tutor
+Authorization: Bearer {{tutorToken}}
+Content-Type: application/json
+
+{
+  "completed": true,
+  "note": "Student was prepared"
+}

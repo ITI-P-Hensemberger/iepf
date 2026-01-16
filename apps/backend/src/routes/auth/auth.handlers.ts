@@ -11,9 +11,11 @@ import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { users } from '@/db/schemas/users.schema'
 import { createAccessToken } from '@/lib/auth'
 import { DEFAULT_TUTOR_SETTINGS, ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
+import { buildEmailVerificationMessage, buildPasswordResetMessage, buildStudentRegistrationMessage } from '@/lib/email-templates'
 import { consumeEmailVerificationToken, issueEmailVerificationToken } from '@/lib/email-verification'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { sendMail } from '@/lib/mailer'
 import { hashPassword, verifyPassword } from '@/lib/password'
 import { consumePasswordResetToken, issuePasswordResetToken } from '@/lib/password-reset'
 import { issueRefreshToken, revokeRefreshToken, revokeUserRefreshTokens, rotateRefreshToken } from '@/lib/refresh-tokens'
@@ -143,7 +145,6 @@ export const logout: AppRouteHandler<LogoutRoute> = async (c) => {
 
 export const register: AppRouteHandler<RegisterRoute> = async (c) => {
   const payload = c.req.valid('json')
-  // Student registration accepts optional parent contact fields.
   const { password, ...userData } = payload
   const passwordHash = await hashPassword(password)
 
@@ -156,6 +157,17 @@ export const register: AppRouteHandler<RegisterRoute> = async (c) => {
 
   if (existing) {
     return c.json(buildDuplicateEmailError(), HttpStatusCodes.CONFLICT)
+  }
+  if (userData.sectionId) {
+    const section = await db.query.classSections.findFirst({
+      where(fields, operators) {
+        return operators.eq(fields.id, userData.sectionId as string)
+      },
+      columns: { id: true }
+    })
+    if (!section) {
+      return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
+    }
   }
 
   const [inserted] = await db
@@ -180,22 +192,26 @@ export const register: AppRouteHandler<RegisterRoute> = async (c) => {
 
   await db.insert(studentProfiles).values({
     userId: inserted.id,
-    parentFirstName: userData.parentFirstName,
-    parentLastName: userData.parentLastName,
-    parentEmail: userData.parentEmail
+    sectionId: userData.sectionId,
+    year: userData.year,
+    isActive: false
   })
 
   const verification = await issueEmailVerificationToken(inserted.id)
-  // eslint-disable-next-line no-console
-  console.log(`Email verification token for ${inserted.email}: ${verification.token}`)
+  const registrationEmail = buildStudentRegistrationMessage(verification.token)
+  await sendMail({
+    to: inserted.email,
+    subject: registrationEmail.subject,
+    text: registrationEmail.text
+  })
 
   c.header('Location', `/users/${inserted.id}`)
   return c.json(
     {
       ...inserted,
-      parentFirstName: userData.parentFirstName ?? null,
-      parentLastName: userData.parentLastName ?? null,
-      parentEmail: userData.parentEmail ?? null
+      sectionId: userData.sectionId ?? null,
+      year: userData.year ?? null,
+      isActive: false
     },
     HttpStatusCodes.CREATED
   )
@@ -215,8 +231,12 @@ export const requestPasswordReset: AppRouteHandler<RequestPasswordResetRoute> = 
 
   if (user) {
     const reset = await issuePasswordResetToken(user.id)
-    // eslint-disable-next-line no-console
-    console.log(`Password reset token for ${user.email}: ${reset.token}`)
+    const resetEmail = buildPasswordResetMessage(reset.token)
+    await sendMail({
+      to: user.email,
+      subject: resetEmail.subject,
+      text: resetEmail.text
+    })
   }
 
   return c.json(
@@ -262,8 +282,12 @@ export const requestEmailVerification: AppRouteHandler<RequestEmailVerificationR
 
   if (user && !user.emailVerifiedAt) {
     const verification = await issueEmailVerificationToken(user.id)
-    // eslint-disable-next-line no-console
-    console.log(`Email verification token for ${user.email}: ${verification.token}`)
+    const verificationEmail = buildEmailVerificationMessage(verification.token)
+    await sendMail({
+      to: user.email,
+      subject: verificationEmail.subject,
+      text: verificationEmail.text
+    })
   }
 
   return c.json(

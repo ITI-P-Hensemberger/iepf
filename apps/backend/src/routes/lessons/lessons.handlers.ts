@@ -187,11 +187,16 @@ export const bookLesson: AppRouteHandler<BookLessonRoute> = async (c) => {
       return operators.eq(fields.userId, student.id)
     },
     columns: {
-      lessonTokens: true
+      lessonTokens: true,
+      isActive: true
     }
   })
 
-  if (!studentProfile || studentProfile.lessonTokens <= 0) {
+  if (!studentProfile?.isActive) {
+    return c.json({ message: HttpStatusPhrases.FORBIDDEN }, HttpStatusCodes.FORBIDDEN)
+  }
+
+  if (studentProfile.lessonTokens <= 0) {
     return c.json({ message: HttpStatusPhrases.FORBIDDEN }, HttpStatusCodes.FORBIDDEN)
   }
 

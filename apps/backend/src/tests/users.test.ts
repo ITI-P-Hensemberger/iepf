@@ -8,6 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, expectTypeOf, it } f
 import type { AuthenticatedUser } from '@/lib/types'
 
 import db from '@/db'
+import { classSections } from '@/db/schemas/class-sections.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { users } from '@/db/schemas/users.schema'
 import env from '@/env'
@@ -49,9 +50,9 @@ interface UserResponse {
   lastName: string
   role: string
   emailVerifiedAt?: string | null
-  parentFirstName?: string | null
-  parentLastName?: string | null
-  parentEmail?: string | null
+  sectionId?: string | null
+  year?: number | null
+  isActive?: boolean | null
   createdAt: string
   updatedAt: string
 }
@@ -86,9 +87,6 @@ interface CreateUserPayload {
   firstName: string
   lastName: string
   password: string
-  parentFirstName?: string
-  parentLastName?: string
-  parentEmail?: string
   role?: 'student' | 'tutor'
 }
 
@@ -125,10 +123,7 @@ function buildUserPayload(overrides: Partial<CreateUserPayload> = {}): CreateUse
     email: overrides.email ?? `user${emailCounter}@example.com`,
     firstName: overrides.firstName ?? `${baseUser.firstName}${emailCounter}`,
     lastName: overrides.lastName ?? baseUser.lastName,
-    password: overrides.password ?? baseUser.password,
-    parentFirstName: overrides.parentFirstName,
-    parentLastName: overrides.parentLastName,
-    parentEmail: overrides.parentEmail
+    password: overrides.password ?? baseUser.password
   }
   if (overrides.role) {
     payload.role = overrides.role
@@ -167,6 +162,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   emailCounter = 0
+  await db.delete(classSections)
   await db.delete(users)
   await db.delete(tutorSettings)
   resetRateLimiters()
@@ -216,32 +212,13 @@ describe('users routes', () => {
       email: payload.email,
       firstName: payload.firstName,
       lastName: payload.lastName,
-      role: 'student'
+      role: 'student',
+      isActive: false
     })
     expectTypeOf(body.id).toBeString()
     expect(new Date(body.createdAt).toString()).not.toBe('Invalid Date')
     expect(new Date(body.updatedAt).toString()).not.toBe('Invalid Date')
     expect(body).not.toHaveProperty('password')
-  })
-
-  // Validate student-only parent fields and tutor role creation.
-  it('stores parent contact fields for student accounts', async () => {
-    const payload = buildUserPayload({
-      parentFirstName: 'Pat',
-      parentLastName: 'Guardian',
-      parentEmail: 'parent@example.com'
-    })
-    const response = await client.users.$post({
-      json: payload,
-      header: bearer(adminToken)
-    })
-    expect(response.status).toBe(HttpStatusCodes.CREATED)
-    const body = (await response.json()) as UserResponse
-    expect(body).toMatchObject({
-      parentFirstName: payload.parentFirstName,
-      parentLastName: payload.parentLastName,
-      parentEmail: payload.parentEmail
-    })
   })
 
   it('allows admins to create tutor users', async () => {
@@ -257,17 +234,87 @@ describe('users routes', () => {
     expect(response.status).toBe(HttpStatusCodes.CREATED)
     const body = (await response.json()) as UserResponse
     expect(body.role).toBe('tutor')
-    expect(body.parentEmail ?? null).toBeNull()
   })
 
-  it('rejects parent info when creating tutors', async () => {
+  it('assigns section and year to students during admin creation', async () => {
+    const [section] = await db.insert(classSections).values({
+      name: 'D1'
+    }).returning({ id: classSections.id })
+
     const payload = buildUserPayload({
-      email: 'tutor-parent@example.com',
-      role: 'tutor',
-      parentEmail: 'not-allowed@example.com'
+      email: 'student-section@example.com',
+      role: 'student'
     })
+
     const response = await client.users.$post({
-      json: payload,
+      json: {
+        ...payload,
+        sectionId: section.id,
+        year: 2
+      },
+      header: bearer(adminToken)
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.CREATED)
+    const body = (await response.json()) as UserResponse
+    expect(body.sectionId).toBe(section.id)
+    expect(body.year).toBe(2)
+  })
+
+  it('allows admins to activate students', async () => {
+    const { user } = await createUserFixture()
+    const response = await usersById.$patch({
+      param: { id: user.id },
+      json: { isActive: true },
+      header: bearer(adminToken)
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.OK)
+    const body = (await response.json()) as UserResponse
+    expect(body.isActive).toBe(true)
+  })
+
+  it('rejects activation updates from non-admin users', async () => {
+    const { user } = await createUserFixture()
+    const studentToken = await tokenForUser(user)
+
+    const response = await usersById.$patch({
+      param: { id: user.id },
+      json: { isActive: true },
+      header: bearer(studentToken)
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.FORBIDDEN)
+  })
+
+  it('rejects invalid student years', async () => {
+    const payload = buildUserPayload({
+      email: 'student-year@example.com',
+      role: 'student'
+    })
+
+    const response = await client.users.$post({
+      json: {
+        ...payload,
+        year: 5
+      },
+      header: bearer(adminToken)
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY)
+  })
+
+  it('rejects invalid tutor years', async () => {
+    const payload = buildUserPayload({
+      email: 'tutor-year@example.com',
+      role: 'tutor'
+    })
+
+    const response = await client.users.$post({
+      json: {
+        ...payload,
+        year: 2
+      },
       header: bearer(adminToken)
     })
 
@@ -560,7 +607,8 @@ describe('auth routes', () => {
       email: payload.email,
       firstName: payload.firstName,
       lastName: payload.lastName,
-      role: 'student'
+      role: 'student',
+      isActive: false
     })
     expect(body.emailVerifiedAt ?? null).toBeNull()
 
@@ -574,25 +622,24 @@ describe('auth routes', () => {
     expect(loginResponse.status).toBe(HttpStatusCodes.FORBIDDEN)
   })
 
-  it('accepts parent information during student registration', async () => {
-    const payload = buildUserPayload({
-      email: 'register-parent@example.com',
-      parentFirstName: 'Jamie',
-      parentLastName: 'Guardian',
-      parentEmail: 'guardian@example.com'
-    })
+  it('accepts section and year during student registration', async () => {
+    const [section] = await db.insert(classSections).values({
+      name: 'D1'
+    }).returning({ id: classSections.id })
 
+    const payload = buildUserPayload({ email: 'register-section@example.com' })
     const response = await authClient.auth.register.$post({
-      json: payload
+      json: {
+        ...payload,
+        sectionId: section.id,
+        year: 2
+      }
     })
 
     expect(response.status).toBe(HttpStatusCodes.CREATED)
     const body = (await response.json()) as UserResponse
-    expect(body).toMatchObject({
-      parentFirstName: payload.parentFirstName,
-      parentLastName: payload.parentLastName,
-      parentEmail: payload.parentEmail
-    })
+    expect(body.sectionId).toBe(section.id)
+    expect(body.year).toBe(2)
   })
 
   it('rejects role overrides during student registration', async () => {

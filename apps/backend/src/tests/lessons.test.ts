@@ -115,7 +115,7 @@ async function createTutor() {
   return tutor
 }
 
-async function createStudent(tokens = 30) {
+async function createStudent(tokens = 30, isActive = true) {
   const [student] = await db.insert(users).values({
     email: `student-${randomUUID()}@example.com`,
     firstName: 'Student',
@@ -129,7 +129,8 @@ async function createStudent(tokens = 30) {
 
   await db.insert(studentProfiles).values({
     userId: student.id,
-    lessonTokens: tokens
+    lessonTokens: tokens,
+    isActive
   })
   return student
 }
@@ -304,6 +305,58 @@ describe('lesson flows', () => {
     expect(response.status).toBe(HttpStatusCodes.OK)
     const body = await response.json() as Array<{ id: string }>
     expect(body.map(row => row.id)).toContain(availability.id)
+  })
+
+  it('prevents inactive students from listing available slots', async () => {
+    const tutor = await createTutor()
+    const student = await createStudent(1, false)
+
+    const date = nextWeekDateForWeekday(5)
+    const startAt = slotStartAt(date)
+    await db.insert(tutorAvailability).values({
+      tutorId: tutor.id,
+      startAt,
+      durationMinutes: 60,
+      seats: 2
+    })
+
+    const studentToken = await tokenForStudent(student.id)
+    const response = await availabilityClient.tutors[':tutorId'].availability.slots.$get({
+      param: { tutorId: tutor.id },
+      header: bearer(studentToken)
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.FORBIDDEN)
+  })
+
+  it('prevents inactive students from booking lessons', async () => {
+    const tutor = await createTutor()
+    const student = await createStudent(1, false)
+    const subject = await createSubject()
+    await db.insert(tutorSubjects).values({ tutorId: tutor.id, subjectId: subject.id })
+
+    const date = nextWeekDateForWeekday(2)
+    const startAt = slotStartAt(date)
+    const [availability] = await db.insert(tutorAvailability).values({
+      tutorId: tutor.id,
+      startAt,
+      durationMinutes: 60,
+      seats: 2
+    }).returning({ id: tutorAvailability.id })
+
+    const studentToken = await tokenForStudent(student.id)
+
+    const response = await lessonsClient.tutors[':tutorId'].lessons.book.$post({
+      param: { tutorId: tutor.id },
+      json: {
+        availabilityId: availability.id,
+        subjectId: subject.id,
+        topic: 'Inactive booking'
+      },
+      header: bearer(studentToken)
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.FORBIDDEN)
   })
 
   it('books a lesson and decrements tokens', async () => {

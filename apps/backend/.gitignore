@@ -31,5 +31,7 @@ dev.db
 test.db
 .vercel
 dist
+.tmp/
+.pmpm-store/
 
 .dev.vars

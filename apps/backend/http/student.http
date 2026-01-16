@@ -1,0 +1,68 @@
+### Purpose: Student API testing flow (VS Code REST Client).
+### Flow notes:
+### - Run this before lesson booking; it captures `studentId`.
+### - Copy `studentId` into the admin flow for profile updates if needed.
+### Environment:
+### - Select "local" in VS Code REST Client environments (from .vscode/settings.json).
+
+### Student registration (copy token from server logs)
+# @name registerStudent
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "{{studentEmail}}",
+  "firstName": "Sam",
+  "lastName": "Student",
+  "password": "{{studentPassword}}",
+  "sectionId": "{{sectionId}}",
+  "year": 2
+}
+
+###
+
+@studentId = {{registerStudent.response.body.id}}
+@studentVerifyToken = 15fce023bd6b4e2c29b5c3fa7501f7768891c1de7d8d270c27a8f42820cee507
+
+### Confirm student email verification
+POST {{baseUrl}}/auth/verify-email/confirm
+Content-Type: application/json
+
+{
+  "token": "{{studentVerifyToken}}"
+}
+
+### Student login
+# @name studentLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{studentEmail}}",
+  "password": "{{studentPassword}}"
+}
+
+###
+
+@studentToken = {{studentLogin.response.body.accessToken}}
+
+### Request password reset (copy token from server logs)
+POST {{baseUrl}}/auth/password/reset/request
+Content-Type: application/json
+
+{
+  "email": "{{studentEmail}}"
+}
+
+###
+
+@passwordResetToken = 441daef7499025d460de5acbc6062a52fa649b509c918ae6bb8689ea0995f6c4
+
+### Confirm password reset
+POST {{baseUrl}}/auth/password/reset/confirm
+Content-Type: application/json
+
+{
+  "token": "{{passwordResetToken}}",
+  "password": "NewStudentPass123!"
+}

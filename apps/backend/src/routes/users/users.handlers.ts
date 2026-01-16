@@ -12,8 +12,15 @@ import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
 import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
+import {
+  buildActivationChangedMessage,
+  buildProfileUpdatedMessage,
+  buildTutorCreatedMessage
+} from '@/lib/email-templates'
+import { issueEmailVerificationToken } from '@/lib/email-verification'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { sendMail } from '@/lib/mailer'
 import { hashPassword } from '@/lib/password'
 import { revokeUserRefreshTokens } from '@/lib/refresh-tokens'
 
@@ -70,46 +77,85 @@ function ensureSelfOrAdmin(c: HandlerContext, userId: string) {
   forbid()
 }
 
-function extractParentUpdates(updates: Record<string, unknown>) {
+function extractProfileUpdates(updates: Record<string, unknown>) {
   return {
-    parentFirstName: updates.parentFirstName as string | undefined,
-    parentLastName: updates.parentLastName as string | undefined,
-    parentEmail: updates.parentEmail as string | undefined
+    sectionId: updates.sectionId as string | undefined,
+    year: updates.year as number | undefined,
+    isActive: updates.isActive as boolean | undefined
   }
 }
 
-async function attachStudentProfiles(records: UserPublicRecord[]) {
+async function attachProfiles(records: UserPublicRecord[]) {
   const studentIds = records.filter(user => user.role === 'student').map(user => user.id)
-  if (studentIds.length === 0) {
-    return records.map(user => ({
-      ...user,
-      parentFirstName: null,
-      parentLastName: null,
-      parentEmail: null
-    }))
+  const tutorIds = records.filter(user => user.role === 'tutor').map(user => user.id)
+
+  let studentProfilesList: Array<{
+    userId: string
+    sectionId: string | null
+    year: number | null
+    isActive: boolean | null
+  }> = []
+  if (studentIds.length > 0) {
+    studentProfilesList = await db.query.studentProfiles.findMany({
+      where(fields, operators) {
+        return operators.inArray(fields.userId, studentIds)
+      },
+      columns: {
+        userId: true,
+        sectionId: true,
+        year: true,
+        isActive: true
+      }
+    })
   }
 
-  const profiles = await db.query.studentProfiles.findMany({
-    where(fields, operators) {
-      return operators.inArray(fields.userId, studentIds)
-    },
-    columns: {
-      userId: true,
-      parentFirstName: true,
-      parentLastName: true,
-      parentEmail: true
-    }
-  })
+  let tutorProfilesList: Array<{
+    userId: string
+    sectionId: string | null
+    year: number | null
+  }> = []
+  if (tutorIds.length > 0) {
+    tutorProfilesList = await db.query.tutorProfiles.findMany({
+      where(fields, operators) {
+        return operators.inArray(fields.userId, tutorIds)
+      },
+      columns: {
+        userId: true,
+        sectionId: true,
+        year: true
+      }
+    })
+  }
 
-  const profileMap = new Map(profiles.map(profile => [profile.userId, profile]))
+  const studentProfileMap = new Map(studentProfilesList.map(profile => [profile.userId, profile]))
+  const tutorProfileMap = new Map(tutorProfilesList.map(profile => [profile.userId, profile]))
 
   return records.map((user) => {
-    const profile = profileMap.get(user.id)
+    if (user.role === 'student') {
+      const profile = studentProfileMap.get(user.id)
+      return {
+        ...user,
+        sectionId: profile?.sectionId ?? null,
+        year: profile?.year ?? null,
+        isActive: profile?.isActive ?? false
+      }
+    }
+
+    if (user.role === 'tutor') {
+      const profile = tutorProfileMap.get(user.id)
+      return {
+        ...user,
+        sectionId: profile?.sectionId ?? null,
+        year: profile?.year ?? null,
+        isActive: null
+      }
+    }
+
     return {
       ...user,
-      parentFirstName: profile?.parentFirstName ?? null,
-      parentLastName: profile?.parentLastName ?? null,
-      parentEmail: profile?.parentEmail ?? null
+      sectionId: null,
+      year: null,
+      isActive: null
     }
   })
 }
@@ -122,7 +168,7 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
       passwordHash: false
     }
   })
-  const withProfiles = await attachStudentProfiles(records)
+  const withProfiles = await attachProfiles(records)
   return c.json(withProfiles, HttpStatusCodes.OK)
 }
 
@@ -130,7 +176,16 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
   ensureAdmin(c)
 
   const user = c.req.valid('json')
-  const parentUpdates = extractParentUpdates(user)
+  const profileUpdates = extractProfileUpdates(user)
+  const studentProfileUpdates = {
+    sectionId: profileUpdates.sectionId,
+    year: profileUpdates.year,
+    isActive: profileUpdates.isActive
+  }
+  const tutorProfileUpdates = {
+    sectionId: profileUpdates.sectionId,
+    year: profileUpdates.year
+  }
   const passwordHash = await hashPassword(user.password)
 
   const existing = await db.query.users.findFirst({
@@ -142,6 +197,58 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
 
   if (existing) {
     return c.json(buildDuplicateEmailError(), HttpStatusCodes.CONFLICT)
+  }
+
+  if (user.role === 'student' && profileUpdates.year !== undefined
+    && (profileUpdates.year < 1 || profileUpdates.year > 3)) {
+    return c.json(
+      {
+        success: false,
+        error: {
+          issues: [
+            {
+              code: ZOD_ERROR_CODES.INVALID_UPDATES,
+              path: ['year'],
+              message: 'Year must be between 1 and 3'
+            }
+          ],
+          name: 'ZodError'
+        }
+      },
+      HttpStatusCodes.UNPROCESSABLE_ENTITY
+    )
+  }
+
+  if (user.role === 'tutor' && profileUpdates.year !== undefined
+    && (profileUpdates.year < 4 || profileUpdates.year > 5)) {
+    return c.json(
+      {
+        success: false,
+        error: {
+          issues: [
+            {
+              code: ZOD_ERROR_CODES.INVALID_UPDATES,
+              path: ['year'],
+              message: 'Year must be between 4 and 5'
+            }
+          ],
+          name: 'ZodError'
+        }
+      },
+      HttpStatusCodes.UNPROCESSABLE_ENTITY
+    )
+  }
+
+  if (profileUpdates.sectionId) {
+    const section = await db.query.classSections.findFirst({
+      where(fields, operators) {
+        return operators.eq(fields.id, profileUpdates.sectionId as string)
+      },
+      columns: { id: true }
+    })
+    if (!section) {
+      return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
+    }
   }
 
   try {
@@ -169,22 +276,32 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
     if (inserted.role === 'student') {
       await db.insert(studentProfiles).values({
         userId: inserted.id,
-        parentFirstName: parentUpdates.parentFirstName,
-        parentLastName: parentUpdates.parentLastName,
-        parentEmail: parentUpdates.parentEmail
+        sectionId: studentProfileUpdates.sectionId,
+        year: studentProfileUpdates.year,
+        isActive: studentProfileUpdates.isActive ?? false
       })
     }
 
     if (inserted.role === 'tutor') {
       await db.insert(tutorProfiles).values({
-        userId: inserted.id
+        userId: inserted.id,
+        sectionId: tutorProfileUpdates.sectionId,
+        year: tutorProfileUpdates.year
+      })
+
+      const verification = await issueEmailVerificationToken(inserted.id)
+      const tutorEmail = buildTutorCreatedMessage(verification.token)
+      await sendMail({
+        to: inserted.email,
+        subject: tutorEmail.subject,
+        text: tutorEmail.text
       })
     }
 
     const location = `/users/${inserted.id}`
     c.header('Location', location)
 
-    const [withProfile] = await attachStudentProfiles([inserted])
+    const [withProfile] = await attachProfiles([inserted])
     return c.json(withProfile, HttpStatusCodes.CREATED)
   }
   catch (error) {
@@ -217,7 +334,7 @@ export const getOne: AppRouteHandler<GetOneRoute> = async (c) => {
     )
   }
 
-  const [withProfile] = await attachStudentProfiles([user])
+  const [withProfile] = await attachProfiles([user])
   return c.json(withProfile, HttpStatusCodes.OK)
 }
 
@@ -228,11 +345,12 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     firstName?: string
     lastName?: string
     password?: string
-    parentFirstName?: string
-    parentLastName?: string
-    parentEmail?: string
+    sectionId?: string
+    year?: number
+    isActive?: boolean
   }
   ensureSelfOrAdmin(c, id)
+  const currentUser = c.get('currentUser')
 
   const userUpdates: {
     email?: string
@@ -244,12 +362,24 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     firstName: updates.firstName,
     lastName: updates.lastName
   }
-  const parentUpdates = extractParentUpdates(updates)
+  const profileUpdates = extractProfileUpdates(updates)
+  const studentProfileUpdates = {
+    sectionId: profileUpdates.sectionId,
+    year: profileUpdates.year,
+    isActive: profileUpdates.isActive
+  }
+  const tutorProfileUpdates = {
+    sectionId: profileUpdates.sectionId,
+    year: profileUpdates.year
+  }
   let passwordChanged = false
+  let previousIsActive: boolean | null | undefined
+  const hasProfileUpdates = Object.values(profileUpdates).some(value => value !== undefined)
   if (updates.password) {
     userUpdates.passwordHash = await hashPassword(updates.password)
     passwordChanged = true
   }
+  const hasUserUpdates = Object.values(userUpdates).some(value => value !== undefined)
 
   if (typeof updates.email === 'string') {
     const email = updates.email
@@ -286,8 +416,11 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       )
     }
 
-    const hasParentUpdates = Object.values(parentUpdates).some(value => value !== undefined)
-    if (hasParentUpdates && existing.role !== 'student') {
+    if (hasProfileUpdates && currentUser?.role !== 'admin') {
+      return c.json({ message: HttpStatusPhrases.FORBIDDEN }, HttpStatusCodes.FORBIDDEN)
+    }
+
+    if (hasProfileUpdates && existing.role === 'admin') {
       return c.json(
         {
           success: false,
@@ -296,7 +429,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
               {
                 code: ZOD_ERROR_CODES.INVALID_UPDATES,
                 path: ['role'],
-                message: 'Parent information is only allowed for students'
+                message: 'Sections and year are only allowed for students and tutors'
               }
             ],
             name: 'ZodError'
@@ -306,36 +439,169 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       )
     }
 
-    const [updated] = await db
-      .update(users)
-      .set({
-        email: userUpdates.email,
-        firstName: userUpdates.firstName,
-        lastName: userUpdates.lastName,
-        passwordHash: userUpdates.passwordHash
+    if (profileUpdates.isActive !== undefined && existing.role !== 'student') {
+      return c.json(
+        {
+          success: false,
+          error: {
+            issues: [
+              {
+                code: ZOD_ERROR_CODES.INVALID_UPDATES,
+                path: ['isActive'],
+                message: 'Activation is only allowed for students'
+              }
+            ],
+            name: 'ZodError'
+          }
+        },
+        HttpStatusCodes.UNPROCESSABLE_ENTITY
+      )
+    }
+    if (existing.role === 'student' && profileUpdates.isActive !== undefined) {
+      const currentProfile = await db.query.studentProfiles.findFirst({
+        where(fields, operators) {
+          return operators.eq(fields.userId, id)
+        },
+        columns: { isActive: true }
       })
-      .where(eq(users.id, id))
-      .returning({
-        id: users.id,
-        email: users.email,
-        firstName: users.firstName,
-        lastName: users.lastName,
-        role: users.role,
-        emailVerifiedAt: users.emailVerifiedAt,
-        createdAt: users.createdAt,
-        updatedAt: users.updatedAt
-      })
-    user = updated
+      previousIsActive = currentProfile?.isActive ?? null
+    }
 
-    if (existing.role === 'student' && hasParentUpdates) {
+    if (hasProfileUpdates && existing.role === 'student') {
+      if (profileUpdates.year !== undefined && (profileUpdates.year < 1 || profileUpdates.year > 3)) {
+        return c.json(
+          {
+            success: false,
+            error: {
+              issues: [
+                {
+                  code: ZOD_ERROR_CODES.INVALID_UPDATES,
+                  path: ['year'],
+                  message: 'Year must be between 1 and 3'
+                }
+              ],
+              name: 'ZodError'
+            }
+          },
+          HttpStatusCodes.UNPROCESSABLE_ENTITY
+        )
+      }
+    }
+
+    if (hasProfileUpdates && existing.role === 'tutor') {
+      if (profileUpdates.year !== undefined && (profileUpdates.year < 4 || profileUpdates.year > 5)) {
+        return c.json(
+          {
+            success: false,
+            error: {
+              issues: [
+                {
+                  code: ZOD_ERROR_CODES.INVALID_UPDATES,
+                  path: ['year'],
+                  message: 'Year must be between 4 and 5'
+                }
+              ],
+              name: 'ZodError'
+            }
+          },
+          HttpStatusCodes.UNPROCESSABLE_ENTITY
+        )
+      }
+    }
+
+    if (profileUpdates.sectionId) {
+      const section = await db.query.classSections.findFirst({
+        where(fields, operators) {
+          return operators.eq(fields.id, profileUpdates.sectionId as string)
+        },
+        columns: { id: true }
+      })
+      if (!section) {
+        return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
+      }
+    }
+
+    if (hasUserUpdates) {
+      const [updated] = await db
+        .update(users)
+        .set({
+          email: userUpdates.email,
+          firstName: userUpdates.firstName,
+          lastName: userUpdates.lastName,
+          passwordHash: userUpdates.passwordHash
+        })
+        .where(eq(users.id, id))
+        .returning({
+          id: users.id,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          role: users.role,
+          emailVerifiedAt: users.emailVerifiedAt,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt
+        })
+      user = updated
+    }
+    else {
+      user = await db.query.users.findFirst({
+        where(fields, operators) {
+          return operators.eq(fields.id, id)
+        },
+        columns: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          emailVerifiedAt: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      })
+    }
+
+    if (existing.role === 'student' && hasProfileUpdates) {
       const result = await db.update(studentProfiles)
-        .set(parentUpdates)
+        .set(studentProfileUpdates)
         .where(eq(studentProfiles.userId, id))
       if (result.rowsAffected === 0) {
         await db.insert(studentProfiles).values({
           userId: id,
-          ...parentUpdates
+          ...studentProfileUpdates
         })
+      }
+    }
+
+    if (existing.role === 'tutor' && hasProfileUpdates) {
+      const result = await db.update(tutorProfiles)
+        .set(tutorProfileUpdates)
+        .where(eq(tutorProfiles.userId, id))
+      if (result.rowsAffected === 0) {
+        await db.insert(tutorProfiles).values({
+          userId: id,
+          ...tutorProfileUpdates
+        })
+      }
+    }
+
+    if (user?.email && (hasUserUpdates || hasProfileUpdates)) {
+      const activationChanged = previousIsActive !== undefined
+        && profileUpdates.isActive !== undefined
+        && previousIsActive !== profileUpdates.isActive
+      const message = activationChanged
+        ? buildActivationChangedMessage(Boolean(profileUpdates.isActive))
+        : buildProfileUpdatedMessage()
+      try {
+        await sendMail({
+          to: user.email,
+          subject: message.subject,
+          text: message.text
+        })
+      }
+      catch (error) {
+        // Avoid blocking profile updates on email delivery issues.
+        console.error('Failed to send profile update email', error)
       }
     }
   }
@@ -359,7 +625,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     await revokeUserRefreshTokens(id)
   }
 
-  const [withProfile] = await attachStudentProfiles([user])
+  const [withProfile] = await attachProfiles([user])
   return c.json(withProfile, HttpStatusCodes.OK)
 }
 

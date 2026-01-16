@@ -121,6 +121,10 @@ export const register = createRoute({
       })),
       'Given email already exists'
     ),
+    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.BAD_REQUEST),
+      'Section not found'
+    ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
       createErrorSchema(studentRegisterSchema),
       'The validation error(s)'

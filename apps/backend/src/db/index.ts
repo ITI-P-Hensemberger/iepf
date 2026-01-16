@@ -5,6 +5,7 @@ import env from '@/env'
 
 import { adminProfiles } from './schemas/admin-profiles.schema'
 import { auditLogs } from './schemas/audit-logs.schema'
+import { classSections } from './schemas/class-sections.schema'
 import { emailVerificationTokens } from './schemas/email-verification-tokens.schema'
 import { lessonBookings } from './schemas/lesson-bookings.schema'
 import { lessons } from './schemas/lessons.schema'
@@ -23,6 +24,7 @@ const schema = {
   users,
   auditLogs,
   adminProfiles,
+  classSections,
   studentProfiles,
   tutorProfiles,
   subjects,

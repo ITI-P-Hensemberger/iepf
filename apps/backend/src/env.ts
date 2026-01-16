@@ -26,6 +26,42 @@ const EnvSchema = z.object({
   PASSWORD_RESET_TTL: z.coerce.number().int().positive().default(60 * 15),
   // Auto-stall lessons if confirmations are missing after this window (minutes).
   LESSON_CONFIRMATION_STALL_MINUTES: z.coerce.number().int().positive().default(60 * 24),
+  SITE_URL: z.url().optional(),
+  SMTP_HOST: z.preprocess(
+    value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().min(1).optional()
+  ),
+  SMTP_PORT: z.preprocess(
+    value => (value === '' ? undefined : value),
+    z.coerce.number().int().positive().optional()
+  ),
+  SMTP_USER: z.preprocess(
+    value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().min(1).optional()
+  ),
+  SMTP_PASS: z.preprocess(
+    value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().min(1).optional()
+  ),
+  SMTP_FROM: z.preprocess(
+    value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().min(1).optional()
+  ),
+  SMTP_DEBUG: z.preprocess((value) => {
+    if (value === '' || value === undefined) {
+      return undefined
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase()
+      if (['true', '1', 'yes', 'y'].includes(normalized)) {
+        return true
+      }
+      if (['false', '0', 'no', 'n'].includes(normalized)) {
+        return false
+      }
+    }
+    return value
+  }, z.boolean().optional()),
   ADMIN_EMAIL: z.email().optional(),
   ADMIN_PASSWORD: z.string().min(8).optional(),
   ADMIN_FIRST_NAME: z.string().min(1).default('Admin'),
@@ -39,6 +75,29 @@ const EnvSchema = z.object({
       path: ['DATABASE_AUTH_TOKEN'],
       message: 'Must be set when NODE_ENV is \'production\''
     })
+  }
+  if (input.NODE_ENV === 'production' && !input.SITE_URL) {
+    ctx.addIssue({
+      code: 'invalid_type',
+      expected: 'string',
+      received: 'undefined',
+      path: ['SITE_URL'],
+      message: 'Must be set when NODE_ENV is \'production\''
+    })
+  }
+  if (input.NODE_ENV === 'production') {
+    const required = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'] as const
+    for (const key of required) {
+      if (!input[key]) {
+        ctx.addIssue({
+          code: 'invalid_type',
+          expected: 'string',
+          received: 'undefined',
+          path: [key],
+          message: `Must be set when NODE_ENV is 'production'`
+        })
+      }
+    }
   }
 })
 

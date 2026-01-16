@@ -1,0 +1,155 @@
+### Purpose: Admin-only API testing flow (VS Code REST Client).
+### Flow notes:
+### - Run this first to create core data (section, subject, tutor).
+### - Copy IDs and tokens into the other role files when needed.
+### Environment:
+### - Select "local" in VS Code REST Client environments (from .vscode/settings.json).
+
+### Admin login
+# @name adminLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+
+@adminToken = {{adminLogin.response.body.accessToken}}
+
+### Create class section (admin)
+# @name createClassSection
+POST {{baseUrl}}/class-sections
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "D1"
+}
+
+###
+
+@sectionId = {{createClassSection.response.body.id}}
+
+### List class sections (admin)
+GET {{baseUrl}}/class-sections
+Authorization: Bearer {{adminToken}}
+
+### Update class section (admin)
+PATCH {{baseUrl}}/class-sections/{{sectionId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "D1-updated"
+}
+
+### Delete class section (admin)
+DELETE {{baseUrl}}/class-sections/{{sectionId}}
+Authorization: Bearer {{adminToken}}
+
+### Create a subject (admin)
+# @name createSubject
+POST {{baseUrl}}/subjects
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Matematica",
+  "canonicalName": "matematica"
+}
+
+###
+
+@subjectId = {{createSubject.response.body.id}}
+
+### Create tutor (admin)
+# @name createTutor
+POST {{baseUrl}}/users
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "email": "tutor@example.com",
+  "firstName": "Taylor",
+  "lastName": "Tutor",
+  "password": "TutorPass123!",
+  "role": "tutor",
+  "sectionId": "{{sectionId}}",
+  "year": 4
+}
+
+###
+
+@tutorId = {{createTutor.response.body.id}}
+
+### Request tutor email verification (copy token from server logs)
+POST {{baseUrl}}/auth/verify-email/request
+Content-Type: application/json
+
+{
+  "email": "tutor@example.com"
+}
+
+###
+
+@tutorVerifyToken = 3eaefc630bb6076a625531d953b38f2fc61cc24e862865e2e54ac650a7eefbe8
+
+### Confirm tutor email verification
+POST {{baseUrl}}/auth/verify-email/confirm
+Content-Type: application/json
+
+{
+  "token": "{{tutorVerifyToken}}"
+}
+
+### Admin adds availability for tutor
+# @name createAvailabilityAdmin
+POST {{baseUrl}}/tutors/{{tutorId}}/availability
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "date": "2026-01-14"
+}
+
+###
+
+@availabilityId = {{createAvailabilityAdmin.response.body.id}}
+
+### Admin list audit logs
+GET {{baseUrl}}/audit/logs?limit=25
+Authorization: Bearer {{adminToken}}
+
+### Admin update user profile (email/name)
+@studentId = 00000000-0000-0000-0000-000000000000
+PATCH {{baseUrl}}/users/{{studentId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "firstName": "Updated",
+  "lastName": "Student",
+  "email": "student.updated@example.com"
+}
+
+### Admin update student section and year
+PATCH {{baseUrl}}/users/{{studentId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "sectionId": "{{sectionId}}",
+  "year": 2
+}
+
+### Admin activates a student
+PATCH {{baseUrl}}/users/{{studentId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "isActive": true
+}

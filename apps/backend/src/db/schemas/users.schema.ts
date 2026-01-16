@@ -45,37 +45,49 @@ export const insertUsersSchema = toZodV4SchemaTyped(createInsertSchema(
   password: z.string().min(8).max(200)
 }).strict())
 
-// Student-only parent contact fields for registration and profile updates.
-export const studentProfileInputSchema = z.object({
-  parentFirstName: z.string().min(1).max(100).optional(),
-  parentLastName: z.string().min(1).max(100).optional(),
-  parentEmail: z.intersection(z.email(), z.string().max(100)).optional()
-})
-
 const baseUserInputSchema = z.object({
   email: z.intersection(z.email(), z.string().max(100)),
   firstName: z.string().min(1).max(100),
   lastName: z.string().min(1).max(100),
-  password: z.string().min(8).max(200),
-  parentFirstName: z.string().min(1).max(100).optional(),
-  parentLastName: z.string().min(1).max(100).optional(),
-  parentEmail: z.intersection(z.email(), z.string().max(100)).optional()
+  password: z.string().min(8).max(200)
 }).strict()
 
-// Student registration includes optional parent contact fields.
-export const studentRegisterSchema = toZodV4SchemaTyped(baseUserInputSchema)
-
-// Admins can set the role when creating users; tutors cannot include parent info.
-export const adminCreateUserSchema = toZodV4SchemaTyped(baseUserInputSchema.extend({
-  role: z.enum(['student', 'tutor']).default('student')
+// Student registration can include optional section/year details.
+export const studentRegisterSchema = toZodV4SchemaTyped(baseUserInputSchema.extend({
+  sectionId: z.uuid().optional(),
+  year: z.number().int().optional()
 })).superRefine((value, ctx) => {
-  if (value.role !== 'student') {
-    const hasParentInfo = Boolean(value.parentFirstName || value.parentLastName || value.parentEmail)
-    if (hasParentInfo) {
+  if (value.year !== undefined && (value.year < 1 || value.year > 3)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['year'],
+      message: 'Year must be between 1 and 3'
+    })
+  }
+})
+
+// Admins can set the role and profile fields when creating users.
+export const adminCreateUserSchema = toZodV4SchemaTyped(baseUserInputSchema.extend({
+  role: z.enum(['student', 'tutor']).default('student'),
+  sectionId: z.uuid().optional(),
+  year: z.number().int().optional(),
+  isActive: z.boolean().optional()
+})).superRefine((value, ctx) => {
+  if (value.role !== 'student' && value.isActive !== undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['isActive'],
+      message: 'Activation is only allowed for students'
+    })
+  }
+  if (value.year !== undefined) {
+    const min = value.role === 'tutor' ? 4 : 1
+    const max = value.role === 'tutor' ? 5 : 3
+    if (value.year < min || value.year > max) {
       ctx.addIssue({
         code: 'custom',
-        path: ['role'],
-        message: 'Parent information is only allowed for students'
+        path: ['year'],
+        message: `Year must be between ${min} and ${max}`
       })
     }
   }
@@ -83,9 +95,9 @@ export const adminCreateUserSchema = toZodV4SchemaTyped(baseUserInputSchema.exte
 
 export const selectUsersWithProfilesSchema = toZodV4SchemaTyped(
   selectUsersSchema.and(z.object({
-    parentFirstName: z.string().nullable().optional(),
-    parentLastName: z.string().nullable().optional(),
-    parentEmail: z.string().nullable().optional()
+    sectionId: z.string().nullable().optional(),
+    year: z.number().nullable().optional(),
+    isActive: z.boolean().nullable().optional()
   }))
 )
 
@@ -94,9 +106,9 @@ export const patchUsersSchema = toZodV4SchemaTyped(z.object({
   firstName: z.string().min(1).max(100).optional(),
   lastName: z.string().min(1).max(100).optional(),
   password: z.string().min(8).max(200).optional(),
-  parentFirstName: z.string().min(1).max(100).optional(),
-  parentLastName: z.string().min(1).max(100).optional(),
-  parentEmail: z.intersection(z.email(), z.string().max(100)).optional()
+  sectionId: z.uuid().optional(),
+  year: z.number().int().optional(),
+  isActive: z.boolean().optional()
 }).strict()).superRefine((value, ctx) => {
   if (Object.keys(value).length === 0) {
     ctx.addIssue({

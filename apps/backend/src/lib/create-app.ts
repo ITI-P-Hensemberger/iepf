@@ -2,8 +2,10 @@
 import type { Schema } from 'hono'
 
 import { OpenAPIHono } from '@hono/zod-openapi'
+import { cors } from 'hono/cors'
 import { requestId } from 'hono/request-id'
 
+import env from '@/env'
 import { defaultHook } from '@/lib/openapi/default-hook'
 import { auditLogger } from '@/middlewares/audit-logger'
 import notFound from '@/middlewares/not-found'
@@ -22,8 +24,11 @@ export function createRouter() {
 
 export default function createApp() {
   const app = createRouter()
+  const corsOrigin = env.NODE_ENV === 'production' ? env.SITE_URL! : '*'
   app.use(requestId())
     .use(serveEmojiFavicon('📝'))
+    // CORS policy is environment-specific to keep production locked down.
+    .use(cors({ origin: corsOrigin }))
     .use(pinoLogger())
     .use(auditLogger())
 

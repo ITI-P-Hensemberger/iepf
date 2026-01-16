@@ -1,0 +1,162 @@
+### Purpose: Bootstrap core data and fill vars from responses.
+### Flow notes:
+### - Run this first to populate IDs in the REST client variable store.
+### - After running, update .vscode/settings.json with IDs if needed.
+### Environment:
+### - Select "local" in VS Code REST Client environments (from .vscode/settings.json).
+
+### Admin login
+# @name adminLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+
+@adminToken = {{adminLogin.response.body.accessToken}}
+
+### Create class section (admin)
+# @name createClassSection
+POST {{baseUrl}}/class-sections
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "D1"
+}
+
+###
+
+@sectionId = {{createClassSection.response.body.id}}
+
+### Create a subject (admin)
+# @name createSubject
+POST {{baseUrl}}/subjects
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Matematica",
+  "canonicalName": "matematica"
+}
+
+###
+
+@subjectId = {{createSubject.response.body.id}}
+
+### Create tutor (admin)
+# @name createTutor
+POST {{baseUrl}}/users
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "email": "{{tutorEmail}}",
+  "firstName": "Taylor",
+  "lastName": "Tutor",
+  "password": "{{tutorPassword}}",
+  "role": "tutor",
+  "sectionId": "{{sectionId}}",
+  "year": 4
+}
+
+###
+
+@tutorId = {{createTutor.response.body.id}}
+
+### Request tutor email verification (copy token from server logs)
+POST {{baseUrl}}/auth/verify-email/request
+Content-Type: application/json
+
+{
+  "email": "{{tutorEmail}}"
+}
+
+###
+
+@tutorVerifyToken = 3eaefc630bb6076a625531d953b38f2fc61cc24e862865e2e54ac650a7eefbe8
+
+### Confirm tutor email verification
+POST {{baseUrl}}/auth/verify-email/confirm
+Content-Type: application/json
+
+{
+  "token": "{{tutorVerifyToken}}"
+}
+
+### Tutor login
+# @name tutorLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{tutorEmail}}",
+  "password": "{{tutorPassword}}"
+}
+
+###
+
+@tutorToken = {{tutorLogin.response.body.accessToken}}
+
+### Tutor adds subject to self
+POST {{baseUrl}}/tutors/{{tutorId}}/subjects
+Authorization: Bearer {{tutorToken}}
+Content-Type: application/json
+
+{
+  "subjectId": "{{subjectId}}"
+}
+
+### Tutor adds availability (next week date)
+# @name createAvailability
+POST {{baseUrl}}/tutors/{{tutorId}}/availability
+Authorization: Bearer {{tutorToken}}
+Content-Type: application/json
+
+{
+  "date": "2026-01-13"
+}
+
+###
+
+@availabilityId = {{createAvailability.response.body.id}}
+
+### Student registration (copy token from server logs)
+# @name registerStudent
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "{{studentEmail}}",
+  "firstName": "Sam",
+  "lastName": "Student",
+  "password": "{{studentPassword}}",
+  "sectionId": "{{sectionId}}",
+  "year": 2
+}
+
+###
+
+@studentId = {{registerStudent.response.body.id}}
+@studentVerifyToken = 15fce023bd6b4e2c29b5c3fa7501f7768891c1de7d8d270c27a8f42820cee507
+
+### Confirm student email verification
+POST {{baseUrl}}/auth/verify-email/confirm
+Content-Type: application/json
+
+{
+  "token": "{{studentVerifyToken}}"
+}
+
+### Activate student (admin)
+PATCH {{baseUrl}}/users/{{studentId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "isActive": true
+}
