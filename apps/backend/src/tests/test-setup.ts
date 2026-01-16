@@ -12,7 +12,7 @@ function sleep(ms: number) {
 }
 
 export async function ensureTestSchema() {
-  // Always apply schema changes before tests to keep SQLite in sync.
+  // Always apply schema changes before tests to keep the database in sync.
   fs.mkdirSync(lockDir, { recursive: true })
   // Clear stale lock files so test runs do not hang indefinitely.
   if (fs.existsSync(lockFile)) {

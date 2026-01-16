@@ -1,20 +1,22 @@
 // Purpose: Tutor availability windows for lesson scheduling.
 import { relations } from 'drizzle-orm'
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { integer, pgTable, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { randomUUID } from 'node:crypto'
 
 import { users } from './users.schema'
 
-export const tutorAvailability = sqliteTable('tutor_availability', {
-  id: text().primaryKey().$defaultFn(() => randomUUID()),
-  tutorId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
-  startAt: integer({ mode: 'timestamp' }).notNull(),
+export const tutorAvailability = pgTable('tutor_availability', {
+  id: uuid().primaryKey().$defaultFn(() => randomUUID()),
+  tutorId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),
+  startAt: timestamp({ mode: 'date' }).notNull(),
   durationMinutes: integer().notNull(),
   seats: integer().notNull(),
-  createdAt: integer({ mode: 'timestamp' })
-    .$defaultFn(() => new Date()),
-  updatedAt: integer({ mode: 'timestamp' })
-    .$defaultFn(() => new Date())
+  createdAt: timestamp({ mode: 'date' })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp({ mode: 'date' })
+    .defaultNow()
+    .notNull()
     .$onUpdate(() => new Date())
 })
 

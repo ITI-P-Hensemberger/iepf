@@ -1,5 +1,6 @@
 // Purpose: Drizzle database client setup.
-import { drizzle } from 'drizzle-orm/libsql'
+import { drizzle } from 'drizzle-orm/node-postgres'
+import { Pool } from 'pg'
 
 import env from '@/env'
 
@@ -39,11 +40,11 @@ const schema = {
   passwordResetTokens
 }
 
-const db = drizzle({
-  connection: {
-    url: env.DATABASE_URL,
-    authToken: env.DATABASE_AUTH_TOKEN
-  },
+const pool = new Pool({
+  connectionString: env.DATABASE_URL
+})
+
+const db = drizzle(pool, {
   casing: 'snake_case',
   schema
 })

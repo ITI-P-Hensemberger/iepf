@@ -1,18 +1,20 @@
 // Purpose: Class sections for students and tutors (e.g., D1, B1, BA).
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { randomUUID } from 'node:crypto'
 
 import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
 import { toZodV4SchemaTyped } from '@/lib/zod-utils'
 
-export const classSections = sqliteTable('class_sections', {
-  id: text().primaryKey().$defaultFn(() => randomUUID()),
+export const classSections = pgTable('class_sections', {
+  id: uuid().primaryKey().$defaultFn(() => randomUUID()),
   name: text().notNull().unique(),
-  createdAt: integer({ mode: 'timestamp' })
-    .$defaultFn(() => new Date()),
-  updatedAt: integer({ mode: 'timestamp' })
-    .$defaultFn(() => new Date())
+  createdAt: timestamp({ mode: 'date' })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp({ mode: 'date' })
+    .defaultNow()
+    .notNull()
     .$onUpdate(() => new Date())
 })
 

@@ -27,13 +27,13 @@ const auditById = (auditClient.audit.logs as typeof auditClient.audit.logs & Rec
 >)[':id']
 
 const adminIdentity: AuthenticatedUser = {
-  id: 'admin-user',
+  id: '00000000-0000-4000-8000-000000000001',
   email: 'admin@example.com',
   role: 'admin'
 }
 
 const studentIdentity: AuthenticatedUser = {
-  id: 'student-user',
+  id: '00000000-0000-4000-8000-000000000002',
   email: 'student@example.com',
   role: 'student'
 }

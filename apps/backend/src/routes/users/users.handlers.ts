@@ -1,7 +1,6 @@
 // Purpose: Users route handlers.
 import type { Context } from 'hono'
 
-import { LibsqlError } from '@libsql/client'
 import { eq } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
@@ -45,8 +44,11 @@ function buildDuplicateEmailError() {
   }
 }
 
-function isUniqueConstraintError(error: unknown): error is LibsqlError {
-  return error instanceof LibsqlError && error.code.startsWith('SQLITE_CONSTRAINT')
+function isUniqueConstraintError(error: unknown): boolean {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && (error as { code?: string }).code === '23505'
 }
 
 function forbid(): never {
@@ -565,7 +567,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       const result = await db.update(studentProfiles)
         .set(studentProfileUpdates)
         .where(eq(studentProfiles.userId, id))
-      if (result.rowsAffected === 0) {
+      if (result.rowCount === 0) {
         await db.insert(studentProfiles).values({
           userId: id,
           ...studentProfileUpdates
@@ -577,7 +579,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       const result = await db.update(tutorProfiles)
         .set(tutorProfileUpdates)
         .where(eq(tutorProfiles.userId, id))
-      if (result.rowsAffected === 0) {
+      if (result.rowCount === 0) {
         await db.insert(tutorProfiles).values({
           userId: id,
           ...tutorProfileUpdates
@@ -636,7 +638,7 @@ export const remove: AppRouteHandler<RemoveRoute> = async (c) => {
   const result = await db.delete(users)
     .where(eq(users.id, id))
 
-  if (result.rowsAffected === 0) {
+  if (result.rowCount === 0) {
     return c.json(
       {
         message: HttpStatusPhrases.NOT_FOUND

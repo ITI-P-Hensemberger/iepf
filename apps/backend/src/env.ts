@@ -17,7 +17,6 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().default(9999),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']),
   DATABASE_URL: z.url(),
-  DATABASE_AUTH_TOKEN: z.string().optional(),
   PASSWORD_SALT: z.string(),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   ACCESS_TOKEN_TTL: z.coerce.number().int().positive().default(3600),
@@ -67,15 +66,6 @@ const EnvSchema = z.object({
   ADMIN_FIRST_NAME: z.string().min(1).default('Admin'),
   ADMIN_LAST_NAME: z.string().min(1).default('User')
 }).superRefine((input, ctx) => {
-  if (input.NODE_ENV === 'production' && !input.DATABASE_AUTH_TOKEN) {
-    ctx.addIssue({
-      code: 'invalid_type',
-      expected: 'string',
-      received: 'undefined',
-      path: ['DATABASE_AUTH_TOKEN'],
-      message: 'Must be set when NODE_ENV is \'production\''
-    })
-  }
   if (input.NODE_ENV === 'production' && !input.SITE_URL) {
     ctx.addIssue({
       code: 'invalid_type',

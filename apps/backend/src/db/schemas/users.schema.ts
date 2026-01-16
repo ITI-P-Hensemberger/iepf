@@ -1,5 +1,5 @@
 // Purpose: Users table schema and validation helpers.
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { randomUUID } from 'node:crypto'
 import z from 'zod'
@@ -7,18 +7,20 @@ import z from 'zod'
 import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
 import { toZodV4SchemaTyped } from '@/lib/zod-utils'
 
-export const users = sqliteTable('users', {
-  id: text().primaryKey().$defaultFn(() => randomUUID()),
+export const users = pgTable('users', {
+  id: uuid().primaryKey().$defaultFn(() => randomUUID()),
   email: text().notNull().unique(),
   firstName: text().notNull(),
   lastName: text().notNull(),
   passwordHash: text().notNull(),
   role: text().notNull().default('student'),
-  emailVerifiedAt: integer({ mode: 'timestamp' }),
-  createdAt: integer({ mode: 'timestamp' })
-    .$defaultFn(() => new Date()),
-  updatedAt: integer({ mode: 'timestamp' })
-    .$defaultFn(() => new Date())
+  emailVerifiedAt: timestamp({ mode: 'date' }),
+  createdAt: timestamp({ mode: 'date' })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp({ mode: 'date' })
+    .defaultNow()
+    .notNull()
     .$onUpdate(() => new Date())
 })
 

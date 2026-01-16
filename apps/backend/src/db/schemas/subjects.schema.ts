@@ -1,19 +1,21 @@
 // Purpose: Subjects table schema and validation helpers.
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { randomUUID } from 'node:crypto'
 
 import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
 import { toZodV4SchemaTyped } from '@/lib/zod-utils'
 
-export const subjects = sqliteTable('subjects', {
-  id: text().primaryKey().$defaultFn(() => randomUUID()),
+export const subjects = pgTable('subjects', {
+  id: uuid().primaryKey().$defaultFn(() => randomUUID()),
   name: text().notNull(),
   canonicalName: text().notNull().unique(),
-  createdAt: integer({ mode: 'timestamp' })
-    .$defaultFn(() => new Date()),
-  updatedAt: integer({ mode: 'timestamp' })
-    .$defaultFn(() => new Date())
+  createdAt: timestamp({ mode: 'date' })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp({ mode: 'date' })
+    .defaultNow()
+    .notNull()
     .$onUpdate(() => new Date())
 })
 

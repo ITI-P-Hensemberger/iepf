@@ -385,7 +385,7 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
 
 export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
   const { lessonId } = c.req.valid('param')
-  ensureAdmin(c)
+  const admin = ensureAdmin(c)
 
   const lesson = await db.query.lessons.findFirst({
     where(fields, operators) {
@@ -415,7 +415,7 @@ export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
       .set({
         status: 'admin_canceled',
         canceledAt: new Date(),
-        canceledBy: 'admin'
+        canceledBy: admin.id
       })
       .where(eq(lessonBookings.id, booking.id))
 

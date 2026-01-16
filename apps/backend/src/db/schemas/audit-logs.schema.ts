@@ -1,10 +1,10 @@
 // Purpose: Audit log entries for request and admin actions.
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { randomUUID } from 'node:crypto'
 
-export const auditLogs = sqliteTable('audit_logs', {
-  id: text().primaryKey().$defaultFn(() => randomUUID()),
-  actorId: text(),
+export const auditLogs = pgTable('audit_logs', {
+  id: uuid().primaryKey().$defaultFn(() => randomUUID()),
+  actorId: uuid(),
   actorRole: text(),
   action: text().notNull(),
   method: text().notNull(),
@@ -15,6 +15,7 @@ export const auditLogs = sqliteTable('audit_logs', {
   requestId: text(),
   durationMs: integer().notNull(),
   metadata: text(),
-  createdAt: integer({ mode: 'timestamp' })
-    .$defaultFn(() => new Date())
+  createdAt: timestamp({ mode: 'date' })
+    .defaultNow()
+    .notNull()
 })

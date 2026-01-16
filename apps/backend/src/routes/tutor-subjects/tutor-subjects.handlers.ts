@@ -1,7 +1,6 @@
 // Purpose: Tutor-subject relationship handlers.
 import type { Context } from 'hono'
 
-import { LibsqlError } from '@libsql/client'
 import { and, eq } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
@@ -40,8 +39,11 @@ function buildDuplicateTutorSubjectError() {
   }
 }
 
-function isUniqueConstraintError(error: unknown): error is LibsqlError {
-  return error instanceof LibsqlError && error.code.startsWith('SQLITE_CONSTRAINT')
+function isUniqueConstraintError(error: unknown): boolean {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && (error as { code?: string }).code === '23505'
 }
 
 function forbid(): never {

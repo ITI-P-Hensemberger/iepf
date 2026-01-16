@@ -1,31 +1,33 @@
 // Purpose: Lesson sessions scheduled for tutors and subjects.
 import { relations } from 'drizzle-orm'
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { randomUUID } from 'node:crypto'
 
 import { subjects } from './subjects.schema'
 import { tutorAvailability } from './tutor-availability.schema'
 import { users } from './users.schema'
 
-export const lessons = sqliteTable('lessons', {
-  id: text().primaryKey().$defaultFn(() => randomUUID()),
-  tutorId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
-  subjectId: text().notNull().references(() => subjects.id, { onDelete: 'restrict' }),
-  availabilityId: text().references(() => tutorAvailability.id, { onDelete: 'set null' }),
-  startAt: integer({ mode: 'timestamp' }).notNull(),
+export const lessons = pgTable('lessons', {
+  id: uuid().primaryKey().$defaultFn(() => randomUUID()),
+  tutorId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),
+  subjectId: uuid().notNull().references(() => subjects.id, { onDelete: 'restrict' }),
+  availabilityId: uuid().references(() => tutorAvailability.id, { onDelete: 'set null' }),
+  startAt: timestamp({ mode: 'date' }).notNull(),
   durationMinutes: integer().notNull(),
   seats: integer().notNull(),
   status: text().notNull().default('scheduled'),
-  tutorConfirmed: integer({ mode: 'boolean' }),
-  tutorConfirmedAt: integer({ mode: 'timestamp' }),
+  tutorConfirmed: boolean(),
+  tutorConfirmedAt: timestamp({ mode: 'date' }),
   tutorConfirmationNote: text(),
-  adminResolvedAt: integer({ mode: 'timestamp' }),
-  adminResolvedBy: text(),
+  adminResolvedAt: timestamp({ mode: 'date' }),
+  adminResolvedBy: uuid(),
   adminResolutionNote: text(),
-  createdAt: integer({ mode: 'timestamp' })
-    .$defaultFn(() => new Date()),
-  updatedAt: integer({ mode: 'timestamp' })
-    .$defaultFn(() => new Date())
+  createdAt: timestamp({ mode: 'date' })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp({ mode: 'date' })
+    .defaultNow()
+    .notNull()
     .$onUpdate(() => new Date())
 })
 

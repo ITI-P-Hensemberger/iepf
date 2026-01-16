@@ -13,6 +13,7 @@ export default defineConfig({
     sequence: {
       concurrent: false
     },
+    setupFiles: ['./src/tests/global-setup.ts'],
     // Allow schema pushes to finish in slower environments.
     hookTimeout: 30000,
     fileParallelism: false,
