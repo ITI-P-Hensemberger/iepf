@@ -35,3 +35,5 @@ dist
 .pmpm-store/
 
 .dev.vars
+
+postgres/postgres-data/

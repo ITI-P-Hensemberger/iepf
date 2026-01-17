@@ -9,7 +9,8 @@ expand(config({
   path: path.resolve(
     process.cwd(),
     process.env.NODE_ENV === 'test' ? '.env.test' : '.env'
-  )
+  ),
+  override: true
 }))
 
 const EnvSchema = z.object({

@@ -13,3 +13,4 @@ coverage
 http
 .vscode
 .idea
+postgres

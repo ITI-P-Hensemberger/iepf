@@ -1,0 +1,18 @@
+services:
+  db:
+    image: postgres:16
+    container_name: postgres
+    restart: always
+    shm_size: 128mb
+    env_file:
+      - .env
+    ports:
+      - '5432:5432'
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    networks:
+      - iepf
+
+networks:
+  iepf:
+    external: true
