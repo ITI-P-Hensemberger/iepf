@@ -211,7 +211,7 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
             {
               code: ZOD_ERROR_CODES.INVALID_UPDATES,
               path: ['year'],
-              message: 'Year must be between 1 and 3'
+              message: 'L\'anno deve essere compreso tra 1 e 3'
             }
           ],
           name: 'ZodError'
@@ -231,7 +231,7 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
             {
               code: ZOD_ERROR_CODES.INVALID_UPDATES,
               path: ['year'],
-              message: 'Year must be between 4 and 5'
+              message: 'L\'anno deve essere compreso tra 4 e 5'
             }
           ],
           name: 'ZodError'
@@ -296,7 +296,8 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
       await sendMail({
         to: inserted.email,
         subject: tutorEmail.subject,
-        text: tutorEmail.text
+        text: tutorEmail.text,
+        html: tutorEmail.html
       })
     }
 
@@ -431,7 +432,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
               {
                 code: ZOD_ERROR_CODES.INVALID_UPDATES,
                 path: ['role'],
-                message: 'Sections and year are only allowed for students and tutors'
+                message: 'Sezioni e anno sono consentiti solo per studenti e tutor'
               }
             ],
             name: 'ZodError'
@@ -450,7 +451,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
               {
                 code: ZOD_ERROR_CODES.INVALID_UPDATES,
                 path: ['isActive'],
-                message: 'Activation is only allowed for students'
+                message: 'L\'attivazione e consentita solo per studenti'
               }
             ],
             name: 'ZodError'
@@ -479,7 +480,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
                 {
                   code: ZOD_ERROR_CODES.INVALID_UPDATES,
                   path: ['year'],
-                  message: 'Year must be between 1 and 3'
+                  message: 'L\'anno deve essere compreso tra 1 e 3'
                 }
               ],
               name: 'ZodError'
@@ -500,7 +501,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
                 {
                   code: ZOD_ERROR_CODES.INVALID_UPDATES,
                   path: ['year'],
-                  message: 'Year must be between 4 and 5'
+                  message: 'L\'anno deve essere compreso tra 4 e 5'
                 }
               ],
               name: 'ZodError'
@@ -598,7 +599,8 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
         await sendMail({
           to: user.email,
           subject: message.subject,
-          text: message.text
+          text: message.text,
+          html: message.html
         })
       }
       catch (error) {

@@ -440,7 +440,7 @@ export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
     }
   }
 
-  return c.json({ message: 'Lesson canceled' }, HttpStatusCodes.OK)
+  return c.json({ message: 'Lezione annullata' }, HttpStatusCodes.OK)
 }
 
 export const confirmLessonTutor: AppRouteHandler<ConfirmLessonTutorRoute> = async (c) => {
@@ -820,7 +820,7 @@ export const resolveLesson: AppRouteHandler<ResolveLessonRoute> = async (c) => {
       .set({ status: 'completed' })
       .where(eq(lessonBookings.lessonId, lessonId))
 
-    return c.json({ message: 'Lesson resolved' }, HttpStatusCodes.OK)
+    return c.json({ message: 'Lezione risolta' }, HttpStatusCodes.OK)
   }
 
   await db.update(lessons)
@@ -871,7 +871,7 @@ export const resolveLesson: AppRouteHandler<ResolveLessonRoute> = async (c) => {
     }
   }
 
-  return c.json({ message: 'Lesson resolved' }, HttpStatusCodes.OK)
+  return c.json({ message: 'Lezione risolta' }, HttpStatusCodes.OK)
 }
 
 export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c) => {
@@ -960,7 +960,7 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
     })
     .where(eq(lessonBookings.lessonId, lesson.id))
 
-  return c.json({ message: 'Lesson rescheduled' }, HttpStatusCodes.OK)
+  return c.json({ message: 'Lezione riprogrammata' }, HttpStatusCodes.OK)
 }
 
 export const overrideLessonConfirmations: AppRouteHandler<OverrideLessonConfirmationsRoute> = async (c) => {

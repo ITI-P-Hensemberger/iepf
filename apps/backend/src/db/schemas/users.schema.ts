@@ -63,7 +63,7 @@ export const studentRegisterSchema = toZodV4SchemaTyped(baseUserInputSchema.exte
     ctx.addIssue({
       code: 'custom',
       path: ['year'],
-      message: 'Year must be between 1 and 3'
+      message: 'L\'anno deve essere compreso tra 1 e 3'
     })
   }
 })
@@ -79,7 +79,7 @@ export const adminCreateUserSchema = toZodV4SchemaTyped(baseUserInputSchema.exte
     ctx.addIssue({
       code: 'custom',
       path: ['isActive'],
-      message: 'Activation is only allowed for students'
+      message: 'L\'attivazione e consentita solo per studenti'
     })
   }
   if (value.year !== undefined) {
@@ -89,7 +89,7 @@ export const adminCreateUserSchema = toZodV4SchemaTyped(baseUserInputSchema.exte
       ctx.addIssue({
         code: 'custom',
         path: ['year'],
-        message: `Year must be between ${min} and ${max}`
+        message: `L\'anno deve essere compreso tra ${min} e ${max}`
       })
     }
   }

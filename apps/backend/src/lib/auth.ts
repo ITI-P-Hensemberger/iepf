@@ -42,7 +42,7 @@ export async function verifyAccessToken(token: string) {
   const payload = await verify(token, env.JWT_SECRET) as Partial<AccessTokenPayload>
 
   if (!payload?.sub || !payload.email || !payload.role || !payload.exp || !payload.jti) {
-    throw new Error('Invalid access token payload')
+    throw new Error('Payload del token di accesso non valido')
   }
 
   return payload as AccessTokenPayload

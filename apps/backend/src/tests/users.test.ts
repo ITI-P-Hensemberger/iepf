@@ -765,7 +765,7 @@ describe('auth routes', () => {
 
     expect(response.status).toBe(HttpStatusCodes.OK)
     const body = (await response.json()) as MessageResponse
-    expect(body.message).toMatch(/reset email/i)
+    expect(body.message).toMatch(/reimpostazione/i)
   })
 
   it('resets password with a valid reset token', async () => {
@@ -782,7 +782,7 @@ describe('auth routes', () => {
 
     expect(response.status).toBe(HttpStatusCodes.OK)
     const body = (await response.json()) as MessageResponse
-    expect(body.message).toMatch(/reset/i)
+    expect(body.message).toMatch(/reimpostata/i)
 
     const loginResponse = await authClient.auth.login.$post({
       json: {
@@ -814,7 +814,7 @@ describe('auth routes', () => {
 
     expect(response.status).toBe(HttpStatusCodes.OK)
     const body = (await response.json()) as MessageResponse
-    expect(body.message).toMatch(/verified/i)
+    expect(body.message).toMatch(/verificata/i)
 
     const updated = await db.query.users.findFirst({
       where(fields, operators) {
@@ -859,7 +859,7 @@ describe('auth routes', () => {
 
     expect(response.status).toBe(HttpStatusCodes.OK)
     const body = (await response.json()) as MessageResponse
-    expect(body.message).toMatch(/verification email/i)
+    expect(body.message).toMatch(/email di verifica/i)
   })
 
   it('rate limits login attempts', async () => {

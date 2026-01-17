@@ -3,14 +3,14 @@ import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { createMessageObjectSchema } from '@/lib/openapi/schemas'
 
 export const ZOD_ERROR_MESSAGES = {
-  REQUIRED: 'Required',
-  EXPECTED_NUMBER: 'Invalid input: expected number, received NaN',
-  NO_UPDATES: 'No updates provided',
-  EXPECTED_STRING: 'Invalid input: expected string, received undefined',
-  EMAIL_ALREADY_EXISTS: 'A user with this email already exists',
-  CANONICAL_NAME_EXISTS: 'A subject with this canonical name already exists',
-  TUTOR_SUBJECT_EXISTS: 'Tutor already assigned to this subject',
-  CLASS_SECTION_EXISTS: 'A class section with this name already exists'
+  REQUIRED: 'Obbligatorio',
+  EXPECTED_NUMBER: 'Input non valido: numero atteso, ricevuto NaN',
+  NO_UPDATES: 'Nessun aggiornamento fornito',
+  EXPECTED_STRING: 'Input non valido: stringa attesa, ricevuto undefined',
+  EMAIL_ALREADY_EXISTS: 'Impossibile registrarsi con questa email',
+  CANONICAL_NAME_EXISTS: 'Esiste già una materia con questo nome canonico',
+  TUTOR_SUBJECT_EXISTS: 'Il tutor è già assegnato a questa materia',
+  CLASS_SECTION_EXISTS: 'Esiste già una sezione con questo nome'
 }
 
 export const ZOD_ERROR_CODES = {

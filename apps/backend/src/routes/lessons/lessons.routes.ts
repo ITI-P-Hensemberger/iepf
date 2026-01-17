@@ -234,8 +234,8 @@ export const cancelLesson = createRoute({
   },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      createMessageObjectSchema('Lesson canceled'),
-      'Lesson canceled'
+      createMessageObjectSchema('Lezione annullata'),
+      'Lezione annullata'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
       createMessageObjectSchema(HttpStatusPhrases.NOT_FOUND),
@@ -330,8 +330,8 @@ export const resolveLesson = createRoute({
   },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      createMessageObjectSchema('Lesson resolved'),
-      'Lesson resolved'
+      createMessageObjectSchema('Lezione risolta'),
+      'Lezione risolta'
     ),
     [HttpStatusCodes.BAD_REQUEST]: jsonContent(
       createMessageObjectSchema(HttpStatusPhrases.BAD_REQUEST),
@@ -374,8 +374,8 @@ export const rescheduleLesson = createRoute({
   },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      createMessageObjectSchema('Lesson rescheduled'),
-      'Lesson rescheduled'
+      createMessageObjectSchema('Lezione riprogrammata'),
+      'Lezione riprogrammata'
     ),
     [HttpStatusCodes.BAD_REQUEST]: jsonContent(
       createMessageObjectSchema(HttpStatusPhrases.BAD_REQUEST),

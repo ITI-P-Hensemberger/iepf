@@ -39,8 +39,8 @@ export const login = createRoute({
       'Invalid credentials'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema('Email not verified'),
-      'Email not verified'
+      createMessageObjectSchema('Email non verificata'),
+      'Email non verificata'
     ),
     [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
       createMessageObjectSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
@@ -150,8 +150,8 @@ export const requestPasswordReset = createRoute({
   },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      createMessageObjectSchema('If the account exists, a reset email has been sent.'),
-      'Password reset email queued'
+      createMessageObjectSchema('Se l\'account esiste, e stata inviata un\'email di reimpostazione.'),
+      'Email di reimpostazione in coda'
     ),
     [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
       createMessageObjectSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
@@ -175,7 +175,7 @@ export const confirmPasswordReset = createRoute({
   },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      createMessageObjectSchema('Password reset successfully.'),
+      createMessageObjectSchema('Password reimpostata con successo.'),
       'Password reset'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
@@ -203,7 +203,7 @@ export const requestEmailVerification = createRoute({
   },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      createMessageObjectSchema('If the account exists, a verification email has been sent.'),
+      createMessageObjectSchema('Se l\'account esiste, e stata inviata un\'email di verifica.'),
       'Verification email queued'
     ),
     [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
@@ -227,8 +227,8 @@ export const confirmEmailVerification = createRoute({
   },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      createMessageObjectSchema('Email verified.'),
-      'Email verified'
+      createMessageObjectSchema('Email verificata.'),
+      'Email verificata'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
       createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),

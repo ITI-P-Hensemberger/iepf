@@ -11,7 +11,12 @@ import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { users } from '@/db/schemas/users.schema'
 import { createAccessToken } from '@/lib/auth'
 import { DEFAULT_TUTOR_SETTINGS, ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
-import { buildEmailVerificationMessage, buildPasswordResetMessage, buildStudentRegistrationMessage } from '@/lib/email-templates'
+import {
+  buildEmailVerificationMessage,
+  buildPasswordResetMessage,
+  buildRegistrationConfirmedMessage,
+  buildStudentRegistrationMessage
+} from '@/lib/email-templates'
 import { consumeEmailVerificationToken, issueEmailVerificationToken } from '@/lib/email-verification'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
@@ -81,7 +86,7 @@ export const login: AppRouteHandler<LoginRoute> = async (c) => {
 
   if (!user.emailVerifiedAt) {
     return c.json(
-      { message: 'Email not verified' },
+      { message: 'Email non verificata' },
       HttpStatusCodes.FORBIDDEN
     )
   }
@@ -202,7 +207,8 @@ export const register: AppRouteHandler<RegisterRoute> = async (c) => {
   await sendMail({
     to: inserted.email,
     subject: registrationEmail.subject,
-    text: registrationEmail.text
+    text: registrationEmail.text,
+    html: registrationEmail.html
   })
 
   c.header('Location', `/users/${inserted.id}`)
@@ -235,12 +241,13 @@ export const requestPasswordReset: AppRouteHandler<RequestPasswordResetRoute> = 
     await sendMail({
       to: user.email,
       subject: resetEmail.subject,
-      text: resetEmail.text
+      text: resetEmail.text,
+      html: resetEmail.html
     })
   }
 
   return c.json(
-    { message: 'If the account exists, a reset email has been sent.' },
+    { message: 'Se l\'account esiste, e stata inviata un\'email di reimpostazione.' },
     HttpStatusCodes.OK
   )
 }
@@ -262,7 +269,7 @@ export const confirmPasswordReset: AppRouteHandler<ConfirmPasswordResetRoute> = 
   await revokeUserRefreshTokens(user.id)
 
   return c.json(
-    { message: 'Password reset successfully.' },
+    { message: 'Password reimpostata con successo.' },
     HttpStatusCodes.OK
   )
 }
@@ -286,12 +293,13 @@ export const requestEmailVerification: AppRouteHandler<RequestEmailVerificationR
     await sendMail({
       to: user.email,
       subject: verificationEmail.subject,
-      text: verificationEmail.text
+      text: verificationEmail.text,
+      html: verificationEmail.html
     })
   }
 
   return c.json(
-    { message: 'If the account exists, a verification email has been sent.' },
+    { message: 'Se l\'account esiste, e stata inviata un\'email di verifica.' },
     HttpStatusCodes.OK
   )
 }
@@ -304,6 +312,7 @@ export const confirmEmailVerification: AppRouteHandler<ConfirmEmailVerificationR
     return unauthorized(c)
   }
 
+  const wasVerified = Boolean(user.emailVerifiedAt)
   if (!user.emailVerifiedAt) {
     await db.update(users)
       .set({ emailVerifiedAt: new Date() })
@@ -333,8 +342,23 @@ export const confirmEmailVerification: AppRouteHandler<ConfirmEmailVerificationR
     }
   }
 
+  if (!wasVerified && roleRecord?.role === 'student') {
+    const confirmation = buildRegistrationConfirmedMessage()
+    try {
+      await sendMail({
+        to: user.email,
+        subject: confirmation.subject,
+        text: confirmation.text,
+        html: confirmation.html
+      })
+    }
+    catch (error) {
+      console.error('Failed to send registration confirmation email', error)
+    }
+  }
+
   return c.json(
-    { message: 'Email verified.' },
+    { message: 'Email verificata.' },
     HttpStatusCodes.OK
   )
 }
