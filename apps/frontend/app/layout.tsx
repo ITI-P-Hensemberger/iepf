@@ -21,14 +21,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang='it' className={roboto.className} suppressHydrationWarning>
-      <body className='min-h-full flex flex-col'>
+      <body className='min-h-[100dvh] flex flex-col'>
         <ThemeProvider
           attribute='class'
           defaultTheme='system'
           enableSystem
           disableTransitionOnChange
         >
-          <div className='flex min-h-full flex-col'>
+          <div className='flex min-h-[100dvh] flex flex-col'>
             <div className='flex-1'>{children}</div>
             <Footer />
           </div>

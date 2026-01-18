@@ -24,8 +24,12 @@ export default function PendingPage() {
         const profile = (await response.json()) as {
           role?: string | null
           isActive?: boolean
-        }
+        } | null
         if (!isMounted) {
+          return
+        }
+        if (!profile) {
+          router.replace('/')
           return
         }
         if (profile.role === 'admin' || profile.isActive === true) {

@@ -37,7 +37,7 @@ export function useSession(): UseSessionResult {
         setIsLoading(false)
         return
       }
-      const data = (await response.json()) as SessionProfile
+      const data = (await response.json()) as SessionProfile | null
       setProfile(data)
     } catch (err) {
       setError(

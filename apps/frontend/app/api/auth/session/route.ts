@@ -30,12 +30,12 @@ export async function GET() {
     }
 
     if (!accessToken) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json(null)
     }
 
     const profile = await fetchUserProfile(apiBaseUrl, accessToken)
     return NextResponse.json(profile)
   } catch (error) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json(null)
   }
 }
