@@ -9,11 +9,7 @@ CONTEXT="."
 
 GIT_SHA="$(git rev-parse --short HEAD)"
 
-if [[ -f VERSION ]]; then
-  VERSION="$(cat VERSION | tr -d ' \n')"
-else
-  VERSION="dev"
-fi
+VERSION="$(date -u +%Y%m%d%H%M%S)"
 
 echo "Backend build"
 echo "Version: ${VERSION}"

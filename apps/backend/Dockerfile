@@ -26,6 +26,7 @@ FROM base AS runner
 RUN useradd -m -u 10001 appuser
 COPY --from=build /app/dist /app/dist
 COPY --from=build /app/package.json /app/package.json
+COPY --from=build /app/assets /app/assets
 COPY --from=prod-deps /app/node_modules /app/node_modules
 USER appuser
 EXPOSE 9999
