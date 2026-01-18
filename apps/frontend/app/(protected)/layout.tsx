@@ -1,3 +1,4 @@
+import Header from '@/components/header'
 import { type ReactNode } from 'react'
 
 type ProtectedLayoutProps = {
@@ -5,5 +6,11 @@ type ProtectedLayoutProps = {
 }
 
 export default function ProtectedLayout({ children }: ProtectedLayoutProps) {
-  return <>{children}</>
+  return (
+    <>
+      {' '}
+      <Header />
+      {children}
+    </>
+  )
 }

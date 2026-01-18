@@ -2,19 +2,12 @@ import Link from 'next/link'
 
 function Footer() {
   return (
-    <footer className='fixed bottom-0 w-full p-4 text-center text-sm text-muted-foreground'>
-      <div>
-        <span>
-          Utilizzando questo sito accetti la nostra{' '}
-          <Link href='/privacy-policy' className='underline underline-offset-4'>
-            Informativa sulla Privacy
-          </Link>
-          .
-        </span>
-      </div>
-      <div className='mt-1'>
-        © {new Date().getFullYear()} ITI P. Hensemberger. Tutti i diritti
-        riservati.
+    <footer className='bottom-0 border-t bg-background/95 py-4 backdrop-blur'>
+      <div className='container mx-auto px-4 text-center text-sm text-muted-foreground'>
+        © {new Date().getFullYear()} ITI P. Hensemberger ·{' '}
+        <Link href='/privacy-policy' className='underline underline-offset-4'>
+          Privacy Policy
+        </Link>
       </div>
     </footer>
   )

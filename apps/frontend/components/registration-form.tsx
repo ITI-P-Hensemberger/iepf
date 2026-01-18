@@ -192,7 +192,7 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
     setSubmitError(null)
 
     try {
-      const response = await fetch(`${apiBaseUrl}/auth/register`, {
+      const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

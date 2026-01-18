@@ -6,9 +6,11 @@ import { Button } from '@/components/ui/button'
 import { logout } from '@/lib/auth-client'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useSession } from '@/lib/use-session'
 
 export default function DashboardPage() {
   const router = useRouter()
+  const { profile, isLoading: isProfileLoading } = useSession()
 
   async function handleLogout() {
     await logout()
@@ -16,23 +18,18 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className='min-h-screen flex items-center'>
-      <div className='container mx-auto px-4 py-8 flex flex-col items-center'>
-        <Image
-          src='/logo.png'
-          alt='IEPF Logo'
-          width={180}
-          height={37}
-          style={{ width: 'auto', height: 'auto' }}
-          draggable={false}
-          priority
-        />
+    <main className='flex-1'>
+      <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
+        <h1 className='mt-6 text-2xl'>
+          {!isProfileLoading && `Bentornato, ${profile?.firstName}`}
+        </h1>
         <p className='mt-6 text-center max-w-md text-muted-foreground'>
           Questa è la tua dashboard.
-          <br />A breve qui troverai tutto ciò che riguarda le lezioni.
           <br />
+          Il progetto inizia il 2 febbraio.
           <br />
-          Il progetto verrà avviato il 2 febbraio.
+          A breve qui troverai tutto ciò che riguarda le lezioni.
+          <br />
           <br />
           Mentre aspetti, dai un'occhiata alle{' '}
           <Link href='/faq' className='mt-6 text-primary underline'>
@@ -40,9 +37,6 @@ export default function DashboardPage() {
           </Link>
           .
         </p>
-        <Button className='mt-6' onClick={handleLogout}>
-          Esci
-        </Button>
       </div>
     </main>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -10,9 +10,7 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card'
 
 type VerifyStatus = 'idle' | 'loading' | 'success' | 'error'
 
-export default function VerifyEmailPage() {
-  const apiBaseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:9999'
+function VerifyEmailContent() {
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
   const [status, setStatus] = useState<VerifyStatus>('idle')
@@ -29,16 +27,13 @@ export default function VerifyEmailPage() {
       setStatus('loading')
 
       try {
-        const response = await fetch(
-          `${apiBaseUrl}/auth/verify-email/confirm`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ token })
-          }
-        )
+        const response = await fetch('/api/auth/verify-email/confirm', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ token })
+        })
 
         if (!response.ok) {
           let errorMessage = 'Verifica non riuscita.'
@@ -74,16 +69,16 @@ export default function VerifyEmailPage() {
     return () => {
       isMounted = false
     }
-  }, [apiBaseUrl, token])
+  }, [token])
 
   return (
-    <main className='min-h-screen flex items-center'>
-      <div className='container mx-auto px-4 py-8 flex flex-col items-center'>
+    <main className='flex-1'>
+      <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <Image
           src='/logo.png'
           alt='IEPF Logo'
-          width={180}
-          height={37}
+          width={125}
+          height={125}
           style={{ width: 'auto', height: 'auto' }}
           draggable={false}
           priority
@@ -120,13 +115,23 @@ export default function VerifyEmailPage() {
               )}
             </CardContent>
             <CardFooter className='justify-center'>
-              <Button asChild>
-                <Link href='/auth/login'>Vai al login</Link>
-              </Button>
+              {(status === 'success' || status === 'error') && (
+                <Button asChild>
+                  <Link href='/auth/login'>Vai al login</Link>
+                </Button>
+              )}
             </CardFooter>
           </Card>
         </div>
       </div>
     </main>
+  )
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={<main className='flex-1' />}>
+      <VerifyEmailContent />
+    </Suspense>
   )
 }

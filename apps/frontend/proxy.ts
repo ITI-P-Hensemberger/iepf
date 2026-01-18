@@ -19,7 +19,7 @@ function isExpired(expiresAt: string | undefined) {
   return Date.now() >= timestamp
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (
@@ -92,8 +92,8 @@ export async function middleware(request: NextRequest) {
     const destination = isAdmin
       ? '/admin'
       : isActive
-      ? '/dashboard'
-      : '/pending'
+        ? '/dashboard'
+        : '/pending'
     const response = NextResponse.redirect(new URL(destination, request.url))
     if (refreshed && didRefresh) {
       setAuthCookies(response, refreshed.tokens, remember)
@@ -107,8 +107,8 @@ export async function middleware(request: NextRequest) {
 
   if (isAuthenticated && isProtectedRoute) {
     if (isAdmin) {
-    return NextResponse.redirect(new URL('/admin', request.url))
-  }
+      return NextResponse.redirect(new URL('/admin', request.url))
+    }
     if (!isActive) {
       return NextResponse.redirect(new URL('/pending', request.url))
     }

@@ -27,8 +27,6 @@ const formSchema = z.object({
 type LoginFormValues = z.infer<typeof formSchema>
 
 export default function LoginPage() {
-  const apiBaseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:9999'
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [submitError, setSubmitError] = React.useState<string | null>(null)
@@ -125,7 +123,7 @@ export default function LoginPage() {
     setResendMessage(null)
 
     try {
-      const response = await fetch(`${apiBaseUrl}/auth/verify-email/request`, {
+      const response = await fetch('/api/auth/verify-email/request', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -171,7 +169,7 @@ export default function LoginPage() {
 
     try {
       const response = await fetch(
-        `${apiBaseUrl}/auth/password/reset/request`,
+        '/api/auth/password/reset/request',
         {
           method: 'POST',
           headers: {
@@ -207,17 +205,22 @@ export default function LoginPage() {
   }
 
   return (
-    <main className='min-h-screen flex items-center'>
-      <div className='container mx-auto px-4 py-8 flex flex-col items-center'>
+    <main className='flex-1'>
+      <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <Image
           src='/logo.png'
           alt='IEPF Logo'
-          width={180}
-          height={37}
+          width={125}
+          height={125}
           style={{ width: 'auto', height: 'auto' }}
           draggable={false}
           priority
         />
+        <div className='mt-6 flex space-x-4'>
+          <Button asChild variant='outline'>
+            <Link href='/'>Torna alla Home</Link>
+          </Button>
+        </div>
         <h1 className='mt-6 text-2xl'>Accesso</h1>
         <p className='mt-2 text-center max-w-md'>
           Inserisci le tue credenziali per accedere al tuo account.

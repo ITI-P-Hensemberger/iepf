@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { Suspense } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import * as z from 'zod'
@@ -39,11 +40,10 @@ const formSchema = z
 
 type ResetFormValues = z.infer<typeof formSchema>
 
-export default function ResetPasswordPage() {
-  const apiBaseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:9999'
+function ResetPasswordContent() {
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
+  const hasToken = Boolean(token)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [submitError, setSubmitError] = React.useState<string | null>(null)
   const [isSuccess, setIsSuccess] = React.useState(false)
@@ -56,6 +56,12 @@ export default function ResetPasswordPage() {
     }
   })
 
+  React.useEffect(() => {
+    if (!hasToken) {
+      setSubmitError('Token mancante o non valido.')
+    }
+  }, [hasToken])
+
   async function onSubmit(values: ResetFormValues) {
     if (!token) {
       setSubmitError('Token mancante o non valido.')
@@ -66,16 +72,13 @@ export default function ResetPasswordPage() {
     setSubmitError(null)
 
     try {
-      const response = await fetch(
-        `${apiBaseUrl}/auth/password/reset/confirm`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ token, password: values.password })
-        }
-      )
+      const response = await fetch('/api/auth/password/reset/confirm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ token, password: values.password })
+      })
 
       if (!response.ok) {
         let message = 'Reset della password non riuscito.'
@@ -102,13 +105,13 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <main className='min-h-screen flex items-center'>
-      <div className='container mx-auto px-4 py-8 flex flex-col items-center'>
+    <main className='flex-1'>
+      <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <Image
           src='/logo.png'
           alt='IEPF Logo'
-          width={180}
-          height={37}
+          width={125}
+          height={125}
           style={{ width: 'auto', height: 'auto' }}
           draggable={false}
           priority
@@ -124,6 +127,15 @@ export default function ResetPasswordPage() {
                   </p>
                   <p className='text-sm text-muted-foreground'>
                     Ora puoi accedere con la nuova password.
+                  </p>
+                </div>
+              ) : !hasToken ? (
+                <div className='text-center space-y-2'>
+                  <p className='text-sm font-medium text-destructive'>
+                    Token non valido.
+                  </p>
+                  <p className='text-sm text-muted-foreground'>
+                    Richiedi un nuovo link di reset dalla pagina di login.
                   </p>
                 </div>
               ) : (
@@ -175,23 +187,32 @@ export default function ResetPasswordPage() {
               )}
             </CardContent>
             <CardFooter className='flex flex-col gap-3'>
-              {!isSuccess && (
+              {!isSuccess && hasToken ? (
                 <Button
                   type='submit'
                   form='reset-password-form'
                   className='w-full'
-                  disabled={isSubmitting || !token}
+                  disabled={isSubmitting}
                 >
                   {isSubmitting ? 'Aggiornamento...' : 'Aggiorna password'}
                 </Button>
+              ) : (
+                <Button asChild>
+                  <Link href='/auth/login'>Vai al login</Link>
+                </Button>
               )}
-              <Button asChild variant='ghost'>
-                <Link href='/auth/login'>Torna al login</Link>
-              </Button>
             </CardFooter>
           </Card>
         </div>
       </div>
     </main>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<main className='flex-1' />}>
+      <ResetPasswordContent />
+    </Suspense>
   )
 }

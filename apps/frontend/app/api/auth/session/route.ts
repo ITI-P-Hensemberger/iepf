@@ -24,10 +24,7 @@ export async function GET() {
         apiBaseUrl,
         refreshToken
       )
-      const response = NextResponse.json({
-        role: profile.role ?? 'student',
-        isActive: profile.isActive === true
-      })
+      const response = NextResponse.json(profile)
       setAuthCookies(response, tokens, remember)
       return response
     }
@@ -37,10 +34,7 @@ export async function GET() {
     }
 
     const profile = await fetchUserProfile(apiBaseUrl, accessToken)
-    return NextResponse.json({
-      role: profile.role ?? 'student',
-      isActive: profile.isActive === true
-    })
+    return NextResponse.json(profile)
   } catch (error) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   }

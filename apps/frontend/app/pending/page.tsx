@@ -51,13 +51,13 @@ export default function PendingPage() {
   }
 
   return (
-    <main className='min-h-screen flex items-center'>
-      <div className='container mx-auto px-8 py-8 flex flex-col items-center'>
+    <main className='flex-1'>
+      <div className='container mx-auto px-8 py-10 flex flex-col items-center'>
         <Image
           src='/logo.png'
           alt='IEPF Logo'
-          width={180}
-          height={37}
+          width={125}
+          height={125}
           style={{ width: 'auto', height: 'auto' }}
           draggable={false}
           priority

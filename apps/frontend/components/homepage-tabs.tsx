@@ -1,33 +1,24 @@
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger
-} from '@/components/ui/accordion'
 import { Card } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import FAQS from './faq'
 import { Button } from './ui/button'
 import Link from 'next/link'
 
 function HomepageTabs() {
   return (
     <Tabs
-      className='w-full max-w-2xl mt-14 px-4 text-justify'
+      className='w-full max-w-2xl mt-10 px-4 text-justify'
       defaultValue='cose-insieme-e-facile'
     >
       <TabsList className='self-center'>
         <TabsTrigger value='cose-insieme-e-facile'>Cos'è IEPF</TabsTrigger>
         <TabsTrigger value='modalita-e-prezzi'>Prezzi</TabsTrigger>
         <Button asChild variant='ghost'>
-          <Link href='/faq' target='_blank'>
-            FAQ
-          </Link>
+          <Link href='/faq'>FAQ</Link>
         </Button>
       </TabsList>
 
       <TabsContent value='cose-insieme-e-facile'>
-        <Card className='mt-4 max-h-78 overflow-y-auto px-4'>
+        <Card className='mt-4 max-h-[40vh] overflow-y-auto px-4'>
           <p>
             <b>InsiemeÈ+Facile</b> è la piattaforma di supporto allo studio
             dell'<b>Istituto Hensemberger</b> di Monza, pensata per aiutare gli
@@ -48,7 +39,7 @@ function HomepageTabs() {
       </TabsContent>
 
       <TabsContent value='modalita-e-prezzi'>
-        <Card className='mt-4 max-h-78 overflow-y-auto px-4'>
+        <Card className='mt-4 max-h-[40vh] overflow-y-auto px-4'>
           <p>
             Il servizio prevede un contributo di <b>50€</b>, che dà accesso alla
             piattaforma con un pacchetto di <b>30 lezioni</b> utilizzabili
