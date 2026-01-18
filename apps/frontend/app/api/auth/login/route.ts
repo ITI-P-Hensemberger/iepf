@@ -5,7 +5,7 @@ import { setAuthCookies } from '@/lib/auth-cookies'
 
 export async function POST(request: Request) {
   const apiBaseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:9999'
+    process.env.API_BASE_URL ?? 'http://localhost:9999'
 
   let body: { email?: string; password?: string; remember?: boolean } | null =
     null

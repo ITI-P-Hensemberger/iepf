@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
@@ -35,15 +34,13 @@ export default function AdminPage() {
   const [sectionMap, setSectionMap] = React.useState<Map<string, string>>(
     () => new Map()
   )
-  const apiBaseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:9999'
 
   React.useEffect(() => {
     let isMounted = true
 
     async function loadSections() {
       try {
-        const response = await fetch(`${apiBaseUrl}/class-sections`)
+        const response = await fetch('/api/class-sections')
         if (!response.ok) {
           return
         }
@@ -92,7 +89,7 @@ export default function AdminPage() {
     return () => {
       isMounted = false
     }
-  }, [apiBaseUrl])
+  }, [])
 
   const getSectionLabel = (user: User) => {
     if (!user.sectionId) {

@@ -79,8 +79,6 @@ type RegistrationFormProps = {
 }
 
 export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
-  const apiBaseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:9999'
   const [showPassword, setShowPassword] = React.useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
@@ -154,7 +152,7 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
       setSectionsError(null)
 
       try {
-        const response = await fetch(`${apiBaseUrl}/class-sections`)
+        const response = await fetch('/api/class-sections')
         if (!response.ok) {
           throw new Error('Impossibile caricare le sezioni.')
         }
@@ -185,7 +183,7 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
     return () => {
       isMounted = false
     }
-  }, [apiBaseUrl])
+  }, [])
 
   async function onSubmit(data: z.infer<typeof formSchema>) {
     setIsSubmitting(true)
