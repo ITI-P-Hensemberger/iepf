@@ -406,7 +406,10 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       },
       columns: {
         id: true,
-        role: true
+        role: true,
+        email: true,
+        firstName: true,
+        lastName: true
       }
     })
 
@@ -442,6 +445,41 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       )
     }
 
+    let currentStudentProfile: {
+      sectionId: string | null
+      year: number | null
+      isActive: boolean | null
+    } | null = null
+    let currentTutorProfile: {
+      sectionId: string | null
+      year: number | null
+    } | null = null
+
+    if (hasProfileUpdates && existing.role === 'student') {
+      currentStudentProfile = await db.query.studentProfiles.findFirst({
+        where(fields, operators) {
+          return operators.eq(fields.userId, id)
+        },
+        columns: {
+          sectionId: true,
+          year: true,
+          isActive: true
+        }
+      })
+    }
+
+    if (hasProfileUpdates && existing.role === 'tutor') {
+      currentTutorProfile = await db.query.tutorProfiles.findFirst({
+        where(fields, operators) {
+          return operators.eq(fields.userId, id)
+        },
+        columns: {
+          sectionId: true,
+          year: true
+        }
+      })
+    }
+
     if (profileUpdates.isActive !== undefined && existing.role !== 'student') {
       return c.json(
         {
@@ -461,13 +499,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       )
     }
     if (existing.role === 'student' && profileUpdates.isActive !== undefined) {
-      const currentProfile = await db.query.studentProfiles.findFirst({
-        where(fields, operators) {
-          return operators.eq(fields.userId, id)
-        },
-        columns: { isActive: true }
-      })
-      previousIsActive = currentProfile?.isActive ?? null
+      previousIsActive = currentStudentProfile?.isActive ?? null
     }
 
     if (hasProfileUpdates && existing.role === 'student') {
@@ -510,6 +542,58 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
           HttpStatusCodes.UNPROCESSABLE_ENTITY
         )
       }
+    }
+
+    const userChanged = passwordChanged
+      || (updates.email !== undefined && updates.email !== existing.email)
+      || (updates.firstName !== undefined && updates.firstName !== existing.firstName)
+      || (updates.lastName !== undefined && updates.lastName !== existing.lastName)
+    let profileChanged = false
+
+    if (hasProfileUpdates && existing.role === 'student') {
+      profileChanged = (profileUpdates.sectionId !== undefined
+        && profileUpdates.sectionId !== (currentStudentProfile?.sectionId ?? null))
+        || (profileUpdates.year !== undefined
+          && profileUpdates.year !== (currentStudentProfile?.year ?? null))
+        || (profileUpdates.isActive !== undefined
+          && profileUpdates.isActive !== (currentStudentProfile?.isActive ?? null))
+    }
+
+    if (hasProfileUpdates && existing.role === 'tutor') {
+      profileChanged = (profileUpdates.sectionId !== undefined
+        && profileUpdates.sectionId !== (currentTutorProfile?.sectionId ?? null))
+        || (profileUpdates.year !== undefined
+          && profileUpdates.year !== (currentTutorProfile?.year ?? null))
+    }
+
+    if (!userChanged && !profileChanged) {
+      const currentUserRecord = await db.query.users.findFirst({
+        where(fields, operators) {
+          return operators.eq(fields.id, id)
+        },
+        columns: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          emailVerifiedAt: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      })
+
+      if (!currentUserRecord) {
+        return c.json(
+          {
+            message: HttpStatusPhrases.NOT_FOUND
+          },
+          HttpStatusCodes.NOT_FOUND
+        )
+      }
+
+      const [withProfile] = await attachProfiles([currentUserRecord])
+      return c.json(withProfile, HttpStatusCodes.OK)
     }
 
     if (profileUpdates.sectionId) {
