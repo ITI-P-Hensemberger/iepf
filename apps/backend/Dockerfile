@@ -16,6 +16,9 @@ COPY --from=deps /app/node_modules /app/node_modules
 COPY . .
 RUN pnpm build
 
+FROM build AS migrate
+CMD ["pnpm", "db:migrate"]
+
 FROM deps AS prod-deps
 RUN pnpm prune --prod
 

@@ -28,5 +28,14 @@ docker buildx build \
   --push \
   "${CONTEXT}"
 
+docker buildx build \
+  --platform "${PLATFORM}" \
+  --target migrate \
+  -t "${IMAGE}:migrate" \
+  -t "${IMAGE}:migrate-${VERSION}" \
+  -t "${IMAGE}:migrate-${GIT_SHA}" \
+  --push \
+  "${CONTEXT}"
+
 echo "✔ Backend pushed"
 
