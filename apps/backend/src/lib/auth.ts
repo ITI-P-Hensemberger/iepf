@@ -17,7 +17,7 @@ export interface AccessTokenPayload {
   jti: string
 }
 
-const ISSUER = 'iepf-api'
+const ISSUER = 'iepf-backend'
 
 export async function createAccessToken(user: AuthenticatedUser) {
   const expiresIn = env.ACCESS_TOKEN_TTL
