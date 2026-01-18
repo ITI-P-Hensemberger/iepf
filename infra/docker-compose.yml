@@ -1,0 +1,77 @@
+services:
+  traefik:
+    image: traefik:latest
+    container_name: traefik
+    command:
+      - '--api.dashboard=true'
+      - '--providers.docker=true'
+      - '--providers.docker.exposedbydefault=false'
+
+      - '--entrypoints.web.address=:80'
+      - '--entrypoints.websecure.address=:443'
+      - '--entrypoints.backend.address=:9999'
+
+      - '--certificatesresolvers.le.acme.email=iepf@hensemberger.it'
+      - '--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json'
+      - '--certificatesresolvers.le.acme.tlschallenge=true'
+
+      # (opzionale ma consigliato) redirect 80 -> 443
+      - '--entrypoints.web.http.redirections.entrypoint.to=websecure'
+      - '--entrypoints.web.http.redirections.entrypoint.scheme=https'
+    ports:
+      - '80:80'
+      - '443:443'
+      - '9999:9999'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt
+    networks:
+      - iepf
+
+  frontend:
+    image: ghcr.io/jdncst-dev/iepf-frontend:latest
+    env_file:
+      - .env.frontend
+    labels:
+      - 'traefik.enable=true'
+      # https://iepf.hensemberger.it -> frontend
+      - 'traefik.http.routers.iepf-frontend.rule=Host(`iepf.hensemberger.it`)'
+      - 'traefik.http.routers.iepf-frontend.entrypoints=websecure'
+      - 'traefik.http.routers.iepf-frontend.tls=true'
+      - 'traefik.http.routers.iepf-frontend.tls.certresolver=le'
+      - 'traefik.http.services.iepf-frontend.loadbalancer.server.port=3000'
+    networks:
+      - iepf
+
+  backend:
+    image: ghcr.io/jdncst-dev/iepf-backend:latest
+    env_file:
+      - .env.backend
+    labels:
+      - 'traefik.enable=true'
+      # https://iepf.hensemberger.it:9999 -> backend
+      - 'traefik.http.routers.iepf-backend.rule=Host(`iepf.hensemberger.it`)'
+      - 'traefik.http.routers.iepf-backend.entrypoints=backend'
+      - 'traefik.http.routers.iepf-backend.tls=true'
+      - 'traefik.http.routers.iepf-backend.tls.certresolver=le'
+      - 'traefik.http.services.iepf-backend.loadbalancer.server.port=9999'
+    networks:
+      - iepf
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16
+    container_name: postgres
+    restart: always
+    shm_size: 128mb
+    env_file:
+      - .env.postgres
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    networks:
+      - iepf
+
+networks:
+  iepf:
+    driver: bridge
