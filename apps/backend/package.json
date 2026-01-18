@@ -12,6 +12,7 @@
     "test": "cross-env NODE_ENV=test vitest",
     "build": "tsc && tsc-alias",
     "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:clean": "tsx src/scripts/clean-db.ts && tsx src/scripts/seed-class-sections.ts && tsx src/scripts/seed-admin.ts",
