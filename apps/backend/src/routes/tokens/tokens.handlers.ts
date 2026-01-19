@@ -24,7 +24,7 @@ function forbid(): never {
 
 function ensureAdmin(c: HandlerContext) {
   const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'admin') {
+  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
     forbid()
   }
 

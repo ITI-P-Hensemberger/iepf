@@ -15,7 +15,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:clean": "tsx src/scripts/clean-db.ts && tsx src/scripts/seed-class-sections.ts && tsx src/scripts/seed-admin.ts && tsx src/scripts/seed-mock-users.ts",
+    "db:reset": "tsx src/scripts/clean-db.ts && drizzle-kit migrate && tsx src/scripts/seed-class-sections.ts && tsx src/scripts/seed-admin.ts && tsx src/scripts/seed-mock-users.ts",
     "seed:class-sections": "tsx src/scripts/seed-class-sections.ts",
     "seed:admin": "tsx src/scripts/seed-admin.ts",
   "seed:mocks": "tsx src/scripts/seed-mock-users.ts"

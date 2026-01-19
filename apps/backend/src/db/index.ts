@@ -4,6 +4,7 @@ import { Pool } from 'pg'
 
 import env from '@/env'
 
+import { adminInviteTokens } from './schemas/admin-invite-tokens.schema'
 import { adminProfiles } from './schemas/admin-profiles.schema'
 import { auditLogs } from './schemas/audit-logs.schema'
 import { classSections } from './schemas/class-sections.schema'
@@ -25,6 +26,7 @@ import { users } from './schemas/users.schema'
 const schema = {
   users,
   auditLogs,
+  adminInviteTokens,
   adminProfiles,
   classSections,
   studentProfiles,

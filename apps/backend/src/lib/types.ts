@@ -8,6 +8,7 @@ export interface AuthenticatedUser {
   email: string
   role: string
   emailVerifiedAt?: Date | null
+  isActive?: boolean | null
 }
 
 export interface AppBindings {

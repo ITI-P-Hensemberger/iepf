@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
+import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
@@ -13,6 +14,7 @@ import { users } from '@/db/schemas/users.schema'
 import { createAccessToken } from '@/lib/auth'
 import { DEFAULT_TUTOR_SETTINGS, ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
 import {
+  buildAdminInviteMessage,
   buildEmailVerificationMessage,
   buildPasswordResetMessage,
   buildRegistrationConfirmedMessage,
@@ -20,6 +22,7 @@ import {
   buildTutorInviteMessage
 } from '@/lib/email-templates'
 import { consumeEmailVerificationToken, issueEmailVerificationToken } from '@/lib/email-verification'
+import { consumeAdminInviteToken, issueAdminInviteToken } from '@/lib/admin-invite'
 import { consumeTutorInviteToken, issueTutorInviteToken } from '@/lib/tutor-invite'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
@@ -39,7 +42,10 @@ import type {
   RequestPasswordResetRoute,
   InviteTutorRoute,
   ConfirmTutorInviteRoute,
-  ListTutorInvitesRoute
+  ListTutorInvitesRoute,
+  InviteAdminRoute,
+  ConfirmAdminInviteRoute,
+  ListAdminInvitesRoute
 } from './auth.routes'
 
 function unauthorized(c: Context<AppBindings>) {
@@ -233,7 +239,7 @@ export const register: AppRouteHandler<RegisterRoute> = async (c) => {
 
 export const listTutorInvites: AppRouteHandler<ListTutorInvitesRoute> = async (c) => {
   const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'admin') {
+  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
     return c.json({ message: HttpStatusPhrases.FORBIDDEN }, HttpStatusCodes.FORBIDDEN)
   }
 
@@ -259,9 +265,136 @@ export const listTutorInvites: AppRouteHandler<ListTutorInvitesRoute> = async (c
   })), HttpStatusCodes.OK)
 }
 
+export const listAdminInvites: AppRouteHandler<ListAdminInvitesRoute> = async (c) => {
+  const currentUser = c.get('currentUser')
+  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
+    return c.json({ message: HttpStatusPhrases.FORBIDDEN }, HttpStatusCodes.FORBIDDEN)
+  }
+
+  const now = new Date()
+  const rows = await db.query.adminInviteTokens.findMany({
+    where(fields, operators) {
+      return operators.gt(fields.expiresAt, now)
+    },
+    columns: {
+      email: true,
+      expiresAt: true,
+      createdAt: true
+    },
+    orderBy(fields, operators) {
+      return operators.asc(fields.expiresAt)
+    }
+  })
+
+  return c.json(rows.map(row => ({
+    email: row.email,
+    expiresAt: row.expiresAt.toISOString(),
+    createdAt: row.createdAt.toISOString()
+  })), HttpStatusCodes.OK)
+}
+
+export const inviteAdmin: AppRouteHandler<InviteAdminRoute> = async (c) => {
+  const currentUser = c.get('currentUser')
+  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
+    return c.json({ message: HttpStatusPhrases.FORBIDDEN }, HttpStatusCodes.FORBIDDEN)
+  }
+
+  const payload = c.req.valid('json')
+
+  const existing = await db.query.users.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.email, payload.email)
+    },
+    columns: { id: true }
+  })
+
+  if (existing) {
+    return c.json(buildDuplicateEmailError(), HttpStatusCodes.CONFLICT)
+  }
+
+  const invite = await issueAdminInviteToken(payload.email)
+  const message = buildAdminInviteMessage(invite.token)
+  await sendMail({
+    to: payload.email,
+    subject: message.subject,
+    text: message.text,
+    html: message.html
+  })
+
+  return c.json({ message: 'Invito inviato.' }, HttpStatusCodes.OK)
+}
+
+export const confirmAdminInvite: AppRouteHandler<ConfirmAdminInviteRoute> = async (c) => {
+  const payload = c.req.valid('json')
+  const invite = await consumeAdminInviteToken(payload.token)
+
+  if (!invite) {
+    return unauthorized(c)
+  }
+
+  const existing = await db.query.users.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.email, invite.email)
+    },
+    columns: { id: true }
+  })
+
+  if (existing) {
+    return c.json(buildDuplicateEmailError(), HttpStatusCodes.CONFLICT)
+  }
+
+  const passwordHash = await hashPassword(payload.password)
+  const [inserted] = await db.insert(users)
+    .values({
+      email: invite.email,
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      passwordHash,
+      role: 'admin',
+      emailVerifiedAt: new Date()
+    })
+    .returning({
+      id: users.id,
+      email: users.email,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      role: users.role,
+      emailVerifiedAt: users.emailVerifiedAt,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt
+    })
+
+  await db.insert(adminProfiles).values({
+    userId: inserted.id,
+    isActive: false
+  })
+
+  const confirmation = buildRegistrationConfirmedMessage()
+  try {
+    await sendMail({
+      to: inserted.email,
+      subject: confirmation.subject,
+      text: confirmation.text,
+      html: confirmation.html
+    })
+  } catch (error) {
+    console.error('Failed to send admin registration confirmation email', error)
+  }
+
+  return c.json(
+    {
+      ...inserted,
+      sectionId: null,
+      year: null,
+      isActive: false
+    },
+    HttpStatusCodes.CREATED
+  )
+}
+
 export const inviteTutor: AppRouteHandler<InviteTutorRoute> = async (c) => {
   const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'admin') {
+  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
     return c.json({ message: HttpStatusPhrases.FORBIDDEN }, HttpStatusCodes.FORBIDDEN)
   }
 

@@ -163,6 +163,23 @@ export function buildTutorInviteMessage(token: string) {
   } satisfies EmailTemplate
 }
 
+export function buildAdminInviteMessage(token: string) {
+  const baseUrl = env.SITE_URL ?? 'http://localhost:3000'
+  const url = new URL('/auth/sign-up-admin', baseUrl)
+  url.searchParams.set('token', token)
+  const link = url.toString()
+
+  return {
+    subject: 'Invito registrazione admin',
+    text: `Sei stato invitato a registrarti come admin. Completa la registrazione qui: ${link}`,
+    html: buildEmailHtml(
+      'Invito registrazione admin',
+      'Sei stato invitato a registrarti come admin. Completa la registrazione con il pulsante qui sotto.',
+      { label: 'Registrati come admin', url: link }
+    )
+  } satisfies EmailTemplate
+}
+
 export function buildRegistrationConfirmedMessage() {
   return {
     subject: 'Registrazione completata',

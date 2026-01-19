@@ -14,6 +14,9 @@ export const tutorInviteRequestSchema = z.object({
   email: z.email()
 })
 
+export const adminInviteRequestSchema = z.object({
+  email: z.email()
+})
 
 export const tutorInviteListItemSchema = z.object({
   email: z.string(),
@@ -21,7 +24,14 @@ export const tutorInviteListItemSchema = z.object({
   createdAt: z.string()
 })
 
+export const adminInviteListItemSchema = z.object({
+  email: z.string(),
+  expiresAt: z.string(),
+  createdAt: z.string()
+})
+
 export const tutorInviteListSchema = z.array(tutorInviteListItemSchema)
+export const adminInviteListSchema = z.array(adminInviteListItemSchema)
 
 export const tutorInviteConfirmSchema = z.object({
   token: z.string().min(1),
@@ -39,6 +49,14 @@ export const tutorInviteConfirmSchema = z.object({
     })
   }
 })
+
+export const adminInviteConfirmSchema = z.object({
+  token: z.string().min(1),
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
+  password: z.string().min(8).max(200)
+})
+
 export const loginBodySchema = z.object({
   email: z.email(),
   password: z.string().min(1)
@@ -273,6 +291,96 @@ export const confirmEmailVerification = createRoute({
 
 
 
+export const listAdminInvites = createRoute({
+  path: '/auth/admin-invite',
+  method: 'get',
+  tags,
+  security: [{ bearerAuth: [] as string[] }],
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      adminInviteListSchema,
+      'Pending admin invites'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      'Admin access required'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
+export const inviteAdmin = createRoute({
+  path: '/auth/admin-invite',
+  method: 'post',
+  tags,
+  security: [{ bearerAuth: [] as string[] }],
+  request: {
+    body: jsonContentRequired(
+      adminInviteRequestSchema,
+      'Admin invite request'
+    )
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      createMessageObjectSchema('Invito inviato.'),
+      'Admin invite sent'
+    ),
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      createErrorSchema(z.object({
+        email: z.string().min(1)
+      })),
+      'Given email already exists'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      'Admin access required'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
+export const confirmAdminInvite = createRoute({
+  path: '/auth/admin-invite/confirm',
+  method: 'post',
+  tags,
+  request: {
+    body: jsonContentRequired(
+      adminInviteConfirmSchema,
+      'Admin invite confirmation payload'
+    )
+  },
+  responses: {
+    [HttpStatusCodes.CREATED]: jsonContent(
+      selectUsersWithProfilesSchema,
+      'Registered admin'
+    ),
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      createErrorSchema(z.object({
+        email: z.string().min(1)
+      })),
+      'Given email already exists'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid or expired invite token'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(adminInviteConfirmSchema),
+      'The validation error(s)'
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      createMessageObjectSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
+      'Rate limit exceeded'
+    )
+  }
+})
+
 export const listTutorInvites = createRoute({
   path: '/auth/tutor-invite',
   method: 'get',
@@ -378,3 +486,6 @@ export type ConfirmEmailVerificationRoute = typeof confirmEmailVerification
 export type InviteTutorRoute = typeof inviteTutor
 export type ConfirmTutorInviteRoute = typeof confirmTutorInvite
 export type ListTutorInvitesRoute = typeof listTutorInvites
+export type InviteAdminRoute = typeof inviteAdmin
+export type ConfirmAdminInviteRoute = typeof confirmAdminInvite
+export type ListAdminInvitesRoute = typeof listAdminInvites

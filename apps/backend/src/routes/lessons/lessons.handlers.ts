@@ -46,7 +46,7 @@ function ensureStudent(c: HandlerContext) {
 
 function ensureAdmin(c: HandlerContext) {
   const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'admin') {
+  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
     forbid()
   }
   return currentUser
@@ -318,6 +318,9 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
   if (!currentUser) {
     forbid()
   }
+  if (currentUser.role === 'admin' && currentUser.isActive !== true) {
+    forbid()
+  }
 
   const booking = await db.query.lessonBookings.findFirst({
     where(fields, operators) {
@@ -447,7 +450,7 @@ export const confirmLessonTutor: AppRouteHandler<ConfirmLessonTutorRoute> = asyn
   const { lessonId } = c.req.valid('param')
   const payload = c.req.valid('json')
   const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'tutor') {
+  if (!currentUser || currentUser.role !== 'tutor' || currentUser.isActive !== true) {
     forbid()
   }
 

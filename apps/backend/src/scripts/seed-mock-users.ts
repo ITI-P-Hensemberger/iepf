@@ -7,6 +7,7 @@ import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { users } from '@/db/schemas/users.schema'
 import { DEFAULT_TUTOR_SETTINGS } from '@/lib/constants'
+import { issueAdminInviteToken } from '@/lib/admin-invite'
 import { issueTutorInviteToken } from '@/lib/tutor-invite'
 import { hashPassword } from '@/lib/password'
 
@@ -55,9 +56,9 @@ async function getOrCreateUser(email: string, role: 'student' | 'tutor' | 'admin
   return { id: inserted.id, role: inserted.role }
 }
 
-async function ensureAdminProfile(userId: string) {
+async function ensureAdminProfile(userId: string, isActive = true) {
   await db.insert(adminProfiles)
-    .values({ userId })
+    .values({ userId, isActive })
     .onConflictDoNothing({ target: adminProfiles.userId })
 }
 
@@ -101,7 +102,9 @@ async function main() {
     tutorsActive: 25,
     tutorsInactive: 10,
     tutorInvites: 10,
-    admins: 3
+    adminsActive: 1,
+    adminsInactive: 1,
+    adminInvites: 1
   }
 
   let sectionIndex = 0
@@ -164,10 +167,23 @@ async function main() {
     created += 1
   }
 
-  for (let i = 1; i <= totals.admins; i += 1) {
-    const email = buildEmail(`admin-${String(i).padStart(2, '0')}`)
-    const { id } = await getOrCreateUser(email, 'admin', 'Admin', `User${i}`, passwordHash, true)
-    await ensureAdminProfile(id)
+  for (let i = 1; i <= totals.adminsActive; i += 1) {
+    const email = buildEmail(`admin-active-${String(i).padStart(2, '0')}`)
+    const { id } = await getOrCreateUser(email, 'admin', 'Admin', `Attivo${i}`, passwordHash, true)
+    await ensureAdminProfile(id, true)
+    created += 1
+  }
+
+  for (let i = 1; i <= totals.adminsInactive; i += 1) {
+    const email = buildEmail(`admin-inactive-${String(i).padStart(2, '0')}`)
+    const { id } = await getOrCreateUser(email, 'admin', 'Admin', `NonAttivo${i}`, passwordHash, true)
+    await ensureAdminProfile(id, false)
+    created += 1
+  }
+
+  for (let i = 1; i <= totals.adminInvites; i += 1) {
+    const email = buildEmail(`admin-invite-${String(i).padStart(2, '0')}`)
+    await issueAdminInviteToken(email)
     created += 1
   }
 

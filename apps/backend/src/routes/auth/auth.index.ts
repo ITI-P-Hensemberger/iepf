@@ -60,6 +60,18 @@ router.use('/auth/tutor-invite/confirm', rateLimit({
   keyPrefix: 'auth:tutor-invite-confirm'
 }))
 
+router.use('/auth/admin-invite', authenticate())
+router.use('/auth/admin-invite', rateLimit({
+  windowMs: 60_000,
+  max: 5,
+  keyPrefix: 'auth:admin-invite'
+}))
+router.use('/auth/admin-invite/confirm', rateLimit({
+  windowMs: 60_000,
+  max: 5,
+  keyPrefix: 'auth:admin-invite-confirm'
+}))
+
 router
   .openapi(routes.login, handlers.login)
   .openapi(routes.refresh, handlers.refreshTokensHandler)
@@ -72,5 +84,8 @@ router
   .openapi(routes.listTutorInvites, handlers.listTutorInvites)
   .openapi(routes.inviteTutor, handlers.inviteTutor)
   .openapi(routes.confirmTutorInvite, handlers.confirmTutorInvite)
+  .openapi(routes.listAdminInvites, handlers.listAdminInvites)
+  .openapi(routes.inviteAdmin, handlers.inviteAdmin)
+  .openapi(routes.confirmAdminInvite, handlers.confirmAdminInvite)
 
 export default router

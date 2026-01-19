@@ -48,7 +48,7 @@ function forbid(): never {
 // Enforce admin-only access for subject mutations.
 function ensureAdmin(c: HandlerContext) {
   const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'admin') {
+  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
     forbid()
   }
 

@@ -7,6 +7,7 @@ import { HTTPException } from 'hono/http-exception'
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
+import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
@@ -59,7 +60,7 @@ function forbid(): never {
 
 function ensureAdmin(c: HandlerContext) {
   const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'admin') {
+  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
     forbid()
   }
 
@@ -72,7 +73,14 @@ function ensureSelfOrAdmin(c: HandlerContext, userId: string) {
     forbid()
   }
 
-  if (currentUser.role === 'admin' || currentUser.id === userId) {
+  if (currentUser.role === 'admin') {
+    if (currentUser.isActive === true || currentUser.id === userId) {
+      return currentUser
+    }
+    forbid()
+  }
+
+  if (currentUser.id === userId) {
     return currentUser
   }
 
@@ -90,6 +98,7 @@ function extractProfileUpdates(updates: Record<string, unknown>) {
 async function attachProfiles(records: UserPublicRecord[]) {
   const studentIds = records.filter(user => user.role === 'student').map(user => user.id)
   const tutorIds = records.filter(user => user.role === 'tutor').map(user => user.id)
+  const adminIds = records.filter(user => user.role === 'admin').map(user => user.id)
 
   let studentProfilesList: Array<{
     userId: string
@@ -133,8 +142,25 @@ async function attachProfiles(records: UserPublicRecord[]) {
     })
   }
 
+  let adminProfilesList: Array<{
+    userId: string
+    isActive: boolean | null
+  }> = []
+  if (adminIds.length > 0) {
+    adminProfilesList = await db.query.adminProfiles.findMany({
+      where(fields, operators) {
+        return operators.inArray(fields.userId, adminIds)
+      },
+      columns: {
+        userId: true,
+        isActive: true
+      }
+    })
+  }
+
   const studentProfileMap = new Map(studentProfilesList.map(profile => [profile.userId, profile]))
   const tutorProfileMap = new Map(tutorProfilesList.map(profile => [profile.userId, profile]))
+  const adminProfileMap = new Map(adminProfilesList.map(profile => [profile.userId, profile]))
 
   return records.map((user) => {
     if (user.role === 'student') {
@@ -155,6 +181,17 @@ async function attachProfiles(records: UserPublicRecord[]) {
         sectionId: profile?.sectionId ?? null,
         year: profile?.year ?? null,
         isActive: profile?.isActive ?? true,
+        lessonTokens: null
+      }
+    }
+
+    if (user.role === 'admin') {
+      const profile = adminProfileMap.get(user.id)
+      return {
+        ...user,
+        sectionId: null,
+        year: null,
+        isActive: profile?.isActive ?? false,
         lessonTokens: null
       }
     }
@@ -451,7 +488,8 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       return c.json({ message: HttpStatusPhrases.FORBIDDEN }, HttpStatusCodes.FORBIDDEN)
     }
 
-    if (hasProfileUpdates && existing.role === 'admin') {
+    if (hasProfileUpdates && existing.role === 'admin'
+      && (profileUpdates.sectionId !== undefined || profileUpdates.year !== undefined)) {
       return c.json(
         {
           success: false,
@@ -478,6 +516,9 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     let currentTutorProfile: {
       sectionId: string | null
       year: number | null
+      isActive: boolean | null
+    } | null = null
+    let currentAdminProfile: {
       isActive: boolean | null
     } | null = null
 
@@ -508,6 +549,17 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       })) ?? null
     }
 
+    if (hasProfileUpdates && existing.role === 'admin') {
+      currentAdminProfile = (await db.query.adminProfiles.findFirst({
+        where(fields, operators) {
+          return operators.eq(fields.userId, id)
+        },
+        columns: {
+          isActive: true
+        }
+      })) ?? null
+    }
+
     if (hasProfileUpdates && existing.role === 'tutor') {
       if (profileUpdates.sectionId === undefined || profileUpdates.year === undefined) {
         return c.json(
@@ -530,7 +582,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     }
 
 
-    if (profileUpdates.isActive !== undefined && existing.role !== 'student') {
+    if (profileUpdates.isActive !== undefined && existing.role === 'tutor') {
       return c.json(
         {
           success: false,
@@ -539,7 +591,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
               {
                 code: ZOD_ERROR_CODES.INVALID_UPDATES,
                 path: ['isActive'],
-                message: 'L\'attivazione e consentita solo per studenti'
+                message: 'L\'attivazione e consentita solo per studenti o admin'
               }
             ],
             name: 'ZodError'
@@ -550,6 +602,10 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     }
     if (existing.role === 'student' && profileUpdates.isActive !== undefined) {
       previousIsActive = currentStudentProfile?.isActive ?? null
+    }
+
+    if (existing.role === 'admin' && profileUpdates.isActive !== undefined) {
+      previousIsActive = currentAdminProfile?.isActive ?? null
     }
 
     if (hasProfileUpdates && existing.role === 'student') {
@@ -614,6 +670,11 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
         && profileUpdates.sectionId !== (currentTutorProfile?.sectionId ?? null))
         || (profileUpdates.year !== undefined
           && profileUpdates.year !== (currentTutorProfile?.year ?? null))
+    }
+
+    if (hasProfileUpdates && existing.role === 'admin') {
+      profileChanged = profileUpdates.isActive !== undefined
+        && profileUpdates.isActive !== (currentAdminProfile?.isActive ?? null)
     }
 
     if (!userChanged && !profileChanged) {
@@ -720,6 +781,18 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
           sectionId: tutorProfileUpdates.sectionId as string,
           year: tutorProfileUpdates.year as number,
           isActive: currentTutorProfile?.isActive ?? true
+        })
+      }
+    }
+
+    if (existing.role === 'admin' && hasProfileUpdates) {
+      const result = await db.update(adminProfiles)
+        .set({ isActive: profileUpdates.isActive })
+        .where(eq(adminProfiles.userId, id))
+      if (result.rowCount === 0) {
+        await db.insert(adminProfiles).values({
+          userId: id,
+          isActive: profileUpdates.isActive ?? false
         })
       }
     }

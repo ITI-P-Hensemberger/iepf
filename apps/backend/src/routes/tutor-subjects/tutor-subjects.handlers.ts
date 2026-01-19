@@ -60,11 +60,17 @@ function ensureAdminOrSelfTutor(c: HandlerContext, tutorId: string) {
   }
 
   if (currentUser.role === 'admin') {
-    return currentUser
+    if (currentUser.isActive === true) {
+      return currentUser
+    }
+    forbid()
   }
 
   if (currentUser.role === 'tutor' && currentUser.id === tutorId) {
-    return currentUser
+    if (currentUser.isActive === true) {
+      return currentUser
+    }
+    forbid()
   }
 
   forbid()

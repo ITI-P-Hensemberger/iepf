@@ -42,7 +42,8 @@ async function main() {
 
   if (created) {
     await db.insert(adminProfiles).values({
-      userId: created.id
+      userId: created.id,
+      isActive: true
     })
   }
 

@@ -29,6 +29,20 @@
       "when": 1768850000000,
       "tag": "0003_tutor_profiles_add_is_active",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1768855000000,
+      "tag": "0004_admin_invite_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1768858000000,
+      "tag": "0005_admin_profiles_add_is_active",
+      "breakpoints": true
     }
   ]
 }
