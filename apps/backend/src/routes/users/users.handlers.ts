@@ -96,6 +96,7 @@ async function attachProfiles(records: UserPublicRecord[]) {
     sectionId: string | null
     year: number | null
     isActive: boolean | null
+    lessonTokens: number | null
   }> = []
   if (studentIds.length > 0) {
     studentProfilesList = await db.query.studentProfiles.findMany({
@@ -106,7 +107,8 @@ async function attachProfiles(records: UserPublicRecord[]) {
         userId: true,
         sectionId: true,
         year: true,
-        isActive: true
+        isActive: true,
+        lessonTokens: true
       }
     })
   }
@@ -139,7 +141,8 @@ async function attachProfiles(records: UserPublicRecord[]) {
         ...user,
         sectionId: profile?.sectionId ?? null,
         year: profile?.year ?? null,
-        isActive: profile?.isActive ?? false
+        isActive: profile?.isActive ?? false,
+        lessonTokens: profile?.lessonTokens ?? 0
       }
     }
 
@@ -149,7 +152,8 @@ async function attachProfiles(records: UserPublicRecord[]) {
         ...user,
         sectionId: profile?.sectionId ?? null,
         year: profile?.year ?? null,
-        isActive: null
+        isActive: null,
+        lessonTokens: null
       }
     }
 
@@ -157,7 +161,8 @@ async function attachProfiles(records: UserPublicRecord[]) {
       ...user,
       sectionId: null,
       year: null,
-      isActive: null
+      isActive: null,
+      lessonTokens: null
     }
   })
 }
@@ -456,20 +461,21 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     } | null = null
 
     if (hasProfileUpdates && existing.role === 'student') {
-      currentStudentProfile = await db.query.studentProfiles.findFirst({
+      currentStudentProfile = (await db.query.studentProfiles.findFirst({
         where(fields, operators) {
           return operators.eq(fields.userId, id)
         },
         columns: {
           sectionId: true,
           year: true,
-          isActive: true
+          isActive: true,
+        lessonTokens: true
         }
-      })
+      })) ?? null
     }
 
     if (hasProfileUpdates && existing.role === 'tutor') {
-      currentTutorProfile = await db.query.tutorProfiles.findFirst({
+      currentTutorProfile = (await db.query.tutorProfiles.findFirst({
         where(fields, operators) {
           return operators.eq(fields.userId, id)
         },
@@ -477,7 +483,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
           sectionId: true,
           year: true
         }
-      })
+      })) ?? null
     }
 
     if (profileUpdates.isActive !== undefined && existing.role !== 'student') {
