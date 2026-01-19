@@ -22,6 +22,13 @@ export default function FAQPage() {
           </Button>
         </div>
         <h1 className='mt-6 text-2xl font-bold'>Domande Frequenti (FAQ)</h1>
+        <p>
+          Se hai altre domande, contattaci a{' '}
+          <Link href='mailto:iepf@hensemberger.it' className='underline'>
+            iepf@hensemberger.it
+          </Link>
+          .
+        </p>
         <div className='mt-4 w-full max-w-3xl'>
           <FAQ />
         </div>

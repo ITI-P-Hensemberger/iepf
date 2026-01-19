@@ -85,7 +85,8 @@ export async function proxy(request: NextRequest) {
   const isHome = pathname === '/'
 
   if (!isAuthenticated && (isAdminRoute || isProtectedRoute || isPendingRoute)) {
-    return NextResponse.redirect(new URL('/', request.url))
+    const destination = `/auth/login?next=${encodeURIComponent(`${pathname}${request.nextUrl.search}`)}`
+    return NextResponse.redirect(new URL(destination, request.url))
   }
 
   if (isAuthenticated && (isAuthRoute || isHome)) {
@@ -106,10 +107,10 @@ export async function proxy(request: NextRequest) {
   }
 
   if (isAuthenticated && isProtectedRoute) {
-    if (isAdmin) {
+    if (isAdmin && pathname.startsWith('/dashboard')) {
       return NextResponse.redirect(new URL('/admin', request.url))
     }
-    if (!isActive) {
+    if (!isAdmin && !isActive) {
       return NextResponse.redirect(new URL('/pending', request.url))
     }
   }

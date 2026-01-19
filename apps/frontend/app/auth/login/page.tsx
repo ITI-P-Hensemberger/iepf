@@ -1,12 +1,13 @@
 'use client'
 
 import * as React from 'react'
+import { Suspense } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
@@ -17,6 +18,15 @@ import {
   FieldLabel
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput
+} from '@/components/ui/input-group'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import { Eye, EyeOff } from 'lucide-react'
 
 const formSchema = z.object({
   email: z.email('Indirizzo email non valido'),
@@ -26,10 +36,13 @@ const formSchema = z.object({
 
 type LoginFormValues = z.infer<typeof formSchema>
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const nextParam = searchParams.get('next')
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [submitError, setSubmitError] = React.useState<string | null>(null)
+  const [showPassword, setShowPassword] = React.useState(false)
   const [needsVerification, setNeedsVerification] = React.useState(false)
   const [resendStatus, setResendStatus] = React.useState<
     'idle' | 'loading' | 'success' | 'error'
@@ -96,8 +109,20 @@ export default function LoginPage() {
         isActive?: boolean
       }
 
+      const nextPath =
+        nextParam && nextParam.startsWith('/') ? nextParam : null
+
       if (payload.role === 'admin') {
+        if (nextPath && nextPath.startsWith('/admin')) {
+          router.push(nextPath)
+          return
+        }
         router.push('/admin')
+        return
+      }
+
+      if (nextPath && !nextPath.startsWith('/admin')) {
+        router.push(nextPath)
         return
       }
 
@@ -134,8 +159,11 @@ export default function LoginPage() {
       if (!response.ok) {
         let message = 'Impossibile inviare la verifica.'
         try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
+          const payload = (await response.json()) as {
+            message?: string
+            error?: { issues?: Array<{ message?: string }> }
+          }
+          message = payload.message ?? payload.error?.issues?.[0]?.message ?? message
         } catch (error) {
           message = 'Impossibile inviare la verifica.'
         }
@@ -168,22 +196,22 @@ export default function LoginPage() {
     setResetMessage(null)
 
     try {
-      const response = await fetch(
-        '/api/auth/password/reset/request',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ email })
-        }
-      )
+      const response = await fetch('/api/auth/password/reset/request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email })
+      })
 
       if (!response.ok) {
         let message = 'Impossibile inviare il reset della password.'
         try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
+          const payload = (await response.json()) as {
+            message?: string
+            error?: { issues?: Array<{ message?: string }> }
+          }
+          message = payload.message ?? payload.error?.issues?.[0]?.message ?? message
         } catch (error) {
           message = 'Impossibile inviare il reset della password.'
         }
@@ -249,32 +277,57 @@ export default function LoginPage() {
                   </Field>
                   <Field data-invalid={!!form.formState.errors.password}>
                     <FieldLabel htmlFor='login-password'>Password</FieldLabel>
-                    <Input
-                      id='login-password'
-                      type='password'
-                      autoComplete='current-password'
-                      placeholder='********'
-                      {...form.register('password')}
-                    />
+                    <InputGroup>
+                      <InputGroupInput
+                        id='login-password'
+                        type={showPassword ? 'text' : 'password'}
+                        autoComplete='current-password'
+                        placeholder='********'
+                        {...form.register('password')}
+                      />
+                      <InputGroupAddon align='inline-end'>
+                        <InputGroupButton
+                          type='button'
+                          aria-label={
+                            showPassword
+                              ? 'Nascondi password'
+                              : 'Mostra password'
+                          }
+                          aria-pressed={showPassword}
+                          onClick={() => setShowPassword((prev) => !prev)}
+                        >
+                          {showPassword ? (
+                            <EyeOff className='size-4' />
+                          ) : (
+                            <Eye className='size-4' />
+                          )}
+                        </InputGroupButton>
+                      </InputGroupAddon>
+                    </InputGroup>
                     {form.formState.errors.password && (
                       <FieldError errors={[form.formState.errors.password]} />
                     )}
                   </Field>
                   <Field orientation='horizontal'>
-                    <div className='flex items-center gap-2'>
-                      <input
-                        id='login-remember'
-                        type='checkbox'
-                        className='border-input text-primary focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] h-4 w-4 rounded-sm border bg-transparent'
-                        {...form.register('remember')}
-                      />
-                      <label
-                        htmlFor='login-remember'
-                        className='text-sm font-medium'
-                      >
-                        Ricordami
-                      </label>
-                    </div>
+                    <Controller
+                      control={form.control}
+                      name='remember'
+                      render={({ field }) => (
+                        <div className='flex items-center gap-2'>
+                          <Checkbox
+                            id='login-remember'
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                          <Label
+                            htmlFor='login-remember'
+                            className='text-sm font-medium'
+                          >
+                            Ricordami
+                          </Label>
+                        </div>
+                      )}
+                    />
                   </Field>
                 </FieldGroup>
                 {submitError && (
@@ -347,5 +400,13 @@ export default function LoginPage() {
         </div>
       </div>
     </main>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<main className='flex-1' />}>
+      <LoginContent />
+    </Suspense>
   )
 }

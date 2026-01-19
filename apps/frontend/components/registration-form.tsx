@@ -74,6 +74,18 @@ const formSchema = z
     }
   })
 
+function normalizeName(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return ''
+  }
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase()
+}
+
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase()
+}
+
 type RegistrationFormProps = {
   onSuccess?: () => void
 }
@@ -190,15 +202,19 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
     setSubmitError(null)
 
     try {
+      const normalizedFirstName = normalizeName(data.first_name)
+      const normalizedLastName = normalizeName(data.last_name)
+      const normalizedEmail = normalizeEmail(data.email)
+
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          email: data.email,
-          firstName: data.first_name,
-          lastName: data.last_name,
+          email: normalizedEmail,
+          firstName: normalizedFirstName,
+          lastName: normalizedLastName,
           password: data.password,
           year: Number(data.year),
           sectionId: data.sectionId
@@ -278,6 +294,13 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
                     aria-invalid={fieldState.invalid}
                     placeholder='Mario'
                     autoComplete='off'
+                    onBlur={(event) => {
+                      field.onBlur()
+                      const normalized = normalizeName(event.target.value)
+                      form.setValue('first_name', normalized, {
+                        shouldDirty: normalized !== field.value
+                      })
+                    }}
                   />
                   {fieldState.invalid && (
                     <FieldError errors={[fieldState.error]} />
@@ -299,6 +322,13 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
                     aria-invalid={fieldState.invalid}
                     placeholder='Rossi'
                     autoComplete='off'
+                    onBlur={(event) => {
+                      field.onBlur()
+                      const normalized = normalizeName(event.target.value)
+                      form.setValue('last_name', normalized, {
+                        shouldDirty: normalized !== field.value
+                      })
+                    }}
                   />
                   {fieldState.invalid && (
                     <FieldError errors={[fieldState.error]} />
@@ -465,6 +495,13 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
                     aria-invalid={fieldState.invalid}
                     placeholder='mario.rossi@itismonza.it'
                     autoComplete='off'
+                    onBlur={(event) => {
+                      field.onBlur()
+                      const normalized = normalizeEmail(event.target.value)
+                      form.setValue('email', normalized, {
+                        shouldDirty: normalized !== field.value
+                      })
+                    }}
                   />
                   {fieldState.invalid && (
                     <FieldError errors={[fieldState.error]} />
