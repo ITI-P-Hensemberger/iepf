@@ -7,6 +7,7 @@ import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
+import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { users } from '@/db/schemas/users.schema'
 import { createAccessToken } from '@/lib/auth'
@@ -15,9 +16,11 @@ import {
   buildEmailVerificationMessage,
   buildPasswordResetMessage,
   buildRegistrationConfirmedMessage,
-  buildStudentRegistrationMessage
+  buildStudentRegistrationMessage,
+  buildTutorInviteMessage
 } from '@/lib/email-templates'
 import { consumeEmailVerificationToken, issueEmailVerificationToken } from '@/lib/email-verification'
+import { consumeTutorInviteToken, issueTutorInviteToken } from '@/lib/tutor-invite'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { sendMail } from '@/lib/mailer'
@@ -33,7 +36,10 @@ import type {
   RefreshRoute,
   RegisterRoute,
   RequestEmailVerificationRoute,
-  RequestPasswordResetRoute
+  RequestPasswordResetRoute,
+  InviteTutorRoute,
+  ConfirmTutorInviteRoute,
+  ListTutorInvitesRoute
 } from './auth.routes'
 
 function unauthorized(c: Context<AppBindings>) {
@@ -218,6 +224,152 @@ export const register: AppRouteHandler<RegisterRoute> = async (c) => {
       sectionId: userData.sectionId ?? null,
       year: userData.year ?? null,
       isActive: false
+    },
+    HttpStatusCodes.CREATED
+  )
+}
+
+
+
+export const listTutorInvites: AppRouteHandler<ListTutorInvitesRoute> = async (c) => {
+  const currentUser = c.get('currentUser')
+  if (!currentUser || currentUser.role !== 'admin') {
+    return c.json({ message: HttpStatusPhrases.FORBIDDEN }, HttpStatusCodes.FORBIDDEN)
+  }
+
+  const now = new Date()
+  const rows = await db.query.tutorInviteTokens.findMany({
+    where(fields, operators) {
+      return operators.gt(fields.expiresAt, now)
+    },
+    columns: {
+      email: true,
+      expiresAt: true,
+      createdAt: true
+    },
+    orderBy(fields, operators) {
+      return operators.asc(fields.expiresAt)
+    }
+  })
+
+  return c.json(rows.map(row => ({
+    email: row.email,
+    expiresAt: row.expiresAt.toISOString(),
+    createdAt: row.createdAt.toISOString()
+  })), HttpStatusCodes.OK)
+}
+
+export const inviteTutor: AppRouteHandler<InviteTutorRoute> = async (c) => {
+  const currentUser = c.get('currentUser')
+  if (!currentUser || currentUser.role !== 'admin') {
+    return c.json({ message: HttpStatusPhrases.FORBIDDEN }, HttpStatusCodes.FORBIDDEN)
+  }
+
+  const payload = c.req.valid('json')
+
+  const existing = await db.query.users.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.email, payload.email)
+    },
+    columns: { id: true }
+  })
+
+  if (existing) {
+    return c.json(buildDuplicateEmailError(), HttpStatusCodes.CONFLICT)
+  }
+
+  const invite = await issueTutorInviteToken(payload.email)
+  const message = buildTutorInviteMessage(invite.token)
+  await sendMail({
+    to: payload.email,
+    subject: message.subject,
+    text: message.text,
+    html: message.html
+  })
+
+  return c.json({ message: 'Invito inviato.' }, HttpStatusCodes.OK)
+}
+
+export const confirmTutorInvite: AppRouteHandler<ConfirmTutorInviteRoute> = async (c) => {
+  const payload = c.req.valid('json')
+  const invite = await consumeTutorInviteToken(payload.token)
+
+  if (!invite) {
+    return unauthorized(c)
+  }
+
+  const existing = await db.query.users.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.email, invite.email)
+    },
+    columns: { id: true }
+  })
+
+  if (existing) {
+    return c.json(buildDuplicateEmailError(), HttpStatusCodes.CONFLICT)
+  }
+
+  const section = await db.query.classSections.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.id, payload.sectionId as string)
+    },
+    columns: { id: true }
+  })
+  if (!section) {
+    return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
+  }
+
+  const passwordHash = await hashPassword(payload.password)
+  const [inserted] = await db.insert(users)
+    .values({
+      email: invite.email,
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      passwordHash,
+      role: 'tutor',
+      emailVerifiedAt: new Date()
+    })
+    .returning({
+      id: users.id,
+      email: users.email,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      role: users.role,
+      emailVerifiedAt: users.emailVerifiedAt,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt
+    })
+
+  await db.insert(tutorProfiles).values({
+    userId: inserted.id,
+    sectionId: payload.sectionId,
+    year: payload.year,
+    isActive: true
+  })
+
+  await db.insert(tutorSettings).values({
+    tutorId: inserted.id,
+    ...DEFAULT_TUTOR_SETTINGS
+  })
+
+  const confirmation = buildRegistrationConfirmedMessage()
+  try {
+    await sendMail({
+      to: inserted.email,
+      subject: confirmation.subject,
+      text: confirmation.text,
+      html: confirmation.html
+    })
+  } catch (error) {
+    console.error('Failed to send tutor registration confirmation email', error)
+  }
+
+  return c.json(
+    {
+      ...inserted,
+      sectionId: payload.sectionId ?? null,
+      year: payload.year ?? null,
+      isActive: true
     },
     HttpStatusCodes.CREATED
   )

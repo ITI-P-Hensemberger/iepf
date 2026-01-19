@@ -145,6 +145,24 @@ export function buildActivationChangedMessage(isActive: boolean) {
   } satisfies EmailTemplate
 }
 
+
+export function buildTutorInviteMessage(token: string) {
+  const baseUrl = env.SITE_URL ?? 'http://localhost:3000'
+  const url = new URL('/auth/sign-up-tutor', baseUrl)
+  url.searchParams.set('token', token)
+  const link = url.toString()
+
+  return {
+    subject: 'Invito registrazione tutor',
+    text: `Sei stato invitato a registrarti come tutor. Completa la registrazione qui: ${link}`,
+    html: buildEmailHtml(
+      'Invito registrazione tutor',
+      'Sei stato invitato a registrarti come tutor. Completa la registrazione con il pulsante qui sotto.',
+      { label: 'Registrati come tutor', url: link }
+    )
+  } satisfies EmailTemplate
+}
+
 export function buildRegistrationConfirmedMessage() {
   return {
     subject: 'Registrazione completata',

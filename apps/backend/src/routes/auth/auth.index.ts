@@ -1,5 +1,6 @@
 // Purpose: Auth router wiring.
 import { createRouter } from '@/lib/create-app'
+import { authenticate } from '@/middlewares/auth'
 import { rateLimit } from '@/middlewares/rate-limit'
 
 import * as handlers from './auth.handlers'
@@ -47,6 +48,17 @@ router.use('/auth/logout', rateLimit({
   max: 30,
   keyPrefix: 'auth:logout'
 }))
+router.use('/auth/tutor-invite', authenticate())
+router.use('/auth/tutor-invite', rateLimit({
+  windowMs: 60_000,
+  max: 5,
+  keyPrefix: 'auth:tutor-invite'
+}))
+router.use('/auth/tutor-invite/confirm', rateLimit({
+  windowMs: 60_000,
+  max: 5,
+  keyPrefix: 'auth:tutor-invite-confirm'
+}))
 
 router
   .openapi(routes.login, handlers.login)
@@ -57,5 +69,8 @@ router
   .openapi(routes.confirmPasswordReset, handlers.confirmPasswordReset)
   .openapi(routes.requestEmailVerification, handlers.requestEmailVerification)
   .openapi(routes.confirmEmailVerification, handlers.confirmEmailVerification)
+  .openapi(routes.listTutorInvites, handlers.listTutorInvites)
+  .openapi(routes.inviteTutor, handlers.inviteTutor)
+  .openapi(routes.confirmTutorInvite, handlers.confirmTutorInvite)
 
 export default router

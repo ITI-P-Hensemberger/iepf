@@ -117,6 +117,7 @@ async function attachProfiles(records: UserPublicRecord[]) {
     userId: string
     sectionId: string | null
     year: number | null
+    isActive: boolean | null
   }> = []
   if (tutorIds.length > 0) {
     tutorProfilesList = await db.query.tutorProfiles.findMany({
@@ -126,7 +127,8 @@ async function attachProfiles(records: UserPublicRecord[]) {
       columns: {
         userId: true,
         sectionId: true,
-        year: true
+        year: true,
+        isActive: true
       }
     })
   }
@@ -152,7 +154,7 @@ async function attachProfiles(records: UserPublicRecord[]) {
         ...user,
         sectionId: profile?.sectionId ?? null,
         year: profile?.year ?? null,
-        isActive: null,
+        isActive: profile?.isActive ?? true,
         lessonTokens: null
       }
     }
@@ -290,6 +292,24 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
     }
 
     if (inserted.role === 'tutor') {
+      if (tutorProfileUpdates.sectionId === undefined || tutorProfileUpdates.year === undefined) {
+        return c.json(
+          {
+            success: false,
+            error: {
+              issues: [
+                {
+                  code: ZOD_ERROR_CODES.INVALID_UPDATES,
+                  path: ['sectionId', 'year'],
+                  message: 'Sezione e anno sono obbligatori per i tutor'
+                }
+              ],
+              name: 'ZodError'
+            }
+          },
+          HttpStatusCodes.UNPROCESSABLE_ENTITY
+        )
+      }
       await db.insert(tutorProfiles).values({
         userId: inserted.id,
         sectionId: tutorProfileUpdates.sectionId,
@@ -458,6 +478,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     let currentTutorProfile: {
       sectionId: string | null
       year: number | null
+      isActive: boolean | null
     } | null = null
 
     if (hasProfileUpdates && existing.role === 'student') {
@@ -481,10 +502,33 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
         },
         columns: {
           sectionId: true,
-          year: true
+          year: true,
+        isActive: true
         }
       })) ?? null
     }
+
+    if (hasProfileUpdates && existing.role === 'tutor') {
+      if (profileUpdates.sectionId === undefined || profileUpdates.year === undefined) {
+        return c.json(
+          {
+            success: false,
+            error: {
+              issues: [
+                {
+                  code: ZOD_ERROR_CODES.INVALID_UPDATES,
+                  path: ['sectionId', 'year'],
+                  message: 'Sezione e anno sono obbligatori per i tutor'
+                }
+              ],
+              name: 'ZodError'
+            }
+          },
+          HttpStatusCodes.UNPROCESSABLE_ENTITY
+        )
+      }
+    }
+
 
     if (profileUpdates.isActive !== undefined && existing.role !== 'student') {
       return c.json(
@@ -673,7 +717,9 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       if (result.rowCount === 0) {
         await db.insert(tutorProfiles).values({
           userId: id,
-          ...tutorProfileUpdates
+          sectionId: tutorProfileUpdates.sectionId as string,
+          year: tutorProfileUpdates.year as number,
+          isActive: currentTutorProfile?.isActive ?? true
         })
       }
     }

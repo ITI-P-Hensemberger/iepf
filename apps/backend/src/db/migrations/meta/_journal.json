@@ -8,6 +8,27 @@
       "when": 1768748643333,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1768840000000,
+      "tag": "0001_tutor_invite_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1768845000000,
+      "tag": "0002_tutor_profiles_require_section_year",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1768850000000,
+      "tag": "0003_tutor_profiles_add_is_active",
+      "breakpoints": true
     }
   ]
 }
