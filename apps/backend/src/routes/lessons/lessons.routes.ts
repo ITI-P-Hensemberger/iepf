@@ -4,7 +4,7 @@ import { createRoute, z } from '@hono/zod-openapi'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
-import { createErrorSchema, createMessageObjectSchema } from '@/lib/openapi/schemas'
+import { createErrorSchema, createMessageObjectSchema, createErrorMessageSchema, createPagedListSchema } from '@/lib/openapi/schemas'
 
 const tags = ['Lessons']
 const bearerAuth = [{
@@ -103,7 +103,16 @@ const overrideConfirmationsSchema = z.object({
 })
 
 const confirmationListQuerySchema = z.object({
-  state: z.enum(['pending', 'stalled']).default('pending')
+  state: z.enum(['pending', 'stalled']).default('pending'),
+  q: z.string().min(1).optional(),
+  tutorId: z.uuid().optional(),
+  subjectId: z.uuid().optional(),
+  from: z.iso.datetime().optional(),
+  to: z.iso.datetime().optional(),
+  sortBy: z.enum(['startAt', 'createdAt']).default('startAt'),
+  sortDir: z.enum(['asc', 'desc']).default('asc'),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0)
 })
 
 const confirmationListItemSchema = z.object({
@@ -167,19 +176,19 @@ export const bookLesson = createRoute({
       'Lesson booked'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.NOT_FOUND),
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
       'Tutor or subject not found'
     ),
     [HttpStatusCodes.BAD_REQUEST]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.BAD_REQUEST),
+      createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
       'Slot unavailable'
     ),
     [HttpStatusCodes.CONFLICT]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.CONFLICT),
+      createErrorMessageSchema(HttpStatusPhrases.CONFLICT),
       'Slot already booked or full'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Student access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -187,7 +196,7 @@ export const bookLesson = createRoute({
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -206,11 +215,11 @@ export const cancelBooking = createRoute({
       description: 'Booking canceled'
     },
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.NOT_FOUND),
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
       'Booking not found'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin or booking owner required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -218,7 +227,7 @@ export const cancelBooking = createRoute({
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -238,11 +247,11 @@ export const cancelLesson = createRoute({
       'Lezione annullata'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.NOT_FOUND),
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
       'Lesson not found'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -250,7 +259,7 @@ export const cancelLesson = createRoute({
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -266,11 +275,11 @@ export const listLessonConfirmations = createRoute({
   },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      z.array(confirmationListItemSchema),
+      createPagedListSchema(confirmationListItemSchema),
       'Lessons awaiting confirmation'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -278,7 +287,7 @@ export const listLessonConfirmations = createRoute({
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -298,11 +307,11 @@ export const getLessonConfirmations = createRoute({
       'Lesson confirmation details'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.NOT_FOUND),
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
       'Lesson not found'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -310,7 +319,7 @@ export const getLessonConfirmations = createRoute({
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -334,19 +343,19 @@ export const resolveLesson = createRoute({
       'Lezione risolta'
     ),
     [HttpStatusCodes.BAD_REQUEST]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.BAD_REQUEST),
+      createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
       'Lesson not eligible for resolution'
     ),
     [HttpStatusCodes.CONFLICT]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.CONFLICT),
+      createErrorMessageSchema(HttpStatusPhrases.CONFLICT),
       'Lesson already finalized'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.NOT_FOUND),
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
       'Lesson not found'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -354,7 +363,7 @@ export const resolveLesson = createRoute({
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -378,19 +387,19 @@ export const rescheduleLesson = createRoute({
       'Lezione riprogrammata'
     ),
     [HttpStatusCodes.BAD_REQUEST]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.BAD_REQUEST),
+      createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
       'Availability invalid'
     ),
     [HttpStatusCodes.CONFLICT]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.CONFLICT),
+      createErrorMessageSchema(HttpStatusPhrases.CONFLICT),
       'Lesson already finalized or slot unavailable'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.NOT_FOUND),
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
       'Lesson or availability not found'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -398,7 +407,7 @@ export const rescheduleLesson = createRoute({
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -422,15 +431,15 @@ export const overrideLessonConfirmations = createRoute({
       'Lesson confirmations updated'
     ),
     [HttpStatusCodes.CONFLICT]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.CONFLICT),
+      createErrorMessageSchema(HttpStatusPhrases.CONFLICT),
       'Lesson already finalized'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.NOT_FOUND),
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
       'Lesson not found'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -438,7 +447,7 @@ export const overrideLessonConfirmations = createRoute({
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -462,19 +471,19 @@ export const confirmLessonTutor = createRoute({
       'Lesson confirmation recorded'
     ),
     [HttpStatusCodes.BAD_REQUEST]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.BAD_REQUEST),
+      createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
       'Lesson not eligible for confirmation'
     ),
     [HttpStatusCodes.CONFLICT]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.CONFLICT),
+      createErrorMessageSchema(HttpStatusPhrases.CONFLICT),
       'Lesson already confirmed'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.NOT_FOUND),
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
       'Lesson not found'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Tutor access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -482,7 +491,7 @@ export const confirmLessonTutor = createRoute({
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -509,19 +518,19 @@ export const confirmLessonBooking = createRoute({
       'Booking confirmation recorded'
     ),
     [HttpStatusCodes.BAD_REQUEST]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.BAD_REQUEST),
+      createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
       'Lesson not eligible for confirmation'
     ),
     [HttpStatusCodes.CONFLICT]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.CONFLICT),
+      createErrorMessageSchema(HttpStatusPhrases.CONFLICT),
       'Booking already confirmed'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.NOT_FOUND),
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
       'Booking not found'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Student access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -531,7 +540,7 @@ export const confirmLessonBooking = createRoute({
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }

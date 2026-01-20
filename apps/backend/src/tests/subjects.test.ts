@@ -13,6 +13,7 @@ import { createTestApp } from '@/lib/create-app'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import subjectsRouter from '@/routes/subjects/subjects.index'
+import { seedAdminUser } from '@/tests/test-helpers'
 import { ensureTestSchema } from '@/tests/test-setup'
 
 if (env.NODE_ENV !== 'test') {
@@ -61,6 +62,7 @@ async function issueToken(user: AuthenticatedUser) {
 
 beforeAll(async () => {
   await ensureTestSchema()
+  await seedAdminUser(adminIdentity.id, adminIdentity.email)
   adminToken = await issueToken(adminIdentity)
   studentToken = await issueToken(studentIdentity)
 })
@@ -75,8 +77,8 @@ describe('subjects routes', () => {
       header: bearer(studentToken)
     })
     expect(response.status).toBe(HttpStatusCodes.OK)
-    const body = (await response.json()) as SubjectResponse[]
-    expect(body).toEqual([])
+    const body = (await response.json()) as { data: SubjectResponse[] }
+    expect(body.data).toEqual([])
   })
 
   it('rejects unauthenticated requests', async () => {
@@ -165,8 +167,8 @@ describe('subjects routes', () => {
     })
 
     expect(response.status).toBe(HttpStatusCodes.NOT_FOUND)
-    const body = (await response.json()) as { message: string }
-    expect(body).toEqual({ message: HttpStatusPhrases.NOT_FOUND })
+    const body = (await response.json()) as { error: { message: string } }
+    expect(body.error.message).toEqual(HttpStatusPhrases.NOT_FOUND)
   })
 
   it('allows admins to update subjects', async () => {

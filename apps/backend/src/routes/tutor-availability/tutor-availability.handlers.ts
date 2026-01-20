@@ -1,7 +1,7 @@
 // Purpose: Tutor availability handlers.
 import type { Context } from 'hono'
 
-import { and, eq } from 'drizzle-orm'
+import { and, eq, gte, lte, sql } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
@@ -12,6 +12,8 @@ import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { DEFAULT_TUTOR_SETTINGS } from '@/lib/constants'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { buildErrorResponse } from '@/lib/error-response'
+import { buildPagedResponse } from '@/lib/pagination'
 
 import type {
   CreateAvailabilityRoute,
@@ -136,16 +138,24 @@ function buildSlotStartAt(date: string, startTime: string) {
 
 export const listAvailability: AppRouteHandler<ListAvailabilityRoute> = async (c) => {
   const { tutorId } = c.req.valid('param')
+  const query = c.req.valid('query')
   ensureAdminOrSelfTutor(c, tutorId)
 
   const tutor = await ensureTutorExists(tutorId)
   if (!tutor) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   const rows = await db.query.tutorAvailability.findMany({
-    where(fields, operators) {
-      return operators.eq(fields.tutorId, tutorId)
+    where(fields) {
+      const clauses = [eq(fields.tutorId, tutorId)]
+      if (query.from) {
+        clauses.push(gte(fields.startAt, new Date(query.from)))
+      }
+      if (query.to) {
+        clauses.push(lte(fields.startAt, new Date(query.to)))
+      }
+      return and(...clauses)
     },
     columns: {
       id: true,
@@ -153,33 +163,66 @@ export const listAvailability: AppRouteHandler<ListAvailabilityRoute> = async (c
       startAt: true,
       durationMinutes: true,
       seats: true
-    }
+    },
+    orderBy(fields, operators) {
+      return query.sortDir === 'desc'
+        ? operators.desc(fields.startAt)
+        : operators.asc(fields.startAt)
+    },
+    limit: query.limit,
+    offset: query.offset
   })
 
-  return c.json(rows.map(row => ({
+  const totalClauses = [eq(tutorAvailability.tutorId, tutorId)]
+  if (query.from) {
+    totalClauses.push(gte(tutorAvailability.startAt, new Date(query.from)))
+  }
+  if (query.to) {
+    totalClauses.push(lte(tutorAvailability.startAt, new Date(query.to)))
+  }
+
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)` })
+    .from(tutorAvailability)
+    .where(and(...totalClauses))
+
+  const data = rows.map(row => ({
     ...row,
     startAt: new Date(row.startAt).toISOString()
-  })), HttpStatusCodes.OK)
+  }))
+
+  return c.json(
+    buildPagedResponse(data, Number(total), query.limit, query.offset),
+    HttpStatusCodes.OK
+  )
 }
 
 export const listAvailableSlots: AppRouteHandler<ListAvailableSlotsRoute> = async (c) => {
   const { tutorId } = c.req.valid('param')
+  const query = c.req.valid('query')
   const currentUser = ensureAuthenticated(c)
   // Only activated students may browse available lesson slots.
   await ensureActiveStudent(currentUser)
 
   const tutor = await ensureTutorExists(tutorId)
   if (!tutor) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   const now = new Date()
   const rows = await db.query.tutorAvailability.findMany({
-    where(fields, operators) {
-      return operators.and(
-        operators.eq(fields.tutorId, tutorId),
-        operators.gte(fields.startAt, now)
-      )
+    where(fields) {
+      const clauses = [
+        eq(fields.tutorId, tutorId),
+        gte(fields.startAt, now)
+      ]
+      if (query.from) {
+        clauses.push(gte(fields.startAt, new Date(query.from)))
+      }
+      if (query.to) {
+        clauses.push(lte(fields.startAt, new Date(query.to)))
+      }
+      return and(...clauses)
     },
     columns: {
       id: true,
@@ -187,11 +230,19 @@ export const listAvailableSlots: AppRouteHandler<ListAvailableSlotsRoute> = asyn
       startAt: true,
       durationMinutes: true,
       seats: true
+    },
+    orderBy(fields, operators) {
+      return query.sortDir === 'desc'
+        ? operators.desc(fields.startAt)
+        : operators.asc(fields.startAt)
     }
   })
 
   if (rows.length === 0) {
-    return c.json([], HttpStatusCodes.OK)
+    return c.json(
+      buildPagedResponse([], 0, query.limit, query.offset),
+      HttpStatusCodes.OK
+    )
   }
 
   const availabilityIds = rows.map(row => row.id)
@@ -203,12 +254,26 @@ export const listAvailableSlots: AppRouteHandler<ListAvailableSlotsRoute> = asyn
   })
 
   const bookedIds = new Set(bookedLessons.map(lesson => lesson.availabilityId).filter(Boolean))
-  const available = rows.filter(row => !bookedIds.has(row.id))
+  let available = rows.filter(row => !bookedIds.has(row.id))
 
-  return c.json(available.map(row => ({
+  if (query.sortDir === 'desc') {
+    available = available.sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime())
+  } else {
+    available = available.sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
+  }
+
+  const total = available.length
+  available = available.slice(query.offset, query.offset + query.limit)
+
+  const data = available.map(row => ({
     ...row,
     startAt: new Date(row.startAt).toISOString()
-  })), HttpStatusCodes.OK)
+  }))
+
+  return c.json(
+    buildPagedResponse(data, total, query.limit, query.offset),
+    HttpStatusCodes.OK
+  )
 }
 
 export const createAvailability: AppRouteHandler<CreateAvailabilityRoute> = async (c) => {
@@ -218,7 +283,7 @@ export const createAvailability: AppRouteHandler<CreateAvailabilityRoute> = asyn
 
   const tutor = await ensureTutorExists(tutorId)
   if (!tutor) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   const settings = await ensureTutorSettings(tutorId)
@@ -226,7 +291,7 @@ export const createAvailability: AppRouteHandler<CreateAvailabilityRoute> = asyn
   const availabilityDate = new Date(`${payload.date}T00:00:00.000Z`)
   const { start, end } = nextWeekRangeUTC(new Date())
   if (availabilityDate < start || availabilityDate > end) {
-    return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
+    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
   }
 
   const startAt = buildSlotStartAt(payload.date, settings.defaultStartTime)
@@ -241,7 +306,7 @@ export const createAvailability: AppRouteHandler<CreateAvailabilityRoute> = asyn
   })
 
   if (existing) {
-    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
   const [inserted] = await db.insert(tutorAvailability).values({
@@ -281,7 +346,7 @@ export const deleteAvailability: AppRouteHandler<DeleteAvailabilityRoute> = asyn
   })
 
   if (!existing) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   const bookedLesson = await db.query.lessons.findFirst({
@@ -292,7 +357,7 @@ export const deleteAvailability: AppRouteHandler<DeleteAvailabilityRoute> = asyn
   })
 
   if (bookedLesson) {
-    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
   await db.delete(tutorAvailability)

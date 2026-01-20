@@ -11,6 +11,7 @@ import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { buildErrorResponse } from '@/lib/error-response'
 
 import type { AdjustTokensRoute } from './tokens.routes'
 
@@ -47,7 +48,7 @@ export const adjustTokens: AppRouteHandler<AdjustTokensRoute> = async (c) => {
   })
 
   if (!student) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   const profile = await db.query.studentProfiles.findFirst({

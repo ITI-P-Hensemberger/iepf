@@ -10,21 +10,36 @@ import { notFoundSchema } from '@/lib/constants'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
-import { createErrorSchema, createMessageObjectSchema, IdUUIDParamsSchema } from '@/lib/openapi/schemas'
+import { IdUUIDParamsSchema, createErrorSchema, createErrorMessageSchema, createPagedListSchema } from '@/lib/openapi/schemas'
 
 const tags = ['ClassSections']
 const bearerAuth = [{
   bearerAuth: [] as string[]
 }]
 
+const listQuerySchema = z.object({
+  q: z.string().min(1).optional(),
+  sortBy: z.enum(['name', 'createdAt']).default('name'),
+  sortDir: z.enum(['asc', 'desc']).default('asc'),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0)
+})
+
 export const list = createRoute({
   path: '/class-sections',
   method: 'get',
   tags,
+  request: {
+    query: listQuerySchema
+  },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      z.array(selectClassSectionsSchema),
+      createPagedListSchema(selectClassSectionsSchema),
       'The list of class sections'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(listQuerySchema),
+      'Invalid query parameters'
     )
   }
 })
@@ -67,11 +82,11 @@ export const create = createRoute({
       'Given name already exists'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -95,7 +110,7 @@ export const getOne = createRoute({
       'Class section not found'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -103,7 +118,7 @@ export const getOne = createRoute({
       'Invalid id error'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -142,11 +157,11 @@ export const patch = createRoute({
       'Given name already exists'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -169,7 +184,7 @@ export const remove = createRoute({
       'Class section not found'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -177,7 +192,7 @@ export const remove = createRoute({
       'Invalid id error'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }

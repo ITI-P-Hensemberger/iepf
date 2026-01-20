@@ -1,18 +1,21 @@
 // Purpose: Tutor-subject relationship handlers.
 import type { Context } from 'hono'
 
-import { and, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
 import { subjects } from '@/db/schemas/subjects.schema'
+import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'
 import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { buildErrorResponse } from '@/lib/error-response'
+import { buildPagedResponse } from '@/lib/pagination'
 
 import type {
   AddSubjectToTutorRoute,
@@ -24,19 +27,16 @@ import type {
 type HandlerContext = Context<AppBindings>
 
 function buildDuplicateTutorSubjectError() {
-  return {
-    success: false,
-    error: {
-      issues: [
-        {
-          code: ZOD_ERROR_CODES.DUPLICATE_KEY,
-          path: ['subjectId'],
-          message: ZOD_ERROR_MESSAGES.TUTOR_SUBJECT_EXISTS
-        }
-      ],
-      name: 'ZodError'
-    }
-  }
+  return buildErrorResponse(ZOD_ERROR_MESSAGES.TUTOR_SUBJECT_EXISTS, {
+    name: 'ZodError',
+    issues: [
+      {
+        code: ZOD_ERROR_CODES.DUPLICATE_KEY,
+        path: ['subjectId'],
+        message: ZOD_ERROR_MESSAGES.TUTOR_SUBJECT_EXISTS
+      }
+    ]
+  })
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -93,10 +93,23 @@ async function ensureTutorExists(tutorId: string) {
 
 export const listSubjectsForTutor: AppRouteHandler<ListSubjectsForTutorRoute> = async (c) => {
   const { tutorId } = c.req.valid('param')
+  const query = c.req.valid('query')
   const tutor = await ensureTutorExists(tutorId)
 
   if (!tutor) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
+  }
+
+  const conditions = [eq(tutorSubjects.tutorId, tutorId)]
+  if (query.q) {
+    const q = `%${query.q}%`
+    const search = or(
+      ilike(subjects.name, q),
+      ilike(subjects.canonicalName, q)
+    )
+    if (search) {
+      conditions.push(search)
+    }
   }
 
   const rows = await db
@@ -109,13 +122,30 @@ export const listSubjectsForTutor: AppRouteHandler<ListSubjectsForTutorRoute> = 
     })
     .from(tutorSubjects)
     .innerJoin(subjects, eq(tutorSubjects.subjectId, subjects.id))
-    .where(eq(tutorSubjects.tutorId, tutorId))
+    .where(and(...conditions))
+    .orderBy(
+      query.sortBy === 'canonicalName'
+        ? (query.sortDir === 'desc' ? desc(subjects.canonicalName) : asc(subjects.canonicalName))
+        : (query.sortDir === 'desc' ? desc(subjects.name) : asc(subjects.name))
+    )
+    .limit(query.limit)
+    .offset(query.offset)
 
-  return c.json(rows, HttpStatusCodes.OK)
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)` })
+    .from(tutorSubjects)
+    .innerJoin(subjects, eq(tutorSubjects.subjectId, subjects.id))
+    .where(and(...conditions))
+
+  return c.json(
+    buildPagedResponse(rows, Number(total), query.limit, query.offset),
+    HttpStatusCodes.OK
+  )
 }
 
 export const listTutorsForSubject: AppRouteHandler<ListTutorsForSubjectRoute> = async (c) => {
   const { subjectId } = c.req.valid('param')
+  const query = c.req.valid('query')
   const subject = await db.query.subjects.findFirst({
     where(fields, operators) {
       return operators.eq(fields.id, subjectId)
@@ -124,7 +154,29 @@ export const listTutorsForSubject: AppRouteHandler<ListTutorsForSubjectRoute> = 
   })
 
   if (!subject) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
+  }
+
+  const conditions = [eq(tutorSubjects.subjectId, subjectId)]
+  if (query.q) {
+    const q = `%${query.q}%`
+    const search = or(
+      ilike(users.email, q),
+      ilike(users.firstName, q),
+      ilike(users.lastName, q)
+    )
+    if (search) {
+      conditions.push(search)
+    }
+  }
+  if (query.sectionId) {
+    conditions.push(eq(tutorProfiles.sectionId, query.sectionId))
+  }
+  if (query.year !== undefined) {
+    conditions.push(eq(tutorProfiles.year, query.year))
+  }
+  if (query.isActive !== undefined) {
+    conditions.push(eq(tutorProfiles.isActive, query.isActive))
   }
 
   const rows = await db
@@ -136,13 +188,43 @@ export const listTutorsForSubject: AppRouteHandler<ListTutorsForSubjectRoute> = 
       role: users.role,
       emailVerifiedAt: users.emailVerifiedAt,
       createdAt: users.createdAt,
-      updatedAt: users.updatedAt
+      updatedAt: users.updatedAt,
+      sectionId: tutorProfiles.sectionId,
+      year: tutorProfiles.year,
+      isActive: tutorProfiles.isActive
     })
     .from(tutorSubjects)
     .innerJoin(users, eq(tutorSubjects.tutorId, users.id))
-    .where(eq(tutorSubjects.subjectId, subjectId))
+    .innerJoin(tutorProfiles, eq(tutorProfiles.userId, users.id))
+    .where(and(...conditions))
+    .orderBy((() => {
+      switch (query.sortBy) {
+        case 'firstName':
+          return query.sortDir === 'desc' ? desc(users.firstName) : asc(users.firstName)
+        case 'email':
+          return query.sortDir === 'desc' ? desc(users.email) : asc(users.email)
+        case 'year':
+          return query.sortDir === 'desc' ? desc(tutorProfiles.year) : asc(tutorProfiles.year)
+        case 'sectionId':
+          return query.sortDir === 'desc' ? desc(tutorProfiles.sectionId) : asc(tutorProfiles.sectionId)
+        default:
+          return query.sortDir === 'desc' ? desc(users.lastName) : asc(users.lastName)
+      }
+    })())
+    .limit(query.limit)
+    .offset(query.offset)
 
-  return c.json(rows, HttpStatusCodes.OK)
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)` })
+    .from(tutorSubjects)
+    .innerJoin(users, eq(tutorSubjects.tutorId, users.id))
+    .innerJoin(tutorProfiles, eq(tutorProfiles.userId, users.id))
+    .where(and(...conditions))
+
+  return c.json(
+    buildPagedResponse(rows, Number(total), query.limit, query.offset),
+    HttpStatusCodes.OK
+  )
 }
 
 export const addSubjectToTutor: AppRouteHandler<AddSubjectToTutorRoute> = async (c) => {
@@ -161,7 +243,7 @@ export const addSubjectToTutor: AppRouteHandler<AddSubjectToTutorRoute> = async 
   ])
 
   if (!tutor || !subject) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   // Guard against duplicate mappings to return a consistent 409 response.
@@ -212,7 +294,7 @@ export const removeSubjectFromTutor: AppRouteHandler<RemoveSubjectFromTutorRoute
   })
 
   if (!existing) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   await db.delete(tutorSubjects)

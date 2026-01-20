@@ -5,6 +5,7 @@ import type { AppBindings } from '@/lib/types'
 
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { buildErrorResponse } from '@/lib/error-response'
 
 interface RateLimitOptions {
   windowMs: number
@@ -52,10 +53,7 @@ export function rateLimit(options: RateLimitOptions): MiddlewareHandler<AppBindi
     c.header('X-RateLimit-Reset', String(Math.ceil(entry.resetAt / 1000)))
 
     if (entry.count > options.max) {
-      return c.json(
-        { message: HttpStatusPhrases.TOO_MANY_REQUESTS },
-        HttpStatusCodes.TOO_MANY_REQUESTS
-      )
+      return c.json(buildErrorResponse(HttpStatusPhrases.TOO_MANY_REQUESTS), HttpStatusCodes.TOO_MANY_REQUESTS)
     }
 
     await next()

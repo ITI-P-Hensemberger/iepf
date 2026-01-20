@@ -1,7 +1,7 @@
 // Purpose: Subjects route handlers.
 import type { Context } from 'hono'
 
-import { eq } from 'drizzle-orm'
+import { and, eq, ilike, or, sql } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
@@ -11,25 +11,24 @@ import { subjects } from '@/db/schemas/subjects.schema'
 import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { buildErrorResponse } from '@/lib/error-response'
+import { buildPagedResponse } from '@/lib/pagination'
 
 import type { CreateRoute, GetOneRoute, ListRoute, PatchRoute, RemoveRoute } from './subjects.routes'
 
 type HandlerContext = Context<AppBindings>
 
 function buildDuplicateCanonicalNameError() {
-  return {
-    success: false,
-    error: {
-      issues: [
-        {
-          code: ZOD_ERROR_CODES.DUPLICATE_KEY,
-          path: ['canonicalName'],
-          message: ZOD_ERROR_MESSAGES.CANONICAL_NAME_EXISTS
-        }
-      ],
-      name: 'ZodError'
-    }
-  }
+  return buildErrorResponse(ZOD_ERROR_MESSAGES.CANONICAL_NAME_EXISTS, {
+    name: 'ZodError',
+    issues: [
+      {
+        code: ZOD_ERROR_CODES.DUPLICATE_KEY,
+        path: ['canonicalName'],
+        message: ZOD_ERROR_MESSAGES.CANONICAL_NAME_EXISTS
+      }
+    ]
+  })
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -56,8 +55,51 @@ function ensureAdmin(c: HandlerContext) {
 }
 
 export const list: AppRouteHandler<ListRoute> = async (c) => {
-  const subjectsList = await db.query.subjects.findMany()
-  return c.json(subjectsList, HttpStatusCodes.OK)
+  const query = c.req.valid('query')
+
+  const conditions = []
+  if (query.q) {
+    const q = `%${query.q}%`
+    conditions.push(or(
+      ilike(subjects.name, q),
+      ilike(subjects.canonicalName, q)
+    ))
+  }
+
+  const sortBy = query.sortBy
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+
+  const subjectsList = await db.query.subjects.findMany({
+    where: whereClause,
+    orderBy(fields, operators) {
+      const direction = query.sortDir === 'desc' ? operators.desc : operators.asc
+      switch (sortBy) {
+        case 'canonicalName':
+          return direction(fields.canonicalName)
+        case 'createdAt':
+          return direction(fields.createdAt)
+        default:
+          return direction(fields.name)
+      }
+    },
+    limit: query.limit,
+    offset: query.offset
+  })
+
+  const totalQuery = db
+    .select({ total: sql<number>`count(*)` })
+    .from(subjects)
+
+  if (whereClause) {
+    totalQuery.where(whereClause)
+  }
+
+  const [{ total }] = await totalQuery
+
+  return c.json(
+    buildPagedResponse(subjectsList, Number(total), query.limit, query.offset),
+    HttpStatusCodes.OK
+  )
 }
 
 export const create: AppRouteHandler<CreateRoute> = async (c) => {
@@ -111,12 +153,7 @@ export const getOne: AppRouteHandler<GetOneRoute> = async (c) => {
   })
 
   if (!subject) {
-    return c.json(
-      {
-        message: HttpStatusPhrases.NOT_FOUND
-      },
-      HttpStatusCodes.NOT_FOUND
-    )
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   return c.json(subject, HttpStatusCodes.OK)
@@ -164,12 +201,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
   }
 
   if (!subject) {
-    return c.json(
-      {
-        message: HttpStatusPhrases.NOT_FOUND
-      },
-      HttpStatusCodes.NOT_FOUND
-    )
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   return c.json(subject, HttpStatusCodes.OK)
@@ -183,12 +215,7 @@ export const remove: AppRouteHandler<RemoveRoute> = async (c) => {
     .where(eq(subjects.id, id))
 
   if (result.rowCount === 0) {
-    return c.json(
-      {
-        message: HttpStatusPhrases.NOT_FOUND
-      },
-      HttpStatusCodes.NOT_FOUND
-    )
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   return c.body(null, HttpStatusCodes.NO_CONTENT)

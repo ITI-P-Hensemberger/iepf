@@ -1,7 +1,7 @@
 // Purpose: Auth route handlers.
 import type { Context } from 'hono'
 
-import { eq } from 'drizzle-orm'
+import { and, eq, ilike, sql, gt } from 'drizzle-orm'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
@@ -10,6 +10,8 @@ import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
+import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
+import { adminInviteTokens } from '@/db/schemas/admin-invite-tokens.schema'
 import { users } from '@/db/schemas/users.schema'
 import { createAccessToken } from '@/lib/auth'
 import { DEFAULT_TUTOR_SETTINGS, ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
@@ -26,6 +28,8 @@ import { consumeAdminInviteToken, issueAdminInviteToken } from '@/lib/admin-invi
 import { consumeTutorInviteToken, issueTutorInviteToken } from '@/lib/tutor-invite'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { buildErrorResponse } from '@/lib/error-response'
+import { buildPagedResponse } from '@/lib/pagination'
 import { sendMail } from '@/lib/mailer'
 import { hashPassword, verifyPassword } from '@/lib/password'
 import { consumePasswordResetToken, issuePasswordResetToken } from '@/lib/password-reset'
@@ -49,26 +53,20 @@ import type {
 } from './auth.routes'
 
 function unauthorized(c: Context<AppBindings>) {
-  return c.json(
-    { message: HttpStatusPhrases.UNAUTHORIZED },
-    HttpStatusCodes.UNAUTHORIZED
-  )
+  return c.json(buildErrorResponse(HttpStatusPhrases.UNAUTHORIZED), HttpStatusCodes.UNAUTHORIZED)
 }
 
 function buildDuplicateEmailError() {
-  return {
-    success: false,
-    error: {
-      issues: [
-        {
-          code: ZOD_ERROR_CODES.DUPLICATE_KEY,
-          path: ['email'],
-          message: ZOD_ERROR_MESSAGES.EMAIL_ALREADY_EXISTS
-        }
-      ],
-      name: 'ZodError'
-    }
-  }
+  return buildErrorResponse(ZOD_ERROR_MESSAGES.EMAIL_ALREADY_EXISTS, {
+    name: 'ZodError',
+    issues: [
+      {
+        code: ZOD_ERROR_CODES.DUPLICATE_KEY,
+        path: ['email'],
+        message: ZOD_ERROR_MESSAGES.EMAIL_ALREADY_EXISTS
+      }
+    ]
+  })
 }
 
 export const login: AppRouteHandler<LoginRoute> = async (c) => {
@@ -97,10 +95,7 @@ export const login: AppRouteHandler<LoginRoute> = async (c) => {
   }
 
   if (!user.emailVerifiedAt) {
-    return c.json(
-      { message: 'Email non verificata' },
-      HttpStatusCodes.FORBIDDEN
-    )
+    return c.json(buildErrorResponse('Email non verificata'), HttpStatusCodes.FORBIDDEN)
   }
 
   const [accessToken, refreshToken] = await Promise.all([
@@ -183,7 +178,7 @@ export const register: AppRouteHandler<RegisterRoute> = async (c) => {
       columns: { id: true }
     })
     if (!section) {
-      return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
+      return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
     }
   }
 
@@ -240,63 +235,121 @@ export const register: AppRouteHandler<RegisterRoute> = async (c) => {
 export const listTutorInvites: AppRouteHandler<ListTutorInvitesRoute> = async (c) => {
   const currentUser = c.get('currentUser')
   if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
-    return c.json({ message: HttpStatusPhrases.FORBIDDEN }, HttpStatusCodes.FORBIDDEN)
+    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
   }
 
+  const query = c.req.valid('query')
   const now = new Date()
+
+  const conditions = []
+  if (!query.includeExpired) {
+    conditions.push(gt(tutorInviteTokens.expiresAt, now))
+  }
+  if (query.q) {
+    conditions.push(ilike(tutorInviteTokens.email, `%${query.q}%`))
+  }
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+
   const rows = await db.query.tutorInviteTokens.findMany({
-    where(fields, operators) {
-      return operators.gt(fields.expiresAt, now)
-    },
+    where: whereClause,
     columns: {
       email: true,
       expiresAt: true,
       createdAt: true
     },
     orderBy(fields, operators) {
-      return operators.asc(fields.expiresAt)
-    }
+      const direction = query.sortDir === 'desc' ? operators.desc : operators.asc
+      return query.sortBy === 'createdAt'
+        ? direction(fields.createdAt)
+        : direction(fields.expiresAt)
+    },
+    limit: query.limit,
+    offset: query.offset
   })
 
-  return c.json(rows.map(row => ({
+  const totalQuery = db
+    .select({ total: sql<number>`count(*)` })
+    .from(tutorInviteTokens)
+
+  if (whereClause) {
+    totalQuery.where(whereClause)
+  }
+
+  const [{ total }] = await totalQuery
+
+  const data = rows.map(row => ({
     email: row.email,
     expiresAt: row.expiresAt.toISOString(),
     createdAt: row.createdAt.toISOString()
-  })), HttpStatusCodes.OK)
+  }))
+
+  return c.json(
+    buildPagedResponse(data, Number(total), query.limit, query.offset),
+    HttpStatusCodes.OK
+  )
 }
 
 export const listAdminInvites: AppRouteHandler<ListAdminInvitesRoute> = async (c) => {
   const currentUser = c.get('currentUser')
   if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
-    return c.json({ message: HttpStatusPhrases.FORBIDDEN }, HttpStatusCodes.FORBIDDEN)
+    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
   }
 
+  const query = c.req.valid('query')
   const now = new Date()
+
+  const conditions = []
+  if (!query.includeExpired) {
+    conditions.push(gt(adminInviteTokens.expiresAt, now))
+  }
+  if (query.q) {
+    conditions.push(ilike(adminInviteTokens.email, `%${query.q}%`))
+  }
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+
   const rows = await db.query.adminInviteTokens.findMany({
-    where(fields, operators) {
-      return operators.gt(fields.expiresAt, now)
-    },
+    where: whereClause,
     columns: {
       email: true,
       expiresAt: true,
       createdAt: true
     },
     orderBy(fields, operators) {
-      return operators.asc(fields.expiresAt)
-    }
+      const direction = query.sortDir === 'desc' ? operators.desc : operators.asc
+      return query.sortBy === 'createdAt'
+        ? direction(fields.createdAt)
+        : direction(fields.expiresAt)
+    },
+    limit: query.limit,
+    offset: query.offset
   })
 
-  return c.json(rows.map(row => ({
+  const totalQuery = db
+    .select({ total: sql<number>`count(*)` })
+    .from(adminInviteTokens)
+
+  if (whereClause) {
+    totalQuery.where(whereClause)
+  }
+
+  const [{ total }] = await totalQuery
+
+  const data = rows.map(row => ({
     email: row.email,
     expiresAt: row.expiresAt.toISOString(),
     createdAt: row.createdAt.toISOString()
-  })), HttpStatusCodes.OK)
+  }))
+
+  return c.json(
+    buildPagedResponse(data, Number(total), query.limit, query.offset),
+    HttpStatusCodes.OK
+  )
 }
 
 export const inviteAdmin: AppRouteHandler<InviteAdminRoute> = async (c) => {
   const currentUser = c.get('currentUser')
   if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
-    return c.json({ message: HttpStatusPhrases.FORBIDDEN }, HttpStatusCodes.FORBIDDEN)
+    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
   }
 
   const payload = c.req.valid('json')
@@ -395,7 +448,7 @@ export const confirmAdminInvite: AppRouteHandler<ConfirmAdminInviteRoute> = asyn
 export const inviteTutor: AppRouteHandler<InviteTutorRoute> = async (c) => {
   const currentUser = c.get('currentUser')
   if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
-    return c.json({ message: HttpStatusPhrases.FORBIDDEN }, HttpStatusCodes.FORBIDDEN)
+    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
   }
 
   const payload = c.req.valid('json')
@@ -449,7 +502,7 @@ export const confirmTutorInvite: AppRouteHandler<ConfirmTutorInviteRoute> = asyn
     columns: { id: true }
   })
   if (!section) {
-    return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
+    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
   }
 
   const passwordHash = await hashPassword(payload.password)

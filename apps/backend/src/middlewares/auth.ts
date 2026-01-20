@@ -9,12 +9,10 @@ import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { verifyAccessToken } from '@/lib/auth'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { buildErrorResponse } from '@/lib/error-response'
 
 function unauthorized(c: Context<AppBindings>) {
-  return c.json(
-    { message: HttpStatusPhrases.UNAUTHORIZED },
-    HttpStatusCodes.UNAUTHORIZED
-  )
+  return c.json(buildErrorResponse(HttpStatusPhrases.UNAUTHORIZED), HttpStatusCodes.UNAUTHORIZED)
 }
 
 export function authenticate(): MiddlewareHandler<AppBindings> {

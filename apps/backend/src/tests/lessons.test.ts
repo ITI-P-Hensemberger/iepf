@@ -23,6 +23,7 @@ import lessonsRouter from '@/routes/lessons/lessons.index'
 import tokensRouter from '@/routes/tokens/tokens.index'
 import tutorAvailabilityRouter from '@/routes/tutor-availability/tutor-availability.index'
 import tutorSettingsRouter from '@/routes/tutor-settings/tutor-settings.index'
+import { attachActiveTutorProfile, seedAdminUser } from '@/tests/test-helpers'
 import { ensureTestSchema } from '@/tests/test-setup'
 
 if (env.NODE_ENV !== 'test') {
@@ -112,6 +113,7 @@ async function createTutor() {
   }).returning({
     id: users.id
   })
+  await attachActiveTutorProfile(tutor.id)
   return tutor
 }
 
@@ -159,6 +161,7 @@ beforeEach(async () => {
   await db.delete(subjects)
   await db.delete(studentProfiles)
   await db.delete(users)
+  await seedAdminUser(adminIdentity.id, adminIdentity.email)
 })
 
 describe('lesson flows', () => {
@@ -266,8 +269,8 @@ describe('lesson flows', () => {
       header: bearer(tutorToken)
     })
     expect(listResponse.status).toBe(HttpStatusCodes.OK)
-    const listBody = await listResponse.json() as Array<{ id: string }>
-    expect(listBody.map(row => row.id)).toContain(created.id)
+    const listBody = await listResponse.json() as { data: Array<{ id: string }> }
+    expect(listBody.data.map(row => row.id)).toContain(created.id)
 
     const deleteResponse = await availabilityClient.tutors[':tutorId'].availability[':availabilityId'].$delete({
       param: { tutorId: tutor.id, availabilityId: created.id },
@@ -279,8 +282,8 @@ describe('lesson flows', () => {
       param: { tutorId: tutor.id },
       header: bearer(tutorToken)
     })
-    const remaining = await listAfterDelete.json() as Array<{ id: string }>
-    expect(remaining).toHaveLength(0)
+    const remaining = await listAfterDelete.json() as { data: Array<{ id: string }> }
+    expect(remaining.data).toHaveLength(0)
   })
 
   it('lists available slots for students', async () => {
@@ -303,8 +306,8 @@ describe('lesson flows', () => {
     })
 
     expect(response.status).toBe(HttpStatusCodes.OK)
-    const body = await response.json() as Array<{ id: string }>
-    expect(body.map(row => row.id)).toContain(availability.id)
+    const body = await response.json() as { data: Array<{ id: string }> }
+    expect(body.data.map(row => row.id)).toContain(availability.id)
   })
 
   it('prevents inactive students from listing available slots', async () => {
@@ -758,9 +761,9 @@ describe('lesson flows', () => {
       header: bearer(adminToken)
     })
     expect(response.status).toBe(HttpStatusCodes.OK)
-    const body = await response.json() as Array<{ id: string, confirmedCount: number }>
-    expect(body.map(row => row.id)).toContain(lesson.id)
-    const entry = body.find(row => row.id === lesson.id)
+    const body = await response.json() as { data: Array<{ id: string, confirmedCount: number }> }
+    expect(body.data.map(row => row.id)).toContain(lesson.id)
+    const entry = body.data.find(row => row.id === lesson.id)
     expect(entry?.confirmedCount).toBe(0)
   })
 
@@ -832,16 +835,16 @@ describe('lesson flows', () => {
       header: bearer(adminToken)
     })
     expect(pending.status).toBe(HttpStatusCodes.OK)
-    const pendingBody = await pending.json() as Array<{ id: string }>
-    expect(pendingBody.map(row => row.id)).not.toContain(lesson.id)
+    const pendingBody = await pending.json() as { data: Array<{ id: string }> }
+    expect(pendingBody.data.map(row => row.id)).not.toContain(lesson.id)
 
     const stalled = await lessonsClient.lessons.confirmations.$get({
       query: { state: 'stalled' },
       header: bearer(adminToken)
     })
     expect(stalled.status).toBe(HttpStatusCodes.OK)
-    const stalledBody = await stalled.json() as Array<{ id: string }>
-    expect(stalledBody.map(row => row.id)).toContain(lesson.id)
+    const stalledBody = await stalled.json() as { data: Array<{ id: string }> }
+    expect(stalledBody.data.map(row => row.id)).toContain(lesson.id)
   })
 
   it('allows admins to override confirmations to complete a lesson', async () => {
@@ -975,8 +978,8 @@ describe('lesson flows', () => {
       header: bearer(adminToken)
     })
     expect(response.status).toBe(HttpStatusCodes.OK)
-    const body = await response.json() as Array<{ id: string }>
-    expect(body).toEqual([])
+    const body = await response.json() as { data: Array<{ id: string }> }
+    expect(body.data).toEqual([])
   })
 
   it('auto-stalls overdue lessons with partial confirmations', async () => {

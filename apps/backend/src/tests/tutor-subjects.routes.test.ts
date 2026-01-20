@@ -6,14 +6,18 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { AuthenticatedUser } from '@/lib/types'
 
 import db from '@/db'
+import { classSections } from '@/db/schemas/class-sections.schema'
 import { subjects } from '@/db/schemas/subjects.schema'
+import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
+import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
 import env from '@/env'
 import { createAccessToken } from '@/lib/auth'
 import { createTestApp } from '@/lib/create-app'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import tutorSubjectsRouter from '@/routes/tutor-subjects/tutor-subjects.index'
+import { attachActiveTutorProfile, seedAdminUser } from '@/tests/test-helpers'
 import { ensureTestSchema } from '@/tests/test-setup'
 
 if (env.NODE_ENV !== 'test') {
@@ -64,6 +68,7 @@ async function createTutor() {
   }).returning({
     id: users.id
   })
+  await attachActiveTutorProfile(user.id)
   return user
 }
 
@@ -84,7 +89,11 @@ beforeAll(async () => {
 beforeEach(async () => {
   await db.delete(tutorSubjects)
   await db.delete(subjects)
+  await db.delete(tutorProfiles)
+  await db.delete(adminProfiles)
   await db.delete(users)
+  await db.delete(classSections)
+  await seedAdminUser(adminIdentity.id, adminIdentity.email)
 })
 
 describe('tutor-subject routes', () => {
@@ -171,8 +180,8 @@ describe('tutor-subject routes', () => {
     })
 
     expect(response.status).toBe(HttpStatusCodes.OK)
-    const body = await response.json() as Array<{ id: string }>
-    expect(body.map(row => row.id)).toContain(subject.id)
+    const body = await response.json() as { data: Array<{ id: string }> }
+    expect(body.data.map(row => row.id)).toContain(subject.id)
   })
 
   it('lists tutors for a subject', async () => {
@@ -192,8 +201,8 @@ describe('tutor-subject routes', () => {
     })
 
     expect(response.status).toBe(HttpStatusCodes.OK)
-    const body = await response.json() as Array<{ id: string }>
-    expect(body.map(row => row.id)).toContain(tutor.id)
+    const body = await response.json() as { data: Array<{ id: string }> }
+    expect(body.data.map(row => row.id)).toContain(tutor.id)
   })
 
   it('allows tutors to remove subjects from themselves', async () => {

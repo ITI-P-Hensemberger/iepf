@@ -4,7 +4,7 @@ import { createRoute, z } from '@hono/zod-openapi'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
-import { createErrorSchema, createMessageObjectSchema } from '@/lib/openapi/schemas'
+import { createErrorSchema, createErrorMessageSchema } from '@/lib/openapi/schemas'
 
 const tags = ['Tokens']
 const bearerAuth = [{
@@ -51,11 +51,11 @@ export const adjustTokens = createRoute({
       'Token balance updated'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.NOT_FOUND),
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
       'Student not found'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -63,7 +63,7 @@ export const adjustTokens = createRoute({
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }

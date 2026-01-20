@@ -1,6 +1,6 @@
 // Purpose: Shared constants and Zod error metadata.
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
-import { createMessageObjectSchema } from '@/lib/openapi/schemas'
+import { createErrorMessageSchema } from '@/lib/openapi/schemas'
 
 export const ZOD_ERROR_MESSAGES = {
   REQUIRED: 'Obbligatorio',
@@ -24,4 +24,4 @@ export const DEFAULT_TUTOR_SETTINGS = {
   defaultSeats: 2
 }
 
-export const notFoundSchema = createMessageObjectSchema(HttpStatusPhrases.NOT_FOUND)
+export const notFoundSchema = createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND)

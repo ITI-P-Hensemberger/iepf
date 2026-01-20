@@ -7,7 +7,8 @@ import { notFoundSchema } from '@/lib/constants'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
-import { createErrorSchema, createMessageObjectSchema } from '@/lib/openapi/schemas'
+import { queryBoolean } from '@/lib/zod-utils'
+import { createErrorSchema, createErrorMessageSchema, createPagedListSchema } from '@/lib/openapi/schemas'
 
 const tags = ['TutorSubjects']
 const bearerAuth = [{
@@ -24,6 +25,25 @@ const TutorIdParamsSchema = z.object({
     required: ['tutorId'],
     example: '4651e634-a530-4484-9b09-9616a28f35e3'
   })
+})
+
+const listSubjectsQuerySchema = z.object({
+  q: z.string().min(1).optional(),
+  sortBy: z.enum(['name', 'canonicalName']).default('name'),
+  sortDir: z.enum(['asc', 'desc']).default('asc'),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0)
+})
+
+const listTutorsQuerySchema = z.object({
+  q: z.string().min(1).optional(),
+  isActive: queryBoolean().optional(),
+  sectionId: z.uuid().optional(),
+  year: z.coerce.number().int().optional(),
+  sortBy: z.enum(['firstName', 'lastName', 'email', 'year', 'sectionId']).default('lastName'),
+  sortDir: z.enum(['asc', 'desc']).default('asc'),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0)
 })
 
 const SubjectIdParamsSchema = z.object({
@@ -55,19 +75,24 @@ export const listSubjectsForTutor = createRoute({
   tags,
   security: bearerAuth,
   request: {
-    params: TutorIdParamsSchema
+    params: TutorIdParamsSchema,
+    query: listSubjectsQuerySchema
   },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      z.array(selectSubjectsSchema),
+      createPagedListSchema(selectSubjectsSchema),
       'Subjects taught by the tutor'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(listSubjectsQuerySchema),
+      'Invalid query parameters'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
       notFoundSchema,
       'Tutor not found'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -79,19 +104,24 @@ export const listTutorsForSubject = createRoute({
   tags,
   security: bearerAuth,
   request: {
-    params: SubjectIdParamsSchema
+    params: SubjectIdParamsSchema,
+    query: listTutorsQuerySchema
   },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      z.array(selectUsersWithProfilesSchema),
+      createPagedListSchema(selectUsersWithProfilesSchema),
       'Tutors for the subject'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(listTutorsQuerySchema),
+      'Invalid query parameters'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
       notFoundSchema,
       'Subject not found'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -123,7 +153,7 @@ export const addSubjectToTutor = createRoute({
       'Subject already assigned'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin or self access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -131,7 +161,7 @@ export const addSubjectToTutor = createRoute({
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -154,7 +184,7 @@ export const removeSubjectFromTutor = createRoute({
       'Tutor, subject, or assignment not found'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin or self access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -162,7 +192,7 @@ export const removeSubjectFromTutor = createRoute({
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }

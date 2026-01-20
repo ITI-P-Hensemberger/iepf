@@ -13,6 +13,7 @@ import { createTestApp } from '@/lib/create-app'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import classSectionsRouter from '@/routes/class-sections/class-sections.index'
+import { seedAdminUser } from '@/tests/test-helpers'
 import { ensureTestSchema } from '@/tests/test-setup'
 
 if (env.NODE_ENV !== 'test') {
@@ -46,6 +47,7 @@ async function issueToken(user: AuthenticatedUser) {
 
 beforeAll(async () => {
   await ensureTestSchema()
+  await seedAdminUser(adminIdentity.id, adminIdentity.email)
   adminToken = await issueToken(adminIdentity)
 })
 
@@ -90,8 +92,8 @@ describe('class sections routes', () => {
     })
 
     expect(response.status).toBe(HttpStatusCodes.OK)
-    const body = await response.json() as Array<{ name: string }>
-    expect(body.map(row => row.name)).toContain('BA')
+    const body = await response.json() as { data: Array<{ name: string }> }
+    expect(body.data.map(row => row.name)).toContain('BA')
   })
 
   it('allows public listing of class sections', async () => {
@@ -123,8 +125,8 @@ describe('class sections routes', () => {
     })
 
     expect(response.status).toBe(HttpStatusCodes.NOT_FOUND)
-    const body = await response.json() as { message: string }
-    expect(body.message).toBe(HttpStatusPhrases.NOT_FOUND)
+    const body = await response.json() as { error: { message: string } }
+    expect(body.error.message).toBe(HttpStatusPhrases.NOT_FOUND)
   })
 
   it('deletes class sections', async () => {

@@ -1,7 +1,7 @@
 // Purpose: Class sections route handlers.
 import type { Context } from 'hono'
 
-import { eq } from 'drizzle-orm'
+import { and, eq, ilike, or, sql } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
@@ -11,25 +11,24 @@ import { classSections } from '@/db/schemas/class-sections.schema'
 import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { buildErrorResponse } from '@/lib/error-response'
+import { buildPagedResponse } from '@/lib/pagination'
 
 import type { CreateRoute, GetOneRoute, ListRoute, PatchRoute, RemoveRoute } from './class-sections.routes'
 
 type HandlerContext = Context<AppBindings>
 
 function buildDuplicateNameError() {
-  return {
-    success: false,
-    error: {
-      issues: [
-        {
-          code: ZOD_ERROR_CODES.DUPLICATE_KEY,
-          path: ['name'],
-          message: ZOD_ERROR_MESSAGES.CLASS_SECTION_EXISTS
-        }
-      ],
-      name: 'ZodError'
-    }
-  }
+  return buildErrorResponse(ZOD_ERROR_MESSAGES.CLASS_SECTION_EXISTS, {
+    name: 'ZodError',
+    issues: [
+      {
+        code: ZOD_ERROR_CODES.DUPLICATE_KEY,
+        path: ['name'],
+        message: ZOD_ERROR_MESSAGES.CLASS_SECTION_EXISTS
+      }
+    ]
+  })
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -55,8 +54,47 @@ function ensureAdmin(c: HandlerContext) {
 }
 
 export const list: AppRouteHandler<ListRoute> = async (c) => {
-  const sections = await db.query.classSections.findMany()
-  return c.json(sections, HttpStatusCodes.OK)
+  const query = c.req.valid('query')
+
+  const conditions = []
+  if (query.q) {
+    const q = `%${query.q}%`
+    conditions.push(or(
+      ilike(classSections.name, q)
+    ))
+  }
+
+  const sortBy = query.sortBy
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+  const sections = await db.query.classSections.findMany({
+    where: whereClause,
+    orderBy(fields, operators) {
+      const direction = query.sortDir === 'desc' ? operators.desc : operators.asc
+      switch (sortBy) {
+        case 'createdAt':
+          return direction(fields.createdAt)
+        default:
+          return direction(fields.name)
+      }
+    },
+    limit: query.limit,
+    offset: query.offset
+  })
+
+  const totalQuery = db
+    .select({ total: sql<number>`count(*)` })
+    .from(classSections)
+
+  if (whereClause) {
+    totalQuery.where(whereClause)
+  }
+
+  const [{ total }] = await totalQuery
+
+  return c.json(
+    buildPagedResponse(sections, Number(total), query.limit, query.offset),
+    HttpStatusCodes.OK
+  )
 }
 
 export const create: AppRouteHandler<CreateRoute> = async (c) => {
@@ -108,7 +146,7 @@ export const getOne: AppRouteHandler<GetOneRoute> = async (c) => {
   })
 
   if (!section) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   return c.json(section, HttpStatusCodes.OK)
@@ -127,7 +165,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
   })
 
   if (!existing) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   try {
@@ -163,7 +201,7 @@ export const remove: AppRouteHandler<RemoveRoute> = async (c) => {
   })
 
   if (!existing) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   await db.delete(classSections)

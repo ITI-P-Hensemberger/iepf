@@ -13,6 +13,7 @@ import { createTestApp } from '@/lib/create-app'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import auditRouter from '@/routes/audit/audit.index'
 import subjectsRouter from '@/routes/subjects/subjects.index'
+import { seedAdminUser } from '@/tests/test-helpers'
 import { ensureTestSchema } from '@/tests/test-setup'
 
 if (env.NODE_ENV !== 'test') {
@@ -54,6 +55,7 @@ async function issueToken(user: AuthenticatedUser) {
 
 beforeAll(async () => {
   await ensureTestSchema()
+  await seedAdminUser(adminIdentity.id, adminIdentity.email)
   adminToken = await issueToken(adminIdentity)
   studentToken = await issueToken(studentIdentity)
 })
@@ -82,15 +84,15 @@ describe('audit routes', () => {
     })
 
     expect(listResponse.status).toBe(HttpStatusCodes.OK)
-    const list = await listResponse.json() as Array<{
+    const list = await listResponse.json() as { data: Array<{
       id: string
       actorId: string | null
       method: string
       path: string
       status: number
-    }>
+    }> }
 
-    const entry = list.find(row => row.path === '/subjects')
+    const entry = list.data.find(row => row.path === '/subjects')
     expect(entry?.actorId).toBe(adminIdentity.id)
     expect(entry?.method).toBe('POST')
     expect(entry?.status).toBe(HttpStatusCodes.CREATED)

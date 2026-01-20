@@ -98,6 +98,7 @@ export const adminCreateUserSchema = toZodV4SchemaTyped(baseUserInputSchema.exte
 export const selectUsersWithProfilesSchema = toZodV4SchemaTyped(
   selectUsersSchema.and(z.object({
     sectionId: z.string().nullable().optional(),
+    sectionName: z.string().nullable().optional(),
     year: z.number().nullable().optional(),
     isActive: z.boolean().nullable().optional(),
     lessonTokens: z.number().nullable().optional()

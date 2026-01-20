@@ -6,25 +6,46 @@ import { notFoundSchema } from '@/lib/constants'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
-import { createErrorSchema, createMessageObjectSchema, IdUUIDParamsSchema } from '@/lib/openapi/schemas'
+import { queryBoolean } from '@/lib/zod-utils'
+import { IdUUIDParamsSchema, createErrorSchema, createErrorMessageSchema, createPagedListSchema } from '@/lib/openapi/schemas'
 
 const tags = ['Users']
 const bearerAuth = [{
   bearerAuth: [] as string[]
 }]
 
+const listQuerySchema = z.object({
+  q: z.string().min(1).optional(),
+  role: z.enum(['student', 'tutor', 'admin']).optional(),
+  isActive: queryBoolean().optional(),
+  emailVerified: queryBoolean().optional(),
+  sectionId: z.uuid().optional(),
+  year: z.coerce.number().int().optional(),
+  sortBy: z.enum(['firstName', 'lastName', 'email', 'createdAt', 'sectionId', 'year']).default('lastName'),
+  sortDir: z.enum(['asc', 'desc']).default('asc'),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0)
+})
+
 export const list = createRoute({
   path: '/users',
   method: 'get',
   tags,
   security: bearerAuth,
+  request: {
+    query: listQuerySchema
+  },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      z.array(selectUsersWithProfilesSchema),
+      createPagedListSchema(selectUsersWithProfilesSchema),
       'The list of users'
     ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(listQuerySchema),
+      'Invalid query parameters'
+    ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -69,11 +90,11 @@ export const create = createRoute({
       'Given email already exists'
     ),
     [HttpStatusCodes.BAD_REQUEST]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.BAD_REQUEST),
+      createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
       'Section not found'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -101,7 +122,7 @@ export const getOne = createRoute({
       'Invalid id error'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -140,15 +161,15 @@ export const patch = createRoute({
       'Given email already exists'
     ),
     [HttpStatusCodes.BAD_REQUEST]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.BAD_REQUEST),
+      createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
       'Section not found'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -175,7 +196,7 @@ export const remove = createRoute({
       'Invalid id error'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }

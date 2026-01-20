@@ -1,7 +1,7 @@
 // Purpose: Audit log route handlers.
 import type { Context } from 'hono'
 
-import { and, desc, eq, gte, lte } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
@@ -10,6 +10,8 @@ import db from '@/db'
 import { auditLogs } from '@/db/schemas/audit-logs.schema'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { buildErrorResponse } from '@/lib/error-response'
+import { buildPagedResponse } from '@/lib/pagination'
 
 import type { GetAuditLogRoute, ListAuditLogsRoute } from './audit.routes'
 
@@ -35,6 +37,21 @@ export const listAuditLogs: AppRouteHandler<ListAuditLogsRoute> = async (c) => {
   const query = c.req.valid('query')
 
   const conditions = []
+  if (query.q) {
+    const q = `%${query.q}%`
+    conditions.push(or(
+      ilike(sql`${auditLogs.actorId}::text`, q),
+      ilike(auditLogs.actorRole, q),
+      ilike(auditLogs.action, q),
+      ilike(auditLogs.method, q),
+      ilike(auditLogs.path, q),
+      ilike(auditLogs.ip, q),
+      ilike(auditLogs.userAgent, q),
+      ilike(auditLogs.requestId, q),
+      ilike(auditLogs.metadata, q)
+    ))
+  }
+
   if (query.actorId) {
     conditions.push(eq(auditLogs.actorId, query.actorId))
   }
@@ -70,16 +87,30 @@ export const listAuditLogs: AppRouteHandler<ListAuditLogsRoute> = async (c) => {
   const rows = await db.query.auditLogs.findMany({
     where: whereClause,
     orderBy(fields) {
-      return desc(fields.createdAt)
+      return query.sortDir === 'asc'
+        ? asc(fields.createdAt)
+        : desc(fields.createdAt)
     },
     limit: query.limit,
     offset: query.offset
   })
 
-  return c.json(rows.map(row => ({
+  const totalQuery = db
+    .select({ total: sql<number>`count(*)` })
+    .from(auditLogs)
+
+  if (whereClause) {
+    totalQuery.where(whereClause)
+  }
+
+  const [{ total }] = await totalQuery
+
+  const data = rows.map(row => ({
     ...row,
     createdAt: new Date(row.createdAt ?? 0).toISOString()
-  })), HttpStatusCodes.OK)
+  }))
+
+  return c.json(buildPagedResponse(data, Number(total), query.limit, query.offset), HttpStatusCodes.OK)
 }
 
 export const getAuditLog: AppRouteHandler<GetAuditLogRoute> = async (c) => {
@@ -93,7 +124,7 @@ export const getAuditLog: AppRouteHandler<GetAuditLogRoute> = async (c) => {
   })
 
   if (!entry) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   return c.json(

@@ -4,7 +4,7 @@ import { createRoute, z } from '@hono/zod-openapi'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { jsonContent } from '@/lib/openapi/helpers'
-import { createErrorSchema, createMessageObjectSchema } from '@/lib/openapi/schemas'
+import { createErrorSchema, createErrorMessageSchema, createPagedListSchema } from '@/lib/openapi/schemas'
 
 const tags = ['Audit']
 const bearerAuth = [{
@@ -40,6 +40,7 @@ const auditLogSchema = z.object({
 })
 
 const listQuerySchema = z.object({
+  q: z.string().min(1).optional(),
   actorId: z.uuid().optional(),
   actorRole: z.string().optional(),
   action: z.string().optional(),
@@ -49,6 +50,8 @@ const listQuerySchema = z.object({
   requestId: z.string().optional(),
   from: z.iso.datetime().optional(),
   to: z.iso.datetime().optional(),
+  sortBy: z.enum(['createdAt']).default('createdAt'),
+  sortDir: z.enum(['asc', 'desc']).default('desc'),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0)
 })
@@ -63,11 +66,11 @@ export const listAuditLogs = createRoute({
   },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      z.array(auditLogSchema),
+      createPagedListSchema(auditLogSchema),
       'Audit log entries'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -75,7 +78,7 @@ export const listAuditLogs = createRoute({
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -95,11 +98,11 @@ export const getAuditLog = createRoute({
       'Audit log entry'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.NOT_FOUND),
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
       'Audit log entry not found'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -107,7 +110,7 @@ export const getAuditLog = createRoute({
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }

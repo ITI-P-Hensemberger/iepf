@@ -10,6 +10,7 @@ import db from '@/db'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { buildErrorResponse } from '@/lib/error-response'
 
 import type { GetSettingsRoute, UpdateSettingsRoute } from './tutor-settings.routes'
 
@@ -62,7 +63,7 @@ export const getSettings: AppRouteHandler<GetSettingsRoute> = async (c) => {
 
   const tutor = await ensureTutorExists(tutorId)
   if (!tutor) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   const existing = await db.query.tutorSettings.findFirst({
@@ -94,7 +95,7 @@ export const updateSettings: AppRouteHandler<UpdateSettingsRoute> = async (c) =>
 
   const tutor = await ensureTutorExists(tutorId)
   if (!tutor) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   const existing = await db.query.tutorSettings.findFirst({

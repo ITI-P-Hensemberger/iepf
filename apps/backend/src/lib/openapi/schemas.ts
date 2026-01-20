@@ -23,6 +23,32 @@ export function createMessageObjectSchema(exampleMessage = 'Hello World') {
   })
 }
 
+export function createErrorMessageSchema(exampleMessage = 'Errore') {
+  return z.object({
+    success: z.boolean().openapi({
+      example: false
+    }),
+    error: z.object({
+      message: z.string(),
+      name: z.string().optional()
+    }).openapi({
+      example: {
+        message: exampleMessage
+      }
+    })
+  })
+}
+
+
+export function createPagedListSchema(itemSchema: z.ZodTypeAny) {
+  return z.object({
+    data: z.array(itemSchema),
+    total: z.number().int(),
+    limit: z.number().int(),
+    offset: z.number().int()
+  })
+}
+
 export function createErrorSchema(schema: z.ZodType) {
   const invalidSample = schema instanceof z.ZodArray ? [{}] : {}
   let exampleError: z.ZodError | undefined
@@ -38,6 +64,7 @@ export function createErrorSchema(schema: z.ZodType) {
 
   const example = exampleError
     ? {
+        message: 'Dati non validi',
         name: exampleError.name,
         issues: exampleError.issues.map(issue => ({
           code: issue.code,
@@ -46,6 +73,7 @@ export function createErrorSchema(schema: z.ZodType) {
         }))
       }
     : {
+        message: 'Dati non validi',
         name: 'ZodError',
         issues: [
           {
@@ -61,6 +89,7 @@ export function createErrorSchema(schema: z.ZodType) {
       example: false
     }),
     error: z.object({
+      message: z.string(),
       issues: z.array(
         z.object({
           code: z.string(),

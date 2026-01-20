@@ -5,7 +5,8 @@ import { selectUsersWithProfilesSchema, studentRegisterSchema } from '@/db/schem
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
-import { createErrorSchema, createMessageObjectSchema } from '@/lib/openapi/schemas'
+import { queryBoolean } from '@/lib/zod-utils'
+import { createErrorSchema, createMessageObjectSchema, createErrorMessageSchema, createPagedListSchema } from '@/lib/openapi/schemas'
 
 const tags = ['Auth']
 
@@ -30,8 +31,17 @@ export const adminInviteListItemSchema = z.object({
   createdAt: z.string()
 })
 
-export const tutorInviteListSchema = z.array(tutorInviteListItemSchema)
-export const adminInviteListSchema = z.array(adminInviteListItemSchema)
+export const tutorInviteListSchema = createPagedListSchema(tutorInviteListItemSchema)
+export const adminInviteListSchema = createPagedListSchema(adminInviteListItemSchema)
+
+export const inviteListQuerySchema = z.object({
+  q: z.string().min(1).optional(),
+  includeExpired: queryBoolean().optional(),
+  sortBy: z.enum(['expiresAt', 'createdAt']).default('expiresAt'),
+  sortDir: z.enum(['asc', 'desc']).default('asc'),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0)
+})
 
 export const tutorInviteConfirmSchema = z.object({
   token: z.string().min(1),
@@ -83,15 +93,15 @@ export const login = createRoute({
       'Authenticated'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema('Email non verificata'),
+      createErrorMessageSchema('Email non verificata'),
       'Email non verificata'
     ),
     [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
+      createErrorMessageSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
       'Rate limit exceeded'
     )
   }
@@ -115,11 +125,11 @@ export const refresh = createRoute({
       'Rotated tokens'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid refresh token'
     ),
     [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
+      createErrorMessageSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
       'Rate limit exceeded'
     )
   }
@@ -142,7 +152,7 @@ export const logout = createRoute({
       description: 'Logged out'
     },
     [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
+      createErrorMessageSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
       'Rate limit exceeded'
     )
   }
@@ -170,7 +180,7 @@ export const register = createRoute({
       'Given email already exists'
     ),
     [HttpStatusCodes.BAD_REQUEST]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.BAD_REQUEST),
+      createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
       'Section not found'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -178,7 +188,7 @@ export const register = createRoute({
       'The validation error(s)'
     ),
     [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
+      createErrorMessageSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
       'Rate limit exceeded'
     )
   }
@@ -202,7 +212,7 @@ export const requestPasswordReset = createRoute({
       'Email di reimpostazione in coda'
     ),
     [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
+      createErrorMessageSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
       'Rate limit exceeded'
     )
   }
@@ -227,11 +237,11 @@ export const confirmPasswordReset = createRoute({
       'Password reset'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid or expired reset token'
     ),
     [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
+      createErrorMessageSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
       'Rate limit exceeded'
     )
   }
@@ -255,7 +265,7 @@ export const requestEmailVerification = createRoute({
       'Verification email queued'
     ),
     [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
+      createErrorMessageSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
       'Rate limit exceeded'
     )
   }
@@ -279,11 +289,11 @@ export const confirmEmailVerification = createRoute({
       'Email verificata'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid or expired verification token'
     ),
     [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
+      createErrorMessageSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
       'Rate limit exceeded'
     )
   }
@@ -296,17 +306,24 @@ export const listAdminInvites = createRoute({
   method: 'get',
   tags,
   security: [{ bearerAuth: [] as string[] }],
+  request: {
+    query: inviteListQuerySchema
+  },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
       adminInviteListSchema,
       'Pending admin invites'
     ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(inviteListQuerySchema),
+      'Validation error(s)'
+    ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -335,11 +352,11 @@ export const inviteAdmin = createRoute({
       'Given email already exists'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -367,7 +384,7 @@ export const confirmAdminInvite = createRoute({
       'Given email already exists'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid or expired invite token'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -375,7 +392,7 @@ export const confirmAdminInvite = createRoute({
       'The validation error(s)'
     ),
     [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
+      createErrorMessageSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
       'Rate limit exceeded'
     )
   }
@@ -386,17 +403,24 @@ export const listTutorInvites = createRoute({
   method: 'get',
   tags,
   security: [{ bearerAuth: [] as string[] }],
+  request: {
+    query: inviteListQuerySchema
+  },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
       tutorInviteListSchema,
       'Pending tutor invites'
     ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(inviteListQuerySchema),
+      'Validation error(s)'
+    ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -425,11 +449,11 @@ export const inviteTutor = createRoute({
       'Given email already exists'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.FORBIDDEN),
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid credentials'
     )
   }
@@ -457,11 +481,11 @@ export const confirmTutorInvite = createRoute({
       'Given email already exists'
     ),
     [HttpStatusCodes.BAD_REQUEST]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.BAD_REQUEST),
+      createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
       'Section not found'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.UNAUTHORIZED),
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid or expired invite token'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
@@ -469,7 +493,7 @@ export const confirmTutorInvite = createRoute({
       'The validation error(s)'
     ),
     [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
-      createMessageObjectSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
+      createErrorMessageSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
       'Rate limit exceeded'
     )
   }

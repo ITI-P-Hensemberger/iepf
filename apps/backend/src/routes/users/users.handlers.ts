@@ -1,13 +1,14 @@
 // Purpose: Users route handlers.
 import type { Context } from 'hono'
 
-import { eq } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
 import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
+import { classSections } from '@/db/schemas/class-sections.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
@@ -20,6 +21,8 @@ import {
 import { issueEmailVerificationToken } from '@/lib/email-verification'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { buildErrorResponse } from '@/lib/error-response'
+import { buildPagedResponse } from '@/lib/pagination'
 import { sendMail } from '@/lib/mailer'
 import { hashPassword } from '@/lib/password'
 import { revokeUserRefreshTokens } from '@/lib/refresh-tokens'
@@ -29,20 +32,25 @@ import type { CreateRoute, GetOneRoute, ListRoute, PatchRoute, RemoveRoute } fro
 type HandlerContext = Context<AppBindings>
 type UserPublicRecord = Omit<typeof users.$inferSelect, 'passwordHash'>
 
+type UserWithProfile = UserPublicRecord & {
+  sectionId: string | null
+  sectionName: string | null
+  year: number | null
+  isActive: boolean
+  lessonTokens: number | null
+}
+
 function buildDuplicateEmailError() {
-  return {
-    success: false,
-    error: {
-      issues: [
-        {
-          code: ZOD_ERROR_CODES.DUPLICATE_KEY,
-          path: ['email'],
-          message: ZOD_ERROR_MESSAGES.EMAIL_ALREADY_EXISTS
-        }
-      ],
-      name: 'ZodError'
-    }
-  }
+  return buildErrorResponse(ZOD_ERROR_MESSAGES.EMAIL_ALREADY_EXISTS, {
+    name: 'ZodError',
+    issues: [
+      {
+        code: ZOD_ERROR_CODES.DUPLICATE_KEY,
+        path: ['email'],
+        message: ZOD_ERROR_MESSAGES.EMAIL_ALREADY_EXISTS
+      }
+    ]
+  })
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -95,7 +103,29 @@ function extractProfileUpdates(updates: Record<string, unknown>) {
   }
 }
 
-async function attachProfiles(records: UserPublicRecord[]) {
+function buildTutorProfilePayload(profileUpdates: {
+  sectionId?: string
+  year?: number
+  isActive?: boolean
+}) {
+  const payload: {
+    sectionId?: string
+    year?: number
+    isActive?: boolean
+  } = {}
+  if (profileUpdates.sectionId !== undefined) {
+    payload.sectionId = profileUpdates.sectionId
+  }
+  if (profileUpdates.year !== undefined) {
+    payload.year = profileUpdates.year
+  }
+  if (profileUpdates.isActive !== undefined) {
+    payload.isActive = profileUpdates.isActive
+  }
+  return payload
+}
+
+async function attachProfiles(records: UserPublicRecord[]): Promise<UserWithProfile[]> {
   const studentIds = records.filter(user => user.role === 'student').map(user => user.id)
   const tutorIds = records.filter(user => user.role === 'tutor').map(user => user.id)
   const adminIds = records.filter(user => user.role === 'admin').map(user => user.id)
@@ -162,12 +192,48 @@ async function attachProfiles(records: UserPublicRecord[]) {
   const tutorProfileMap = new Map(tutorProfilesList.map(profile => [profile.userId, profile]))
   const adminProfileMap = new Map(adminProfilesList.map(profile => [profile.userId, profile]))
 
+  const sectionIds = new Set<string>()
+  for (const profile of studentProfilesList) {
+    if (profile.sectionId) {
+      sectionIds.add(profile.sectionId)
+    }
+  }
+  for (const profile of tutorProfilesList) {
+    if (profile.sectionId) {
+      sectionIds.add(profile.sectionId)
+    }
+  }
+
+  const sectionNameMap = new Map<string, string>()
+  if (sectionIds.size > 0) {
+    const sections = await db.query.classSections.findMany({
+      where(fields, operators) {
+        return operators.inArray(fields.id, Array.from(sectionIds))
+      },
+      columns: {
+        id: true,
+        name: true
+      }
+    })
+    sections.forEach(section => {
+      sectionNameMap.set(section.id, section.name)
+    })
+  }
+
+  const resolveSectionName = (sectionId: string | null | undefined) => {
+    if (!sectionId) {
+      return null
+    }
+    return sectionNameMap.get(sectionId) ?? null
+  }
+
   return records.map((user) => {
     if (user.role === 'student') {
       const profile = studentProfileMap.get(user.id)
       return {
         ...user,
         sectionId: profile?.sectionId ?? null,
+        sectionName: resolveSectionName(profile?.sectionId ?? null),
         year: profile?.year ?? null,
         isActive: profile?.isActive ?? false,
         lessonTokens: profile?.lessonTokens ?? 0
@@ -179,6 +245,7 @@ async function attachProfiles(records: UserPublicRecord[]) {
       return {
         ...user,
         sectionId: profile?.sectionId ?? null,
+        sectionName: resolveSectionName(profile?.sectionId ?? null),
         year: profile?.year ?? null,
         isActive: profile?.isActive ?? true,
         lessonTokens: null
@@ -190,6 +257,7 @@ async function attachProfiles(records: UserPublicRecord[]) {
       return {
         ...user,
         sectionId: null,
+        sectionName: null,
         year: null,
         isActive: profile?.isActive ?? false,
         lessonTokens: null
@@ -199,8 +267,9 @@ async function attachProfiles(records: UserPublicRecord[]) {
     return {
       ...user,
       sectionId: null,
+      sectionName: null,
       year: null,
-      isActive: null,
+      isActive: false,
       lessonTokens: null
     }
   })
@@ -208,14 +277,113 @@ async function attachProfiles(records: UserPublicRecord[]) {
 
 export const list: AppRouteHandler<ListRoute> = async (c) => {
   ensureAdmin(c)
+  const query = c.req.valid('query')
 
+  const conditions = []
+  if (query.role) {
+    conditions.push(eq(users.role, query.role))
+  }
+  if (query.emailVerified !== undefined) {
+    conditions.push(query.emailVerified ? isNotNull(users.emailVerifiedAt) : isNull(users.emailVerifiedAt))
+  }
   const records = await db.query.users.findMany({
+    where: conditions.length > 0 ? and(...conditions) : undefined,
     columns: {
       passwordHash: false
     }
   })
-  const withProfiles = await attachProfiles(records)
-  return c.json(withProfiles, HttpStatusCodes.OK)
+
+  let withProfiles = await attachProfiles(records)
+
+  if (query.sectionId) {
+    withProfiles = withProfiles.filter(user => user.sectionId === query.sectionId)
+  }
+  if (query.year !== undefined) {
+    withProfiles = withProfiles.filter(user => user.year === query.year)
+  }
+  if (query.isActive !== undefined) {
+    withProfiles = withProfiles.filter(user => user.isActive === query.isActive)
+  }
+
+  if (query.q) {
+    const needle = query.q.toLowerCase()
+    withProfiles = withProfiles.filter((user) => {
+      const year = user.year != null ? String(user.year) : ''
+      const sectionDisplay = (user.sectionName ?? user.sectionId ?? '').toLowerCase()
+      return user.email.toLowerCase().includes(needle)
+        || user.firstName.toLowerCase().includes(needle)
+        || user.lastName.toLowerCase().includes(needle)
+        || user.role.toLowerCase().includes(needle)
+        || sectionDisplay.includes(needle)
+        || year.includes(needle)
+    })
+  }
+
+  const direction = query.sortDir === 'desc' ? -1 : 1
+  const sortBy = query.sortBy
+  withProfiles.sort((a, b) => {
+    const aValue = (() => {
+      switch (sortBy) {
+        case 'firstName':
+          return a.firstName
+        case 'lastName':
+          return a.lastName
+        case 'email':
+          return a.email
+        case 'createdAt':
+          return a.createdAt
+        case 'sectionId':
+          return a.sectionName ?? ''
+        case 'year':
+          return a.year ?? -1
+        default:
+          return a.lastName
+      }
+    })()
+    const bValue = (() => {
+      switch (sortBy) {
+        case 'firstName':
+          return b.firstName
+        case 'lastName':
+          return b.lastName
+        case 'email':
+          return b.email
+        case 'createdAt':
+          return b.createdAt
+        case 'sectionId':
+          return b.sectionName ?? ''
+        case 'year':
+          return b.year ?? -1
+        default:
+          return b.lastName
+      }
+    })()
+
+    if (aValue === bValue) {
+      return 0
+    }
+    if (aValue === null || aValue === undefined) {
+      return 1
+    }
+    if (bValue === null || bValue === undefined) {
+      return -1
+    }
+
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      return (aValue - bValue) * direction
+    }
+    if (aValue instanceof Date && bValue instanceof Date) {
+      return (aValue.getTime() - bValue.getTime()) * direction
+    }
+    return String(aValue).localeCompare(String(bValue)) * direction
+  })
+
+  const start = query.offset
+  const end = query.offset + query.limit
+  const paged = withProfiles.slice(start, end)
+  const total = withProfiles.length
+
+  return c.json(buildPagedResponse(paged, total, query.limit, query.offset), HttpStatusCodes.OK)
 }
 
 export const create: AppRouteHandler<CreateRoute> = async (c) => {
@@ -230,8 +398,11 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
   }
   const tutorProfileUpdates = {
     sectionId: profileUpdates.sectionId,
-    year: profileUpdates.year
+    year: profileUpdates.year,
+    isActive: profileUpdates.isActive
   }
+  const tutorProfilePayload = buildTutorProfilePayload(profileUpdates)
+
   const passwordHash = await hashPassword(user.password)
 
   const existing = await db.query.users.findFirst({
@@ -248,19 +419,16 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
   if (user.role === 'student' && profileUpdates.year !== undefined
     && (profileUpdates.year < 1 || profileUpdates.year > 3)) {
     return c.json(
-      {
-        success: false,
-        error: {
-          issues: [
-            {
-              code: ZOD_ERROR_CODES.INVALID_UPDATES,
-              path: ['year'],
-              message: 'L\'anno deve essere compreso tra 1 e 3'
-            }
-          ],
-          name: 'ZodError'
-        }
-      },
+      buildErrorResponse('L\'anno deve essere compreso tra 1 e 3', {
+        name: 'ZodError',
+        issues: [
+          {
+            code: ZOD_ERROR_CODES.INVALID_UPDATES,
+            path: ['year'],
+            message: 'L\'anno deve essere compreso tra 1 e 3'
+          }
+        ]
+      }),
       HttpStatusCodes.UNPROCESSABLE_ENTITY
     )
   }
@@ -268,19 +436,16 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
   if (user.role === 'tutor' && profileUpdates.year !== undefined
     && (profileUpdates.year < 4 || profileUpdates.year > 5)) {
     return c.json(
-      {
-        success: false,
-        error: {
-          issues: [
-            {
-              code: ZOD_ERROR_CODES.INVALID_UPDATES,
-              path: ['year'],
-              message: 'L\'anno deve essere compreso tra 4 e 5'
-            }
-          ],
-          name: 'ZodError'
-        }
-      },
+      buildErrorResponse('L\'anno deve essere compreso tra 4 e 5', {
+        name: 'ZodError',
+        issues: [
+          {
+            code: ZOD_ERROR_CODES.INVALID_UPDATES,
+            path: ['year'],
+            message: 'L\'anno deve essere compreso tra 4 e 5'
+          }
+        ]
+      }),
       HttpStatusCodes.UNPROCESSABLE_ENTITY
     )
   }
@@ -293,7 +458,7 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
       columns: { id: true }
     })
     if (!section) {
-      return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
+      return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
     }
   }
 
@@ -331,19 +496,16 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
     if (inserted.role === 'tutor') {
       if (tutorProfileUpdates.sectionId === undefined || tutorProfileUpdates.year === undefined) {
         return c.json(
-          {
-            success: false,
-            error: {
-              issues: [
-                {
-                  code: ZOD_ERROR_CODES.INVALID_UPDATES,
-                  path: ['sectionId', 'year'],
-                  message: 'Sezione e anno sono obbligatori per i tutor'
-                }
-              ],
-              name: 'ZodError'
-            }
-          },
+          buildErrorResponse('Sezione e anno sono obbligatori per i tutor', {
+            name: 'ZodError',
+            issues: [
+              {
+                code: ZOD_ERROR_CODES.INVALID_UPDATES,
+                path: ['sectionId', 'year'],
+                message: 'Sezione e anno sono obbligatori per i tutor'
+              }
+            ]
+          }),
           HttpStatusCodes.UNPROCESSABLE_ENTITY
         )
       }
@@ -392,9 +554,7 @@ export const getOne: AppRouteHandler<GetOneRoute> = async (c) => {
 
   if (!user) {
     return c.json(
-      {
-        message: HttpStatusPhrases.NOT_FOUND
-      },
+      buildErrorResponse(HttpStatusPhrases.NOT_FOUND),
       HttpStatusCodes.NOT_FOUND
     )
   }
@@ -435,8 +595,10 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
   }
   const tutorProfileUpdates = {
     sectionId: profileUpdates.sectionId,
-    year: profileUpdates.year
+    year: profileUpdates.year,
+    isActive: profileUpdates.isActive
   }
+  const tutorProfilePayload = buildTutorProfilePayload(profileUpdates)
   let passwordChanged = false
   let previousIsActive: boolean | null | undefined
   const hasProfileUpdates = Object.values(profileUpdates).some(value => value !== undefined)
@@ -476,34 +638,26 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     })
 
     if (!existing) {
-      return c.json(
-        {
-          message: HttpStatusPhrases.NOT_FOUND
-        },
-        HttpStatusCodes.NOT_FOUND
-      )
+      return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
     }
 
     if (hasProfileUpdates && currentUser?.role !== 'admin') {
-      return c.json({ message: HttpStatusPhrases.FORBIDDEN }, HttpStatusCodes.FORBIDDEN)
+      return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
     }
 
     if (hasProfileUpdates && existing.role === 'admin'
       && (profileUpdates.sectionId !== undefined || profileUpdates.year !== undefined)) {
       return c.json(
-        {
-          success: false,
-          error: {
-            issues: [
-              {
-                code: ZOD_ERROR_CODES.INVALID_UPDATES,
-                path: ['role'],
-                message: 'Sezioni e anno sono consentiti solo per studenti e tutor'
-              }
-            ],
-            name: 'ZodError'
-          }
-        },
+        buildErrorResponse('Sezioni e anno sono consentiti solo per studenti e tutor', {
+          name: 'ZodError',
+          issues: [
+            {
+              code: ZOD_ERROR_CODES.INVALID_UPDATES,
+              path: ['role'],
+              message: 'Sezioni e anno sono consentiti solo per studenti e tutor'
+            }
+          ]
+        }),
         HttpStatusCodes.UNPROCESSABLE_ENTITY
       )
     }
@@ -563,43 +717,22 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     if (hasProfileUpdates && existing.role === 'tutor') {
       if (profileUpdates.sectionId === undefined || profileUpdates.year === undefined) {
         return c.json(
-          {
-            success: false,
-            error: {
-              issues: [
-                {
-                  code: ZOD_ERROR_CODES.INVALID_UPDATES,
-                  path: ['sectionId', 'year'],
-                  message: 'Sezione e anno sono obbligatori per i tutor'
-                }
-              ],
-              name: 'ZodError'
-            }
-          },
+          buildErrorResponse('Sezione e anno sono obbligatori per i tutor', {
+            name: 'ZodError',
+            issues: [
+              {
+                code: ZOD_ERROR_CODES.INVALID_UPDATES,
+                path: ['sectionId', 'year'],
+                message: 'Sezione e anno sono obbligatori per i tutor'
+              }
+            ]
+          }),
           HttpStatusCodes.UNPROCESSABLE_ENTITY
         )
       }
     }
 
 
-    if (profileUpdates.isActive !== undefined && existing.role === 'tutor') {
-      return c.json(
-        {
-          success: false,
-          error: {
-            issues: [
-              {
-                code: ZOD_ERROR_CODES.INVALID_UPDATES,
-                path: ['isActive'],
-                message: 'L\'attivazione e consentita solo per studenti o admin'
-              }
-            ],
-            name: 'ZodError'
-          }
-        },
-        HttpStatusCodes.UNPROCESSABLE_ENTITY
-      )
-    }
     if (existing.role === 'student' && profileUpdates.isActive !== undefined) {
       previousIsActive = currentStudentProfile?.isActive ?? null
     }
@@ -607,46 +740,43 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     if (existing.role === 'admin' && profileUpdates.isActive !== undefined) {
       previousIsActive = currentAdminProfile?.isActive ?? null
     }
+    if (existing.role === 'tutor' && profileUpdates.isActive !== undefined) {
+      previousIsActive = currentTutorProfile?.isActive ?? null
+    }
 
     if (hasProfileUpdates && existing.role === 'student') {
       if (profileUpdates.year !== undefined && (profileUpdates.year < 1 || profileUpdates.year > 3)) {
         return c.json(
+      buildErrorResponse('L\'anno deve essere compreso tra 1 e 3', {
+        name: 'ZodError',
+        issues: [
           {
-            success: false,
-            error: {
-              issues: [
-                {
-                  code: ZOD_ERROR_CODES.INVALID_UPDATES,
-                  path: ['year'],
-                  message: 'L\'anno deve essere compreso tra 1 e 3'
-                }
-              ],
-              name: 'ZodError'
-            }
-          },
-          HttpStatusCodes.UNPROCESSABLE_ENTITY
-        )
+            code: ZOD_ERROR_CODES.INVALID_UPDATES,
+            path: ['year'],
+            message: 'L\'anno deve essere compreso tra 1 e 3'
+          }
+        ]
+      }),
+      HttpStatusCodes.UNPROCESSABLE_ENTITY
+    )
       }
     }
 
     if (hasProfileUpdates && existing.role === 'tutor') {
       if (profileUpdates.year !== undefined && (profileUpdates.year < 4 || profileUpdates.year > 5)) {
         return c.json(
+      buildErrorResponse('L\'anno deve essere compreso tra 4 e 5', {
+        name: 'ZodError',
+        issues: [
           {
-            success: false,
-            error: {
-              issues: [
-                {
-                  code: ZOD_ERROR_CODES.INVALID_UPDATES,
-                  path: ['year'],
-                  message: 'L\'anno deve essere compreso tra 4 e 5'
-                }
-              ],
-              name: 'ZodError'
-            }
-          },
-          HttpStatusCodes.UNPROCESSABLE_ENTITY
-        )
+            code: ZOD_ERROR_CODES.INVALID_UPDATES,
+            path: ['year'],
+            message: 'L\'anno deve essere compreso tra 4 e 5'
+          }
+        ]
+      }),
+      HttpStatusCodes.UNPROCESSABLE_ENTITY
+    )
       }
     }
 
@@ -695,12 +825,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       })
 
       if (!currentUserRecord) {
-        return c.json(
-          {
-            message: HttpStatusPhrases.NOT_FOUND
-          },
-          HttpStatusCodes.NOT_FOUND
-        )
+        return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
       }
 
       const [withProfile] = await attachProfiles([currentUserRecord])
@@ -715,7 +840,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
         columns: { id: true }
       })
       if (!section) {
-        return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
+        return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
       }
     }
 
@@ -773,14 +898,14 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
 
     if (existing.role === 'tutor' && hasProfileUpdates) {
       const result = await db.update(tutorProfiles)
-        .set(tutorProfileUpdates)
+        .set(tutorProfilePayload)
         .where(eq(tutorProfiles.userId, id))
       if (result.rowCount === 0) {
         await db.insert(tutorProfiles).values({
           userId: id,
           sectionId: tutorProfileUpdates.sectionId as string,
           year: tutorProfileUpdates.year as number,
-          isActive: currentTutorProfile?.isActive ?? true
+          isActive: tutorProfilePayload.isActive ?? currentTutorProfile?.isActive ?? true
         })
       }
     }
@@ -827,9 +952,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
 
   if (!user) {
     return c.json(
-      {
-        message: HttpStatusPhrases.NOT_FOUND
-      },
+      buildErrorResponse(HttpStatusPhrases.NOT_FOUND),
       HttpStatusCodes.NOT_FOUND
     )
   }
@@ -851,9 +974,7 @@ export const remove: AppRouteHandler<RemoveRoute> = async (c) => {
 
   if (result.rowCount === 0) {
     return c.json(
-      {
-        message: HttpStatusPhrases.NOT_FOUND
-      },
+      buildErrorResponse(HttpStatusPhrases.NOT_FOUND),
       HttpStatusCodes.NOT_FOUND
     )
   }

@@ -8,9 +8,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, expectTypeOf, it } f
 import type { AuthenticatedUser } from '@/lib/types'
 
 import db from '@/db'
+import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
 import { classSections } from '@/db/schemas/class-sections.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
+import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
+import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import env from '@/env'
 import { createAccessToken } from '@/lib/auth'
 import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
@@ -22,6 +25,7 @@ import { issuePasswordResetToken } from '@/lib/password-reset'
 import { resetRateLimiters } from '@/middlewares/rate-limit'
 import authRouter from '@/routes/auth/auth.index'
 import router from '@/routes/users/users.index'
+import { seedAdminUser } from '@/tests/test-helpers'
 import { ensureTestSchema } from '@/tests/test-setup'
 
 if (env.NODE_ENV !== 'test') {
@@ -60,6 +64,7 @@ interface UserResponse {
 interface ErrorResponse {
   success: boolean
   error: {
+    message: string
     name: string
     issues: Array<{
       code: string
@@ -88,6 +93,8 @@ interface CreateUserPayload {
   lastName: string
   password: string
   role?: 'student' | 'tutor'
+  sectionId?: string
+  year?: number
 }
 
 const baseUser: Omit<CreateUserPayload, 'email'> = {
@@ -128,11 +135,28 @@ function buildUserPayload(overrides: Partial<CreateUserPayload> = {}): CreateUse
   if (overrides.role) {
     payload.role = overrides.role
   }
+  if (overrides.sectionId) {
+    payload.sectionId = overrides.sectionId
+  }
+  if (overrides.year !== undefined) {
+    payload.year = overrides.year
+  }
   return payload
 }
 
 async function createUserFixture(overrides: Partial<CreateUserPayload> = {}) {
   const payload = buildUserPayload(overrides)
+  if (payload.role === 'tutor') {
+    if (!payload.sectionId) {
+      const [section] = await db.insert(classSections).values({
+        name: `T${randomUUID()}`
+      }).returning({ id: classSections.id })
+      payload.sectionId = section.id
+    }
+    if (payload.year === undefined) {
+      payload.year = 4
+    }
+  }
   if (!adminToken) {
     throw new Error('Admin token not initialized')
   }
@@ -162,10 +186,14 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   emailCounter = 0
-  await db.delete(classSections)
-  await db.delete(users)
   await db.delete(tutorSettings)
+  await db.delete(tutorProfiles)
+  await db.delete(studentProfiles)
+  await db.delete(adminProfiles)
+  await db.delete(users)
+  await db.delete(classSections)
   resetRateLimiters()
+  await seedAdminUser(adminIdentity.id, adminIdentity.email)
 })
 
 afterAll(async () => {
@@ -175,11 +203,12 @@ afterAll(async () => {
 describe('users routes', () => {
   it('returns an empty list when no users exist', async () => {
     const response = await client.users.$get({
+      query: { role: 'student' },
       header: bearer(adminToken)
     })
     expect(response.status).toBe(HttpStatusCodes.OK)
-    const body = (await response.json()) as UserResponse[]
-    expect(body).toEqual([])
+    const body = (await response.json()) as { data: UserResponse[]; total: number }
+    expect(body.data).toEqual([])
   })
 
   it('rejects requests without authentication', async () => {
@@ -222,9 +251,15 @@ describe('users routes', () => {
   })
 
   it('allows admins to create tutor users', async () => {
+    const [section] = await db.insert(classSections).values({
+      name: 'T1'
+    }).returning({ id: classSections.id })
+
     const payload = buildUserPayload({
       email: 'tutor@example.com',
-      role: 'tutor'
+      role: 'tutor',
+      sectionId: section.id,
+      year: 4
     })
     const response = await client.users.$post({
       json: payload,
@@ -272,6 +307,46 @@ describe('users routes', () => {
     expect(response.status).toBe(HttpStatusCodes.OK)
     const body = (await response.json()) as UserResponse
     expect(body.isActive).toBe(true)
+  })
+
+  it('supports filtering users by the isActive flag', async () => {
+    const { user: inactiveUser } = await createUserFixture()
+    const { user: activeUser } = await createUserFixture()
+
+    const activationResponse = await usersById.$patch({
+      param: { id: activeUser.id },
+      json: { isActive: true },
+      header: bearer(adminToken)
+    })
+    expect(activationResponse.status).toBe(HttpStatusCodes.OK)
+
+    const falseResponse = await client.users.$get({
+      query: { isActive: 'false' },
+      header: bearer(adminToken)
+    })
+    expect(falseResponse.status).toBe(HttpStatusCodes.OK)
+    const falseBody = (await falseResponse.json()) as {
+      data: UserResponse[]
+      total: number
+      limit: number
+      offset: number
+    }
+    expect(falseBody.data.some(user => user.id === inactiveUser.id)).toBe(true)
+    expect(falseBody.data.every(user => user.isActive === false)).toBe(true)
+
+    const trueResponse = await client.users.$get({
+      query: { isActive: 'true' },
+      header: bearer(adminToken)
+    })
+    expect(trueResponse.status).toBe(HttpStatusCodes.OK)
+    const trueBody = (await trueResponse.json()) as {
+      data: UserResponse[]
+      total: number
+      limit: number
+      offset: number
+    }
+    expect(trueBody.data.some(user => user.id === activeUser.id)).toBe(true)
+    expect(trueBody.data.every(user => user.isActive === true)).toBe(true)
   })
 
   it('rejects activation updates from non-admin users', async () => {
@@ -326,19 +401,20 @@ describe('users routes', () => {
     const userB = await createUserFixture()
 
     const response = await client.users.$get({
+      query: { role: 'student' },
       header: bearer(adminToken)
     })
     expect(response.status).toBe(HttpStatusCodes.OK)
-    const body = (await response.json()) as UserResponse[]
+    const body = (await response.json()) as { data: UserResponse[]; total: number }
 
-    expect(body).toHaveLength(2)
-    expect(body).toEqual(
+    expect(body.data).toHaveLength(2)
+    expect(body.data).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: userA.user.id, email: userA.user.email, role: 'student' }),
         expect.objectContaining({ id: userB.user.id, email: userB.user.email, role: 'student' })
       ])
     )
-    expect(body.every(user => !('password' in user))).toBe(true)
+    expect(body.data.every(user => !('password' in user))).toBe(true)
   })
 
   it('rejects duplicate emails on create', async () => {
@@ -407,8 +483,8 @@ describe('users routes', () => {
     })
 
     expect(response.status).toBe(HttpStatusCodes.NOT_FOUND)
-    const body = (await response.json()) as { message: string }
-    expect(body).toEqual({ message: HttpStatusPhrases.NOT_FOUND })
+    const body = (await response.json()) as ErrorResponse
+    expect(body.error.message).toEqual(HttpStatusPhrases.NOT_FOUND)
   })
 
   it('validates UUID params for user lookups', async () => {
@@ -550,8 +626,8 @@ describe('users routes', () => {
     })
 
     expect(response.status).toBe(HttpStatusCodes.NOT_FOUND)
-    const body = (await response.json()) as { message: string }
-    expect(body).toEqual({ message: HttpStatusPhrases.NOT_FOUND })
+    const body = (await response.json()) as ErrorResponse
+    expect(body.error.message).toEqual(HttpStatusPhrases.NOT_FOUND)
   })
 
   it('deletes an existing user', async () => {
@@ -577,8 +653,8 @@ describe('users routes', () => {
     })
 
     expect(response.status).toBe(HttpStatusCodes.NOT_FOUND)
-    const body = (await response.json()) as { message: string }
-    expect(body).toEqual({ message: HttpStatusPhrases.NOT_FOUND })
+    const body = (await response.json()) as ErrorResponse
+    expect(body.error.message).toEqual(HttpStatusPhrases.NOT_FOUND)
   })
 
   it('prevents non-admin users from deleting accounts', async () => {

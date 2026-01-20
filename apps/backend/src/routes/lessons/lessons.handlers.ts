@@ -1,7 +1,7 @@
 // Purpose: Lesson booking handlers enforcing availability and token rules.
 import type { Context } from 'hono'
 
-import { eq } from 'drizzle-orm'
+import { and, eq, gte, lte } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
@@ -14,6 +14,8 @@ import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import env from '@/env'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { buildErrorResponse } from '@/lib/error-response'
+import { buildPagedResponse } from '@/lib/pagination'
 
 import type {
   BookLessonRoute,
@@ -145,7 +147,7 @@ export const bookLesson: AppRouteHandler<BookLessonRoute> = async (c) => {
 
   const tutor = await ensureTutorExists(tutorId)
   if (!tutor) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   const subject = await db.query.subjects.findFirst({
@@ -156,12 +158,12 @@ export const bookLesson: AppRouteHandler<BookLessonRoute> = async (c) => {
   })
 
   if (!subject) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   const allowed = await isSubjectAllowed(tutorId, payload.subjectId)
   if (!allowed) {
-    return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
+    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
   }
 
   const availability = await db.query.tutorAvailability.findFirst({
@@ -174,12 +176,12 @@ export const bookLesson: AppRouteHandler<BookLessonRoute> = async (c) => {
   })
 
   if (!availability) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   const startAt = new Date(availability.startAt)
   if (sameDayOrAfter(new Date(), startAt)) {
-    return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
+    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
   }
 
   const studentProfile = await db.query.studentProfiles.findFirst({
@@ -193,11 +195,11 @@ export const bookLesson: AppRouteHandler<BookLessonRoute> = async (c) => {
   })
 
   if (!studentProfile?.isActive) {
-    return c.json({ message: HttpStatusPhrases.FORBIDDEN }, HttpStatusCodes.FORBIDDEN)
+    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
   }
 
   if (studentProfile.lessonTokens <= 0) {
-    return c.json({ message: HttpStatusPhrases.FORBIDDEN }, HttpStatusCodes.FORBIDDEN)
+    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
   }
 
   let lesson = await db.query.lessons.findFirst({
@@ -207,11 +209,11 @@ export const bookLesson: AppRouteHandler<BookLessonRoute> = async (c) => {
   })
 
   if (lesson && lesson.subjectId !== payload.subjectId) {
-    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
   if (lesson && lesson.status !== 'scheduled') {
-    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
   if (!lesson) {
@@ -255,7 +257,7 @@ export const bookLesson: AppRouteHandler<BookLessonRoute> = async (c) => {
   })
 
   if (existingBooking) {
-    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
   const bookingCount = await db.query.lessonBookings.findMany({
@@ -269,7 +271,7 @@ export const bookLesson: AppRouteHandler<BookLessonRoute> = async (c) => {
   })
 
   if (bookingCount.length >= lesson!.seats) {
-    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
   const [booking] = await db.insert(lessonBookings).values({
@@ -332,11 +334,11 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
   })
 
   if (!booking) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   if (currentUser.role !== 'admin' && booking.studentId !== currentUser.id) {
-    return c.json({ message: HttpStatusPhrases.FORBIDDEN }, HttpStatusCodes.FORBIDDEN)
+    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
   }
 
   const lesson = await db.query.lessons.findFirst({
@@ -346,7 +348,7 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
   })
 
   if (!lesson) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   const shouldRefund = currentUser.role === 'admin'
@@ -397,7 +399,7 @@ export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
   })
 
   if (!lesson) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   await db.update(lessons)
@@ -461,7 +463,7 @@ export const confirmLessonTutor: AppRouteHandler<ConfirmLessonTutorRoute> = asyn
   })
 
   if (!lesson) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   if (lesson.tutorId !== currentUser.id) {
@@ -469,7 +471,7 @@ export const confirmLessonTutor: AppRouteHandler<ConfirmLessonTutorRoute> = asyn
   }
 
   if (!canConfirmLesson(lesson)) {
-    return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
+    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
   }
 
   const bookings = await db.query.lessonBookings.findMany({
@@ -484,11 +486,11 @@ export const confirmLessonTutor: AppRouteHandler<ConfirmLessonTutorRoute> = asyn
 
   const currentStatus = await autoStallLessonIfNeeded(lesson, bookings)
   if (currentStatus === 'stalled' || currentStatus === 'canceled' || currentStatus === 'completed') {
-    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
   if (lesson.tutorConfirmed !== null && lesson.tutorConfirmed !== undefined) {
-    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
   const confirmedAt = new Date()
@@ -545,7 +547,7 @@ export const confirmLessonBooking: AppRouteHandler<ConfirmLessonBookingRoute> = 
   })
 
   if (!booking) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   if (booking.studentId !== currentUser.id) {
@@ -553,11 +555,11 @@ export const confirmLessonBooking: AppRouteHandler<ConfirmLessonBookingRoute> = 
   }
 
   if (booking.status !== 'booked') {
-    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
   if (booking.studentConfirmed !== null && booking.studentConfirmed !== undefined) {
-    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
   const lesson = await db.query.lessons.findFirst({
@@ -567,11 +569,11 @@ export const confirmLessonBooking: AppRouteHandler<ConfirmLessonBookingRoute> = 
   })
 
   if (!lesson) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   if (!canConfirmLesson(lesson)) {
-    return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
+    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
   }
 
   const bookings = await db.query.lessonBookings.findMany({
@@ -586,7 +588,7 @@ export const confirmLessonBooking: AppRouteHandler<ConfirmLessonBookingRoute> = 
 
   const currentStatus = await autoStallLessonIfNeeded(lesson, bookings)
   if (currentStatus === 'stalled' || currentStatus === 'canceled' || currentStatus === 'completed') {
-    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
   const confirmedAt = new Date()
@@ -639,11 +641,25 @@ export const confirmLessonBooking: AppRouteHandler<ConfirmLessonBookingRoute> = 
 
 export const listLessonConfirmations: AppRouteHandler<ListLessonConfirmationsRoute> = async (c) => {
   ensureAdmin(c)
-  const { state } = c.req.valid('query')
+  const query = c.req.valid('query')
+  const state = query.state
 
   const lessonsRows = await db.query.lessons.findMany({
-    where(fields, operators) {
-      return operators.eq(fields.status, state === 'stalled' ? 'stalled' : 'scheduled')
+    where(fields) {
+      const clauses = [eq(fields.status, state === 'stalled' ? 'stalled' : 'scheduled')]
+      if (query.tutorId) {
+        clauses.push(eq(fields.tutorId, query.tutorId))
+      }
+      if (query.subjectId) {
+        clauses.push(eq(fields.subjectId, query.subjectId))
+      }
+      if (query.from) {
+        clauses.push(gte(fields.startAt, new Date(query.from)))
+      }
+      if (query.to) {
+        clauses.push(lte(fields.startAt, new Date(query.to)))
+      }
+      return and(...clauses)
     },
     columns: {
       id: true,
@@ -652,7 +668,8 @@ export const listLessonConfirmations: AppRouteHandler<ListLessonConfirmationsRou
       startAt: true,
       durationMinutes: true,
       status: true,
-      tutorConfirmed: true
+      tutorConfirmed: true,
+      createdAt: true
     }
   })
 
@@ -662,7 +679,10 @@ export const listLessonConfirmations: AppRouteHandler<ListLessonConfirmationsRou
     : lessonsRows
 
   if (eligibleLessons.length === 0) {
-    return c.json([], HttpStatusCodes.OK)
+    return c.json(
+      buildPagedResponse([], 0, query.limit, query.offset),
+      HttpStatusCodes.OK
+    )
   }
 
   const lessonIds = eligibleLessons.map(lesson => lesson.id)
@@ -686,7 +706,7 @@ export const listLessonConfirmations: AppRouteHandler<ListLessonConfirmationsRou
     bookingMap.set(booking.lessonId, list)
   }
 
-  const items = []
+  let items = []
   for (const lesson of eligibleLessons) {
     const lessonBookings = bookingMap.get(lesson.id) ?? []
     if (lessonBookings.length === 0) {
@@ -719,11 +739,30 @@ export const listLessonConfirmations: AppRouteHandler<ListLessonConfirmationsRou
       status,
       tutorConfirmed,
       bookedCount,
-      confirmedCount
+      confirmedCount,
+      createdAt: lesson.createdAt
     })
   }
 
-  return c.json(items, HttpStatusCodes.OK)
+  if (query.q) {
+    const needle = query.q.toLowerCase()
+    items = items.filter(item => item.tutorId.toLowerCase().includes(needle)
+      || item.subjectId.toLowerCase().includes(needle))
+  }
+
+  const direction = query.sortDir === 'desc' ? -1 : 1
+  if (query.sortBy === 'createdAt') {
+    items.sort((a, b) => (a.createdAt.getTime() - b.createdAt.getTime()) * direction)
+  } else {
+    items.sort((a, b) => (new Date(a.startAt).getTime() - new Date(b.startAt).getTime()) * direction)
+  }
+
+  const start = query.offset
+  const end = query.offset + query.limit
+  const total = items.length
+  const paged = items.slice(start, end).map(({ createdAt, ...item }) => item)
+
+  return c.json(buildPagedResponse(paged, total, query.limit, query.offset), HttpStatusCodes.OK)
 }
 
 export const getLessonConfirmations: AppRouteHandler<GetLessonConfirmationsRoute> = async (c) => {
@@ -737,7 +776,7 @@ export const getLessonConfirmations: AppRouteHandler<GetLessonConfirmationsRoute
   })
 
   if (!lesson) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   const bookings = await db.query.lessonBookings.findMany({
@@ -796,15 +835,15 @@ export const resolveLesson: AppRouteHandler<ResolveLessonRoute> = async (c) => {
   })
 
   if (!lesson) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   if (lesson.status === 'completed' || lesson.status === 'canceled') {
-    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
   if (lesson.status !== 'stalled') {
-    return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
+    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
   }
 
   const resolvedAt = new Date()
@@ -889,11 +928,11 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
   })
 
   if (!lesson) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   if (lesson.status === 'completed' || lesson.status === 'canceled') {
-    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
   const availability = await db.query.tutorAvailability.findFirst({
@@ -903,17 +942,17 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
   })
 
   if (!availability) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   const subjectAllowed = await isSubjectAllowed(availability.tutorId, lesson.subjectId)
   if (!subjectAllowed) {
-    return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
+    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
   }
 
   const newStartAt = new Date(availability.startAt)
   if (sameDayOrAfter(new Date(), newStartAt)) {
-    return c.json({ message: HttpStatusPhrases.BAD_REQUEST }, HttpStatusCodes.BAD_REQUEST)
+    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
   }
 
   const slotLesson = await db.query.lessons.findFirst({
@@ -924,7 +963,7 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
   })
 
   if (slotLesson && slotLesson.id !== lesson.id) {
-    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
   const bookingCount = await db.query.lessonBookings.findMany({
@@ -938,7 +977,7 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
   })
 
   if (bookingCount.length > availability.seats) {
-    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
   await db.update(lessons)
@@ -978,11 +1017,11 @@ export const overrideLessonConfirmations: AppRouteHandler<OverrideLessonConfirma
   })
 
   if (!lesson) {
-    return c.json({ message: HttpStatusPhrases.NOT_FOUND }, HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
   if (lesson.status === 'completed' || lesson.status === 'canceled') {
-    return c.json({ message: HttpStatusPhrases.CONFLICT }, HttpStatusCodes.CONFLICT)
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
   if (payload.tutorConfirmed !== undefined || payload.tutorNote !== undefined) {
