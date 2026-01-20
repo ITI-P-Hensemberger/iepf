@@ -95,15 +95,59 @@ export default function Header() {
               Profilo
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className='cursor-pointer'
-              onSelect={(event) => {
-                event.preventDefault()
-                window.location.assign('/faq')
-              }}
-            >
-              Domande frequenti
-            </DropdownMenuItem>
+            {profile?.role === 'student' && (
+              <DropdownMenuItem
+                className='cursor-pointer'
+                onSelect={(event) => {
+                  event.preventDefault()
+                  window.location.assign('/faq')
+                }}
+              >
+                Domande frequenti
+              </DropdownMenuItem>
+            )}
+            {profile?.role === 'tutor' && (
+              <DropdownMenuItem
+                className='cursor-pointer'
+                onSelect={(event) => {
+                  event.preventDefault()
+                  window.location.assign('/tutor/availability')
+                }}
+              >
+                Disponibilità
+              </DropdownMenuItem>
+            )}
+            {profile?.role === 'admin' && (
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  className='cursor-pointer'
+                  onSelect={(event) => {
+                    event.preventDefault()
+                    window.location.assign('/admin/students')
+                  }}
+                >
+                  Gestione Studenti
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className='cursor-pointer'
+                  onSelect={(event) => {
+                    event.preventDefault()
+                    window.location.assign('/admin/tutors')
+                  }}
+                >
+                  Gestione Tutor
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className='cursor-pointer'
+                  onSelect={(event) => {
+                    event.preventDefault()
+                    window.location.assign('/admin/admins')
+                  }}
+                >
+                  Gestione Admin
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuLabel className='text-muted-foreground'>
               Tema

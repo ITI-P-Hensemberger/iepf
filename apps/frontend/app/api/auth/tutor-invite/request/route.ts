@@ -1,6 +1,8 @@
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
+import { parseBackendPayload } from '@/lib/backend-response'
+
 import { AUTH_COOKIES } from '@/lib/auth'
 
 export async function POST(request: Request) {
@@ -33,13 +35,17 @@ export async function POST(request: Request) {
   })
 
   const payload = await response.text()
+  const parsed = parseBackendPayload(payload)
 
   if (!response.ok) {
     return NextResponse.json(
-      { message: payload || 'Richiesta non riuscita.' },
+      {
+        message: parsed.errorMessage || 'Richiesta non riuscita.',
+        error: parsed.errorPayload
+      },
       { status: response.status }
     )
   }
 
-  return NextResponse.json(payload ? JSON.parse(payload) : {})
+  return NextResponse.json(parsed.data ?? {})
 }

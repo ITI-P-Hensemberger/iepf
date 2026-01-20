@@ -15,17 +15,14 @@ export default function AdminPage() {
           {!isProfileLoading && `Bentornato, ${profile?.firstName}`}
         </h1>
         <p className='mt-6 text-center max-w-md text-muted-foreground'>
-          Gestisci gli studenti, i tutor e gli admin.
+          Pannello di amministrazione di InsiemeÈ+Facile. <br />
         </p>
         <div className='mt-8 flex flex-col gap-3 sm:flex-row'>
           <Button asChild>
-            <Link href='/admin/students'>Vai alla gestione studenti</Link>
+            <Link href='/admin/students'>Gestione studenti</Link>
           </Button>
           <Button asChild variant='outline'>
-            <Link href='/admin/tutors'>Vai alla gestione tutor</Link>
-          </Button>
-          <Button asChild variant='outline'>
-            <Link href='/admin/admins'>Vai alla gestione admin</Link>
+            <Link href='/admin/tutors'>Gestione tutor</Link>
           </Button>
         </div>
       </div>

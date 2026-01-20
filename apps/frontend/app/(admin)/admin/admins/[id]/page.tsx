@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { formatItalianDate } from '@/lib/format-date'
 
 function normalizeName(value: string) {
   const trimmed = value.trim()
@@ -418,19 +419,19 @@ export default function AdminAdminDetailPage() {
                             <span className='font-medium text-foreground'>
                               Email verificata:
                             </span>{' '}
-                            {admin?.emailVerifiedAt ?? '-'}
+                            {formatItalianDate(admin?.emailVerifiedAt)}
                           </div>
                           <div>
                             <span className='font-medium text-foreground'>
                               Creato il:
                             </span>{' '}
-                            {admin?.createdAt ?? '-'}
+                            {formatItalianDate(admin?.createdAt)}
                           </div>
                           <div>
                             <span className='font-medium text-foreground'>
                               Aggiornato il:
                             </span>{' '}
-                            {admin?.updatedAt ?? '-'}
+                            {formatItalianDate(admin?.updatedAt)}
                           </div>
                           <div>
                             <span className='font-medium text-foreground'>

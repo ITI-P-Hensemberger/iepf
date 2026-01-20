@@ -1,9 +1,11 @@
 import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
+
+import { parseBackendPayload } from '@/lib/backend-response'
 
 import { AUTH_COOKIES } from '@/lib/auth'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:9999'
   const cookieStore = await cookies()
   const accessToken = cookieStore.get(AUTH_COOKIES.access)?.value
@@ -12,20 +14,28 @@ export async function GET() {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   }
 
-  const response = await fetch(`${apiBaseUrl}/auth/admin-invite`, {
+  const incomingUrl = new URL(request.url)
+  const targetUrl = new URL(`${apiBaseUrl}/auth/admin-invite`)
+  targetUrl.search = incomingUrl.searchParams.toString()
+
+  const response = await fetch(targetUrl.toString(), {
     headers: {
       Authorization: `Bearer ${accessToken}`
     }
   })
 
+  const payload = await response.text()
+  const parsed = parseBackendPayload(payload)
+
   if (!response.ok) {
-    const message = await response.text()
     return NextResponse.json(
-      { message: message || 'Failed to fetch invites.' },
+      {
+        message: parsed.errorMessage || 'Failed to fetch invites.',
+        error: parsed.errorPayload
+      },
       { status: response.status }
     )
   }
 
-  const data = await response.json()
-  return NextResponse.json(data)
+  return NextResponse.json(parsed.data ?? {})
 }

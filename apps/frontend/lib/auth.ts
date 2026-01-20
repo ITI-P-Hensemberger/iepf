@@ -1,3 +1,5 @@
+import { unwrapBackendData } from '@/lib/backend-response'
+
 export type AuthTokens = {
   accessToken: string
   tokenType: string
@@ -86,7 +88,8 @@ export async function fetchUserProfile(
     throw new Error('Failed to fetch user')
   }
 
-  return (await response.json()) as UserProfile
+  const payload = (await response.json()) as unknown
+  return unwrapBackendData<UserProfile>(payload)
 }
 
 export async function loginWithProfile(
@@ -108,7 +111,8 @@ export async function loginWithProfile(
     throw error
   }
 
-  const tokens = (await response.json()) as AuthTokens
+  const payload = (await response.json()) as unknown
+  const tokens = unwrapBackendData<AuthTokens>(payload)
   const profile = await fetchUserProfile(apiBaseUrl, tokens.accessToken)
 
   return { tokens, profile }
@@ -132,7 +136,8 @@ export async function refreshWithProfile(
     throw error
   }
 
-  const tokens = (await response.json()) as AuthTokens
+  const payload = (await response.json()) as unknown
+  const tokens = unwrapBackendData<AuthTokens>(payload)
   const profile = await fetchUserProfile(apiBaseUrl, tokens.accessToken)
 
   return { tokens, profile }

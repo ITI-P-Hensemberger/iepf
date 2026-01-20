@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+import { parseBackendPayload } from '@/lib/backend-response'
+
 export async function POST(request: Request) {
   const apiBaseUrl =
     process.env.API_BASE_URL ?? 'http://localhost:9999'
@@ -24,13 +26,17 @@ export async function POST(request: Request) {
   })
 
   const payload = await response.text()
+  const parsed = parseBackendPayload(payload)
 
   if (!response.ok) {
     return NextResponse.json(
-      { message: payload || 'Reset non riuscito.' },
+      {
+        message: parsed.errorMessage || 'Reset non riuscito.',
+        error: parsed.errorPayload
+      },
       { status: response.status }
     )
   }
 
-  return NextResponse.json(payload ? JSON.parse(payload) : {})
+  return NextResponse.json(parsed.data ?? {})
 }

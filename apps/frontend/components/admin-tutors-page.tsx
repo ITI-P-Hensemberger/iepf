@@ -5,12 +5,9 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   type ColumnDef,
-  type FilterFn,
   type SortingState,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
   useReactTable
 } from '@tanstack/react-table'
 import { ArrowUpDown, MoreHorizontal, Search } from 'lucide-react'
@@ -41,6 +38,15 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from '@/components/ui/tabs'
+import { formatItalianDate } from '@/lib/format-date'
+
+const pageSize = 15
 
 type Tutor = {
   id: string
@@ -49,13 +55,9 @@ type Tutor = {
   lastName: string
   role?: string | null
   sectionId?: string | null
+  sectionName?: string | null
   year?: number | null
   isActive?: boolean | null
-}
-
-type Section = {
-  id: string
-  name: string
 }
 
 type PendingInvite = {
@@ -68,22 +70,77 @@ type DataTableProps<TData> = {
   data: TData[]
   columns: ColumnDef<TData>[]
   searchPlaceholder: string
-  globalFilterFn: FilterFn<TData>
   isLoading: boolean
   emptyMessage: string
   searchKey: string
   sortKey: string
+  pageKey: string
+  page: number
+  pageSize: number
+  total: number
+}
+
+type PagedPayloadObject<T> = {
+  items?: T[]
+  total?: number
+  data?: PagedPayloadObject<T>
+  rows?: T[]
+  results?: T[]
+}
+
+function normalizePaged<T>(payload: unknown): { items: T[]; total: number } {
+  if (!payload) {
+    return { items: [], total: 0 }
+  }
+  if (Array.isArray(payload)) {
+    return { items: payload as T[], total: payload.length }
+  }
+  if (typeof payload !== 'object' || payload === null) {
+    return { items: [], total: 0 }
+  }
+
+  const candidate = payload as PagedPayloadObject<T>
+  const items =
+    Array.isArray(candidate.items)
+      ? candidate.items
+      : Array.isArray(candidate.rows)
+      ? candidate.rows
+      : Array.isArray(candidate.results)
+      ? candidate.results
+      : Array.isArray((candidate as any).data)
+      ? (candidate as any).data
+      : []
+  const total =
+    typeof candidate.total === 'number'
+      ? candidate.total
+      : Array.isArray(candidate.items)
+      ? candidate.items.length
+      : Array.isArray(candidate.rows)
+      ? candidate.rows.length
+      : Array.isArray(candidate.results)
+      ? candidate.results.length
+      : Array.isArray(candidate.data?.items)
+      ? candidate.data!.items!.length
+      : Array.isArray(candidate.data?.rows)
+      ? candidate.data!.rows!.length
+      : Array.isArray(candidate.data?.results)
+      ? candidate.data!.results!.length
+      : 0
+  return { items: items as T[], total }
 }
 
 function DataTable<TData>({
   data,
   columns,
   searchPlaceholder,
-  globalFilterFn,
   isLoading,
   emptyMessage,
   searchKey,
-  sortKey
+  sortKey,
+  pageKey,
+  page,
+  pageSize,
+  total
 }: DataTableProps<TData>) {
   const router = useRouter()
   const pathname = usePathname()
@@ -108,6 +165,10 @@ function DataTable<TData>({
     () => searchParams.get(searchKey) ?? ''
   )
   const [debouncedFilter, setDebouncedFilter] = React.useState(globalFilter)
+  const didInitRef = React.useRef(false)
+  const lastFilterRef = React.useRef('')
+  const lastSortRef = React.useRef<SortingState>([])
+  const lastNavigationRef = React.useRef('')
 
   React.useEffect(() => {
     const nextFilter = searchParams.get(searchKey) ?? ''
@@ -134,49 +195,92 @@ function DataTable<TData>({
   }, [globalFilter])
 
   React.useEffect(() => {
+    if (!didInitRef.current) {
+      didInitRef.current = true
+      return
+    }
+
+    const currentFilter = searchParams.get(searchKey) ?? ''
+    const desiredFilter = debouncedFilter
+    const filterChanged = currentFilter !== desiredFilter
+
+    const desiredSort = sorting[0]
+      ? `${sorting[0].id}:${sorting[0].desc ? 'desc' : 'asc'}`
+      : null
+    const currentSort = searchParams.get(sortKey)
+    const sortChanged = desiredSort !== currentSort
+
+    const currentPage = searchParams.get(pageKey) ?? ''
+    const pageChanged = page > 1 ? currentPage !== String(page) : currentPage !== ''
+
+    if (!filterChanged && !sortChanged && !pageChanged) {
+      return
+    }
+
     const params = new URLSearchParams(searchParamsString)
-    if (debouncedFilter) {
-      params.set(searchKey, debouncedFilter)
+    if (desiredFilter) {
+      params.set(searchKey, desiredFilter)
     } else {
       params.delete(searchKey)
     }
-    const currentSort = sorting[0]
-    if (currentSort) {
-      params.set(
-        sortKey,
-        `${currentSort.id}:${currentSort.desc ? 'desc' : 'asc'}`
-      )
+    if (desiredSort) {
+      params.set(sortKey, desiredSort)
     } else {
       params.delete(sortKey)
     }
-    const nextParams = params.toString()
-    if (nextParams !== searchParamsString) {
-      const url = nextParams ? `${pathname}?${nextParams}` : pathname
-      router.replace(url, { scroll: false })
+    if (page > 1) {
+      params.set(pageKey, String(page))
+    } else {
+      params.delete(pageKey)
     }
+
+    const nextParams = params.toString()
+    const url = nextParams ? `${pathname}?${nextParams}` : pathname
+    if (lastNavigationRef.current === url) {
+      return
+    }
+    lastNavigationRef.current = url
+    router.replace(url, { scroll: false })
   }, [
     debouncedFilter,
     pathname,
+    page,
     router,
     searchKey,
+    searchParams,
     searchParamsString,
     sortKey,
-    sorting
+    sorting,
+    pageKey
   ])
+
+  const updatePage = React.useCallback(
+    (nextPage: number) => {
+      const params = new URLSearchParams(searchParamsString)
+      if (nextPage > 1) {
+        params.set(pageKey, String(nextPage))
+      } else {
+        params.delete(pageKey)
+      }
+      const nextParams = params.toString()
+      const url = nextParams ? `${pathname}?${nextParams}` : pathname
+      router.replace(url, { scroll: false })
+    },
+    [pageKey, pathname, router, searchParamsString]
+  )
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   const table = useReactTable({
     data,
     columns,
     state: {
-      sorting,
-      globalFilter
+      sorting
     },
     onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
-    globalFilterFn,
+    manualSorting: true,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel()
+    manualFiltering: true
   })
 
   return (
@@ -247,169 +351,204 @@ function DataTable<TData>({
           </TableBody>
         </Table>
       </div>
+      <div className='flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between'>
+        <span>
+          Pagina {page} di {totalPages} · Totale {total}
+        </span>
+        <div className='flex items-center gap-2'>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => updatePage(page - 1)}
+            disabled={page <= 1 || isLoading}
+          >
+            Precedente
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => updatePage(page + 1)}
+            disabled={page >= totalPages || isLoading}
+          >
+            Successiva
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
 
 export default function AdminTutorsPage() {
-  const [tutors, setTutors] = React.useState<Tutor[]>([])
-  const [pendingInvites, setPendingInvites] = React.useState<PendingInvite[]>(
-    []
-  )
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [isPendingLoading, setIsPendingLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
+  const searchParams = useSearchParams()
+  const [activeTutors, setActiveTutors] = React.useState<Tutor[]>([])
+  const [inactiveTutors, setInactiveTutors] = React.useState<Tutor[]>([])
+  const [pendingInvites, setPendingInvites] = React.useState<PendingInvite[]>([])
+  const [activeTotal, setActiveTotal] = React.useState(0)
+  const [inactiveTotal, setInactiveTotal] = React.useState(0)
+  const [pendingTotal, setPendingTotal] = React.useState(0)
+  const [activeLoading, setActiveLoading] = React.useState(true)
+  const [inactiveLoading, setInactiveLoading] = React.useState(true)
+  const [pendingLoading, setPendingLoading] = React.useState(true)
+  const [activeError, setActiveError] = React.useState<string | null>(null)
+  const [inactiveError, setInactiveError] = React.useState<string | null>(null)
   const [pendingError, setPendingError] = React.useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = React.useState<string | null>(null)
-  const [sectionMap, setSectionMap] = React.useState<Map<string, string>>(
-    () => new Map()
-  )
   const [showInviteDialog, setShowInviteDialog] = React.useState(false)
   const [inviteEmail, setInviteEmail] = React.useState('')
   const [inviteError, setInviteError] = React.useState<string | null>(null)
   const [inviteSuccess, setInviteSuccess] = React.useState<string | null>(null)
   const [isInviting, setIsInviting] = React.useState(false)
 
-  const fetchPendingInvites = React.useCallback(async () => {
-    setIsPendingLoading(true)
-    setPendingError(null)
-
-    try {
-      const response = await fetch('/api/auth/tutor-invite')
-      if (!response.ok) {
-        throw new Error('Impossibile caricare gli inviti.')
+  const parsePage = React.useCallback(
+    (key: string) => {
+      const raw = searchParams.get(key)
+      const parsed = Number(raw)
+      if (!Number.isFinite(parsed) || parsed < 1) {
+        return 1
       }
-      const data = (await response.json()) as PendingInvite[]
-      setPendingInvites(data)
-    } catch (err) {
-      setPendingError(
-        err instanceof Error ? err.message : 'Impossibile caricare gli inviti.'
-      )
-    } finally {
-      setIsPendingLoading(false)
+      return Math.floor(parsed)
+    },
+    [searchParams]
+  )
+
+  const parseSortParam = React.useCallback((value: string | null) => {
+    if (!value) {
+      return null
     }
+    const [sortBy, direction] = value.split(':')
+    if (!sortBy) {
+      return null
+    }
+    const sortDir: 'asc' | 'desc' = direction === 'desc' ? 'desc' : 'asc'
+    return { sortBy, sortDir }
   }, [])
 
-  React.useEffect(() => {
-    let isMounted = true
+  const activeSearch = searchParams.get('activeTutorSearch') ?? ''
+  const inactiveSearch = searchParams.get('inactiveTutorSearch') ?? ''
+  const pendingSearch = searchParams.get('pendingTutorSearch') ?? ''
+  const activeSortParam = searchParams.get('activeTutorSort') ?? ''
+  const inactiveSortParam = searchParams.get('inactiveTutorSort') ?? ''
+  const pendingSortParam = searchParams.get('pendingTutorSort') ?? ''
+  const activeSort = React.useMemo(
+    () => parseSortParam(activeSortParam),
+    [activeSortParam, parseSortParam]
+  )
+  const inactiveSort = React.useMemo(
+    () => parseSortParam(inactiveSortParam),
+    [inactiveSortParam, parseSortParam]
+  )
+  const pendingSort = React.useMemo(
+    () => parseSortParam(pendingSortParam),
+    [pendingSortParam, parseSortParam]
+  )
+  const activePage = parsePage('activeTutorPage')
+  const inactivePage = parsePage('inactiveTutorPage')
+  const pendingPage = parsePage('pendingTutorPage')
 
-    async function loadSections() {
-      try {
-        const response = await fetch('/api/class-sections')
-        if (!response.ok) {
-          return
-        }
-        const data = (await response.json()) as Section[]
-        if (isMounted) {
-          setSectionMap(
-            new Map(data.map((section) => [section.id, section.name]))
-          )
-        }
-      } catch (err) {
-        // Optional: skip showing section names if unavailable.
+  const loadTutors = React.useCallback(
+    async (options: {
+      isActive: boolean
+      search: string
+      sort: { sortBy: string; sortDir: 'asc' | 'desc' } | null
+      page: number
+    }) => {
+      const { isActive, search, sort, page } = options
+      const params = new URLSearchParams()
+      params.set('role', 'tutor')
+      params.set('isActive', String(isActive))
+      if (search) {
+        params.set('q', search)
       }
-    }
+      if (sort) {
+        params.set('sortBy', sort.sortBy)
+        params.set('sortDir', sort.sortDir)
+      }
+      params.set('limit', String(pageSize))
+      params.set('offset', String((page - 1) * pageSize))
 
-    async function loadTutors() {
-      setIsLoading(true)
-      setError(null)
+      if (isActive) {
+        setActiveLoading(true)
+        setActiveError(null)
+      } else {
+        setInactiveLoading(true)
+        setInactiveError(null)
+      }
 
       try {
-        const response = await fetch('/api/users')
+        const response = await fetch(`/api/users?${params.toString()}`)
         if (!response.ok) {
           throw new Error('Impossibile caricare i tutor.')
         }
-        const data = (await response.json()) as Tutor[]
-        if (isMounted) {
-          setTutors(data.filter((user) => user.role === 'tutor'))
+        const payload = await response.json()
+        const { items, total } = normalizePaged<Tutor>(payload)
+        if (isActive) {
+          setActiveTutors(items)
+          setActiveTotal(total)
+        } else {
+          setInactiveTutors(items)
+          setInactiveTotal(total)
         }
       } catch (err) {
-        if (isMounted) {
-          setError(
-            err instanceof Error ? err.message : 'Impossibile caricare i tutor.'
-          )
+        const message =
+          err instanceof Error ? err.message : 'Impossibile caricare i tutor.'
+        if (isActive) {
+          setActiveError(message)
+        } else {
+          setInactiveError(message)
         }
       } finally {
-        if (isMounted) {
-          setIsLoading(false)
+        if (isActive) {
+          setActiveLoading(false)
+        } else {
+          setInactiveLoading(false)
         }
       }
-    }
-
-    void loadSections()
-    void loadTutors()
-    void fetchPendingInvites()
-
-    return () => {
-      isMounted = false
-    }
-  }, [fetchPendingInvites])
-
-  const getSectionLabel = React.useCallback(
-    (tutor: Tutor) => {
-      if (!tutor.sectionId) {
-        return '-'
-      }
-      return sectionMap.get(tutor.sectionId) ?? tutor.sectionId
-    },
-    [sectionMap]
-  )
-
-  const globalFilterFn: FilterFn<Tutor> = React.useCallback(
-    (row, _columnId, value) => {
-      const query = String(value ?? '')
-        .toLowerCase()
-        .trim()
-      if (!query) {
-        return true
-      }
-      const tutor = row.original
-      const classLabel = `${tutor.year ?? ''}${getSectionLabel(tutor)}`
-      const haystack =
-        `${tutor.firstName ?? ''} ${tutor.lastName ?? ''} ${tutor.email ?? ''} ${classLabel}`.toLowerCase()
-      return haystack.includes(query)
-    },
-    [getSectionLabel]
-  )
-
-  const sortByLastName = (list: Tutor[]) =>
-    [...list].sort((a, b) =>
-      a.lastName.localeCompare(b.lastName, 'it', { sensitivity: 'base' })
-    )
-
-  const activeTutors = sortByLastName(tutors.filter((user) => user.isActive))
-  const inactiveTutors = sortByLastName(
-    tutors.filter((user) => !user.isActive)
-  )
-
-  const pendingFilterFn: FilterFn<PendingInvite> = React.useCallback(
-    (row, _columnId, value) => {
-      const query = String(value ?? '')
-        .toLowerCase()
-        .trim()
-      if (!query) {
-        return true
-      }
-      return row.original.email.toLowerCase().includes(query)
     },
     []
   )
 
-  const formatDate = React.useCallback((value?: string) => {
-    if (!value) {
-      return '-'
-    }
-    const parsed = new Date(value)
-    if (Number.isNaN(parsed.getTime())) {
-      return value
-    }
-    return new Intl.DateTimeFormat('it-IT', {
-      dateStyle: 'medium',
-      timeStyle: 'short'
-    }).format(parsed)
-  }, [])
+  const loadPendingInvites = React.useCallback(
+    async (options: {
+      search: string
+      sort: { sortBy: string; sortDir: 'asc' | 'desc' } | null
+      page: number
+    }) => {
+      const { search, sort, page } = options
+      const params = new URLSearchParams()
+      if (search) {
+        params.set('q', search)
+      }
+      if (sort) {
+        params.set('sortBy', sort.sortBy)
+        params.set('sortDir', sort.sortDir)
+      }
+      params.set('limit', String(pageSize))
+      params.set('offset', String((page - 1) * pageSize))
 
-  async function handleInviteTutor() {
+      setPendingLoading(true)
+      setPendingError(null)
+
+      try {
+        const response = await fetch(`/api/auth/tutor-invite?${params.toString()}`)
+        if (!response.ok) {
+          throw new Error('Impossibile caricare gli inviti.')
+        }
+        const payload = await response.json()
+        const { items, total } = normalizePaged<PendingInvite>(payload)
+        setPendingInvites(items)
+        setPendingTotal(total)
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Impossibile caricare gli inviti.'
+        setPendingError(message)
+      } finally {
+        setPendingLoading(false)
+      }
+    },
+    []
+  )
+
+  const handleInviteTutor = React.useCallback(async () => {
     const normalized = inviteEmail.trim().toLowerCase()
 
     if (!normalized) {
@@ -440,7 +579,7 @@ export default function AdminTutorsPage() {
           const payload = (await response.json()) as { message?: string }
           message = payload.message ?? message
         } catch (err) {
-          message = "Impossibile inviare l'invito."
+          // fallback message
         }
         throw new Error(message)
       }
@@ -448,15 +587,51 @@ export default function AdminTutorsPage() {
       setInviteSuccess(`Invito inviato a ${normalized}.`)
       setInviteEmail('')
       setShowInviteDialog(false)
-      void fetchPendingInvites()
+      void loadPendingInvites({
+        search: pendingSearch,
+        sort: pendingSort,
+        page: pendingPage
+      })
     } catch (err) {
-      setInviteError(
-        err instanceof Error ? err.message : "Impossibile inviare l'invito."
-      )
+      const message = err instanceof Error ? err.message : "Impossibile inviare l'invito."
+      setInviteError(message)
     } finally {
       setIsInviting(false)
     }
-  }
+  }, [inviteEmail, loadPendingInvites, pendingPage, pendingSearch, pendingSort])
+
+  React.useEffect(() => {
+    void loadTutors({
+      isActive: true,
+      search: activeSearch,
+      sort: activeSort,
+      page: activePage
+    })
+  }, [activePage, activeSearch, activeSort, loadTutors])
+
+  React.useEffect(() => {
+    void loadTutors({
+      isActive: false,
+      search: inactiveSearch,
+      sort: inactiveSort,
+      page: inactivePage
+    })
+  }, [inactivePage, inactiveSearch, inactiveSort, loadTutors])
+
+  React.useEffect(() => {
+    void loadPendingInvites({
+      search: pendingSearch,
+      sort: pendingSort,
+      page: pendingPage
+    })
+  }, [loadPendingInvites, pendingPage, pendingSearch, pendingSort])
+
+  const getSectionLabel = React.useCallback((tutor: Tutor) => {
+    if (tutor.sectionName) {
+      return tutor.sectionName
+    }
+    return tutor.sectionId ?? '-'
+  }, [])
 
   const makeColumns = React.useCallback(() => {
     const columns: ColumnDef<Tutor>[] = [
@@ -487,8 +662,7 @@ export default function AdminTutorsPage() {
         cell: ({ row }) => row.original.firstName
       },
       {
-        id: 'class',
-        accessorFn: (row) => `${row.year ?? ''}${getSectionLabel(row)}`,
+        accessorKey: 'year',
         header: ({ column }) => (
           <Button
             variant='ghost'
@@ -516,7 +690,7 @@ export default function AdminTutorsPage() {
             }
           >
             <DropdownMenuTrigger asChild>
-              <Button variant='ghost' size='icon' aria-label='Azioni'>
+              <Button variant='ghost' size='icon' aria-label='Azioni' className='h-6 w-6 p-0'>
                 <MoreHorizontal className='h-4 w-4' />
               </Button>
             </DropdownMenuTrigger>
@@ -533,21 +707,14 @@ export default function AdminTutorsPage() {
     return columns
   }, [getSectionLabel, openMenuId])
 
-  const activeColumns = React.useMemo(() => makeColumns(), [makeColumns])
+  const columns = React.useMemo(() => makeColumns(), [makeColumns])
 
   const pendingColumns = React.useMemo<ColumnDef<PendingInvite>[]>(
     () => [
       {
         accessorKey: 'email',
-        header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Email
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
-        )
+        header: 'Email',
+        enableSorting: false
       },
       {
         accessorKey: 'createdAt',
@@ -560,7 +727,7 @@ export default function AdminTutorsPage() {
             <ArrowUpDown className='ml-2 h-4 w-4' />
           </Button>
         ),
-        cell: ({ row }) => formatDate(row.original.createdAt)
+        cell: ({ row }) => formatItalianDate(row.original.createdAt)
       },
       {
         accessorKey: 'expiresAt',
@@ -573,11 +740,17 @@ export default function AdminTutorsPage() {
             <ArrowUpDown className='ml-2 h-4 w-4' />
           </Button>
         ),
-        cell: ({ row }) => formatDate(row.original.expiresAt)
+        cell: ({ row }) => formatItalianDate(row.original.expiresAt)
       }
     ],
-    [formatDate]
+    []
   )
+
+  const showPendingTab =
+    pendingTotal > 0 ||
+    Boolean(pendingSearch) ||
+    Boolean(pendingSort) ||
+    pendingPage > 1
 
   return (
     <main className='flex-1'>
@@ -597,76 +770,83 @@ export default function AdminTutorsPage() {
               </Button>
             </div>
           </div>
-          <div className='mt-8 space-y-10'>
-            <section>
-              <div className='flex items-center justify-between'>
-                <h2 className='text-lg font-semibold'>Tutor invitati</h2>
-                <span className='text-sm text-muted-foreground'>
-                  {pendingInvites.length}
-                </span>
-              </div>
-              <div className='mt-4'>
-                <DataTable
-                  data={pendingInvites}
-                  columns={pendingColumns}
-                  searchPlaceholder='Cerca inviti'
-                  globalFilterFn={pendingFilterFn}
-                  isLoading={isPendingLoading}
-                  emptyMessage='Nessun invito in attesa.'
-                  searchKey='pendingTutorSearch'
-                  sortKey='pendingTutorSort'
-                />
-                {pendingError && (
-                  <p className='mt-3 text-sm text-destructive'>
-                    {pendingError}
-                  </p>
+          <div className='mt-8 space-y-6'>
+            <Tabs defaultValue='active'>
+              <TabsList>
+                <TabsTrigger value='active'>
+                  Attivi ({activeTotal})
+                </TabsTrigger>
+                <TabsTrigger value='inactive'>
+                  Inattivi ({inactiveTotal})
+                </TabsTrigger>
+                {showPendingTab && (
+                  <TabsTrigger value='invites'>
+                    Inviti ({pendingTotal})
+                  </TabsTrigger>
                 )}
-              </div>
-            </section>
-            <section>
-              <div className='flex items-center justify-between'>
-                <h2 className='text-lg font-semibold'>Tutor attivi</h2>
-                <span className='text-sm text-muted-foreground'>
-                  {activeTutors.length}
-                </span>
-              </div>
-              <div className='mt-4'>
+              </TabsList>
+              <TabsContent value='active' className='mt-6'>
                 <DataTable
                   data={activeTutors}
-                  columns={activeColumns}
+                  columns={columns}
                   searchPlaceholder='Cerca tutor'
-                  globalFilterFn={globalFilterFn}
-                  isLoading={isLoading}
+                  isLoading={activeLoading}
                   emptyMessage='Nessun tutor attivo.'
                   searchKey='activeTutorSearch'
                   sortKey='activeTutorSort'
+                  pageKey='activeTutorPage'
+                  page={activePage}
+                  pageSize={pageSize}
+                  total={activeTotal}
                 />
-              </div>
-            </section>
-            <section>
-              <div className='flex items-center justify-between'>
-                <h2 className='text-lg font-semibold'>Tutor non attivi</h2>
-                <span className='text-sm text-muted-foreground'>
-                  {inactiveTutors.length}
-                </span>
-              </div>
-              <div className='mt-4'>
+                {activeError && (
+                  <p className='mt-3 text-sm text-destructive'>{activeError}</p>
+                )}
+              </TabsContent>
+              <TabsContent value='inactive' className='mt-6'>
                 <DataTable
                   data={inactiveTutors}
-                  columns={activeColumns}
+                  columns={columns}
                   searchPlaceholder='Cerca tutor'
-                  globalFilterFn={globalFilterFn}
-                  isLoading={isLoading}
+                  isLoading={inactiveLoading}
                   emptyMessage='Nessun tutor non attivo.'
                   searchKey='inactiveTutorSearch'
                   sortKey='inactiveTutorSort'
+                  pageKey='inactiveTutorPage'
+                  page={inactivePage}
+                  pageSize={pageSize}
+                  total={inactiveTotal}
                 />
-              </div>
-            </section>
+                {inactiveError && (
+                  <p className='mt-3 text-sm text-destructive'>{inactiveError}</p>
+                )}
+              </TabsContent>
+              {showPendingTab && (
+                <TabsContent value='invites' className='mt-6'>
+                  <DataTable
+                    data={pendingInvites}
+                    columns={pendingColumns}
+                    searchPlaceholder='Cerca inviti'
+                    isLoading={pendingLoading}
+                    emptyMessage='Nessun invito in attesa.'
+                    searchKey='pendingTutorSearch'
+                    sortKey='pendingTutorSort'
+                    pageKey='pendingTutorPage'
+                    page={pendingPage}
+                    pageSize={pageSize}
+                    total={pendingTotal}
+                  />
+                  {pendingError && (
+                    <p className='mt-3 text-sm text-destructive'>
+                      {pendingError}
+                    </p>
+                  )}
+                </TabsContent>
+              )}
+            </Tabs>
             {inviteSuccess && (
               <p className='text-sm text-emerald-600'>{inviteSuccess}</p>
             )}
-            {error && <p className='text-sm text-destructive'>{error}</p>}
           </div>
         </div>
       </div>

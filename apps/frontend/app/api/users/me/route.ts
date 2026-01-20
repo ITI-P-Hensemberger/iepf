@@ -1,6 +1,8 @@
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
+import { parseBackendPayload } from '@/lib/backend-response'
+
 import { AUTH_COOKIES, getUserIdFromToken } from '@/lib/auth'
 
 type UpdateProfileBody = {
@@ -64,14 +66,18 @@ export async function PATCH(request: Request) {
     body: JSON.stringify(payload)
   })
 
+  const payloadText = await response.text()
+  const parsed = parseBackendPayload(payloadText)
+
   if (!response.ok) {
-    const message = await response.text()
     return NextResponse.json(
-      { message: message || 'Failed to update profile.' },
+      {
+        message: parsed.errorMessage || 'Failed to update profile.',
+        error: parsed.errorPayload
+      },
       { status: response.status }
     )
   }
 
-  const data = await response.json()
-  return NextResponse.json(data)
+  return NextResponse.json(parsed.data ?? {})
 }

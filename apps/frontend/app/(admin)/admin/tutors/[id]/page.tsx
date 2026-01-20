@@ -33,6 +33,17 @@ import {
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
+import { extractPayloadArray } from '@/lib/backend-response'
+import { formatItalianDate } from '@/lib/format-date'
 
 function normalizeName(value: string) {
   const trimmed = value.trim()
@@ -58,10 +69,17 @@ const formSchema = z.object({
     .min(2, 'Il cognome e obbligatorio')
     .regex(/^[\p{L}]+$/u, 'Il cognome puo contenere solo lettere'),
   email: z.string().email('Indirizzo email non valido'),
+  year: z.string().min(1, "L'anno e obbligatorio"),
+  sectionId: z.uuid('La sezione e obbligatoria'),
   isActive: z.boolean()
 })
 
 type TutorFormValues = z.infer<typeof formSchema>
+
+type Section = {
+  id: string
+  name: string
+}
 
 type Tutor = {
   id: string
@@ -72,6 +90,8 @@ type Tutor = {
   emailVerifiedAt?: string | null
   createdAt?: string | null
   updatedAt?: string | null
+  sectionId?: string | null
+  year?: number | null
   isActive?: boolean | null
 }
 
@@ -81,6 +101,8 @@ export default function AdminTutorDetailPage() {
   const tutorId = String(params?.id ?? '')
 
   const [tutor, setTutor] = React.useState<Tutor | null>(null)
+  const [sections, setSections] = React.useState<Section[]>([])
+  const [sectionsError, setSectionsError] = React.useState<string | null>(null)
   const [isLoading, setIsLoading] = React.useState(true)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [submitError, setSubmitError] = React.useState<string | null>(null)
@@ -97,6 +119,8 @@ export default function AdminTutorDetailPage() {
       firstName: '',
       lastName: '',
       email: '',
+      year: '',
+      sectionId: '',
       isActive: false
     }
   })
@@ -106,7 +130,9 @@ export default function AdminTutorDetailPage() {
     if (!tutor) {
       return false
     }
-    return normalizeEmail(watchedEmail ?? '') !== normalizeEmail(tutor.email)
+    return (
+      normalizeEmail(watchedEmail ?? '') !== normalizeEmail(tutor.email ?? '')
+    )
   }, [tutor, watchedEmail])
 
   React.useEffect(() => {
@@ -129,13 +155,17 @@ export default function AdminTutorDetailPage() {
             firstName: data.firstName ?? '',
             lastName: data.lastName ?? '',
             email: data.email ?? '',
+            year: data.year ? String(data.year) : '',
+            sectionId: data.sectionId ?? '',
             isActive: data.isActive === true
           })
         }
       } catch (err) {
         if (isMounted) {
           setSubmitError(
-            err instanceof Error ? err.message : 'Impossibile recuperare il tutor.'
+            err instanceof Error
+              ? err.message
+              : 'Impossibile recuperare il tutor.'
           )
         }
       } finally {
@@ -145,14 +175,82 @@ export default function AdminTutorDetailPage() {
       }
     }
 
+    async function loadSections() {
+      setSectionsError(null)
+      try {
+        const response = await fetch('/api/class-sections')
+        if (!response.ok) {
+          throw new Error('Impossibile recuperare le sezioni.')
+        }
+        const payload = await response.json()
+        const data = extractPayloadArray<Section>(payload)
+        if (isMounted) {
+          setSections(data)
+        }
+      } catch (err) {
+        if (isMounted) {
+          setSectionsError(
+            err instanceof Error
+              ? err.message
+              : 'Impossibile recuperare le sezioni.'
+          )
+        }
+      }
+    }
+
     if (tutorId) {
       void loadTutor()
+      void loadSections()
     }
 
     return () => {
       isMounted = false
     }
   }, [form, tutorId])
+
+  const groupedSections = React.useMemo(() => {
+    const scient: Section[] = []
+    const mech: Section[] = []
+    const elec: Section[] = []
+    const chem: Section[] = []
+    const info: Section[] = []
+
+    sections.forEach((section) => {
+      const label = section.name.toUpperCase()
+      if (label.includes('L')) {
+        scient.push(section)
+        return
+      }
+      if (label.startsWith('A')) {
+        mech.push(section)
+        return
+      }
+      if (label.startsWith('B')) {
+        elec.push(section)
+        return
+      }
+      if (label.startsWith('C')) {
+        chem.push(section)
+        return
+      }
+      if (label.startsWith('D')) {
+        info.push(section)
+      }
+    })
+
+    const sortByName = (list: Section[]) =>
+      [...list].sort((a, b) =>
+        a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })
+      )
+
+    return {
+      scient: sortByName(scient),
+      mech: sortByName(mech),
+      elec: sortByName(elec),
+      chem: sortByName(chem),
+      info: sortByName(info)
+    }
+  }, [sections])
 
   async function submitTutor(values: TutorFormValues) {
     setIsSubmitting(true)
@@ -171,6 +269,8 @@ export default function AdminTutorDetailPage() {
           firstName: normalizedFirstName,
           lastName: normalizedLastName,
           email: normalizedEmail,
+          year: Number(values.year),
+          sectionId: values.sectionId,
           isActive: values.isActive
         })
       })
@@ -194,6 +294,8 @@ export default function AdminTutorDetailPage() {
               firstName: normalizedFirstName,
               lastName: normalizedLastName,
               email: normalizedEmail,
+              year: Number(values.year),
+              sectionId: values.sectionId,
               isActive: values.isActive
             }
           : prev
@@ -268,7 +370,10 @@ export default function AdminTutorDetailPage() {
                 Gestisci i dati del tutor.
               </p>
             </div>
-            <Button variant='outline' onClick={() => router.push('/admin/tutors')}>
+            <Button
+              variant='outline'
+              onClick={() => router.push('/admin/tutors')}
+            >
               Torna ai tutor
             </Button>
           </div>
@@ -277,7 +382,9 @@ export default function AdminTutorDetailPage() {
               {isLoading ? (
                 <p className='text-sm text-muted-foreground'>Caricamento...</p>
               ) : !tutor ? (
-                <p className='text-sm text-muted-foreground'>Tutor non trovato.</p>
+                <p className='text-sm text-muted-foreground'>
+                  Tutor non trovato.
+                </p>
               ) : (
                 <form
                   id='admin-tutor-form'
@@ -371,6 +478,143 @@ export default function AdminTutorDetailPage() {
                       )}
                     />
                     <Controller
+                      name='year'
+                      control={form.control}
+                      render={({ field, fieldState }) => (
+                        <Field data-invalid={fieldState.invalid}>
+                          <FieldLabel htmlFor='tutor-year'>Anno</FieldLabel>
+                          <Select
+                            onValueChange={(value) => field.onChange(value)}
+                            value={String(field.value)}
+                          >
+                            <SelectTrigger
+                              id='tutor-year'
+                              aria-invalid={fieldState.invalid}
+                            >
+                              <SelectValue placeholder="Seleziona l'anno" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectLabel>Anno</SelectLabel>
+                                <SelectItem value='4'>4° anno</SelectItem>
+                                <SelectItem value='5'>5° anno</SelectItem>
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                          {fieldState.invalid && (
+                            <FieldError errors={[fieldState.error]} />
+                          )}
+                        </Field>
+                      )}
+                    />
+                    <Controller
+                      name='sectionId'
+                      control={form.control}
+                      render={({ field, fieldState }) => (
+                        <Field data-invalid={fieldState.invalid}>
+                          <FieldLabel htmlFor='tutor-section'>
+                            Sezione
+                          </FieldLabel>
+                          <Select
+                            onValueChange={(value) => field.onChange(value)}
+                            value={String(field.value)}
+                          >
+                            <SelectTrigger
+                              id='tutor-section'
+                              aria-invalid={fieldState.invalid}
+                            >
+                              <SelectValue placeholder='Seleziona la sezione' />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {groupedSections.scient.length > 0 && (
+                                <SelectGroup>
+                                  <SelectLabel>
+                                    Scientifico Scienze Applicate
+                                  </SelectLabel>
+                                  {groupedSections.scient.map((section) => (
+                                    <SelectItem
+                                      key={section.id}
+                                      value={section.id}
+                                    >
+                                      {section.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              )}
+                              {groupedSections.mech.length > 0 && (
+                                <SelectGroup>
+                                  <SelectLabel>
+                                    Meccanica Meccatronica Energia
+                                  </SelectLabel>
+                                  {groupedSections.mech.map((section) => (
+                                    <SelectItem
+                                      key={section.id}
+                                      value={section.id}
+                                    >
+                                      {section.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              )}
+                              {groupedSections.elec.length > 0 && (
+                                <SelectGroup>
+                                  <SelectLabel>
+                                    Elettronica ed Elettrotecnica
+                                  </SelectLabel>
+                                  {groupedSections.elec.map((section) => (
+                                    <SelectItem
+                                      key={section.id}
+                                      value={section.id}
+                                    >
+                                      {section.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              )}
+                              {groupedSections.chem.length > 0 && (
+                                <SelectGroup>
+                                  <SelectLabel>
+                                    Chimica Biotecnologie Sanitarie
+                                  </SelectLabel>
+                                  {groupedSections.chem.map((section) => (
+                                    <SelectItem
+                                      key={section.id}
+                                      value={section.id}
+                                    >
+                                      {section.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              )}
+                              {groupedSections.info.length > 0 && (
+                                <SelectGroup>
+                                  <SelectLabel>
+                                    Informatica e Telecomunicazioni
+                                  </SelectLabel>
+                                  {groupedSections.info.map((section) => (
+                                    <SelectItem
+                                      key={section.id}
+                                      value={section.id}
+                                    >
+                                      {section.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              )}
+                            </SelectContent>
+                          </Select>
+                          {fieldState.invalid && (
+                            <FieldError errors={[fieldState.error]} />
+                          )}
+                          {sectionsError && (
+                            <p className='text-sm text-destructive'>
+                              {sectionsError}
+                            </p>
+                          )}
+                        </Field>
+                      )}
+                    />
+                    <Controller
                       name='isActive'
                       control={form.control}
                       render={({ field }) => (
@@ -418,19 +662,31 @@ export default function AdminTutorDetailPage() {
                             <span className='font-medium text-foreground'>
                               Email verificata:
                             </span>{' '}
-                            {tutor?.emailVerifiedAt ?? '-'}
+                            {formatItalianDate(tutor?.emailVerifiedAt)}
                           </div>
                           <div>
                             <span className='font-medium text-foreground'>
                               Creato il:
                             </span>{' '}
-                            {tutor?.createdAt ?? '-'}
+                            {formatItalianDate(tutor?.createdAt)}
                           </div>
                           <div>
                             <span className='font-medium text-foreground'>
                               Aggiornato il:
                             </span>{' '}
-                            {tutor?.updatedAt ?? '-'}
+                            {formatItalianDate(tutor?.updatedAt)}
+                          </div>
+                          <div>
+                            <span className='font-medium text-foreground'>
+                              Section ID:
+                            </span>{' '}
+                            {tutor?.sectionId ?? '-'}
+                          </div>
+                          <div>
+                            <span className='font-medium text-foreground'>
+                              Anno:
+                            </span>{' '}
+                            {tutor?.year ?? '-'}
                           </div>
                           <div>
                             <span className='font-medium text-foreground'>
@@ -471,7 +727,7 @@ export default function AdminTutorDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Conferma modifica email</AlertDialogTitle>
             <AlertDialogDescription>
-              Se l'email inserita e errata, il tutor potrebbe perdere l'accesso
+              Se l'email inserita è errata, il tutor potrebbe perdere l'accesso
               all'account. In caso di problemi, contatta l'amministratore di
               sistema.
             </AlertDialogDescription>
@@ -501,7 +757,7 @@ export default function AdminTutorDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare il tutor?</AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azione e irreversibile. Il tutor perdera l'accesso
+              Questa azione è irreversibile. Il tutor perderà l'accesso
               all'account.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -1,6 +1,8 @@
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
+import { parseBackendPayload } from '@/lib/backend-response'
+
 import { AUTH_COOKIES } from '@/lib/auth'
 
 type UpdateUserBody = {
@@ -32,16 +34,20 @@ export async function GET(
     }
   })
 
+  const payload = await response.text()
+  const parsed = parseBackendPayload(payload)
+
   if (!response.ok) {
-    const message = await response.text()
     return NextResponse.json(
-      { message: message || 'Failed to fetch user.' },
+      {
+        message: parsed.errorMessage || 'Failed to fetch user.',
+        error: parsed.errorPayload
+      },
       { status: response.status }
     )
   }
 
-  const data = await response.json()
-  return NextResponse.json(data)
+  return NextResponse.json(parsed.data ?? {})
 }
 
 export async function PATCH(
@@ -105,16 +111,20 @@ export async function PATCH(
     body: JSON.stringify(payload)
   })
 
+  const payloadText = await response.text()
+  const parsed = parseBackendPayload(payloadText)
+
   if (!response.ok) {
-    const message = await response.text()
     return NextResponse.json(
-      { message: message || 'Failed to update user.' },
+      {
+        message: parsed.errorMessage || 'Failed to update user.',
+        error: parsed.errorPayload
+      },
       { status: response.status }
     )
   }
 
-  const data = await response.json()
-  return NextResponse.json(data)
+  return NextResponse.json(parsed.data ?? {})
 }
 export async function DELETE(
   _request: Request,
@@ -136,10 +146,15 @@ export async function DELETE(
     }
   })
 
+  const payloadText = await response.text()
+  const parsed = parseBackendPayload(payloadText)
+
   if (!response.ok) {
-    const message = await response.text()
     return NextResponse.json(
-      { message: message || 'Failed to delete user.' },
+      {
+        message: parsed.errorMessage || 'Failed to delete user.',
+        error: parsed.errorPayload
+      },
       { status: response.status }
     )
   }

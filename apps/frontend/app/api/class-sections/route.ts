@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+import { parseBackendPayload } from '@/lib/backend-response'
+
 export async function GET() {
   const apiBaseUrl =
     process.env.API_BASE_URL ??
@@ -8,14 +10,18 @@ export async function GET() {
 
   const response = await fetch(`${apiBaseUrl}/class-sections`)
 
+  const payload = await response.text()
+  const parsed = parseBackendPayload(payload)
+
   if (!response.ok) {
-    const message = await response.text()
     return NextResponse.json(
-      { message: message || 'Failed to fetch class sections.' },
+      {
+        message: parsed.errorMessage || 'Failed to fetch class sections.',
+        error: parsed.errorPayload
+      },
       { status: response.status }
     )
   }
 
-  const data = await response.json()
-  return NextResponse.json(data)
+  return NextResponse.json(parsed.data ?? {})
 }

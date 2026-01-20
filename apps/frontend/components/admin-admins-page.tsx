@@ -5,12 +5,9 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   type ColumnDef,
-  type FilterFn,
   type SortingState,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
   useReactTable
 } from '@tanstack/react-table'
 import { ArrowUpDown, MoreHorizontal, Search } from 'lucide-react'
@@ -41,6 +38,13 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from '@/components/ui/tabs'
+import { formatItalianDate } from '@/lib/format-date'
 
 type Admin = {
   id: string
@@ -50,7 +54,6 @@ type Admin = {
   role?: string | null
   isActive?: boolean | null
 }
-
 
 type PendingInvite = {
   email: string
@@ -62,22 +65,77 @@ type DataTableProps<TData> = {
   data: TData[]
   columns: ColumnDef<TData>[]
   searchPlaceholder: string
-  globalFilterFn: FilterFn<TData>
   isLoading: boolean
   emptyMessage: string
   searchKey: string
   sortKey: string
+  pageKey: string
+  page: number
+  pageSize: number
+  total: number
+}
+
+type PagedPayloadObject<T> = {
+  items?: T[]
+  total?: number
+  data?: PagedPayloadObject<T>
+  rows?: T[]
+  results?: T[]
+}
+
+function normalizePaged<T>(payload: unknown): { items: T[]; total: number } {
+  if (!payload) {
+    return { items: [], total: 0 }
+  }
+  if (Array.isArray(payload)) {
+    return { items: payload as T[], total: payload.length }
+  }
+  if (typeof payload !== 'object' || payload === null) {
+    return { items: [], total: 0 }
+  }
+
+  const candidate = payload as PagedPayloadObject<T>
+  const items =
+    Array.isArray(candidate.items)
+      ? candidate.items
+      : Array.isArray(candidate.rows)
+      ? candidate.rows
+      : Array.isArray(candidate.results)
+      ? candidate.results
+      : Array.isArray((candidate as any).data)
+      ? (candidate as any).data
+      : []
+  const total =
+    typeof candidate.total === 'number'
+      ? candidate.total
+      : Array.isArray(candidate.items)
+      ? candidate.items.length
+      : Array.isArray(candidate.rows)
+      ? candidate.rows.length
+      : Array.isArray(candidate.results)
+      ? candidate.results.length
+      : Array.isArray(candidate.data?.items)
+      ? candidate.data!.items!.length
+      : Array.isArray(candidate.data?.rows)
+      ? candidate.data!.rows!.length
+      : Array.isArray(candidate.data?.results)
+      ? candidate.data!.results!.length
+      : 0
+  return { items: items as T[], total }
 }
 
 function DataTable<TData>({
   data,
   columns,
   searchPlaceholder,
-  globalFilterFn,
   isLoading,
   emptyMessage,
   searchKey,
-  sortKey
+  sortKey,
+  pageKey,
+  page,
+  pageSize,
+  total
 }: DataTableProps<TData>) {
   const router = useRouter()
   const pathname = usePathname()
@@ -102,6 +160,10 @@ function DataTable<TData>({
     () => searchParams.get(searchKey) ?? ''
   )
   const [debouncedFilter, setDebouncedFilter] = React.useState(globalFilter)
+  const didInitRef = React.useRef(false)
+  const lastFilterRef = React.useRef('')
+  const lastSortRef = React.useRef<SortingState>([])
+  const lastNavigationRef = React.useRef('')
 
   React.useEffect(() => {
     const nextFilter = searchParams.get(searchKey) ?? ''
@@ -128,49 +190,92 @@ function DataTable<TData>({
   }, [globalFilter])
 
   React.useEffect(() => {
+    if (!didInitRef.current) {
+      didInitRef.current = true
+      return
+    }
+
+    const currentFilter = searchParams.get(searchKey) ?? ''
+    const desiredFilter = debouncedFilter
+    const filterChanged = currentFilter !== desiredFilter
+
+    const desiredSort = sorting[0]
+      ? `${sorting[0].id}:${sorting[0].desc ? 'desc' : 'asc'}`
+      : null
+    const currentSort = searchParams.get(sortKey)
+    const sortChanged = desiredSort !== currentSort
+
+    const currentPage = searchParams.get(pageKey) ?? ''
+    const pageChanged = page > 1 ? currentPage !== String(page) : currentPage !== ''
+
+    if (!filterChanged && !sortChanged && !pageChanged) {
+      return
+    }
+
     const params = new URLSearchParams(searchParamsString)
-    if (debouncedFilter) {
-      params.set(searchKey, debouncedFilter)
+    if (desiredFilter) {
+      params.set(searchKey, desiredFilter)
     } else {
       params.delete(searchKey)
     }
-    const currentSort = sorting[0]
-    if (currentSort) {
-      params.set(
-        sortKey,
-        `${currentSort.id}:${currentSort.desc ? 'desc' : 'asc'}`
-      )
+    if (desiredSort) {
+      params.set(sortKey, desiredSort)
     } else {
       params.delete(sortKey)
     }
-    const nextParams = params.toString()
-    if (nextParams !== searchParamsString) {
-      const url = nextParams ? `${pathname}?${nextParams}` : pathname
-      router.replace(url, { scroll: false })
+    if (page > 1) {
+      params.set(pageKey, String(page))
+    } else {
+      params.delete(pageKey)
     }
+
+    const nextParams = params.toString()
+    const url = nextParams ? `${pathname}?${nextParams}` : pathname
+    if (lastNavigationRef.current === url) {
+      return
+    }
+    lastNavigationRef.current = url
+    router.replace(url, { scroll: false })
   }, [
     debouncedFilter,
     pathname,
+    page,
     router,
     searchKey,
+    searchParams,
     searchParamsString,
     sortKey,
-    sorting
+    sorting,
+    pageKey
   ])
+
+  const updatePage = React.useCallback(
+    (nextPage: number) => {
+      const params = new URLSearchParams(searchParamsString)
+      if (nextPage > 1) {
+        params.set(pageKey, String(nextPage))
+      } else {
+        params.delete(pageKey)
+      }
+      const nextParams = params.toString()
+      const url = nextParams ? `${pathname}?${nextParams}` : pathname
+      router.replace(url, { scroll: false })
+    },
+    [pageKey, pathname, router, searchParamsString]
+  )
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   const table = useReactTable({
     data,
     columns,
     state: {
-      sorting,
-      globalFilter
+      sorting
     },
     onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
-    globalFilterFn,
+    manualSorting: true,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel()
+    manualFiltering: true
   })
 
   return (
@@ -241,18 +346,48 @@ function DataTable<TData>({
           </TableBody>
         </Table>
       </div>
+      <div className='flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between'>
+        <span>
+          Pagina {page} di {totalPages} · Totale {total}
+        </span>
+        <div className='flex items-center gap-2'>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => updatePage(page - 1)}
+            disabled={page <= 1 || isLoading}
+          >
+            Precedente
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => updatePage(page + 1)}
+            disabled={page >= totalPages || isLoading}
+          >
+            Successiva
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
 
 export default function AdminAdminsPage() {
-  const [admins, setAdmins] = React.useState<Admin[]>([])
+  const searchParams = useSearchParams()
+  const [activeAdmins, setActiveAdmins] = React.useState<Admin[]>([])
+  const [inactiveAdmins, setInactiveAdmins] = React.useState<Admin[]>([])
   const [pendingInvites, setPendingInvites] = React.useState<PendingInvite[]>(
     []
   )
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [isPendingLoading, setIsPendingLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
+  const [activeTotal, setActiveTotal] = React.useState(0)
+  const [inactiveTotal, setInactiveTotal] = React.useState(0)
+  const [pendingTotal, setPendingTotal] = React.useState(0)
+  const [activeLoading, setActiveLoading] = React.useState(true)
+  const [inactiveLoading, setInactiveLoading] = React.useState(true)
+  const [pendingLoading, setPendingLoading] = React.useState(true)
+  const [activeError, setActiveError] = React.useState<string | null>(null)
+  const [inactiveError, setInactiveError] = React.useState<string | null>(null)
   const [pendingError, setPendingError] = React.useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = React.useState<string | null>(null)
   const [showInviteDialog, setShowInviteDialog] = React.useState(false)
@@ -260,116 +395,134 @@ export default function AdminAdminsPage() {
   const [inviteError, setInviteError] = React.useState<string | null>(null)
   const [inviteSuccess, setInviteSuccess] = React.useState<string | null>(null)
   const [isInviting, setIsInviting] = React.useState(false)
+  const pageSize = 15
 
-  const fetchPendingInvites = React.useCallback(async () => {
-    setIsPendingLoading(true)
-    setPendingError(null)
-
-    try {
-      const response = await fetch('/api/auth/admin-invite')
-      if (!response.ok) {
-        throw new Error('Impossibile caricare gli inviti.')
+  const parsePage = React.useCallback(
+    (key: string) => {
+      const raw = searchParams.get(key)
+      const parsed = Number(raw)
+      if (!Number.isFinite(parsed) || parsed < 1) {
+        return 1
       }
-      const data = (await response.json()) as PendingInvite[]
-      setPendingInvites(data)
-    } catch (err) {
-      setPendingError(
-        err instanceof Error ? err.message : 'Impossibile caricare gli inviti.'
-      )
-    } finally {
-      setIsPendingLoading(false)
+      return Math.floor(parsed)
+    },
+    [searchParams]
+  )
+
+  const parseSortParam = React.useCallback((value: string | null) => {
+    if (!value) {
+      return null
     }
+    const [sortBy, direction] = value.split(':')
+    if (!sortBy) {
+      return null
+    }
+    const sortDir: 'asc' | 'desc' = direction === 'desc' ? 'desc' : 'asc'
+    return { sortBy, sortDir }
   }, [])
 
-  React.useEffect(() => {
-    let isMounted = true
+  const loadAdmins = React.useCallback(
+    async (options: {
+      isActive: boolean
+      search: string
+      sort: { sortBy: string; sortDir: 'asc' | 'desc' } | null
+      page: number
+    }) => {
+      const { isActive, search, sort, page } = options
+      const params = new URLSearchParams()
+      params.set('role', 'admin')
+      params.set('isActive', String(isActive))
+      if (search) {
+        params.set('q', search)
+      }
+      if (sort) {
+        params.set('sortBy', sort.sortBy)
+        params.set('sortDir', sort.sortDir)
+      }
+      params.set('limit', String(pageSize))
+      params.set('offset', String((page - 1) * pageSize))
 
-    async function loadAdmins() {
-      setIsLoading(true)
-      setError(null)
+      if (isActive) {
+        setActiveLoading(true)
+        setActiveError(null)
+      } else {
+        setInactiveLoading(true)
+        setInactiveError(null)
+      }
 
       try {
-        const response = await fetch('/api/users')
+        const response = await fetch(`/api/users?${params.toString()}`)
         if (!response.ok) {
           throw new Error('Impossibile caricare gli admin.')
         }
-        const data = (await response.json()) as Admin[]
-        if (isMounted) {
-          setAdmins(data.filter((user) => user.role === 'admin'))
+        const payload = await response.json()
+        const { items, total } = normalizePaged<Admin>(payload)
+        if (isActive) {
+          setActiveAdmins(items)
+          setActiveTotal(total)
+        } else {
+          setInactiveAdmins(items)
+          setInactiveTotal(total)
         }
       } catch (err) {
-        if (isMounted) {
-          setError(
-            err instanceof Error ? err.message : 'Impossibile caricare gli admin.'
-          )
+        const message =
+          err instanceof Error ? err.message : 'Impossibile caricare gli admin.'
+        if (isActive) {
+          setActiveError(message)
+        } else {
+          setInactiveError(message)
         }
       } finally {
-        if (isMounted) {
-          setIsLoading(false)
+        if (isActive) {
+          setActiveLoading(false)
+        } else {
+          setInactiveLoading(false)
         }
       }
-    }
-
-    void loadAdmins()
-    void fetchPendingInvites()
-
-    return () => {
-      isMounted = false
-    }
-  }, [fetchPendingInvites])
-
-  const globalFilterFn: FilterFn<Admin> = React.useCallback(
-    (row, _columnId, value) => {
-      const query = String(value ?? '')
-        .toLowerCase()
-        .trim()
-      if (!query) {
-        return true
-      }
-      const admin = row.original
-      const haystack =
-        `${admin.firstName ?? ''} ${admin.lastName ?? ''} ${admin.email ?? ''}`.toLowerCase()
-      return haystack.includes(query)
     },
-    []
+    [pageSize]
   )
 
-  const sortByLastName = (list: Admin[]) =>
-    [...list].sort((a, b) =>
-      a.lastName.localeCompare(b.lastName, 'it', { sensitivity: 'base' })
-    )
-
-  const activeAdmins = sortByLastName(admins.filter((user) => user.isActive))
-  const inactiveAdmins = sortByLastName(
-    admins.filter((user) => !user.isActive)
-  )
-
-  const pendingFilterFn: FilterFn<PendingInvite> = React.useCallback(
-    (row, _columnId, value) => {
-      const query = String(value ?? '')
-        .toLowerCase()
-        .trim()
-      if (!query) {
-        return true
+  const loadPendingInvites = React.useCallback(
+    async (options: {
+      search: string
+      sort: { sortBy: string; sortDir: 'asc' | 'desc' } | null
+      page: number
+    }) => {
+      const { search, sort, page } = options
+      const params = new URLSearchParams()
+      if (search) {
+        params.set('q', search)
       }
-      return row.original.email.toLowerCase().includes(query)
-    },
-    []
-  )
+      if (sort) {
+        params.set('sortBy', sort.sortBy)
+        params.set('sortDir', sort.sortDir)
+      }
+      params.set('limit', String(pageSize))
+      params.set('offset', String((page - 1) * pageSize))
 
-  const formatDate = React.useCallback((value?: string) => {
-    if (!value) {
-      return '-'
-    }
-    const parsed = new Date(value)
-    if (Number.isNaN(parsed.getTime())) {
-      return value
-    }
-    return new Intl.DateTimeFormat('it-IT', {
-      dateStyle: 'medium',
-      timeStyle: 'short'
-    }).format(parsed)
-  }, [])
+      setPendingLoading(true)
+      setPendingError(null)
+
+      try {
+        const response = await fetch(`/api/auth/admin-invite?${params}`)
+        if (!response.ok) {
+          throw new Error('Impossibile caricare gli inviti.')
+        }
+        const payload = await response.json()
+        const { items, total } = normalizePaged<PendingInvite>(payload)
+        setPendingInvites(items)
+        setPendingTotal(total)
+      } catch (err) {
+        setPendingError(
+          err instanceof Error ? err.message : 'Impossibile caricare gli inviti.'
+        )
+      } finally {
+        setPendingLoading(false)
+      }
+    },
+    [pageSize]
+  )
 
   async function handleInviteAdmin() {
     const normalized = inviteEmail.trim().toLowerCase()
@@ -410,7 +563,11 @@ export default function AdminAdminsPage() {
       setInviteSuccess(`Invito inviato a ${normalized}.`)
       setInviteEmail('')
       setShowInviteDialog(false)
-      void fetchPendingInvites()
+      void loadPendingInvites({
+        search: pendingSearch,
+        sort: pendingSort,
+        page: pendingPage
+      })
     } catch (err) {
       setInviteError(
         err instanceof Error ? err.message : "Impossibile inviare l'invito."
@@ -459,7 +616,7 @@ export default function AdminAdminsPage() {
             }
           >
             <DropdownMenuTrigger asChild>
-              <Button variant='ghost' size='icon' aria-label='Azioni'>
+              <Button variant='ghost' size='icon' aria-label='Azioni' className='h-6 w-6 p-0'>
                 <MoreHorizontal className='h-4 w-4' />
               </Button>
             </DropdownMenuTrigger>
@@ -482,15 +639,8 @@ export default function AdminAdminsPage() {
     () => [
       {
         accessorKey: 'email',
-        header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Email
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
-        )
+        header: 'Email',
+        enableSorting: false
       },
       {
         accessorKey: 'createdAt',
@@ -503,7 +653,7 @@ export default function AdminAdminsPage() {
             <ArrowUpDown className='ml-2 h-4 w-4' />
           </Button>
         ),
-        cell: ({ row }) => formatDate(row.original.createdAt)
+        cell: ({ row }) => formatItalianDate(row.original.createdAt)
       },
       {
         accessorKey: 'expiresAt',
@@ -516,11 +666,65 @@ export default function AdminAdminsPage() {
             <ArrowUpDown className='ml-2 h-4 w-4' />
           </Button>
         ),
-        cell: ({ row }) => formatDate(row.original.expiresAt)
+        cell: ({ row }) => formatItalianDate(row.original.expiresAt)
       }
     ],
-    [formatDate]
+    [formatItalianDate]
   )
+
+  const activeSearch = searchParams.get('activeAdminSearch') ?? ''
+  const inactiveSearch = searchParams.get('inactiveAdminSearch') ?? ''
+  const pendingSearch = searchParams.get('pendingAdminSearch') ?? ''
+  const activeSortParam = searchParams.get('activeAdminSort') ?? ''
+  const inactiveSortParam = searchParams.get('inactiveAdminSort') ?? ''
+  const pendingSortParam = searchParams.get('pendingAdminSort') ?? ''
+  const activeSort = React.useMemo(
+    () => parseSortParam(activeSortParam),
+    [activeSortParam, parseSortParam]
+  )
+  const inactiveSort = React.useMemo(
+    () => parseSortParam(inactiveSortParam),
+    [inactiveSortParam, parseSortParam]
+  )
+  const pendingSort = React.useMemo(
+    () => parseSortParam(pendingSortParam),
+    [pendingSortParam, parseSortParam]
+  )
+  const activePage = parsePage('activeAdminPage')
+  const inactivePage = parsePage('inactiveAdminPage')
+  const pendingPage = parsePage('pendingAdminPage')
+
+  React.useEffect(() => {
+    void loadAdmins({
+      isActive: true,
+      search: activeSearch,
+      sort: activeSort,
+      page: activePage
+    })
+  }, [activePage, activeSearch, activeSort, loadAdmins])
+
+  React.useEffect(() => {
+    void loadAdmins({
+      isActive: false,
+      search: inactiveSearch,
+      sort: inactiveSort,
+      page: inactivePage
+    })
+  }, [inactivePage, inactiveSearch, inactiveSort, loadAdmins])
+
+  React.useEffect(() => {
+    void loadPendingInvites({
+      search: pendingSearch,
+      sort: pendingSort,
+      page: pendingPage
+    })
+  }, [loadPendingInvites, pendingPage, pendingSearch, pendingSort])
+
+  const showPendingTab =
+    pendingTotal > 0 ||
+    Boolean(pendingSearch) ||
+    Boolean(pendingSort) ||
+    pendingPage > 1
 
   return (
     <main className='flex-1'>
@@ -540,76 +744,83 @@ export default function AdminAdminsPage() {
               </Button>
             </div>
           </div>
-          <div className='mt-8 space-y-10'>
-            <section>
-              <div className='flex items-center justify-between'>
-                <h2 className='text-lg font-semibold'>Admin invitati</h2>
-                <span className='text-sm text-muted-foreground'>
-                  {pendingInvites.length}
-                </span>
-              </div>
-              <div className='mt-4'>
-                <DataTable
-                  data={pendingInvites}
-                  columns={pendingColumns}
-                  searchPlaceholder='Cerca inviti'
-                  globalFilterFn={pendingFilterFn}
-                  isLoading={isPendingLoading}
-                  emptyMessage='Nessun invito in attesa.'
-                  searchKey='pendingAdminSearch'
-                  sortKey='pendingAdminSort'
-                />
-                {pendingError && (
-                  <p className='mt-3 text-sm text-destructive'>
-                    {pendingError}
-                  </p>
+          <div className='mt-8 space-y-6'>
+            <Tabs defaultValue='active'>
+              <TabsList>
+                <TabsTrigger value='active'>
+                  Attivi ({activeTotal})
+                </TabsTrigger>
+                <TabsTrigger value='inactive'>
+                  Inattivi ({inactiveTotal})
+                </TabsTrigger>
+                {showPendingTab && (
+                  <TabsTrigger value='invites'>
+                    Inviti ({pendingTotal})
+                  </TabsTrigger>
                 )}
-              </div>
-            </section>
-            <section>
-              <div className='flex items-center justify-between'>
-                <h2 className='text-lg font-semibold'>Admin attivi</h2>
-                <span className='text-sm text-muted-foreground'>
-                  {activeAdmins.length}
-                </span>
-              </div>
-              <div className='mt-4'>
+              </TabsList>
+              <TabsContent value='active' className='mt-6'>
                 <DataTable
                   data={activeAdmins}
                   columns={activeColumns}
                   searchPlaceholder='Cerca admin'
-                  globalFilterFn={globalFilterFn}
-                  isLoading={isLoading}
+                  isLoading={activeLoading}
                   emptyMessage='Nessun admin attivo.'
                   searchKey='activeAdminSearch'
                   sortKey='activeAdminSort'
+                  pageKey='activeAdminPage'
+                  page={activePage}
+                  pageSize={pageSize}
+                  total={activeTotal}
                 />
-              </div>
-            </section>
-            <section>
-              <div className='flex items-center justify-between'>
-                <h2 className='text-lg font-semibold'>Admin non attivi</h2>
-                <span className='text-sm text-muted-foreground'>
-                  {inactiveAdmins.length}
-                </span>
-              </div>
-              <div className='mt-4'>
+                {activeError && (
+                  <p className='mt-3 text-sm text-destructive'>{activeError}</p>
+                )}
+              </TabsContent>
+              <TabsContent value='inactive' className='mt-6'>
                 <DataTable
                   data={inactiveAdmins}
                   columns={activeColumns}
                   searchPlaceholder='Cerca admin'
-                  globalFilterFn={globalFilterFn}
-                  isLoading={isLoading}
+                  isLoading={inactiveLoading}
                   emptyMessage='Nessun admin non attivo.'
                   searchKey='inactiveAdminSearch'
                   sortKey='inactiveAdminSort'
+                  pageKey='inactiveAdminPage'
+                  page={inactivePage}
+                  pageSize={pageSize}
+                  total={inactiveTotal}
                 />
-              </div>
-            </section>
+                {inactiveError && (
+                  <p className='mt-3 text-sm text-destructive'>{inactiveError}</p>
+                )}
+              </TabsContent>
+              {showPendingTab && (
+                <TabsContent value='invites' className='mt-6'>
+                  <DataTable
+                    data={pendingInvites}
+                    columns={pendingColumns}
+                    searchPlaceholder='Cerca inviti'
+                    isLoading={pendingLoading}
+                    emptyMessage='Nessun invito in attesa.'
+                    searchKey='pendingAdminSearch'
+                    sortKey='pendingAdminSort'
+                    pageKey='pendingAdminPage'
+                    page={pendingPage}
+                    pageSize={pageSize}
+                    total={pendingTotal}
+                  />
+                  {pendingError && (
+                    <p className='mt-3 text-sm text-destructive'>
+                      {pendingError}
+                    </p>
+                  )}
+                </TabsContent>
+              )}
+            </Tabs>
             {inviteSuccess && (
               <p className='text-sm text-emerald-600'>{inviteSuccess}</p>
             )}
-            {error && <p className='text-sm text-destructive'>{error}</p>}
           </div>
         </div>
       </div>

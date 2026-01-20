@@ -42,6 +42,8 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
+import { extractPayloadArray } from '@/lib/backend-response'
+import { formatItalianDate } from '@/lib/format-date'
 
 function normalizeName(value: string) {
   const trimmed = value.trim()
@@ -181,7 +183,8 @@ export default function AdminStudentDetailPage() {
         if (!response.ok) {
           throw new Error('Impossibile recuperare le sezioni.')
         }
-        const data = (await response.json()) as Section[]
+        const payload = await response.json()
+        const data = extractPayloadArray<Section>(payload)
         if (isMounted) {
           setSections(data)
         }
@@ -671,19 +674,19 @@ export default function AdminStudentDetailPage() {
                             <span className='font-medium text-foreground'>
                               Email verificata:
                             </span>{' '}
-                            {student?.emailVerifiedAt ?? '-'}
+                            {formatItalianDate(student?.emailVerifiedAt)}
                           </div>
                           <div>
                             <span className='font-medium text-foreground'>
                               Creato il:
                             </span>{' '}
-                            {student?.createdAt ?? '-'}
+                            {formatItalianDate(student?.createdAt)}
                           </div>
                           <div>
                             <span className='font-medium text-foreground'>
                               Aggiornato il:
                             </span>{' '}
-                            {student?.updatedAt ?? '-'}
+                            {formatItalianDate(student?.updatedAt)}
                           </div>
                           <div>
                             <span className='font-medium text-foreground'>
@@ -742,7 +745,7 @@ export default function AdminStudentDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Conferma modifica email</AlertDialogTitle>
             <AlertDialogDescription>
-              Se l'email inserita e errata, lo studente potrebbe perdere
+              Se l'email inserita è errata, lo studente potrebbe perdere
               l'accesso all'account. In caso di problemi, contatta
               l'amministratore di sistema.
             </AlertDialogDescription>

@@ -27,6 +27,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { useSession } from '@/lib/use-session'
 
+import { extractPayloadArray } from '@/lib/backend-response'
 function normalizeName(value: string) {
   const trimmed = value.trim()
   if (!trimmed) {
@@ -215,7 +216,8 @@ export default function ProfilePage() {
         if (!response.ok) {
           throw new Error('Impossibile recuperare le sezioni.')
         }
-        const data = (await response.json()) as Section[]
+        const payload = await response.json()
+        const data = extractPayloadArray<Section>(payload)
         if (isMounted) {
           setSections(data)
         }
@@ -373,6 +375,20 @@ export default function ProfilePage() {
     await submitProfile(values)
   }
 
+  async function logoutAndRedirect() {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+    } catch (err) {
+      // ignore logout errors
+    }
+    router.push('/auth/login')
+  }
+
   async function handlePasswordReset() {
     if (!profile?.email) {
       setResetStatus('error')
@@ -416,6 +432,7 @@ export default function ProfilePage() {
 
       setResetStatus('success')
       setResetMessage('Mail di reset inviata. Controlla la tua casella.')
+      await logoutAndRedirect()
     } catch (err) {
       setResetStatus('error')
       setResetMessage(parseErrorMessage(err, 'Impossibile inviare la mail di reset.'))

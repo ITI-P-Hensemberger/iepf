@@ -35,6 +35,7 @@ import {
 import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 
+import { extractPayloadArray } from '@/lib/backend-response'
 const formSchema = z
   .object({
     first_name: z
@@ -175,10 +176,11 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
         if (!response.ok) {
           throw new Error('Impossibile caricare le sezioni.')
         }
-        const data = (await response.json()) as Array<{
+        const payload = await response.json()
+        const data = extractPayloadArray<{
           id: string
           name: string
-        }>
+        }>(payload)
         if (isMounted) {
           setSections(data)
         }

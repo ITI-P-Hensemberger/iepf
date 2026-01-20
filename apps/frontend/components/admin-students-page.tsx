@@ -5,12 +5,9 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   type ColumnDef,
-  type FilterFn,
   type SortingState,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
   useReactTable
 } from '@tanstack/react-table'
 import { ArrowUpDown, MoreHorizontal, Search } from 'lucide-react'
@@ -31,7 +28,10 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table'
-import { useSession } from '@/lib/use-session'
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
+const pageSize = 15
 
 type User = {
   id: string
@@ -40,37 +40,87 @@ type User = {
   lastName: string
   role?: string | null
   sectionId?: string | null
+  sectionName?: string | null
   year?: number | null
   lessonTokens?: number | null
   isActive?: boolean | null
 }
 
-type Section = {
-  id: string
-  name: string
-}
-
-type DataTableProps = {
-  data: User[]
-  columns: ColumnDef<User>[]
+type DataTableProps<TData> = {
+  data: TData[]
+  columns: ColumnDef<TData>[]
   searchPlaceholder: string
-  globalFilterFn: FilterFn<User>
   isLoading: boolean
   emptyMessage: string
   searchKey: string
   sortKey: string
+  pageKey: string
+  page: number
+  pageSize: number
+  total: number
 }
 
-function DataTable({
+type PagedPayloadObject<T> = {
+  items?: T[]
+  total?: number
+  data?: PagedPayloadObject<T>
+  rows?: T[]
+  results?: T[]
+}
+
+function normalizePaged<T>(payload: unknown): { items: T[]; total: number } {
+  if (!payload) {
+    return { items: [], total: 0 }
+  }
+  if (Array.isArray(payload)) {
+    return { items: payload as T[], total: payload.length }
+  }
+  if (typeof payload !== 'object' || payload === null) {
+    return { items: [], total: 0 }
+  }
+
+  const candidate = payload as PagedPayloadObject<T>
+  const items = Array.isArray(candidate.items)
+    ? candidate.items
+    : Array.isArray(candidate.rows)
+      ? candidate.rows
+      : Array.isArray(candidate.results)
+        ? candidate.results
+        : Array.isArray((candidate as any).data)
+          ? (candidate as any).data
+          : []
+  const total =
+    typeof candidate.total === 'number'
+      ? candidate.total
+      : Array.isArray(candidate.items)
+        ? candidate.items.length
+        : Array.isArray(candidate.rows)
+          ? candidate.rows.length
+          : Array.isArray(candidate.results)
+            ? candidate.results.length
+            : Array.isArray(candidate.data?.items)
+              ? candidate.data!.items!.length
+              : Array.isArray(candidate.data?.rows)
+                ? candidate.data!.rows!.length
+                : Array.isArray(candidate.data?.results)
+                  ? candidate.data!.results!.length
+                  : 0
+  return { items: items as T[], total }
+}
+
+function DataTable<TData>({
   data,
   columns,
   searchPlaceholder,
-  globalFilterFn,
   isLoading,
   emptyMessage,
   searchKey,
-  sortKey
-}: DataTableProps) {
+  sortKey,
+  pageKey,
+  page,
+  pageSize,
+  total
+}: DataTableProps<TData>) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -94,6 +144,10 @@ function DataTable({
     () => searchParams.get(searchKey) ?? ''
   )
   const [debouncedFilter, setDebouncedFilter] = React.useState(globalFilter)
+  const didInitRef = React.useRef(false)
+  const lastFilterRef = React.useRef('')
+  const lastSortRef = React.useRef<SortingState>([])
+  const lastNavigationRef = React.useRef('')
 
   React.useEffect(() => {
     const nextFilter = searchParams.get(searchKey) ?? ''
@@ -120,49 +174,92 @@ function DataTable({
   }, [globalFilter])
 
   React.useEffect(() => {
+    if (!didInitRef.current) {
+      didInitRef.current = true
+      return
+    }
+
+    const currentFilter = searchParams.get(searchKey) ?? ''
+    const desiredFilter = debouncedFilter
+    const filterChanged = currentFilter !== desiredFilter
+
+    const desiredSort = sorting[0]
+      ? `${sorting[0].id}:${sorting[0].desc ? 'desc' : 'asc'}`
+      : null
+    const currentSort = searchParams.get(sortKey)
+    const sortChanged = desiredSort !== currentSort
+
+    const currentPage = searchParams.get(pageKey) ?? ''
+    const pageChanged = page > 1 ? currentPage !== String(page) : currentPage !== ''
+
+    if (!filterChanged && !sortChanged && !pageChanged) {
+      return
+    }
+
     const params = new URLSearchParams(searchParamsString)
-    if (debouncedFilter) {
-      params.set(searchKey, debouncedFilter)
+    if (desiredFilter) {
+      params.set(searchKey, desiredFilter)
     } else {
       params.delete(searchKey)
     }
-    const currentSort = sorting[0]
-    if (currentSort) {
-      params.set(
-        sortKey,
-        `${currentSort.id}:${currentSort.desc ? 'desc' : 'asc'}`
-      )
+    if (desiredSort) {
+      params.set(sortKey, desiredSort)
     } else {
       params.delete(sortKey)
     }
-    const nextParams = params.toString()
-    if (nextParams !== searchParamsString) {
-      const url = nextParams ? `${pathname}?${nextParams}` : pathname
-      router.replace(url, { scroll: false })
+    if (page > 1) {
+      params.set(pageKey, String(page))
+    } else {
+      params.delete(pageKey)
     }
+
+    const nextParams = params.toString()
+    const url = nextParams ? `${pathname}?${nextParams}` : pathname
+    if (lastNavigationRef.current === url) {
+      return
+    }
+    lastNavigationRef.current = url
+    router.replace(url, { scroll: false })
   }, [
     debouncedFilter,
     pathname,
+    page,
     router,
     searchKey,
+    searchParams,
     searchParamsString,
     sortKey,
-    sorting
+    sorting,
+    pageKey
   ])
+
+  const updatePage = React.useCallback(
+    (nextPage: number) => {
+      const params = new URLSearchParams(searchParamsString)
+      if (nextPage > 1) {
+        params.set(pageKey, String(nextPage))
+      } else {
+        params.delete(pageKey)
+      }
+      const nextParams = params.toString()
+      const url = nextParams ? `${pathname}?${nextParams}` : pathname
+      router.replace(url, { scroll: false })
+    },
+    [pageKey, pathname, router, searchParamsString]
+  )
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   const table = useReactTable({
     data,
     columns,
     state: {
-      sorting,
-      globalFilter
+      sorting
     },
     onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
-    globalFilterFn,
+    manualSorting: true,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel()
+    manualFiltering: true
   })
 
   return (
@@ -233,253 +330,262 @@ function DataTable({
           </TableBody>
         </Table>
       </div>
+      <div className='flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between'>
+        <span>
+          Pagina {page} di {totalPages} · Totale {total}
+        </span>
+        <div className='flex items-center gap-2'>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => updatePage(page - 1)}
+            disabled={page <= 1 || isLoading}
+          >
+            Precedente
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => updatePage(page + 1)}
+            disabled={page >= totalPages || isLoading}
+          >
+            Successiva
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
 
 export default function AdminStudentsPage() {
-  const [users, setUsers] = React.useState<User[]>([])
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
-  const [actionId, setActionId] = React.useState<string | null>(null)
+  const searchParams = useSearchParams()
+  const [activeStudents, setActiveStudents] = React.useState<User[]>([])
+  const [inactiveStudents, setInactiveStudents] = React.useState<User[]>([])
+  const [activeTotal, setActiveTotal] = React.useState(0)
+  const [inactiveTotal, setInactiveTotal] = React.useState(0)
+  const [activeLoading, setActiveLoading] = React.useState(true)
+  const [inactiveLoading, setInactiveLoading] = React.useState(true)
+  const [activeError, setActiveError] = React.useState<string | null>(null)
+  const [inactiveError, setInactiveError] = React.useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = React.useState<string | null>(null)
-  const [sectionMap, setSectionMap] = React.useState<Map<string, string>>(
-    () => new Map()
+
+  const parsePage = React.useCallback(
+    (key: string) => {
+      const raw = searchParams.get(key)
+      const parsed = Number(raw)
+      if (!Number.isFinite(parsed) || parsed < 1) {
+        return 1
+      }
+      return Math.floor(parsed)
+    },
+    [searchParams]
   )
 
-  React.useEffect(() => {
-    let isMounted = true
-
-    async function loadSections() {
-      try {
-        const response = await fetch('/api/class-sections')
-        if (!response.ok) {
-          return
-        }
-        const data = (await response.json()) as Section[]
-        if (isMounted) {
-          setSectionMap(
-            new Map(data.map((section) => [section.id, section.name]))
-          )
-        }
-      } catch (err) {
-        // Optional: skip showing section names if unavailable.
-      }
+  const parseSortParam = React.useCallback((value: string | null) => {
+    if (!value) {
+      return null
     }
+    const [sortBy, direction] = value.split(':')
+    if (!sortBy) {
+      return null
+    }
+    const sortDir: 'asc' | 'desc' = direction === 'desc' ? 'desc' : 'asc'
+    return { sortBy, sortDir }
+  }, [])
 
-    async function loadUsers() {
-      setIsLoading(true)
-      setError(null)
+  const loadStudents = React.useCallback(
+    async (options: {
+      isActive: boolean
+      search: string
+      sort: { sortBy: string; sortDir: 'asc' | 'desc' } | null
+      page: number
+    }) => {
+      const { isActive, search, sort, page } = options
+      const params = new URLSearchParams()
+      params.set('role', 'student')
+      params.set('isActive', String(isActive))
+      if (search) {
+        params.set('q', search)
+      }
+      if (sort) {
+        params.set('sortBy', sort.sortBy)
+        params.set('sortDir', sort.sortDir)
+      }
+      params.set('limit', String(pageSize))
+      params.set('offset', String((page - 1) * pageSize))
+
+      if (isActive) {
+        setActiveLoading(true)
+        setActiveError(null)
+      } else {
+        setInactiveLoading(true)
+        setInactiveError(null)
+      }
 
       try {
-        const response = await fetch('/api/users')
+        const response = await fetch(`/api/users?${params.toString()}`)
         if (!response.ok) {
           throw new Error('Impossibile caricare gli studenti.')
         }
-        const data = (await response.json()) as User[]
-        if (isMounted) {
-          setUsers(data.filter((user) => user.role === 'student'))
+        const payload = await response.json()
+        const { items, total } = normalizePaged<User>(payload)
+        if (isActive) {
+          setActiveStudents(items)
+          setActiveTotal(total)
+        } else {
+          setInactiveStudents(items)
+          setInactiveTotal(total)
         }
       } catch (err) {
-        if (isMounted) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : 'Impossibile caricare gli studenti.'
-          )
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'Impossibile caricare gli studenti.'
+        if (isActive) {
+          setActiveError(message)
+        } else {
+          setInactiveError(message)
         }
       } finally {
-        if (isMounted) {
-          setIsLoading(false)
+        if (isActive) {
+          setActiveLoading(false)
+        } else {
+          setInactiveLoading(false)
         }
       }
-    }
+    },
+    []
+  )
 
-    void loadSections()
-    void loadUsers()
+  const activeSearch = searchParams.get('activeSearch') ?? ''
+  const inactiveSearch = searchParams.get('inactiveSearch') ?? ''
+  const activeSortParam = searchParams.get('activeSort') ?? ''
+  const inactiveSortParam = searchParams.get('inactiveSort') ?? ''
+  const activeSort = React.useMemo(
+    () => parseSortParam(activeSortParam),
+    [activeSortParam, parseSortParam]
+  )
+  const inactiveSort = React.useMemo(
+    () => parseSortParam(inactiveSortParam),
+    [inactiveSortParam, parseSortParam]
+  )
+  const activePage = parsePage('activePage')
+  const inactivePage = parsePage('inactivePage')
 
-    return () => {
-      isMounted = false
+  React.useEffect(() => {
+    void loadStudents({
+      isActive: true,
+      search: activeSearch,
+      sort: activeSort,
+      page: activePage
+    })
+  }, [activePage, activeSearch, activeSort, loadStudents])
+
+  React.useEffect(() => {
+    void loadStudents({
+      isActive: false,
+      search: inactiveSearch,
+      sort: inactiveSort,
+      page: inactivePage
+    })
+  }, [inactivePage, inactiveSearch, inactiveSort, loadStudents])
+
+  const getSectionLabel = React.useCallback((user: User) => {
+    if (user.sectionName) {
+      return user.sectionName
     }
+    return user.sectionId ?? '-'
   }, [])
 
-  const getSectionLabel = React.useCallback(
-    (user: User) => {
-      if (!user.sectionId) {
-        return '-'
+  const makeColumns = React.useCallback(() => {
+    const columns: ColumnDef<User>[] = [
+      {
+        accessorKey: 'lastName',
+        header: ({ column }) => (
+          <Button
+            variant='ghost'
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            Cognome
+            <ArrowUpDown className='ml-2 h-4 w-4' />
+          </Button>
+        ),
+        cell: ({ row }) => row.original.lastName
+      },
+      {
+        accessorKey: 'firstName',
+        header: ({ column }) => (
+          <Button
+            variant='ghost'
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            Nome
+            <ArrowUpDown className='ml-2 h-4 w-4' />
+          </Button>
+        ),
+        cell: ({ row }) => row.original.firstName
+      },
+      {
+        accessorKey: 'year',
+        header: ({ column }) => (
+          <Button
+            variant='ghost'
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            Classe
+            <ArrowUpDown className='ml-2 h-4 w-4' />
+          </Button>
+        ),
+        cell: ({ row }) => (
+          <span>
+            {row.original.year ?? ''}
+            {getSectionLabel(row.original)}
+          </span>
+        )
+      },
+      {
+        accessorKey: 'lessonTokens',
+        header: 'Crediti lezione',
+        cell: ({ row }) => row.original.lessonTokens ?? '-',
+        enableSorting: false
+      },
+      {
+        id: 'actions',
+        header: '',
+        cell: ({ row }) => (
+          <DropdownMenu
+            open={openMenuId === row.original.id}
+            onOpenChange={(open) =>
+              setOpenMenuId(open ? row.original.id : null)
+            }
+          >
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant='ghost'
+                size='icon'
+                aria-label='Azioni'
+                className='h-6 w-6 p-0'
+              >
+                <MoreHorizontal className='h-4 w-4' />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='end'>
+              <DropdownMenuItem asChild>
+                <Link href={`/admin/students/${row.original.id}`}>
+                  Dettagli
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )
       }
-      return sectionMap.get(user.sectionId) ?? user.sectionId
-    },
-    [sectionMap]
-  )
+    ]
 
-  const globalFilterFn: FilterFn<User> = React.useCallback(
-    (row, _columnId, value) => {
-      const query = String(value ?? '')
-        .toLowerCase()
-        .trim()
-      if (!query) {
-        return true
-      }
-      const user = row.original
-      const classLabel = `${user.year ?? ''}${getSectionLabel(user)}`
-      const haystack =
-        `${user.firstName ?? ''} ${user.lastName ?? ''} ${user.email ?? ''} ${classLabel}`.toLowerCase()
-      return haystack.includes(query)
-    },
-    [getSectionLabel]
-  )
+    return columns
+  }, [getSectionLabel, openMenuId])
 
-  const sortByLastName = (list: User[]) =>
-    [...list].sort((a, b) =>
-      a.lastName.localeCompare(b.lastName, 'it', { sensitivity: 'base' })
-    )
-
-  const activeStudents = sortByLastName(users.filter((user) => user.isActive))
-  const inactiveStudents = sortByLastName(
-    users.filter((user) => !user.isActive)
-  )
-
-  async function handleToggleActive(user: User) {
-    setActionId(user.id)
-    setError(null)
-
-    try {
-      const response = await fetch(`/api/users/${user.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ isActive: !user.isActive })
-      })
-
-      if (!response.ok) {
-        throw new Error('Impossibile aggiornare lo stato.')
-      }
-
-      const updated = (await response.json()) as User
-      setUsers((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item))
-      )
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Impossibile aggiornare lo stato.'
-      )
-    } finally {
-      setActionId(null)
-      setOpenMenuId((current) => (current == user.id ? null : current))
-    }
-  }
-
-  const makeColumns = React.useCallback(
-    (variant: 'default' | 'destructive', label: string) => {
-      const columns: ColumnDef<User>[] = [
-        {
-          accessorKey: 'lastName',
-          header: ({ column }) => (
-            <Button
-              variant='ghost'
-              onClick={() =>
-                column.toggleSorting(column.getIsSorted() === 'asc')
-              }
-            >
-              Cognome
-              <ArrowUpDown className='ml-2 h-4 w-4' />
-            </Button>
-          ),
-          cell: ({ row }) => row.original.lastName
-        },
-        {
-          accessorKey: 'firstName',
-          header: ({ column }) => (
-            <Button
-              variant='ghost'
-              onClick={() =>
-                column.toggleSorting(column.getIsSorted() === 'asc')
-              }
-            >
-              Nome
-              <ArrowUpDown className='ml-2 h-4 w-4' />
-            </Button>
-          ),
-          cell: ({ row }) => row.original.firstName
-        },
-        {
-          id: 'class',
-          accessorFn: (row) => `${row.year ?? ''}${getSectionLabel(row)}`,
-          header: ({ column }) => (
-            <Button
-              variant='ghost'
-              onClick={() =>
-                column.toggleSorting(column.getIsSorted() === 'asc')
-              }
-            >
-              Classe
-              <ArrowUpDown className='ml-2 h-4 w-4' />
-            </Button>
-          ),
-          cell: ({ row }) => (
-            <span>
-              {row.original.year ?? ''}
-              {getSectionLabel(row.original)}
-            </span>
-          )
-        },
-        {
-          accessorKey: 'lessonTokens',
-          header: ({ column }) => (
-            <Button
-              variant='ghost'
-              onClick={() =>
-                column.toggleSorting(column.getIsSorted() === 'asc')
-              }
-            >
-              Crediti
-              <ArrowUpDown className='ml-2 h-4 w-4' />
-            </Button>
-          ),
-          cell: ({ row }) => row.original.lessonTokens ?? '-'
-        },
-        {
-          id: 'actions',
-          header: '',
-          cell: ({ row }) => (
-            <DropdownMenu
-              open={openMenuId === row.original.id}
-              onOpenChange={(open) =>
-                setOpenMenuId(open ? row.original.id : null)
-              }
-            >
-              <DropdownMenuTrigger asChild>
-                <Button variant='ghost' size='icon' aria-label='Azioni'>
-                  <MoreHorizontal className='h-4 w-4' />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='end'>
-                <DropdownMenuItem asChild>
-                  <Link href={`/admin/students/${row.original.id}`}>
-                    Dettagli
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )
-        }
-      ]
-
-      return columns
-    },
-    [actionId, getSectionLabel, handleToggleActive]
-  )
-
-  const inactiveColumns = React.useMemo(
-    () => makeColumns('default', 'Attiva'),
-    [makeColumns]
-  )
-  const activeColumns = React.useMemo(
-    () => makeColumns('destructive', 'Disattiva'),
-    [makeColumns]
-  )
+  const activeColumns = React.useMemo(() => makeColumns(), [makeColumns])
+  const inactiveColumns = React.useMemo(() => makeColumns(), [makeColumns])
 
   return (
     <main className='flex-1'>
@@ -491,48 +597,53 @@ export default function AdminStudentsPage() {
               <Link href='/admin'>Torna al pannello</Link>
             </Button>
           </div>
-          <div className='mt-8 space-y-10'>
-            <section>
-              <div className='flex items-center justify-between'>
-                <h2 className='text-lg font-semibold'>Studenti non attivi</h2>
-                <span className='text-sm text-muted-foreground'>
-                  {inactiveStudents.length}
-                </span>
-              </div>
-              <div className='mt-4'>
-                <DataTable
-                  data={inactiveStudents}
-                  columns={inactiveColumns}
-                  searchPlaceholder='Cerca studente'
-                  globalFilterFn={globalFilterFn}
-                  isLoading={isLoading}
-                  emptyMessage='Nessuno studente in attesa.'
-                  searchKey='inactiveSearch'
-                  sortKey='inactiveSort'
-                />
-              </div>
-            </section>
-            <section>
-              <div className='flex items-center justify-between'>
-                <h2 className='text-lg font-semibold'>Studenti attivi</h2>
-                <span className='text-sm text-muted-foreground'>
-                  {activeStudents.length}
-                </span>
-              </div>
-              <div className='mt-4'>
+          <div className='mt-8 space-y-6'>
+            <Tabs defaultValue='active'>
+              <TabsList>
+                <TabsTrigger value='active'>Attivi ({activeTotal})</TabsTrigger>
+                <TabsTrigger value='inactive'>
+                  Inattivi ({inactiveTotal})
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value='active' className='mt-6'>
                 <DataTable
                   data={activeStudents}
                   columns={activeColumns}
                   searchPlaceholder='Cerca studente'
-                  globalFilterFn={globalFilterFn}
-                  isLoading={isLoading}
+                  isLoading={activeLoading}
                   emptyMessage='Nessuno studente attivo.'
                   searchKey='activeSearch'
                   sortKey='activeSort'
+                  pageKey='activePage'
+                  page={activePage}
+                  pageSize={pageSize}
+                  total={activeTotal}
                 />
-              </div>
-            </section>
-            {error && <p className='text-sm text-destructive'>{error}</p>}
+                {activeError && (
+                  <p className='mt-3 text-sm text-destructive'>{activeError}</p>
+                )}
+              </TabsContent>
+              <TabsContent value='inactive' className='mt-6'>
+                <DataTable
+                  data={inactiveStudents}
+                  columns={inactiveColumns}
+                  searchPlaceholder='Cerca studente'
+                  isLoading={inactiveLoading}
+                  emptyMessage='Nessuno studente in attesa.'
+                  searchKey='inactiveSearch'
+                  sortKey='inactiveSort'
+                  pageKey='inactivePage'
+                  page={inactivePage}
+                  pageSize={pageSize}
+                  total={inactiveTotal}
+                />
+                {inactiveError && (
+                  <p className='mt-3 text-sm text-destructive'>
+                    {inactiveError}
+                  </p>
+                )}
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       </div>
