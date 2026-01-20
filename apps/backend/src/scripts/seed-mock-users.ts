@@ -136,7 +136,7 @@ async function main() {
 
   for (let i = 1; i <= totals.studentsUnverified; i += 1) {
     const email = buildEmail(`student-pending-${String(i).padStart(2, '0')}`)
-    const { id } = await getOrCreateUser(email, 'student', 'Studente', `NonVerificato${i}`, passwordHash, false)
+    const { id } = await getOrCreateUser(email, 'student', 'Studente', `NonVerificato${i}`, passwordHash, true)
     const section = nextSection()
     const year = (i % 3) + 1
     await ensureStudentProfile(id, section.id, year, false)
@@ -154,7 +154,7 @@ async function main() {
 
   for (let i = 1; i <= totals.tutorsInactive; i += 1) {
     const email = buildEmail(`tutor-inactive-${String(i).padStart(2, '0')}`)
-    const { id } = await getOrCreateUser(email, 'tutor', 'Tutor', `User${i}`, passwordHash, false)
+    const { id } = await getOrCreateUser(email, 'tutor', 'Tutor', `User${i}`, passwordHash, true)
     const section = nextSection()
     const year = (i % 2) + 4
     await ensureTutorProfile(id, section.id, year, false)
