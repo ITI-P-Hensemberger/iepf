@@ -18,10 +18,10 @@ function HomepageTabs() {
       </TabsList>
 
       <TabsContent value='cose-insieme-e-facile'>
-        <Card className='mt-4 max-h-[40vh] overflow-y-auto px-4'>
+        <Card className='mt-4 sm:max-h-[40vh] max-h-[30vh] overflow-y-auto px-4'>
           <p>
             <b>InsiemeÈ+Facile</b> è la piattaforma di supporto allo studio
-            dell'<b>Istituto Hensemberger</b> di Monza, pensata per aiutare gli
+            dell'<b>ITI P. Hensemberger</b> di Monza, pensata per aiutare gli
             studenti a consolidare i concetti fondamentali e affrontare con più
             sicurezza le materie nelle quali sono in difficoltà.
           </p>
@@ -32,14 +32,14 @@ function HomepageTabs() {
           </p>
           <p>
             Le attività sono seguite dai nostri tutor: studenti di quarta e
-            quinta, ex studenti e universitari, selezionati per competenza e
-            capacità di spiegare in modo chiaro e pratico.
+            quinta selezionati per competenza e capacità di spiegare in modo
+            chiaro e pratico.
           </p>
         </Card>
       </TabsContent>
 
       <TabsContent value='modalita-e-prezzi'>
-        <Card className='mt-4 max-h-[40vh] overflow-y-auto px-4'>
+        <Card className='mt-4 sm:max-h-[40vh] max-h-[30vh] overflow-y-auto px-4'>
           <p>
             Il servizio prevede un contributo di <b>50€</b>, che dà accesso alla
             piattaforma con un pacchetto di <b>30 lezioni</b> utilizzabili

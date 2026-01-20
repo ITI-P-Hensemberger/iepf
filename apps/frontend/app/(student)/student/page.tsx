@@ -1,21 +1,11 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-
-import { Button } from '@/components/ui/button'
-import { logout } from '@/lib/auth-client'
 import Link from 'next/link'
-import Image from 'next/image'
 import { useSession } from '@/lib/use-session'
 
-export default function DashboardPage() {
-  const router = useRouter()
-  const { profile, isLoading: isProfileLoading } = useSession()
+export default function StudentPage() {
+    const { profile, isLoading: isProfileLoading } = useSession()
 
-  async function handleLogout() {
-    await logout()
-    router.replace('/')
-  }
 
   return (
     <main className='flex-1'>
@@ -24,7 +14,7 @@ export default function DashboardPage() {
           {!isProfileLoading && `Bentornato, ${profile?.firstName}`}
         </h1>
         <p className='mt-6 text-center max-w-md text-muted-foreground'>
-          Questa è la tua dashboard.
+          Questa è la tua area studente.
           <br />
           Il progetto inizia il 2 febbraio.
           <br />

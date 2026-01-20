@@ -65,6 +65,9 @@ export default function Header() {
             priority
           />
           <span className='text-sm font-medium'>IEPF</span>
+          <span className='text-sm font-medium ml-4 text-white/75 hover:text-white hover:underline'>
+            Home
+          </span>
         </Link>
         <DropdownMenu>
           <DropdownMenuTrigger className='focus:outline-none'>

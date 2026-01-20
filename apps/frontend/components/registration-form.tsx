@@ -7,8 +7,10 @@ import * as z from 'zod'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Field,
+  FieldContent,
   FieldError,
   FieldGroup,
   FieldLabel,
@@ -53,7 +55,11 @@ const formSchema = z
       .min(8, 'La password deve contenere almeno 8 caratteri'),
     confirm_password: z
       .string()
-      .min(8, 'La conferma della password è obbligatoria')
+      .min(8, 'La conferma della password è obbligatoria'),
+    privacyAccepted: z.boolean().refine((value) => value, {
+      message:
+        "Devi accettare l'Informativa sulla Privacy e Termini e Condizioni"
+    })
   })
   .superRefine(({ email }, ctx) => {
     if (!email.toLowerCase().endsWith('@itismonza.it')) {
@@ -110,7 +116,8 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
       sectionId: '',
       email: '',
       password: '',
-      confirm_password: ''
+      confirm_password: '',
+      privacyAccepted: false
     }
   })
 
@@ -592,6 +599,54 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
               )}
             />
           </FieldGroup>
+          <FieldGroup>
+            <Controller
+              name='privacyAccepted'
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field
+                  data-invalid={fieldState.invalid}
+                  orientation='horizontal'
+                  className='items-start gap-2 mt-6'
+                >
+                  <Checkbox
+                    id='registration-form-privacy'
+                    checked={field.value}
+                    onCheckedChange={(value) => field.onChange(value === true)}
+                    aria-invalid={fieldState.invalid}
+                  />
+                  <FieldContent className='text-left'>
+                    <FieldLabel
+                      htmlFor='registration-form-privacy'
+                      className='text-sm font-normal leading-relaxed'
+                    >
+                      <span className='inline-flex flex-wrap items-center gap-x-1 gap-y-1'>
+                        <span>Accetto l'</span>
+                        <Link
+                          href='/privacy-policy'
+                          target='_blank'
+                          className='underline underline-offset-4'
+                        >
+                          Informativa Privacy
+                        </Link>
+                        <span>e i</span>
+                        <Link
+                          href='/terms'
+                          target='_blank'
+                          className='underline underline-offset-4'
+                        >
+                          Termini e Condizioni
+                        </Link>
+                      </span>
+                    </FieldLabel>
+                    {fieldState.invalid && (
+                      <FieldError errors={[fieldState.error]} />
+                    )}
+                  </FieldContent>
+                </Field>
+              )}
+            />
+          </FieldGroup>
         </form>
       </CardContent>
       <CardFooter className='justify-end mt-2'>
@@ -600,6 +655,7 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
             type='submit'
             form='registration-form'
             disabled={isSubmitting}
+            className='sm:w-auto w-full'
           >
             {isSubmitting ? 'Invio...' : 'Registrati'}
           </Button>

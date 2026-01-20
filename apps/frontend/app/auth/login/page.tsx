@@ -112,6 +112,11 @@ function LoginContent() {
       const nextPath =
         nextParam && nextParam.startsWith('/') ? nextParam : null
 
+      if (nextPath) {
+        router.push(nextPath)
+        return
+      }
+
       if (payload.role === 'admin') {
         if (nextPath && nextPath.startsWith('/admin')) {
           router.push(nextPath)
@@ -121,12 +126,21 @@ function LoginContent() {
         return
       }
 
+      if (payload.role === 'tutor') {
+        if (nextPath && nextPath.startsWith('/tutor')) {
+          router.push(nextPath)
+          return
+        }
+        router.push(payload.isActive === true ? '/tutor' : '/tutor/pending')
+        return
+      }
+
       if (nextPath && !nextPath.startsWith('/admin')) {
         router.push(nextPath)
         return
       }
 
-      router.push(payload.isActive === true ? '/dashboard' : '/pending')
+      router.push(payload.isActive === true ? '/student' : '/student/pending')
     } catch (error) {
       setSubmitError(
         error instanceof Error ? error.message : 'Accesso non riuscito.'

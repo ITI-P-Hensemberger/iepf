@@ -3,10 +3,25 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { AUTH_COOKIES, fetchUserProfile, refreshWithProfile } from '@/lib/auth'
 import { clearAuthCookies, setAuthCookies } from '@/lib/auth-cookies'
 
-const PROTECTED_PREFIXES = ['/dashboard', '/profile']
+const STUDENT_PREFIX = '/student'
+const PROFILE_PREFIX = '/profile'
 const ADMIN_PREFIX = '/admin'
 const AUTH_PREFIX = '/auth'
-const PENDING_PATH = '/pending'
+const PENDING_PATH = '/student/pending'
+const TUTOR_PREFIX = '/tutor'
+const ADMIN_PENDING_PATH = '/admin/pending'
+const TUTOR_PENDING_PATH = '/tutor/pending'
+
+
+function roleHome(role: string | null, isActive: boolean) {
+  if (role === 'admin') {
+    return isActive ? '/admin' : '/admin/pending'
+  }
+  if (role === 'tutor') {
+    return isActive ? '/tutor' : '/tutor/pending'
+  }
+  return isActive ? '/student' : '/student/pending'
+}
 
 function isExpired(expiresAt: string | undefined) {
   if (!expiresAt) {
@@ -74,27 +89,38 @@ export async function proxy(request: NextRequest) {
 
   const isAuthenticated = Boolean(accessToken) && !isExpired(accessExpiresAt)
   const isAdmin = role === 'admin'
+  const isTutor = role === 'tutor'
   const isActive = active === 'true'
 
   const isAuthRoute = pathname.startsWith(AUTH_PREFIX)
   const isAdminRoute = pathname.startsWith(ADMIN_PREFIX)
+  const isTutorRoute = pathname.startsWith(TUTOR_PREFIX)
   const isPendingRoute = pathname.startsWith(PENDING_PATH)
-  const isProtectedRoute = PROTECTED_PREFIXES.some((prefix) =>
-    pathname.startsWith(prefix)
-  )
+  const isAdminPendingRoute = pathname.startsWith(ADMIN_PENDING_PATH)
+  const isTutorPendingRoute = pathname.startsWith(TUTOR_PENDING_PATH)
+
+  const isStudentRoute = pathname.startsWith(STUDENT_PREFIX)
+  const isProfileRoute = pathname.startsWith(PROFILE_PREFIX)
   const isHome = pathname === '/'
 
-  if (!isAuthenticated && (isAdminRoute || isProtectedRoute || isPendingRoute)) {
+  if (
+    !isAuthenticated &&
+    (
+      isAdminRoute ||
+      isTutorRoute ||
+      isStudentRoute ||
+      isProfileRoute ||
+      isPendingRoute ||
+      pathname.startsWith(ADMIN_PENDING_PATH) ||
+      pathname.startsWith(TUTOR_PENDING_PATH)
+    )
+  ) {
     const destination = `/auth/login?next=${encodeURIComponent(`${pathname}${request.nextUrl.search}`)}`
     return NextResponse.redirect(new URL(destination, request.url))
   }
 
   if (isAuthenticated && (isAuthRoute || isHome)) {
-    const destination = isAdmin
-      ? '/admin'
-      : isActive
-        ? '/dashboard'
-        : '/pending'
+    const destination = roleHome(role, isActive)
     const response = NextResponse.redirect(new URL(destination, request.url))
     if (refreshed && didRefresh) {
       setAuthCookies(response, refreshed.tokens, remember)
@@ -103,21 +129,36 @@ export async function proxy(request: NextRequest) {
   }
 
   if (isAuthenticated && isAdminRoute && !isAdmin) {
-    return NextResponse.redirect(new URL('/', request.url))
+    const destination = roleHome(role, isActive)
+    return NextResponse.redirect(new URL(destination, request.url))
   }
 
-  if (isAuthenticated && isProtectedRoute) {
-    if (isAdmin && pathname.startsWith('/dashboard')) {
-      return NextResponse.redirect(new URL('/admin', request.url))
+  if (isAuthenticated && isTutorRoute && !isTutor) {
+    const destination = roleHome(role, isActive)
+    return NextResponse.redirect(new URL(destination, request.url))
+  }
+
+  if (isAuthenticated && isStudentRoute) {
+    if (isAdmin || isTutor) {
+      const destination = roleHome(role, isActive)
+      return NextResponse.redirect(new URL(destination, request.url))
     }
-    if (!isAdmin && !isActive) {
-      return NextResponse.redirect(new URL('/pending', request.url))
+    if (!isActive && !isPendingRoute) {
+      return NextResponse.redirect(new URL('/student/pending', request.url))
     }
   }
 
   if (isAuthenticated && isPendingRoute) {
-    if (isAdmin || isActive) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+    if (isAdmin || isTutor || isActive) {
+      const destination = roleHome(role, isActive)
+      return NextResponse.redirect(new URL(destination, request.url))
+    }
+  }
+
+  if (isAuthenticated && (isAdminPendingRoute || isTutorPendingRoute)) {
+    const destination = roleHome(role, isActive)
+    if (pathname !== destination) {
+      return NextResponse.redirect(new URL(destination, request.url))
     }
   }
 

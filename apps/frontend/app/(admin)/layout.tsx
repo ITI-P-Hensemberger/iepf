@@ -1,5 +1,6 @@
-import Header from '@/components/header'
 import { type ReactNode } from 'react'
+
+import AdminGuard from '@/components/admin-guard'
 
 type AdminLayoutProps = {
   children: ReactNode
@@ -7,10 +8,6 @@ type AdminLayoutProps = {
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
   return (
-    <>
-      {' '}
-      <Header />
-      {children}
-    </>
+    <AdminGuard>{children}</AdminGuard>
   )
 }
