@@ -67,7 +67,11 @@ const EnvSchema = z.object({
   ADMIN_EMAIL: z.email().optional(),
   ADMIN_PASSWORD: z.string().min(8).optional(),
   ADMIN_FIRST_NAME: z.string().min(1).default('Admin'),
-  ADMIN_LAST_NAME: z.string().min(1).default('User')
+  ADMIN_LAST_NAME: z.string().min(1).default('User'),
+  ACTIVATOR_EMAIL: z.email().optional(),
+  ACTIVATOR_PASSWORD: z.string().min(8).optional(),
+  ACTIVATOR_FIRST_NAME: z.string().min(1).default('Activator'),
+  ACTIVATOR_LAST_NAME: z.string().min(1).default('User')
 }).superRefine((input, ctx) => {
   if (input.NODE_ENV === 'production' && !input.SITE_URL) {
     ctx.addIssue({

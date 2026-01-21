@@ -16,7 +16,7 @@ const bearerAuth = [{
 
 const listQuerySchema = z.object({
   q: z.string().min(1).optional(),
-  role: z.enum(['student', 'tutor', 'admin']).optional(),
+  role: z.enum(['student', 'tutor', 'admin', 'activator']).optional(),
   isActive: queryBoolean().optional(),
   emailVerified: queryBoolean().optional(),
   sectionId: z.uuid().optional(),

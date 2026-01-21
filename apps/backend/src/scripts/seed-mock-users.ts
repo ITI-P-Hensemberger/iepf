@@ -29,7 +29,7 @@ async function getSections() {
   return sections
 }
 
-async function getOrCreateUser(email: string, role: 'student' | 'tutor' | 'admin', firstName: string, lastName: string, passwordHash: string, verified: boolean) {
+async function getOrCreateUser(email: string, role: 'student' | 'tutor' | 'admin' | 'activator', firstName: string, lastName: string, passwordHash: string, verified: boolean) {
   const existing = await db.query.users.findFirst({
     where(fields, operators) {
       return operators.eq(fields.email, email)

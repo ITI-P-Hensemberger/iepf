@@ -92,7 +92,7 @@ interface CreateUserPayload {
   firstName: string
   lastName: string
   password: string
-  role?: 'student' | 'tutor'
+  role?: 'student' | 'tutor' | 'activator'
   sectionId?: string
   year?: number
 }
@@ -216,12 +216,41 @@ describe('users routes', () => {
     expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED)
   })
 
-  it('prevents non-admin users from listing all users', async () => {
+  it('prevents non-privileged users from listing all users', async () => {
     const { user } = await createUserFixture()
     const studentToken = await tokenForUser(user)
 
     const response = await client.users.$get({
       header: bearer(studentToken)
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.FORBIDDEN)
+  })
+
+  it('allows activators to list only students', async () => {
+    const { user: student } = await createUserFixture({ role: 'student' })
+    const { user: tutor } = await createUserFixture({ role: 'tutor' })
+    const { user: activator } = await createUserFixture({ role: 'activator' })
+    const activatorToken = await tokenForUser(activator)
+
+    const response = await client.users.$get({
+      header: bearer(activatorToken)
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.OK)
+    const body = (await response.json()) as { data: UserResponse[]; total: number }
+    expect(body.data.some(user => user.id === student.id)).toBe(true)
+    expect(body.data.some(user => user.id === tutor.id)).toBe(false)
+    expect(body.data.every(user => user.role === 'student')).toBe(true)
+  })
+
+  it('rejects activator role filters outside students', async () => {
+    const { user: activator } = await createUserFixture({ role: 'activator' })
+    const activatorToken = await tokenForUser(activator)
+
+    const response = await client.users.$get({
+      query: { role: 'tutor' },
+      header: bearer(activatorToken)
     })
 
     expect(response.status).toBe(HttpStatusCodes.FORBIDDEN)
@@ -309,6 +338,22 @@ describe('users routes', () => {
     expect(body.isActive).toBe(true)
   })
 
+  it('allows activators to activate students', async () => {
+    const { user: student } = await createUserFixture({ role: 'student' })
+    const { user: activator } = await createUserFixture({ role: 'activator' })
+    const activatorToken = await tokenForUser(activator)
+
+    const response = await usersById.$patch({
+      param: { id: student.id },
+      json: { isActive: true },
+      header: bearer(activatorToken)
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.OK)
+    const body = (await response.json()) as UserResponse
+    expect(body.isActive).toBe(true)
+  })
+
   it('supports filtering users by the isActive flag', async () => {
     const { user: inactiveUser } = await createUserFixture()
     const { user: activeUser } = await createUserFixture()
@@ -349,7 +394,7 @@ describe('users routes', () => {
     expect(trueBody.data.every(user => user.isActive === true)).toBe(true)
   })
 
-  it('rejects activation updates from non-admin users', async () => {
+  it('rejects activation updates from non-privileged users', async () => {
     const { user } = await createUserFixture()
     const studentToken = await tokenForUser(user)
 
@@ -357,6 +402,34 @@ describe('users routes', () => {
       param: { id: user.id },
       json: { isActive: true },
       header: bearer(studentToken)
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.FORBIDDEN)
+  })
+
+  it('rejects activators from updating non-student profiles', async () => {
+    const { user: tutor } = await createUserFixture({ role: 'tutor' })
+    const { user: activator } = await createUserFixture({ role: 'activator' })
+    const activatorToken = await tokenForUser(activator)
+
+    const response = await usersById.$patch({
+      param: { id: tutor.id },
+      json: { isActive: false },
+      header: bearer(activatorToken)
+    })
+
+    expect(response.status).toBe(HttpStatusCodes.FORBIDDEN)
+  })
+
+  it('rejects activator profile updates beyond activation', async () => {
+    const { user: student } = await createUserFixture({ role: 'student' })
+    const { user: activator } = await createUserFixture({ role: 'activator' })
+    const activatorToken = await tokenForUser(activator)
+
+    const response = await usersById.$patch({
+      param: { id: student.id },
+      json: { firstName: 'Nope' },
+      header: bearer(activatorToken)
     })
 
     expect(response.status).toBe(HttpStatusCodes.FORBIDDEN)

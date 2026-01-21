@@ -75,23 +75,20 @@ function ensureAdmin(c: HandlerContext) {
   return currentUser
 }
 
-function ensureSelfOrAdmin(c: HandlerContext, userId: string) {
+function ensureAdminOrActivator(c: HandlerContext) {
   const currentUser = c.get('currentUser')
   if (!currentUser) {
     forbid()
   }
-
   if (currentUser.role === 'admin') {
-    if (currentUser.isActive === true || currentUser.id === userId) {
+    if (currentUser.isActive === true) {
       return currentUser
     }
     forbid()
   }
-
-  if (currentUser.id === userId) {
+  if (currentUser.role === 'activator') {
     return currentUser
   }
-
   forbid()
 }
 
@@ -276,12 +273,16 @@ async function attachProfiles(records: UserPublicRecord[]): Promise<UserWithProf
 }
 
 export const list: AppRouteHandler<ListRoute> = async (c) => {
-  ensureAdmin(c)
+  const currentUser = ensureAdminOrActivator(c)
   const query = c.req.valid('query')
+  if (currentUser.role === 'activator' && query.role && query.role !== 'student') {
+    forbid()
+  }
 
   const conditions = []
-  if (query.role) {
-    conditions.push(eq(users.role, query.role))
+  const roleFilter = currentUser.role === 'activator' ? 'student' : query.role
+  if (roleFilter) {
+    conditions.push(eq(users.role, roleFilter))
   }
   if (query.emailVerified !== undefined) {
     conditions.push(query.emailVerified ? isNotNull(users.emailVerifiedAt) : isNull(users.emailVerifiedAt))
@@ -541,7 +542,10 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
 
 export const getOne: AppRouteHandler<GetOneRoute> = async (c) => {
   const { id } = c.req.valid('param')
-  ensureSelfOrAdmin(c, id)
+  const currentUser = c.get('currentUser')
+  if (!currentUser) {
+    forbid()
+  }
 
   const user = await db.query.users.findFirst({
     where(fields, operators) {
@@ -559,6 +563,20 @@ export const getOne: AppRouteHandler<GetOneRoute> = async (c) => {
     )
   }
 
+  if (currentUser.role === 'admin') {
+    if (currentUser.isActive !== true && currentUser.id !== id) {
+      forbid()
+    }
+  }
+  else if (currentUser.role === 'activator') {
+    if (user.role !== 'student') {
+      forbid()
+    }
+  }
+  else if (currentUser.id !== id) {
+    forbid()
+  }
+
   const [withProfile] = await attachProfiles([user])
   return c.json(withProfile, HttpStatusCodes.OK)
 }
@@ -574,8 +592,30 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     year?: number
     isActive?: boolean
   }
-  ensureSelfOrAdmin(c, id)
   const currentUser = c.get('currentUser')
+  if (!currentUser) {
+    forbid()
+  }
+  const isAdmin = currentUser.role === 'admin'
+  const isActivator = currentUser.role === 'activator'
+  if (isAdmin) {
+    if (currentUser.isActive !== true && currentUser.id !== id) {
+      forbid()
+    }
+  } else if (!isActivator && currentUser.id !== id) {
+    forbid()
+  }
+  if (isActivator) {
+    const hasDisallowedUpdate = updates.email !== undefined
+      || updates.firstName !== undefined
+      || updates.lastName !== undefined
+      || updates.password !== undefined
+      || updates.sectionId !== undefined
+      || updates.year !== undefined
+    if (hasDisallowedUpdate || updates.isActive === undefined) {
+      forbid()
+    }
+  }
 
   const userUpdates: {
     email?: string
@@ -641,7 +681,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
     }
 
-    if (hasProfileUpdates && currentUser?.role !== 'admin') {
+    if (hasProfileUpdates && currentUser?.role !== 'admin' && currentUser?.role !== 'activator') {
       return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
     }
 
@@ -675,6 +715,10 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     let currentAdminProfile: {
       isActive: boolean | null
     } | null = null
+
+    if (currentUser?.role === 'activator' && existing.role !== 'student') {
+      return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
+    }
 
     if (hasProfileUpdates && existing.role === 'student') {
       currentStudentProfile = (await db.query.studentProfiles.findFirst({
