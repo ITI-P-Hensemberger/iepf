@@ -12,7 +12,7 @@ const DEFAULT_SUBJECTS = [
   { name: 'Italiano', canonicalName: 'italian' },
   { name: 'Inglese - Lingua', canonicalName: 'english' },
   { name: 'Informatica', canonicalName: 'computer_science' },
-  { name: 'Tecnologie e tecniche di rappresentazione grafica', canonicalName: 'graphic_representation_technologies_and_techniques' },
+  { name: 'TTRG', canonicalName: 'graphic_representation_technologies_and_techniques' },
   { name: 'Diritto ed economia', canonicalName: 'law_and_economics' },
 
   // Biotecnologie Sanitarie
@@ -20,21 +20,19 @@ const DEFAULT_SUBJECTS = [
   { name: 'Chimica', canonicalName: 'chemistry' },
   { name: 'Chimica analitica', canonicalName: 'analytical_chemistry' },
   { name: 'Chimica organica', canonicalName: 'organic_chemistry' },
-  { name: 'Igiene, Anatomia, Fisiologia e Patologia', canonicalName: 'hygiene_anatomy_physiology_and_pathology' },
+  { name: 'Igiene', canonicalName: 'hygiene_anatomy_physiology_and_pathology' },
   { name: 'Biologia', canonicalName: 'biology' },
 
   // Elettronica ed Elettrotecnica
   { name: 'STA - Elettronica ed Elettrotecnica', canonicalName: 'applied_sciences_and_technologies_electronics_and_electrical_engineering' },
   { name: 'TPSE', canonicalName: 'tpse' },
-  { name: 'Elettronica ed Elettrotecnica', canonicalName: 'electronics_and_electrical_engineering' },
-  { name: 'Sistemi automatici', canonicalName: 'automatic_systems' },
+  { name: 'Elettronica', canonicalName: 'electronics_and_electrical_engineering' },
+  { name: 'Automazione', canonicalName: 'automatic_systems' },
 
   // Meccanica e Meccatronica
   { name: 'STA - Meccanica e Meccatronica', canonicalName: 'applied_sciences_and_technologies_mechanics_and_mechatronics' },
   { name: 'Meccanica', canonicalName: 'mechanics' },
-  { name: 'Sistemi e automazione', canonicalName: 'systems_and_automation' },
-  { name: 'Tecnologie meccaniche di processo e prodotto', canonicalName: 'mechanical_process_and_product_technologies' },
-  { name: 'Disegno, progettazione e organizzazione industriale', canonicalName: 'industrial_design_planning_and_organization' },
+  { name: 'Disegno industriale', canonicalName: 'industrial_design_planning_and_organization' },
 
   // Informatica e Telecomunicazioni
   { name: 'STA - Informatica e Telecomunicazioni', canonicalName: 'applied_sciences_and_technologies_computer_science_and_telecommunications' },
