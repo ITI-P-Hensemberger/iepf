@@ -107,15 +107,26 @@ export default function Header() {
               </DropdownMenuItem>
             )}
             {profile?.role === 'tutor' && (
-              <DropdownMenuItem
-                className='cursor-pointer'
-                onSelect={(event) => {
-                  event.preventDefault()
-                  window.location.assign('/tutor/availability')
-                }}
-              >
-                Disponibilità
-              </DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  className='cursor-pointer'
+                  onSelect={(event) => {
+                    event.preventDefault()
+                    window.location.assign('/tutor/settings/availability')
+                  }}
+                >
+                  Disponibilità
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className='cursor-pointer'
+                  onSelect={(event) => {
+                    event.preventDefault()
+                    window.location.assign('/tutor/settings/subjects')
+                  }}
+                >
+                  Materie
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
             )}
             {profile?.role === 'admin' && (
               <DropdownMenuGroup>

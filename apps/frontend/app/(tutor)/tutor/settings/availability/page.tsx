@@ -1,0 +1,298 @@
+'use client'
+
+import * as React from 'react'
+import { useRouter } from 'next/navigation'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Controller, useForm } from 'react-hook-form'
+import * as z from 'zod'
+import { ChevronLeft } from 'lucide-react'
+
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { WeekdayAvailabilitySelector } from '@/components/weekday-availability-selector'
+import { useSession } from '@/lib/use-session'
+
+const availabilitySchema = z.object({
+  weekdays: z
+    .array(z.number().min(1).max(5))
+    .min(1, 'Seleziona almeno un giorno')
+})
+
+type AvailabilityFormValues = z.infer<typeof availabilitySchema>
+
+type WeekdayAvailability = {
+  weekday: number
+  isAvailable: boolean
+}
+
+const WEEKDAYS = [
+  { value: 1, label: 'Lunedì' },
+  { value: 2, label: 'Martedì' },
+  { value: 3, label: 'Mercoledì' },
+  { value: 4, label: 'Giovedì' },
+  { value: 5, label: 'Venerdì' }
+] as const
+
+export default function TutorAvailabilitySettingsPage() {
+  const router = useRouter()
+  const { profile } = useSession()
+  const tutorId = profile?.id
+
+  const [initialWeekdays, setInitialWeekdays] = React.useState<number[] | null>(
+    null
+  )
+  const [isLoading, setIsLoading] = React.useState(true)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [submitError, setSubmitError] = React.useState<string | null>(null)
+  const [isSuccess, setIsSuccess] = React.useState(false)
+
+  // Fetch current availability on mount
+  React.useEffect(() => {
+    if (!tutorId) return
+
+    let isMounted = true
+
+    async function fetchAvailability() {
+      setIsLoading(true)
+      try {
+        const response = await fetch(
+          `/api/tutors/${tutorId}/weekday-availability`
+        )
+        if (!response.ok) {
+          throw new Error('Impossibile caricare la disponibilità.')
+        }
+        const payload = (await response.json()) as {
+          weekdays?: WeekdayAvailability[]
+        }
+
+        // Extract only the weekday numbers where isAvailable is true
+        const availableWeekdays = (payload.weekdays ?? [])
+          .filter((item) => item.isAvailable)
+          .map((item) => item.weekday)
+
+        if (isMounted) {
+          setInitialWeekdays(availableWeekdays)
+        }
+      } catch (err) {
+        console.error('Error fetching availability:', err)
+        if (isMounted) {
+          setInitialWeekdays([])
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void fetchAvailability()
+
+    return () => {
+      isMounted = false
+    }
+  }, [tutorId])
+
+  // Only render form after we have initial data
+  if (!tutorId || initialWeekdays === null) {
+    return (
+      <div className='container max-w-4xl mx-auto px-4 py-8'>
+        <div className='mb-6'>
+          <Skeleton className='h-9 w-36' />
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className='h-7 w-48' />
+            <Skeleton className='h-5 w-full max-w-md mt-2' />
+          </CardHeader>
+          <CardContent>
+            <div className='space-y-4'>
+              <Skeleton className='h-6 w-32' />
+              <Skeleton className='h-5 w-64' />
+              <div className='space-y-2'>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className='h-14 w-full' />
+                ))}
+              </div>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Skeleton className='h-10 w-32' />
+          </CardFooter>
+        </Card>
+      </div>
+    )
+  }
+
+  return (
+    <AvailabilityForm
+      key={initialWeekdays.join(',')}
+      tutorId={tutorId}
+      initialWeekdays={initialWeekdays}
+      isSubmitting={isSubmitting}
+      setIsSubmitting={setIsSubmitting}
+      submitError={submitError}
+      setSubmitError={setSubmitError}
+      isSuccess={isSuccess}
+      setIsSuccess={setIsSuccess}
+      setInitialWeekdays={setInitialWeekdays}
+      router={router}
+    />
+  )
+}
+
+type AvailabilityFormProps = {
+  tutorId: string
+  initialWeekdays: number[]
+  isSubmitting: boolean
+  setIsSubmitting: React.Dispatch<React.SetStateAction<boolean>>
+  submitError: string | null
+  setSubmitError: React.Dispatch<React.SetStateAction<string | null>>
+  isSuccess: boolean
+  setIsSuccess: React.Dispatch<React.SetStateAction<boolean>>
+  setInitialWeekdays: React.Dispatch<React.SetStateAction<number[] | null>>
+  router: ReturnType<typeof useRouter>
+}
+
+function AvailabilityForm({
+  tutorId,
+  initialWeekdays,
+  isSubmitting,
+  setIsSubmitting,
+  submitError,
+  setSubmitError,
+  isSuccess,
+  setIsSuccess,
+  setInitialWeekdays,
+  router
+}: AvailabilityFormProps) {
+  const form = useForm<AvailabilityFormValues>({
+    resolver: zodResolver(availabilitySchema),
+    defaultValues: { weekdays: initialWeekdays },
+    mode: 'onBlur'
+  })
+
+  async function onSubmit(values: AvailabilityFormValues) {
+    setIsSubmitting(true)
+    setSubmitError(null)
+    setIsSuccess(false)
+
+    try {
+      // Transform to API format: all weekdays with isAvailable flag
+      const weekdaysPayload = WEEKDAYS.map((day) => ({
+        weekday: day.value,
+        isAvailable: values.weekdays.includes(day.value)
+      }))
+
+      const response = await fetch(
+        `/api/tutors/${tutorId}/weekday-availability`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ weekdays: weekdaysPayload })
+        }
+      )
+
+      if (!response.ok) {
+        const payload = (await response.json()) as { message?: string }
+        throw new Error(
+          payload.message || 'Impossibile aggiornare la disponibilità.'
+        )
+      }
+
+      // Refetch server state to get the truth
+      const refetchResponse = await fetch(
+        `/api/tutors/${tutorId}/weekday-availability`
+      )
+      const refetchPayload = (await refetchResponse.json()) as {
+        weekdays?: WeekdayAvailability[]
+      }
+
+      const availableWeekdays = (refetchPayload.weekdays ?? [])
+        .filter((item) => item.isAvailable)
+        .map((item) => item.weekday)
+
+      setInitialWeekdays(availableWeekdays)
+      form.reset({ weekdays: availableWeekdays })
+      setIsSuccess(true)
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error
+          ? err.message
+          : 'Impossibile aggiornare la disponibilità. Riprova.'
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <div className='container max-w-4xl mx-auto px-4 py-8'>
+      <div className='mb-6'>
+        <Button
+          variant='ghost'
+          size='sm'
+          onClick={() => router.push('/tutor')}
+          className='gap-2'
+        >
+          <ChevronLeft className='h-4 w-4' />
+          Torna alla home
+        </Button>
+      </div>
+
+      <Card>
+        <CardContent>
+          <form id='availability-form' onSubmit={form.handleSubmit(onSubmit)}>
+            <Controller
+              name='weekdays'
+              control={form.control}
+              render={({ field }) => (
+                <WeekdayAvailabilitySelector
+                  value={field.value}
+                  onChange={field.onChange}
+                  disabled={isSubmitting}
+                />
+              )}
+            />
+
+            {form.formState.errors.weekdays && (
+              <p className='mt-2 text-sm text-destructive'>
+                {form.formState.errors.weekdays.message}
+              </p>
+            )}
+
+            {submitError && (
+              <div className='mt-4 rounded-md border border-destructive/50 bg-destructive/10 p-3'>
+                <p className='text-sm text-destructive'>{submitError}</p>
+              </div>
+            )}
+
+            {isSuccess && (
+              <div className='mt-4 rounded-md border border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950 p-3'>
+                <p className='text-sm text-emerald-600 dark:text-emerald-400'>
+                  Disponibilità aggiornata con successo.
+                </p>
+              </div>
+            )}
+          </form>
+        </CardContent>
+        <CardFooter className='flex flex-col gap-3 items-end sm:flex-row sm:items-center sm:justify-between'>
+          <Button
+            type='submit'
+            form='availability-form'
+            disabled={isSubmitting || !form.formState.isDirty}
+          >
+            {isSubmitting ? 'Salvataggio...' : 'Salva modifiche'}
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
+  )
+}

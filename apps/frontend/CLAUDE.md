@@ -74,6 +74,7 @@ const form = useForm<FormValues>({
 - All backend calls go through Next.js API routes in `app/api/`
 - Backend URL configured via `API_BASE_URL` environment variable
 - Response utilities in `lib/backend-response.ts` handle the `{ success, data }` envelope
+- **API documentation available at http://localhost:9999/doc** (consult for endpoint contracts)
 
 ### UI Components
 

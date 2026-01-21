@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 
 import Header from '@/components/header'
 import { useSession } from '@/lib/use-session'
+import { useTutorOnboarding } from '@/lib/use-tutor-onboarding'
 
 type TutorGuardProps = {
   children: React.ReactNode
@@ -15,6 +16,13 @@ export default function TutorGuard({ children }: TutorGuardProps) {
   const router = useRouter()
   const pathname = usePathname()
   const isPendingPage = pathname === '/tutor/pending'
+  const isOnboardingPage = pathname === '/tutor/onboarding'
+
+  const { isFirstTime, isLoading: isOnboardingLoading } = useTutorOnboarding(
+    profile?.role === 'tutor' && profile?.isActive === true
+      ? profile?.id
+      : undefined
+  )
 
   useEffect(() => {
     if (isLoading) {
@@ -37,18 +45,42 @@ export default function TutorGuard({ children }: TutorGuardProps) {
     }
 
     if (profile.role !== 'tutor') {
-      router.replace(profile.isActive === false ? '/student/pending' : '/student')
+      router.replace(
+        profile.isActive === false ? '/student/pending' : '/student'
+      )
       return
     }
 
     if (profile.isActive === false && !isPendingPage) {
       router.replace('/tutor/pending')
+      return
     }
 
     if (profile.isActive === true && isPendingPage) {
       router.replace('/tutor')
+      return
     }
-  }, [isLoading, isPendingPage, profile, router])
+
+    // First-time tutor redirect logic
+    if (profile.isActive === true && !isOnboardingLoading) {
+      if (isFirstTime && !isOnboardingPage) {
+        router.replace('/tutor/onboarding')
+        return
+      }
+      if (!isFirstTime && isOnboardingPage) {
+        router.replace('/tutor')
+        return
+      }
+    }
+  }, [
+    isLoading,
+    isOnboardingLoading,
+    isFirstTime,
+    isPendingPage,
+    isOnboardingPage,
+    profile,
+    router
+  ])
 
   if (isLoading) {
     return (
@@ -68,6 +100,25 @@ export default function TutorGuard({ children }: TutorGuardProps) {
 
   if (profile.isActive === true && isPendingPage) {
     return null
+  }
+
+  // Wait for onboarding check before rendering non-onboarding pages
+  if (profile.isActive === true && !isOnboardingPage && isOnboardingLoading) {
+    return (
+      <div className='container mx-auto px-4 py-10 text-sm text-muted-foreground'>
+        Caricamento...
+      </div>
+    )
+  }
+
+  // Block rendering if redirect is needed
+  if (profile.isActive === true && !isOnboardingLoading) {
+    if (isFirstTime && !isOnboardingPage) {
+      return null
+    }
+    if (!isFirstTime && isOnboardingPage) {
+      return null
+    }
   }
 
   return (
