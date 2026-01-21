@@ -55,7 +55,7 @@ export function WeekdayAvailabilitySelector({
 
       <p className='text-sm text-muted-foreground'>
         Seleziona i giorni in cui sei disponibile. <br />
-        L'orario delle lezioni è sempre {timeSlot} (1h).
+        L&apos;orario delle lezioni è sempre {timeSlot} (1h).
       </p>
 
       <div className='space-y-2'>

@@ -29,7 +29,7 @@ export async function POST() {
     })
     setAuthCookies(response, tokens, remember)
     return response
-  } catch (error) {
+  } catch {
     const response = NextResponse.json({ message: 'Refresh failed.' }, { status: 401 })
     clearAuthCookies(response)
     return response

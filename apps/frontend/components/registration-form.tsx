@@ -184,11 +184,11 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
         if (isMounted) {
           setSections(data)
         }
-      } catch (error) {
+      } catch (err) {
         if (isMounted) {
           setSectionsError(
-            error instanceof Error
-              ? error.message
+            err instanceof Error
+              ? err.message
               : 'Impossibile caricare le sezioni.'
           )
         }
@@ -240,7 +240,7 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
           }
           message =
             payload.message ?? payload.error?.issues?.[0]?.message ?? message
-        } catch (error) {
+        } catch {
           message = 'Si è verificato un errore, riprova.'
         }
 
@@ -252,10 +252,10 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
       setShowConfirmPassword(false)
       setIsSuccess(true)
       onSuccess?.()
-    } catch (error) {
+    } catch (err) {
       setSubmitError(
-        error instanceof Error
-          ? error.message
+        err instanceof Error
+          ? err.message
           : 'Si è verificato un errore, riprova.'
       )
     } finally {
@@ -623,7 +623,7 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
                       className='text-sm font-normal leading-relaxed'
                     >
                       <span className='inline-flex flex-wrap items-center gap-x-1 gap-y-1'>
-                        <span>Accetto l'</span>
+                        <span>Accetto l&apos;</span>
                         <Link
                           href='/privacy-policy'
                           target='_blank'

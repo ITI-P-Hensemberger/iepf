@@ -49,7 +49,7 @@ export function decodeJwtPayload(token: string): JwtPayload | null {
   try {
     const json = decodeBase64Url(segments[1])
     return JSON.parse(json) as JwtPayload
-  } catch (error) {
+  } catch {
     return null
   }
 }

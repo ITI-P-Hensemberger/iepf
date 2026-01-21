@@ -97,7 +97,7 @@ function LoginContent() {
         try {
           const payload = (await response.json()) as { message?: string }
           message = payload.message ?? message
-        } catch (error) {
+        } catch {
           message = 'Accesso non riuscito.'
         }
 
@@ -146,9 +146,9 @@ function LoginContent() {
       }
 
       router.push(payload.isActive === true ? '/student' : '/student/pending')
-    } catch (error) {
+    } catch (err) {
       setSubmitError(
-        error instanceof Error ? error.message : 'Accesso non riuscito.'
+        err instanceof Error ? err.message : 'Accesso non riuscito.'
       )
     } finally {
       setIsSubmitting(false)
@@ -183,7 +183,7 @@ function LoginContent() {
             error?: { issues?: Array<{ message?: string }> }
           }
           message = payload.message ?? payload.error?.issues?.[0]?.message ?? message
-        } catch (error) {
+        } catch {
           message = 'Impossibile inviare la verifica.'
         }
         throw new Error(message)
@@ -193,11 +193,11 @@ function LoginContent() {
       setResendMessage(
         'Se l’account esiste, abbiamo inviato una nuova email di verifica.'
       )
-    } catch (error) {
+    } catch (err) {
       setResendStatus('error')
       setResendMessage(
-        error instanceof Error
-          ? error.message
+        err instanceof Error
+          ? err.message
           : 'Impossibile inviare la verifica.'
       )
     }
@@ -231,7 +231,7 @@ function LoginContent() {
             error?: { issues?: Array<{ message?: string }> }
           }
           message = payload.message ?? payload.error?.issues?.[0]?.message ?? message
-        } catch (error) {
+        } catch {
           message = 'Impossibile inviare il reset della password.'
         }
         throw new Error(message)
@@ -241,11 +241,11 @@ function LoginContent() {
       setResetMessage(
         'Se l’account esiste, abbiamo inviato un link per il reset.'
       )
-    } catch (error) {
+    } catch (err) {
       setResetStatus('error')
       setResetMessage(
-        error instanceof Error
-          ? error.message
+        err instanceof Error
+          ? err.message
           : 'Impossibile inviare il reset della password.'
       )
     }

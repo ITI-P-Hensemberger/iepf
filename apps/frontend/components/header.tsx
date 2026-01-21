@@ -2,7 +2,6 @@
 import * as React from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 
 import { logout } from '@/lib/auth-client'
 import { useSession } from '@/lib/use-session'
@@ -20,8 +19,7 @@ import { ModeToggle } from './theme-mode-toggle'
 import { Button } from './ui/button'
 
 export default function Header() {
-  const router = useRouter()
-  const { refresh, profile } = useSession()
+  const { profile } = useSession()
   const [avatarGradient, setAvatarGradient] = React.useState(
     'linear-gradient(135deg, #0f172a, #64748b)'
   )
@@ -47,7 +45,6 @@ export default function Header() {
 
   async function handleLogout() {
     await logout()
-    // logout() handles the redirect to /auth/login
   }
 
   return (

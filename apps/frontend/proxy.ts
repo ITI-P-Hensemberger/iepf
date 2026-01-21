@@ -72,7 +72,7 @@ export async function proxy(request: NextRequest) {
       role = refreshed.profile.role ?? 'student'
       active = String(refreshed.profile.isActive === true)
       accessExpiresAt = String(Date.now() + refreshed.tokens.expiresIn * 1000)
-    } catch (error) {
+    } catch {
       const response = NextResponse.redirect(new URL('/', request.url))
       clearAuthCookies(response)
       return response
@@ -84,7 +84,7 @@ export async function proxy(request: NextRequest) {
       const profile = await fetchUserProfile(apiBaseUrl, accessToken)
       role = profile.role ?? 'student'
       active = String(profile.isActive === true)
-    } catch (error) {
+    } catch {
       const response = NextResponse.redirect(new URL('/', request.url))
       clearAuthCookies(response)
       return response

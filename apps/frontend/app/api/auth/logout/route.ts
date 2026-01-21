@@ -19,7 +19,7 @@ export async function POST() {
         },
         body: JSON.stringify({ refreshToken })
       })
-    } catch (error) {
+    } catch {
       // Ignore network errors; we still clear cookies locally.
     }
   }

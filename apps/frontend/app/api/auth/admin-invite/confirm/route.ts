@@ -9,7 +9,7 @@ export async function POST(request: Request) {
 
   try {
     body = (await request.json()) as Record<string, unknown>
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { message: 'Corpo richiesta non valido.' },
       { status: 400 }

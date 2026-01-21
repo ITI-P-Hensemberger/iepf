@@ -128,16 +128,16 @@ export default function TermsPage() {
           Progetto “Insieme È Più Facile”
         </p>
         <p className='mt-6 max-w-3xl text-justify'>
-          I presenti Termini e Condizioni disciplinano l'accesso e l'utilizzo
+          I presenti Termini e Condizioni disciplinano l&apos;accesso e l&apos;utilizzo
           del sito web dedicato al progetto di supporto allo studio pomeridiano
-          “Insieme È Più Facile” (di seguito, il “Progetto”), promosso dall'ITI
+          &quot;Insieme È Più Facile&quot; (di seguito, il &quot;Progetto&quot;), promosso dall&apos;ITI
           P. Hensemberger.
         </p>
         <p className='mt-3 max-w-3xl text-justify'>
-          L'utilizzo del sito e dei relativi servizi comporta l'accettazione
+          L&apos;utilizzo del sito e dei relativi servizi comporta l&apos;accettazione
           integrale dei presenti Termini e Condizioni da parte del genitore o
           del soggetto esercente la responsabilità genitoriale (di seguito,
-          l'“Utente”).
+          l&apos;&quot;Utente&quot;).
         </p>
         <div className='mt-8 w-full max-w-4xl space-y-6 text-justify'>
           {TERMS.map((section) => (

@@ -42,13 +42,13 @@ export default function FAQ() {
         </AccordionTrigger>
         <AccordionContent>
           Sì, le lezioni sono disponibili per tutte le materie previste dal
-          piano di studi dell'Istituto Hensemberger. Tuttavia, la disponibilità
+          piano di studi dell&apos;Istituto Hensemberger. Tuttavia, la disponibilità
           può variare in base alla domanda e alle risorse dei tutor.
         </AccordionContent>
       </AccordionItem>
       <AccordionItem value='item-5'>
         <AccordionTrigger>
-          Cosa succede se esaurisco le 30 lezioni prima della fine dell'anno
+          Cosa succede se esaurisco le 30 lezioni prima della fine dell&apos;anno
           scolastico?
         </AccordionTrigger>
         <AccordionContent>
@@ -58,12 +58,12 @@ export default function FAQ() {
       </AccordionItem>
       <AccordionItem value='item-6'>
         <AccordionTrigger>
-          Cosa succede se non esaurisco le 30 lezioni prima della fine dell'anno
+          Cosa succede se non esaurisco le 30 lezioni prima della fine dell&apos;anno
           scolastico?
         </AccordionTrigger>
         <AccordionContent>
           Le lezioni non utilizzate non sono rimborsabili e non possono essere
-          trasferite all'anno successivo.
+          trasferite all&apos;anno successivo.
         </AccordionContent>
       </AccordionItem>
     </Accordion>

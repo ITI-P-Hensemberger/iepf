@@ -67,7 +67,7 @@ export async function PATCH(
 
   try {
     body = (await request.json()) as UpdateUserBody
-  } catch (error) {
+  } catch {
     return NextResponse.json({ message: 'Invalid body.' }, { status: 400 })
   }
 

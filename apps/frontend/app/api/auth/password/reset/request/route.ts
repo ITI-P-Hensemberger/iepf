@@ -10,7 +10,7 @@ export async function POST(request: Request) {
 
   try {
     body = (await request.json()) as { email?: string }
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { message: 'Corpo richiesta non valido.' },
       { status: 400 }

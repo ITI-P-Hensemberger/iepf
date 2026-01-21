@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import * as z from 'zod'
@@ -49,7 +48,7 @@ function parseErrorMessage(raw: unknown, fallback: string) {
         error?: { issues?: Array<{ message?: string }> }
       }
       return parsed.message ?? parsed.error?.issues?.[0]?.message ?? fallback
-    } catch (err) {
+    } catch {
       return raw.message || fallback
     }
   }
@@ -61,7 +60,7 @@ function parseErrorMessage(raw: unknown, fallback: string) {
         error?: { issues?: Array<{ message?: string }> }
       }
       return parsed.message ?? parsed.error?.issues?.[0]?.message ?? fallback
-    } catch (err) {
+    } catch {
       return raw || fallback
     }
   }
@@ -80,7 +79,7 @@ function extractMessageFromResponse(raw: string | null, fallback: string) {
       success?: boolean
     }
     return payload.message ?? payload.error?.issues?.[0]?.message ?? fallback
-  } catch (err) {
+  } catch {
     return raw || fallback
   }
 }
@@ -113,7 +112,6 @@ type Section = {
 
 export default function ProfilePage() {
   const { profile, isLoading, error, refresh } = useSession()
-  const router = useRouter()
   const isAdmin = profile?.role === 'admin'
   const isLimited = !isAdmin
   const [sectionName, setSectionName] = React.useState<string | null>(null)
@@ -254,7 +252,7 @@ export default function ProfilePage() {
     setSectionName(match?.name ?? null)
   }, [profile?.sectionId, sections])
 
-  const groupedSections = React.useMemo(() => {
+  React.useMemo(() => {
     const scient: Section[] = []
     const mech: Section[] = []
     const elec: Section[] = []
@@ -328,7 +326,9 @@ export default function ProfilePage() {
       const raw = await response.text()
 
       if (!response.ok) {
-        throw new Error(extractMessageFromResponse(raw, 'Impossibile aggiornare il profilo.'))
+        throw new Error(
+          extractMessageFromResponse(raw, 'Impossibile aggiornare il profilo.')
+        )
       }
 
       if (raw) {
@@ -340,10 +340,13 @@ export default function ProfilePage() {
           }
           if (parsed?.success === false) {
             throw new Error(
-              extractMessageFromResponse(raw, 'Impossibile aggiornare il profilo.')
+              extractMessageFromResponse(
+                raw,
+                'Impossibile aggiornare il profilo.'
+              )
             )
           }
-        } catch (err) {
+        } catch {
           // ignore non-JSON bodies
         }
       }
@@ -352,7 +355,9 @@ export default function ProfilePage() {
       await refresh()
       window.location.reload()
     } catch (err) {
-      setSubmitError(parseErrorMessage(err, 'Impossibile aggiornare il profilo.'))
+      setSubmitError(
+        parseErrorMessage(err, 'Impossibile aggiornare il profilo.')
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -406,12 +411,14 @@ export default function ProfilePage() {
                 error?: { issues?: Array<{ message?: string }> }
               }
               message =
-                payload.message ?? payload.error?.issues?.[0]?.message ?? message
-            } catch (err) {
+                payload.message ??
+                payload.error?.issues?.[0]?.message ??
+                message
+            } catch {
               message = raw
             }
           }
-        } catch (err) {
+        } catch {
           message = 'Impossibile inviare la mail di reset.'
         }
         throw new Error(message)
@@ -420,10 +427,11 @@ export default function ProfilePage() {
       setResetStatus('success')
       setResetMessage('Mail di reset inviata. Controlla la tua casella.')
       await logout()
-      // logout() handles the redirect to /auth/login
     } catch (err) {
       setResetStatus('error')
-      setResetMessage(parseErrorMessage(err, 'Impossibile inviare la mail di reset.'))
+      setResetMessage(
+        parseErrorMessage(err, 'Impossibile inviare la mail di reset.')
+      )
     }
   }
 
@@ -617,10 +625,10 @@ export default function ProfilePage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Conferma modifica email</AlertDialogTitle>
             <AlertDialogDescription>
-              Se l'email inserita è errata, potresti perdere l'accesso al tuo
-              account.
+              Se l&apos;email inserita è errata, potresti perdere l&apos;accesso
+              al tuo account.
               <br />
-              In caso di problemi, contatta l'amministratore di sistema.
+              In caso di problemi, contatta l&apos;amministratore di sistema.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

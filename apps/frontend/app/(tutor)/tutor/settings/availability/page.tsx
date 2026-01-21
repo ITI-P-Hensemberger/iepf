@@ -8,22 +8,13 @@ import * as z from 'zod'
 import { ChevronLeft } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card'
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { WeekdayAvailabilitySelector } from '@/components/weekday-availability-selector'
 import { useSession } from '@/lib/use-session'
 
 const availabilitySchema = z.object({
-  weekdays: z
-    .array(z.number().min(1).max(5))
-    .min(1, 'Seleziona almeno un giorno')
+  weekdays: z.array(z.number().min(1).max(5))
 })
 
 type AvailabilityFormValues = z.infer<typeof availabilitySchema>
@@ -49,7 +40,7 @@ export default function TutorAvailabilitySettingsPage() {
   const [initialWeekdays, setInitialWeekdays] = React.useState<number[] | null>(
     null
   )
-  const [isLoading, setIsLoading] = React.useState(true)
+  const [, setIsLoading] = React.useState(true)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [submitError, setSubmitError] = React.useState<string | null>(null)
   const [isSuccess, setIsSuccess] = React.useState(false)
@@ -234,7 +225,7 @@ function AvailabilityForm({
   }
 
   return (
-    <div className='container max-w-4xl mx-auto px-4 py-8'>
+    <div className='container mx-auto px-4 py-10'>
       <div className='mb-6'>
         <Button
           variant='ghost'
@@ -283,10 +274,11 @@ function AvailabilityForm({
             )}
           </form>
         </CardContent>
-        <CardFooter className='flex flex-col gap-3 items-end sm:flex-row sm:items-center sm:justify-between'>
+        <CardFooter className='flex justify-end'>
           <Button
             type='submit'
             form='availability-form'
+            className='w-full sm:w-auto'
             disabled={isSubmitting || !form.formState.isDirty}
           >
             {isSubmitting ? 'Salvataggio...' : 'Salva modifiche'}

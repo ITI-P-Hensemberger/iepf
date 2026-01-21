@@ -86,8 +86,8 @@ function normalizePaged<T>(payload: unknown): { items: T[]; total: number } {
       ? candidate.rows
       : Array.isArray(candidate.results)
         ? candidate.results
-        : Array.isArray((candidate as any).data)
-          ? (candidate as any).data
+        : Array.isArray((candidate as Record<string, unknown>).data)
+          ? (candidate as Record<string, unknown>).data
           : []
   const total =
     typeof candidate.total === 'number'
@@ -145,8 +145,6 @@ function DataTable<TData>({
   )
   const [debouncedFilter, setDebouncedFilter] = React.useState(globalFilter)
   const didInitRef = React.useRef(false)
-  const lastFilterRef = React.useRef('')
-  const lastSortRef = React.useRef<SortingState>([])
   const lastNavigationRef = React.useRef('')
 
   React.useEffect(() => {

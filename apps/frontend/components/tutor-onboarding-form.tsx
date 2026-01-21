@@ -22,9 +22,7 @@ const WEEKDAYS = [
 
 const onboardingSchema = z.object({
   subjectIds: z.array(z.string()).min(1, 'Seleziona almeno una materia'),
-  weekdays: z
-    .array(z.number().min(1).max(5))
-    .min(1, 'Seleziona almeno un giorno')
+  weekdays: z.array(z.number().min(1).max(5))
 })
 
 type OnboardingFormValues = z.infer<typeof onboardingSchema>
@@ -98,10 +96,10 @@ export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
 
       // Redirect to tutor home with full page reload to refresh data
       window.location.href = '/tutor'
-    } catch (error) {
+    } catch (err) {
       setSubmitError(
-        error instanceof Error
-          ? error.message
+        err instanceof Error
+          ? err.message
           : 'Si è verificato un errore. Riprova.'
       )
     } finally {

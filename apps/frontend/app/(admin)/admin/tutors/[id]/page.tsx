@@ -280,7 +280,7 @@ export default function AdminTutorDetailPage() {
         try {
           const payload = (await response.json()) as { message?: string }
           message = payload.message ?? message
-        } catch (err) {
+        } catch {
           message = 'Impossibile aggiornare il tutor.'
         }
         throw new Error(message)
@@ -343,7 +343,7 @@ export default function AdminTutorDetailPage() {
         try {
           const payload = (await response.json()) as { message?: string }
           message = payload.message ?? message
-        } catch (err) {
+        } catch {
           message = 'Impossibile eliminare il tutor.'
         }
         throw new Error(message)
@@ -727,8 +727,8 @@ export default function AdminTutorDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Conferma modifica email</AlertDialogTitle>
             <AlertDialogDescription>
-              Se l'email inserita è errata, il tutor potrebbe perdere l'accesso
-              all'account. In caso di problemi, contatta l'amministratore di
+              Se l&apos;email inserita è errata, il tutor potrebbe perdere l&apos;accesso
+              all&apos;account. In caso di problemi, contatta l&apos;amministratore di
               sistema.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -757,8 +757,8 @@ export default function AdminTutorDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare il tutor?</AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azione è irreversibile. Il tutor perderà l'accesso
-              all'account.
+              Questa azione è irreversibile. Il tutor perderà l&apos;accesso
+              all&apos;account.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

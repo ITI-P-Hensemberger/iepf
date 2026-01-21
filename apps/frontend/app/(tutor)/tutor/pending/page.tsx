@@ -16,7 +16,6 @@ import { logout } from '@/lib/auth-client'
 export default function TutorPendingPage() {
   async function handleLogout() {
     await logout()
-    // logout() handles the redirect to /auth/login
   }
 
   return (

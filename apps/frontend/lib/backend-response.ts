@@ -32,7 +32,7 @@ export function parseBackendPayload(payloadText: string) {
       }
     }
     return { data: parsed }
-  } catch (error) {
+  } catch {
     return { data: payloadText }
   }
 }

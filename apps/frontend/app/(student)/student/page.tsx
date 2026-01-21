@@ -21,7 +21,7 @@ export default function StudentPage() {
           A breve qui troverai tutto ciò che riguarda le lezioni.
           <br />
           <br />
-          Mentre aspetti, dai un'occhiata alle{' '}
+          Mentre aspetti, dai un&apos;occhiata alle{' '}
           <Link href='/faq' className='mt-6 text-primary underline'>
             Domande Frequenti
           </Link>

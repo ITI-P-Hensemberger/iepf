@@ -18,7 +18,6 @@ import { logout } from '@/lib/auth-client'
 export default function StudentPendingPage() {
   async function handleLogout() {
     await logout()
-    // logout() handles the redirect to /auth/login
   }
 
   return (
@@ -50,7 +49,7 @@ export default function StudentPendingPage() {
           <CardContent className='space-y-6'>
             <div>
               <p className='text-sm font-medium'>
-                Checklist per l'attivazione iniziale
+                Checklist per l&apos;attivazione iniziale
               </p>
               <Separator className='my-3' />
               <ol className='space-y-4'>
@@ -80,7 +79,7 @@ export default function StudentPendingPage() {
                     3
                   </span>
                   <p className='text-sm leading-relaxed text-muted-foreground'>
-                    Nel frattempo riceverai l'avviso di pagamento di €50,00
+                    Nel frattempo riceverai l&apos;avviso di pagamento di €50,00
                     dalla Segreteria Scolastica. <br />
                     Effettua il pagamento e conserva la ricevuta.
                   </p>
@@ -102,14 +101,16 @@ export default function StudentPendingPage() {
                     <br />
                     <br />
                     Una volta inviato il form, la segreteria procederà ad
-                    attivare l'account e potrai iniziare a prenotare le lezioni.
+                    attivare l&apos;account e potrai iniziare a prenotare le
+                    lezioni.
                   </p>
                 </li>
               </ol>
             </div>
             <div className='rounded-lg border bg-muted/30 p-4 text-center text-sm text-muted-foreground'>
-              Mentre attendi l'attivazione dai un'occhiata alle Domande
-              Frequenti <ArrowDown className='ml-1 inline-block h-4 w-4' />
+              Mentre attendi l&apos;attivazione dai un&apos;occhiata alle
+              Domande Frequenti{' '}
+              <ArrowDown className='ml-1 inline-block h-4 w-4' />
             </div>
 
             <div className='flex justify-center'>

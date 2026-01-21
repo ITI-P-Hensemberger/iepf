@@ -181,7 +181,7 @@ export default function AdminAdminDetailPage() {
         try {
           const payload = (await response.json()) as { message?: string }
           message = payload.message ?? message
-        } catch (err) {
+        } catch {
           message = "Impossibile aggiornare l'admin."
         }
         throw new Error(message)
@@ -242,7 +242,7 @@ export default function AdminAdminDetailPage() {
         try {
           const payload = (await response.json()) as { message?: string }
           message = payload.message ?? message
-        } catch (err) {
+        } catch {
           message = "Impossibile eliminare l'admin."
         }
         throw new Error(message)
@@ -266,7 +266,7 @@ export default function AdminAdminDetailPage() {
             <div>
               <h1 className='text-2xl'>Dettagli admin</h1>
               <p className='mt-1 text-sm text-muted-foreground'>
-                Gestisci i dati dell'admin.
+                Gestisci i dati dell&apos;admin.
               </p>
             </div>
             <Button variant='outline' onClick={() => router.push('/admin/admins')}>
@@ -472,8 +472,8 @@ export default function AdminAdminDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Conferma modifica email</AlertDialogTitle>
             <AlertDialogDescription>
-              Se l'email inserita e errata, il admin potrebbe perdere l'accesso
-              all'account. In caso di problemi, contatta l'amministratore di
+              Se l&apos;email inserita e errata, il admin potrebbe perdere l&apos;accesso
+              all&apos;account. In caso di problemi, contatta l&apos;amministratore di
               sistema.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -502,8 +502,8 @@ export default function AdminAdminDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare il admin?</AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azione e irreversibile. Il admin perdera l'accesso
-              all'account.
+              Questa azione e irreversibile. Il admin perdera l&apos;accesso
+              all&apos;account.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

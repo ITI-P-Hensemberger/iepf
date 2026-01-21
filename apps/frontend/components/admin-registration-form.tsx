@@ -126,9 +126,9 @@ export function AdminRegistrationForm({
       form.reset()
       setIsSuccess(true)
       onSuccess?.()
-    } catch (error) {
+    } catch (err) {
       setSubmitError(
-        error instanceof Error ? error.message : 'Registrazione fallita.'
+        err instanceof Error ? err.message : 'Registrazione fallita.'
       )
     } finally {
       setIsSubmitting(false)
@@ -326,7 +326,7 @@ export function AdminRegistrationForm({
                       className='text-sm font-normal leading-relaxed'
                     >
                       <span className='inline-flex flex-wrap items-center gap-x-1 gap-y-1'>
-                        <span>Accetto l'</span>
+                        <span>Accetto l&apos;</span>
                         <Link
                           href='/privacy-policy'
                           target='_blank'

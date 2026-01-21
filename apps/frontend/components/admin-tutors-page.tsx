@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Table,
   TableBody,
@@ -38,12 +39,7 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
-} from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatItalianDate } from '@/lib/format-date'
 
 const pageSize = 15
@@ -100,32 +96,31 @@ function normalizePaged<T>(payload: unknown): { items: T[]; total: number } {
   }
 
   const candidate = payload as PagedPayloadObject<T>
-  const items =
-    Array.isArray(candidate.items)
-      ? candidate.items
-      : Array.isArray(candidate.rows)
+  const items = Array.isArray(candidate.items)
+    ? candidate.items
+    : Array.isArray(candidate.rows)
       ? candidate.rows
       : Array.isArray(candidate.results)
-      ? candidate.results
-      : Array.isArray((candidate as any).data)
-      ? (candidate as any).data
-      : []
+        ? candidate.results
+        : Array.isArray((candidate as Record<string, unknown>).data)
+          ? (candidate as Record<string, unknown>).data
+          : []
   const total =
     typeof candidate.total === 'number'
       ? candidate.total
       : Array.isArray(candidate.items)
-      ? candidate.items.length
-      : Array.isArray(candidate.rows)
-      ? candidate.rows.length
-      : Array.isArray(candidate.results)
-      ? candidate.results.length
-      : Array.isArray(candidate.data?.items)
-      ? candidate.data!.items!.length
-      : Array.isArray(candidate.data?.rows)
-      ? candidate.data!.rows!.length
-      : Array.isArray(candidate.data?.results)
-      ? candidate.data!.results!.length
-      : 0
+        ? candidate.items.length
+        : Array.isArray(candidate.rows)
+          ? candidate.rows.length
+          : Array.isArray(candidate.results)
+            ? candidate.results.length
+            : Array.isArray(candidate.data?.items)
+              ? candidate.data!.items!.length
+              : Array.isArray(candidate.data?.rows)
+                ? candidate.data!.rows!.length
+                : Array.isArray(candidate.data?.results)
+                  ? candidate.data!.results!.length
+                  : 0
   return { items: items as T[], total }
 }
 
@@ -166,8 +161,6 @@ function DataTable<TData>({
   )
   const [debouncedFilter, setDebouncedFilter] = React.useState(globalFilter)
   const didInitRef = React.useRef(false)
-  const lastFilterRef = React.useRef('')
-  const lastSortRef = React.useRef<SortingState>([])
   const lastNavigationRef = React.useRef('')
 
   React.useEffect(() => {
@@ -211,7 +204,8 @@ function DataTable<TData>({
     const sortChanged = desiredSort !== currentSort
 
     const currentPage = searchParams.get(pageKey) ?? ''
-    const pageChanged = page > 1 ? currentPage !== String(page) : currentPage !== ''
+    const pageChanged =
+      page > 1 ? currentPage !== String(page) : currentPage !== ''
 
     if (!filterChanged && !sortChanged && !pageChanged) {
       return
@@ -382,7 +376,9 @@ export default function AdminTutorsPage() {
   const searchParams = useSearchParams()
   const [activeTutors, setActiveTutors] = React.useState<Tutor[]>([])
   const [inactiveTutors, setInactiveTutors] = React.useState<Tutor[]>([])
-  const [pendingInvites, setPendingInvites] = React.useState<PendingInvite[]>([])
+  const [pendingInvites, setPendingInvites] = React.useState<PendingInvite[]>(
+    []
+  )
   const [activeTotal, setActiveTotal] = React.useState(0)
   const [inactiveTotal, setInactiveTotal] = React.useState(0)
   const [pendingTotal, setPendingTotal] = React.useState(0)
@@ -394,7 +390,7 @@ export default function AdminTutorsPage() {
   const [pendingError, setPendingError] = React.useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = React.useState<string | null>(null)
   const [showInviteDialog, setShowInviteDialog] = React.useState(false)
-  const [inviteEmail, setInviteEmail] = React.useState('')
+  const [inviteEmails, setInviteEmails] = React.useState('')
   const [inviteError, setInviteError] = React.useState<string | null>(null)
   const [inviteSuccess, setInviteSuccess] = React.useState<string | null>(null)
   const [isInviting, setIsInviting] = React.useState(false)
@@ -529,7 +525,9 @@ export default function AdminTutorsPage() {
       setPendingError(null)
 
       try {
-        const response = await fetch(`/api/auth/tutor-invite?${params.toString()}`)
+        const response = await fetch(
+          `/api/auth/tutor-invite?${params.toString()}`
+        )
         if (!response.ok) {
           throw new Error('Impossibile caricare gli inviti.')
         }
@@ -539,7 +537,9 @@ export default function AdminTutorsPage() {
         setPendingTotal(total)
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : 'Impossibile caricare gli inviti.'
+          err instanceof Error
+            ? err.message
+            : 'Impossibile caricare gli inviti.'
         setPendingError(message)
       } finally {
         setPendingLoading(false)
@@ -548,57 +548,158 @@ export default function AdminTutorsPage() {
     []
   )
 
-  const handleInviteTutor = React.useCallback(async () => {
-    const normalized = inviteEmail.trim().toLowerCase()
+  const parseAndValidateEmails = React.useCallback(
+    (
+      text: string
+    ): {
+      valid: string[]
+      invalid: Array<{ email: string; reason: string }>
+    } => {
+      const lines = text.split('\n')
+      const valid: string[] = []
+      const invalid: Array<{ email: string; reason: string }> = []
 
-    if (!normalized) {
-      setInviteError('Inserisci un indirizzo email valido.')
+      for (const line of lines) {
+        const trimmed = line.trim().toLowerCase()
+
+        // Skip empty lines
+        if (!trimmed) continue
+
+        // Basic email format check (contains @ and .)
+        if (!trimmed.includes('@') || !trimmed.includes('.')) {
+          invalid.push({ email: trimmed, reason: 'Formato email non valido' })
+          continue
+        }
+
+        // Domain validation
+        if (!trimmed.endsWith('@itismonza.it')) {
+          invalid.push({
+            email: trimmed,
+            reason: 'Deve essere una mail @itismonza.it'
+          })
+          continue
+        }
+
+        // Check for duplicates in the input
+        if (valid.includes(trimmed)) {
+          invalid.push({ email: trimmed, reason: 'Email duplicata' })
+          continue
+        }
+
+        valid.push(trimmed)
+      }
+
+      return { valid, invalid }
+    },
+    []
+  )
+
+  const handleInviteTutor = React.useCallback(async () => {
+    setInviteError(null)
+    setInviteSuccess(null)
+
+    // Parse and validate emails
+    const { valid, invalid } = parseAndValidateEmails(inviteEmails)
+
+    // Check if any emails were provided
+    if (valid.length === 0 && invalid.length === 0) {
+      setInviteError('Inserisci almeno un indirizzo email.')
       return
     }
 
-    if (!normalized.endsWith('@itismonza.it')) {
-      setInviteError('Utilizza una mail @itismonza.it')
+    // Block submission if any invalid emails
+    if (invalid.length > 0) {
+      const errorList = invalid
+        .map(({ email, reason }) => `• ${email}: ${reason}`)
+        .join('\n')
+      setInviteError(
+        `${invalid.length} email ${invalid.length === 1 ? 'non valida' : 'non valide'}:\n${errorList}`
+      )
       return
     }
 
     setIsInviting(true)
-    setInviteError(null)
 
     try {
-      const response = await fetch('/api/auth/tutor-invite/request', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email: normalized })
-      })
+      // Send all invites in parallel
+      const results = await Promise.allSettled(
+        valid.map((email) =>
+          fetch('/api/auth/tutor-invite/request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+          }).then(async (res) => {
+            if (!res.ok) {
+              const payload = await res.json()
+              throw new Error(payload.message || 'Richiesta non riuscita.')
+            }
+            return { email, success: true }
+          })
+        )
+      )
 
-      if (!response.ok) {
-        let message = "Impossibile inviare l'invito."
-        try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
-        } catch (err) {
-          // fallback message
+      // Collect successes and failures
+      const successes: string[] = []
+      const failures: Array<{ email: string; error: string }> = []
+
+      results.forEach((result, index) => {
+        const email = valid[index]
+        if (result.status === 'fulfilled') {
+          successes.push(email)
+        } else {
+          failures.push({
+            email,
+            error: result.reason?.message || 'Errore sconosciuto'
+          })
         }
-        throw new Error(message)
-      }
-
-      setInviteSuccess(`Invito inviato a ${normalized}.`)
-      setInviteEmail('')
-      setShowInviteDialog(false)
-      void loadPendingInvites({
-        search: pendingSearch,
-        sort: pendingSort,
-        page: pendingPage
       })
+
+      // Build feedback message
+      if (successes.length === valid.length) {
+        // All succeeded
+        setInviteSuccess(
+          `${successes.length} ${successes.length === 1 ? 'invito inviato' : 'inviti inviati'} con successo.`
+        )
+        setInviteEmails('')
+        setShowInviteDialog(false)
+        void loadPendingInvites({
+          search: pendingSearch,
+          sort: pendingSort,
+          page: pendingPage
+        })
+      } else if (successes.length > 0) {
+        // Partial success
+        const failureList = failures
+          .map(({ email, error }) => `• ${email}: ${error}`)
+          .join('\n')
+        setInviteError(
+          `${successes.length} ${successes.length === 1 ? 'invito inviato' : 'inviti inviati'} con successo.\n${failures.length} ${failures.length === 1 ? 'fallito' : 'falliti'}:\n${failureList}`
+        )
+        // Don't close dialog, let admin retry failed ones
+      } else {
+        // All failed
+        const failureList = failures
+          .map(({ email, error }) => `• ${email}: ${error}`)
+          .join('\n')
+        setInviteError(`Tutti gli inviti sono falliti:\n${failureList}`)
+      }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Impossibile inviare l'invito."
-      setInviteError(message)
+      setInviteError(
+        err instanceof Error
+          ? err.message
+          : 'Si è verificato un errore. Riprova.'
+      )
     } finally {
       setIsInviting(false)
     }
-  }, [inviteEmail, loadPendingInvites, pendingPage, pendingSearch, pendingSort])
+  }, [
+    inviteEmails,
+    loadPendingInvites,
+    parseAndValidateEmails,
+    pendingPage,
+    pendingSearch,
+    pendingSort
+  ])
 
   React.useEffect(() => {
     void loadTutors({
@@ -690,7 +791,12 @@ export default function AdminTutorsPage() {
             }
           >
             <DropdownMenuTrigger asChild>
-              <Button variant='ghost' size='icon' aria-label='Azioni' className='h-6 w-6 p-0'>
+              <Button
+                variant='ghost'
+                size='icon'
+                aria-label='Azioni'
+                className='h-6 w-6 p-0'
+              >
                 <MoreHorizontal className='h-4 w-4' />
               </Button>
             </DropdownMenuTrigger>
@@ -773,9 +879,7 @@ export default function AdminTutorsPage() {
           <div className='mt-8 space-y-6'>
             <Tabs defaultValue='active'>
               <TabsList>
-                <TabsTrigger value='active'>
-                  Attivi ({activeTotal})
-                </TabsTrigger>
+                <TabsTrigger value='active'>Attivi ({activeTotal})</TabsTrigger>
                 <TabsTrigger value='inactive'>
                   Inattivi ({inactiveTotal})
                 </TabsTrigger>
@@ -818,7 +922,9 @@ export default function AdminTutorsPage() {
                   total={inactiveTotal}
                 />
                 {inactiveError && (
-                  <p className='mt-3 text-sm text-destructive'>{inactiveError}</p>
+                  <p className='mt-3 text-sm text-destructive'>
+                    {inactiveError}
+                  </p>
                 )}
               </TabsContent>
               {showPendingTab && (
@@ -854,29 +960,53 @@ export default function AdminTutorsPage() {
       <AlertDialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Invita un tutor</AlertDialogTitle>
+            <AlertDialogTitle>Invita tutor</AlertDialogTitle>
             <AlertDialogDescription>
-              Inserisci l'indirizzo email istituzionale del tutor per inviare
-              l'invito alla registrazione.
+              Inserisci gli indirizzi email istituzionali dei tutor, uno per
+              riga. <br />
+              Verranno inviati gli inviti alla registrazione.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className='space-y-2'>
-            <Input
-              type='email'
-              placeholder='nome.cognome@itismonza.it'
-              value={inviteEmail}
-              onChange={(event) => setInviteEmail(event.target.value)}
-              autoComplete='email'
+          <div className='space-y-3'>
+            {/* Email count indicator */}
+            {inviteEmails.trim() && (
+              <div className='text-sm text-muted-foreground'>
+                {(() => {
+                  const { valid, invalid } =
+                    parseAndValidateEmails(inviteEmails)
+                  if (valid.length > 0) {
+                    return `${valid.length} email ${valid.length === 1 ? 'valida' : 'valide'} ${invalid.length > 0 ? `(${invalid.length} non ${invalid.length === 1 ? 'valida' : 'valide'})` : ''}`
+                  }
+                  return invalid.length > 0
+                    ? `${invalid.length} email non ${invalid.length === 1 ? 'valida' : 'valide'}`
+                    : null
+                })()}
+              </div>
+            )}
+
+            <Textarea
+              placeholder='tutor1@itismonza.it'
+              value={inviteEmails}
+              onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) =>
+                setInviteEmails(event.target.value)
+              }
+              rows={6}
+              className='font-mono text-sm'
             />
+
             {inviteError && (
-              <p className='text-sm text-destructive'>{inviteError}</p>
+              <div className='rounded-md border border-destructive/50 bg-destructive/10 p-3'>
+                <p className='text-sm text-destructive whitespace-pre-line'>
+                  {inviteError}
+                </p>
+              </div>
             )}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel
               onClick={() => {
                 setInviteError(null)
-                setInviteEmail('')
+                setInviteEmails('')
               }}
             >
               Annulla
@@ -886,9 +1016,9 @@ export default function AdminTutorsPage() {
                 event.preventDefault()
                 void handleInviteTutor()
               }}
-              disabled={isInviting}
+              disabled={isInviting || !inviteEmails.trim()}
             >
-              {isInviting ? 'Invio...' : 'Invia invito'}
+              {isInviting ? 'Invio...' : 'Invia inviti'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

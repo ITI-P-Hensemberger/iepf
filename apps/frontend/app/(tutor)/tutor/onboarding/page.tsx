@@ -10,8 +10,8 @@ export default function TutorOnboardingPage() {
 
   if (isLoading) {
     return (
-      <main className='min-h-screen bg-linear-to-b from-background to-muted/20'>
-        <div className='container mx-auto px-4 py-16 flex justify-center'>
+      <main className='min-h-screen'>
+        <div className='container mx-auto px-4 py-10 flex justify-center'>
           <Card className='w-full max-w-3xl'>
             <CardHeader className='space-y-2'>
               <Skeleton className='h-8 w-3/4' />
@@ -46,8 +46,8 @@ export default function TutorOnboardingPage() {
   }
 
   return (
-    <main className='min-h-screen bg-linear-to-b from-background to-muted/20'>
-      <div className='container mx-auto px-4 py-16 flex justify-center'>
+    <main className='min-h-screen'>
+      <div className='container mx-auto px-4 py-10 flex justify-center'>
         <TutorOnboardingForm tutorId={profile.id} />
       </div>
     </main>

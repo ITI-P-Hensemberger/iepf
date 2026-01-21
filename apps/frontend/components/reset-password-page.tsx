@@ -84,7 +84,7 @@ export default function ResetPasswordPage() {
         try {
           const payload = (await response.json()) as { message?: string }
           message = payload.message ?? message
-        } catch (error) {
+        } catch {
           message = 'Reset della password non riuscito.'
         }
         throw new Error(message)
@@ -92,10 +92,10 @@ export default function ResetPasswordPage() {
 
       setIsSuccess(true)
       form.reset()
-    } catch (error) {
+    } catch (err) {
       setSubmitError(
-        error instanceof Error
-          ? error.message
+        err instanceof Error
+          ? err.message
           : 'Reset della password non riuscito.'
       )
     } finally {

@@ -16,7 +16,7 @@ export async function POST(request: Request) {
       password?: string
       remember?: boolean
     }
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { message: 'Corpo richiesta non valido.' },
       { status: 400 }
@@ -45,9 +45,9 @@ export async function POST(request: Request) {
     setAuthCookies(response, tokens, Boolean(body.remember))
 
     return response
-  } catch (error) {
-    console.log('Login error:', error)
-    const status = (error as Error & { status?: number }).status
+  } catch (err) {
+    console.log('Login err:', err)
+    const status = (err as Error & { status?: number }).status
     if (status) {
       const message =
         status === 403 ? 'Email non verificata.' : 'Login fallito.'

@@ -8,14 +8,7 @@ import * as z from 'zod'
 import { ChevronLeft } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card'
+import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { SubjectSelector } from '@/components/subject-selector'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { useSession } from '@/lib/use-session'
@@ -49,12 +42,13 @@ export default function TutorSubjectsSettingsPage() {
   })
 
   // Custom isDirty logic - compare current vs original sets
+  const currentSubjectIds = form.watch('subjectIds')
   const isDirty = React.useMemo(() => {
-    const current = new Set(form.watch('subjectIds'))
+    const current = new Set(currentSubjectIds)
     const original = new Set(originalSubjects)
     if (current.size !== original.size) return true
     return [...current].some((id) => !original.has(id))
-  }, [form.watch('subjectIds'), originalSubjects])
+  }, [currentSubjectIds, originalSubjects])
 
   // Fetch current subjects on mount
   React.useEffect(() => {
@@ -117,7 +111,7 @@ export default function TutorSubjectsSettingsPage() {
           })
         )
       )
-      deleteResults.forEach((result, i) => {
+      deleteResults.forEach((result) => {
         if (result.status === 'rejected' || !result.value.ok) {
           errors.push('Impossibile rimuovere una materia')
         }
@@ -135,7 +129,7 @@ export default function TutorSubjectsSettingsPage() {
           })
         )
       )
-      addResults.forEach((result, i) => {
+      addResults.forEach((result) => {
         if (result.status === 'rejected' || !result.value.ok) {
           errors.push('Impossibile aggiungere una materia')
         }
@@ -157,7 +151,7 @@ export default function TutorSubjectsSettingsPage() {
       } else {
         setIsSuccess(true)
       }
-    } catch (err) {
+    } catch {
       setSubmitErrors(['Impossibile aggiornare le materie. Riprova.'])
     } finally {
       setIsSubmitting(false)
@@ -169,7 +163,7 @@ export default function TutorSubjectsSettingsPage() {
   }
 
   return (
-    <div className='container max-w-4xl mx-auto px-4 py-8'>
+    <div className='container mx-auto px-4 py-10'>
       <div className='mb-6'>
         <Button
           variant='ghost'
@@ -227,10 +221,11 @@ export default function TutorSubjectsSettingsPage() {
             )}
           </form>
         </CardContent>
-        <CardFooter className='flex flex-col gap-3 items-end sm:flex-row sm:items-center sm:justify-between'>
+        <CardFooter className='flex justify-end'>
           <Button
             type='submit'
             form='subjects-form'
+            className='w-full sm:w-auto'
             disabled={!isDirty || isSubmitting}
           >
             {isSubmitting ? 'Salvataggio...' : 'Salva modifiche'}

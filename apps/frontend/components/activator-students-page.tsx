@@ -25,7 +25,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from './ui/checkbox'
 import { logout } from '@/lib/auth-client'
-import { useSession } from '@/lib/use-session'
 
 const pageSize = 15
 
@@ -85,8 +84,8 @@ function normalizePaged<T>(payload: unknown): { items: T[]; total: number } {
       ? candidate.rows
       : Array.isArray(candidate.results)
         ? candidate.results
-        : Array.isArray((candidate as any).data)
-          ? (candidate as any).data
+        : Array.isArray((candidate as Record<string, unknown>).data)
+          ? (candidate as Record<string, unknown>).data
           : []
   const total =
     typeof candidate.total === 'number'
@@ -396,9 +395,6 @@ export default function ActivatorStudentsPage() {
   const [isSuccess, setIsSuccess] = React.useState(false)
   const [submitError, setSubmitError] = React.useState<string | null>(null)
 
-  const router = useRouter()
-  const { refresh } = useSession()
-
   const parsePage = React.useCallback(
     (key: string) => {
       const raw = searchParams.get(key)
@@ -425,7 +421,6 @@ export default function ActivatorStudentsPage() {
 
   async function handleLogout() {
     await logout()
-    // logout() handles the redirect to /auth/login
   }
 
   const loadStudents = React.useCallback(
@@ -555,7 +550,7 @@ export default function ActivatorStudentsPage() {
         try {
           const payload = (await response.json()) as { message?: string }
           message = payload.message ?? message
-        } catch (err) {
+        } catch {
           message = value
             ? 'Impossibile attivare lo studente.'
             : 'Impossibile disattivare lo studente.'
@@ -682,7 +677,7 @@ export default function ActivatorStudentsPage() {
     ]
 
     return columns
-  }, [getSectionLabel])
+  }, [getSectionLabel, isSubmitting])
 
   const activeColumns = React.useMemo(() => makeColumns(), [makeColumns])
   const inactiveColumns = React.useMemo(() => makeColumns(), [makeColumns])

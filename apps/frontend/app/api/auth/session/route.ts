@@ -35,7 +35,7 @@ export async function GET() {
 
     const profile = await fetchUserProfile(apiBaseUrl, accessToken)
     return NextResponse.json(profile)
-  } catch (error) {
+  } catch {
     return NextResponse.json(null)
   }
 }

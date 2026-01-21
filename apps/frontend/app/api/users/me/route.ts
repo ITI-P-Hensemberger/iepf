@@ -31,7 +31,7 @@ export async function PATCH(request: Request) {
 
   try {
     body = (await request.json()) as UpdateProfileBody
-  } catch (error) {
+  } catch {
     return NextResponse.json({ message: 'Invalid body.' }, { status: 400 })
   }
 

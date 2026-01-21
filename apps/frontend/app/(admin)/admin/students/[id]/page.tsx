@@ -281,7 +281,7 @@ export default function AdminStudentDetailPage() {
         try {
           const payload = (await response.json()) as { message?: string }
           message = payload.message ?? message
-        } catch (err) {
+        } catch {
           message = 'Impossibile aggiornare lo studente.'
         }
         throw new Error(message)
@@ -346,7 +346,7 @@ export default function AdminStudentDetailPage() {
         try {
           const payload = (await response.json()) as { message?: string }
           message = payload.message ?? message
-        } catch (err) {
+        } catch {
           message = 'Impossibile eliminare lo studente.'
         }
         throw new Error(message)
@@ -745,9 +745,9 @@ export default function AdminStudentDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Conferma modifica email</AlertDialogTitle>
             <AlertDialogDescription>
-              Se l'email inserita è errata, lo studente potrebbe perdere
-              l'accesso all'account. In caso di problemi, contatta
-              l'amministratore di sistema.
+              Se l&apos;email inserita è errata, lo studente potrebbe perdere
+              l&apos;accesso all&apos;account. In caso di problemi, contatta
+              l&apos;amministratore di sistema.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -775,8 +775,8 @@ export default function AdminStudentDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare lo studente?</AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azione è irreversibile. Lo studente perderà l'accesso
-              all'account.
+              Questa azione è irreversibile. Lo studente perderà l&apos;accesso
+              all&apos;account.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -47,7 +47,7 @@ export default function VerifyEmailPage() {
               payload.message ??
               payload.error?.issues?.[0]?.message ??
               errorMessage
-          } catch (error) {
+          } catch {
             errorMessage = 'Verifica non riuscita.'
           }
 
@@ -57,7 +57,7 @@ export default function VerifyEmailPage() {
         if (isMounted) {
           setStatus('success')
         }
-      } catch (error) {
+      } catch {
         if (isMounted) {
           setStatus('error')
         }

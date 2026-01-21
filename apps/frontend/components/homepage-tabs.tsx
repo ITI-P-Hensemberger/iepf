@@ -10,7 +10,7 @@ function HomepageTabs() {
       defaultValue='cose-insieme-e-facile'
     >
       <TabsList className='self-center'>
-        <TabsTrigger value='cose-insieme-e-facile'>Cos'è IEPF</TabsTrigger>
+        <TabsTrigger value='cose-insieme-e-facile'>Cos&apos;è IEPF</TabsTrigger>
         <TabsTrigger value='modalita-e-prezzi'>Prezzi</TabsTrigger>
         <Button asChild variant='ghost'>
           <Link href='/faq'>FAQ</Link>
@@ -21,7 +21,7 @@ function HomepageTabs() {
         <Card className='mt-4 sm:max-h-[40vh] max-h-[30vh] overflow-y-auto px-4'>
           <p>
             <b>InsiemeÈ+Facile</b> è la piattaforma di supporto allo studio
-            dell'<b>ITI P. Hensemberger</b> di Monza, pensata per aiutare gli
+            dell&apos;<b>ITI P. Hensemberger</b> di Monza, pensata per aiutare gli
             studenti a consolidare i concetti fondamentali e affrontare con più
             sicurezza le materie nelle quali sono in difficoltà.
           </p>
@@ -43,7 +43,7 @@ function HomepageTabs() {
           <p>
             Il servizio prevede un contributo di <b>50€</b>, che dà accesso alla
             piattaforma con un pacchetto di <b>30 lezioni</b> utilizzabili
-            durante tutto l'anno scolastico.
+            durante tutto l&apos;anno scolastico.
           </p>
           <p>
             <b>Procedura di pagamento e attivazione:</b>
@@ -52,9 +52,9 @@ function HomepageTabs() {
             <b>Segreteria Didattica</b> la liberatoria firmata (allegata alla
             circolare).
             <br />
-            2) La Segreteria invierà l'<b>avviso di pagamento</b>.
+            2) La Segreteria invierà l&apos;<b>avviso di pagamento</b>.
             <br />
-            3) Una volta effettuato il pagamento, l'utenza dello studente verrà{' '}
+            3) Una volta effettuato il pagamento, l&apos;utenza dello studente verrà{' '}
             <b>attivata</b>.
           </p>
         </Card>
