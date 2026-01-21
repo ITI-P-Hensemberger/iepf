@@ -21,13 +21,7 @@
     "seed:class-sections": "tsx src/scripts/seed-class-sections.ts",
     "seed:subjects": "tsx src/scripts/seed-subjects.ts",
     "seed:mocks": "tsx src/scripts/seed-mock-users.ts",
-    "generate:lessons": "tsx src/scripts/generate-weekly-lessons.ts",
-    "seed:migration-journal": "tsx src/scripts/seed-migration-journal.ts",
-    "debug:migration-journal": "tsx src/scripts/debug-migration-journal.ts",
-    "fix:migration-journal": "tsx src/scripts/fix-migration-journal.ts",
-    "apply:schema-changes": "tsx src/scripts/apply-schema-changes.ts",
-    "mark:migrations-applied": "tsx src/scripts/mark-migrations-applied.ts",
-    "reset:production-db": "tsx src/scripts/reset-production-db.ts"
+    "generate:lessons": "tsx src/scripts/generate-weekly-lessons.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.6",
