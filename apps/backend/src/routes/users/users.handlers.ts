@@ -842,6 +842,8 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
         && profileUpdates.sectionId !== (currentTutorProfile?.sectionId ?? null))
       || (profileUpdates.year !== undefined
         && profileUpdates.year !== (currentTutorProfile?.year ?? null))
+      || (profileUpdates.isActive !== undefined
+        && profileUpdates.isActive !== (currentTutorProfile?.isActive ?? null))
     }
 
     if (hasProfileUpdates && existing.role === 'admin') {
