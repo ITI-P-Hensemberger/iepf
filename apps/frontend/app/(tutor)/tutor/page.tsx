@@ -8,7 +8,7 @@ export default function TutorPage() {
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <h1 className='mt-6 text-2xl'>Area tutor</h1>
         <p className='mt-2 text-center max-w-md text-muted-foreground'>
-          Questa e una pagina placeholder per i tutor attivi.
+          Questa è una pagina placeholder per i tutor attivi.
         </p>
         <Link href='/faq' className='mt-6 text-primary underline'>
           Vai alle FAQ

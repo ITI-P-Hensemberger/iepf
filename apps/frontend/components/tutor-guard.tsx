@@ -31,6 +31,11 @@ export default function TutorGuard({ children }: TutorGuardProps) {
       return
     }
 
+    if (profile.role === 'activator') {
+      router.replace('/activator')
+      return
+    }
+
     if (profile.role !== 'tutor') {
       router.replace(profile.isActive === false ? '/student/pending' : '/student')
       return

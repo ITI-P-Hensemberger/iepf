@@ -36,6 +36,11 @@ export default function StudentGuard({ children }: StudentGuardProps) {
       return
     }
 
+    if (profile.role === 'activator') {
+      router.replace('/activator')
+      return
+    }
+
     if (profile.isActive === false && !isPendingPage) {
       router.replace('/student/pending')
       return

@@ -6,6 +6,7 @@ import { clearAuthCookies, setAuthCookies } from '@/lib/auth-cookies'
 const STUDENT_PREFIX = '/student'
 const PROFILE_PREFIX = '/profile'
 const ADMIN_PREFIX = '/admin'
+const ACTIVATOR_PREFIX = '/activator'
 const AUTH_PREFIX = '/auth'
 const PENDING_PATH = '/student/pending'
 const TUTOR_PREFIX = '/tutor'
@@ -19,6 +20,9 @@ function roleHome(role: string | null, isActive: boolean) {
   }
   if (role === 'tutor') {
     return isActive ? '/tutor' : '/tutor/pending'
+  }
+  if (role === 'activator') {
+    return '/activator'
   }
   return isActive ? '/student' : '/student/pending'
 }
@@ -90,11 +94,13 @@ export async function proxy(request: NextRequest) {
   const isAuthenticated = Boolean(accessToken) && !isExpired(accessExpiresAt)
   const isAdmin = role === 'admin'
   const isTutor = role === 'tutor'
+  const isActivator = role === 'activator'
   const isActive = active === 'true'
 
   const isAuthRoute = pathname.startsWith(AUTH_PREFIX)
   const isAdminRoute = pathname.startsWith(ADMIN_PREFIX)
   const isTutorRoute = pathname.startsWith(TUTOR_PREFIX)
+  const isActivatorRoute = pathname.startsWith(ACTIVATOR_PREFIX)
   const isPendingRoute = pathname.startsWith(PENDING_PATH)
   const isAdminPendingRoute = pathname.startsWith(ADMIN_PENDING_PATH)
   const isTutorPendingRoute = pathname.startsWith(TUTOR_PENDING_PATH)
@@ -108,6 +114,7 @@ export async function proxy(request: NextRequest) {
     (
       isAdminRoute ||
       isTutorRoute ||
+      isActivatorRoute ||
       isStudentRoute ||
       isProfileRoute ||
       isPendingRoute ||
@@ -138,8 +145,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(destination, request.url))
   }
 
+  if (isAuthenticated && isActivatorRoute && !isActivator) {
+    const destination = roleHome(role, isActive)
+    return NextResponse.redirect(new URL(destination, request.url))
+  }
+
   if (isAuthenticated && isStudentRoute) {
-    if (isAdmin || isTutor) {
+    if (isAdmin || isTutor || isActivator) {
       const destination = roleHome(role, isActive)
       return NextResponse.redirect(new URL(destination, request.url))
     }
@@ -149,7 +161,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (isAuthenticated && isPendingRoute) {
-    if (isAdmin || isTutor || isActive) {
+    if (isAdmin || isTutor || isActivator || isActive) {
       const destination = roleHome(role, isActive)
       return NextResponse.redirect(new URL(destination, request.url))
     }

@@ -135,6 +135,11 @@ function LoginContent() {
         return
       }
 
+      if (payload.role === 'activator') {
+        router.push('/activator')
+        return
+      }
+
       if (nextPath && !nextPath.startsWith('/admin')) {
         router.push(nextPath)
         return

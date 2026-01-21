@@ -31,6 +31,11 @@ export default function AdminGuard({ children }: AdminGuardProps) {
       return
     }
 
+    if (profile.role === 'activator') {
+      router.replace('/activator')
+      return
+    }
+
     if (profile.role !== 'admin') {
       router.replace(profile.isActive === false ? '/student/pending' : '/student')
       return

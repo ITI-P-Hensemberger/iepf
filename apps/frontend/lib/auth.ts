@@ -25,6 +25,8 @@ type JwtPayload = {
   sub?: string
   userId?: string
   id?: string
+  role?: string | null
+  isActive?: boolean | null
 }
 
 function decodeBase64Url(input: string) {
@@ -69,10 +71,31 @@ export function getUserIdFromToken(accessToken: string) {
   return null
 }
 
+function getProfileFromToken(accessToken: string): UserProfile | null {
+  const payload = decodeJwtPayload(accessToken)
+  if (!payload) {
+    return null
+  }
+
+  if (payload.role === 'activator') {
+    return {
+      role: 'activator',
+      isActive: payload.isActive ?? true
+    }
+  }
+
+  return null
+}
+
 export async function fetchUserProfile(
   apiBaseUrl: string,
   accessToken: string
 ): Promise<UserProfile> {
+  const tokenProfile = getProfileFromToken(accessToken)
+  if (tokenProfile) {
+    return tokenProfile
+  }
+
   const userId = getUserIdFromToken(accessToken)
   if (!userId) {
     throw new Error('Missing user id in token')
