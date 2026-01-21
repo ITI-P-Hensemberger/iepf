@@ -26,7 +26,8 @@
     "debug:migration-journal": "tsx src/scripts/debug-migration-journal.ts",
     "fix:migration-journal": "tsx src/scripts/fix-migration-journal.ts",
     "apply:schema-changes": "tsx src/scripts/apply-schema-changes.ts",
-    "mark:migrations-applied": "tsx src/scripts/mark-migrations-applied.ts"
+    "mark:migrations-applied": "tsx src/scripts/mark-migrations-applied.ts",
+    "reset:production-db": "tsx src/scripts/reset-production-db.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.6",
