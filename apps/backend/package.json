@@ -24,7 +24,8 @@
     "generate:lessons": "tsx src/scripts/generate-weekly-lessons.ts",
     "seed:migration-journal": "tsx src/scripts/seed-migration-journal.ts",
     "debug:migration-journal": "tsx src/scripts/debug-migration-journal.ts",
-    "fix:migration-journal": "tsx src/scripts/fix-migration-journal.ts"
+    "fix:migration-journal": "tsx src/scripts/fix-migration-journal.ts",
+    "apply:schema-changes": "tsx src/scripts/apply-schema-changes.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.6",
