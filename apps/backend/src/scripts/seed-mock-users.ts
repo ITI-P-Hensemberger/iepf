@@ -1,15 +1,14 @@
 // Purpose: Seed mock users for demos/testing.
 import db from '@/db'
 import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
-import { classSections } from '@/db/schemas/class-sections.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { users } from '@/db/schemas/users.schema'
-import { DEFAULT_TUTOR_SETTINGS } from '@/lib/constants'
 import { issueAdminInviteToken } from '@/lib/admin-invite'
-import { issueTutorInviteToken } from '@/lib/tutor-invite'
+import { DEFAULT_TUTOR_SETTINGS } from '@/lib/constants'
 import { hashPassword } from '@/lib/password'
+import { issueTutorInviteToken } from '@/lib/tutor-invite'
 
 const EMAIL_PREFIX = 'jordan.castiglioni+'
 const EMAIL_DOMAIN = '@itismonza.it'

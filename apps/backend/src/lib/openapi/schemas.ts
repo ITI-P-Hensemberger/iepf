@@ -39,7 +39,6 @@ export function createErrorMessageSchema(exampleMessage = 'Errore') {
   })
 }
 
-
 export function createPagedListSchema(itemSchema: z.ZodTypeAny) {
   return z.object({
     data: z.array(itemSchema),

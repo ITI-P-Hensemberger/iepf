@@ -12,9 +12,9 @@ import { lessons } from '@/db/schemas/lessons.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import env from '@/env'
+import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
-import { buildErrorResponse } from '@/lib/error-response'
 import { buildPagedResponse } from '@/lib/pagination'
 
 import type {
@@ -1047,7 +1047,8 @@ export const listLessonConfirmations: AppRouteHandler<ListLessonConfirmationsRou
   const direction = query.sortDir === 'desc' ? -1 : 1
   if (query.sortBy === 'createdAt') {
     items.sort((a, b) => (a.createdAt.getTime() - b.createdAt.getTime()) * direction)
-  } else {
+  }
+  else {
     items.sort((a, b) => (new Date(a.startAt).getTime() - new Date(b.startAt).getTime()) * direction)
   }
 

@@ -1,13 +1,13 @@
+import type { z as z4 } from 'zod/v4'
+
 // Purpose: Zod helper utilities.
 import { z } from '@hono/zod-openapi'
-import type { z as z4 } from 'zod/v4'
 
 export function toZodV4SchemaTyped<T extends z4.ZodType>(
   schema: T
 ) {
   return schema as unknown as z.ZodType<z4.infer<T>>
 }
-
 
 const truthyValues = new Set(['true', '1', 'yes', 'on'])
 const falsyValues = new Set(['false', '0', 'no', 'off'])

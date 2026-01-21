@@ -8,9 +8,9 @@ import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
 import { auditLogs } from '@/db/schemas/audit-logs.schema'
+import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
-import { buildErrorResponse } from '@/lib/error-response'
 import { buildPagedResponse } from '@/lib/pagination'
 
 import type { GetAuditLogRoute, ListAuditLogsRoute } from './audit.routes'

@@ -45,7 +45,7 @@ const DEFAULT_SUBJECTS = [
   // Liceo Scienze Applicate
   { name: 'Inglese - Letteratura', canonicalName: 'english_literature' },
   { name: 'Filosofia', canonicalName: 'philosophy' },
-  { name: 'Storia dell\'arte', canonicalName: 'art_history' },
+  { name: 'Storia dell\'arte', canonicalName: 'art_history' }
 ]
 
 try {

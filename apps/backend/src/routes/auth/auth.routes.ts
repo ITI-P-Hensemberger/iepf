@@ -5,11 +5,10 @@ import { selectUsersWithProfilesSchema, studentRegisterSchema } from '@/db/schem
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
+import { createErrorMessageSchema, createErrorSchema, createMessageObjectSchema, createPagedListSchema } from '@/lib/openapi/schemas'
 import { queryBoolean } from '@/lib/zod-utils'
-import { createErrorSchema, createMessageObjectSchema, createErrorMessageSchema, createPagedListSchema } from '@/lib/openapi/schemas'
 
 const tags = ['Auth']
-
 
 export const tutorInviteRequestSchema = z.object({
   email: z.email()
@@ -298,8 +297,6 @@ export const confirmEmailVerification = createRoute({
     )
   }
 })
-
-
 
 export const listAdminInvites = createRoute({
   path: '/auth/admin-invite',

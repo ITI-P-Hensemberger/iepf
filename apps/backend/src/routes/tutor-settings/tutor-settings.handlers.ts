@@ -8,9 +8,9 @@ import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
+import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
-import { buildErrorResponse } from '@/lib/error-response'
 
 import type { GetSettingsRoute, UpdateSettingsRoute } from './tutor-settings.routes'
 

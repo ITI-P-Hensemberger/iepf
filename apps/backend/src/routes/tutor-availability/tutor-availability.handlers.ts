@@ -10,9 +10,9 @@ import db from '@/db'
 import { tutorAvailability } from '@/db/schemas/tutor-availability.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { DEFAULT_TUTOR_SETTINGS } from '@/lib/constants'
+import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
-import { buildErrorResponse } from '@/lib/error-response'
 import { buildPagedResponse } from '@/lib/pagination'
 
 import type {
@@ -258,7 +258,8 @@ export const listAvailableSlots: AppRouteHandler<ListAvailableSlotsRoute> = asyn
 
   if (query.sortDir === 'desc') {
     available = available.sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime())
-  } else {
+  }
+  else {
     available = available.sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
   }
 

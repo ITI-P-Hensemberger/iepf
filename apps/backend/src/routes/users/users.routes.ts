@@ -6,8 +6,8 @@ import { notFoundSchema } from '@/lib/constants'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
+import { createErrorMessageSchema, createErrorSchema, createPagedListSchema, IdUUIDParamsSchema } from '@/lib/openapi/schemas'
 import { queryBoolean } from '@/lib/zod-utils'
-import { IdUUIDParamsSchema, createErrorSchema, createErrorMessageSchema, createPagedListSchema } from '@/lib/openapi/schemas'
 
 const tags = ['Users']
 const bearerAuth = [{

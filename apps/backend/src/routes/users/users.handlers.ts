@@ -8,7 +8,6 @@ import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
 import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
-import { classSections } from '@/db/schemas/class-sections.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
@@ -19,11 +18,11 @@ import {
   buildTutorCreatedMessage
 } from '@/lib/email-templates'
 import { issueEmailVerificationToken } from '@/lib/email-verification'
+import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
-import { buildErrorResponse } from '@/lib/error-response'
-import { buildPagedResponse } from '@/lib/pagination'
 import { sendMail } from '@/lib/mailer'
+import { buildPagedResponse } from '@/lib/pagination'
 import { hashPassword } from '@/lib/password'
 import { revokeUserRefreshTokens } from '@/lib/refresh-tokens'
 
@@ -212,7 +211,7 @@ async function attachProfiles(records: UserPublicRecord[]): Promise<UserWithProf
         name: true
       }
     })
-    sections.forEach(section => {
+    sections.forEach((section) => {
       sectionNameMap.set(section.id, section.name)
     })
   }
@@ -402,7 +401,6 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
     year: profileUpdates.year,
     isActive: profileUpdates.isActive
   }
-  const tutorProfilePayload = buildTutorProfilePayload(profileUpdates)
 
   const passwordHash = await hashPassword(user.password)
 
@@ -518,12 +516,12 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
 
       const verification = await issueEmailVerificationToken(inserted.id)
       const tutorEmail = buildTutorCreatedMessage(verification.token)
-      await sendMail({
+      sendMail({
         to: inserted.email,
         subject: tutorEmail.subject,
         text: tutorEmail.text,
         html: tutorEmail.html
-      })
+      }).catch(err => console.error('Failed to send email:', err))
     }
 
     const location = `/users/${inserted.id}`
@@ -602,7 +600,8 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     if (currentUser.isActive !== true && currentUser.id !== id) {
       forbid()
     }
-  } else if (!isActivator && currentUser.id !== id) {
+  }
+  else if (!isActivator && currentUser.id !== id) {
     forbid()
   }
   if (isActivator) {
@@ -729,7 +728,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
           sectionId: true,
           year: true,
           isActive: true,
-        lessonTokens: true
+          lessonTokens: true
         }
       })) ?? null
     }
@@ -742,7 +741,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
         columns: {
           sectionId: true,
           year: true,
-        isActive: true
+          isActive: true
         }
       })) ?? null
     }
@@ -776,7 +775,6 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       }
     }
 
-
     if (existing.role === 'student' && profileUpdates.isActive !== undefined) {
       previousIsActive = currentStudentProfile?.isActive ?? null
     }
@@ -791,36 +789,36 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     if (hasProfileUpdates && existing.role === 'student') {
       if (profileUpdates.year !== undefined && (profileUpdates.year < 1 || profileUpdates.year > 3)) {
         return c.json(
-      buildErrorResponse('L\'anno deve essere compreso tra 1 e 3', {
-        name: 'ZodError',
-        issues: [
-          {
-            code: ZOD_ERROR_CODES.INVALID_UPDATES,
-            path: ['year'],
-            message: 'L\'anno deve essere compreso tra 1 e 3'
-          }
-        ]
-      }),
-      HttpStatusCodes.UNPROCESSABLE_ENTITY
-    )
+          buildErrorResponse('L\'anno deve essere compreso tra 1 e 3', {
+            name: 'ZodError',
+            issues: [
+              {
+                code: ZOD_ERROR_CODES.INVALID_UPDATES,
+                path: ['year'],
+                message: 'L\'anno deve essere compreso tra 1 e 3'
+              }
+            ]
+          }),
+          HttpStatusCodes.UNPROCESSABLE_ENTITY
+        )
       }
     }
 
     if (hasProfileUpdates && existing.role === 'tutor') {
       if (profileUpdates.year !== undefined && (profileUpdates.year < 4 || profileUpdates.year > 5)) {
         return c.json(
-      buildErrorResponse('L\'anno deve essere compreso tra 4 e 5', {
-        name: 'ZodError',
-        issues: [
-          {
-            code: ZOD_ERROR_CODES.INVALID_UPDATES,
-            path: ['year'],
-            message: 'L\'anno deve essere compreso tra 4 e 5'
-          }
-        ]
-      }),
-      HttpStatusCodes.UNPROCESSABLE_ENTITY
-    )
+          buildErrorResponse('L\'anno deve essere compreso tra 4 e 5', {
+            name: 'ZodError',
+            issues: [
+              {
+                code: ZOD_ERROR_CODES.INVALID_UPDATES,
+                path: ['year'],
+                message: 'L\'anno deve essere compreso tra 4 e 5'
+              }
+            ]
+          }),
+          HttpStatusCodes.UNPROCESSABLE_ENTITY
+        )
       }
     }
 
@@ -833,17 +831,17 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     if (hasProfileUpdates && existing.role === 'student') {
       profileChanged = (profileUpdates.sectionId !== undefined
         && profileUpdates.sectionId !== (currentStudentProfile?.sectionId ?? null))
-        || (profileUpdates.year !== undefined
-          && profileUpdates.year !== (currentStudentProfile?.year ?? null))
-        || (profileUpdates.isActive !== undefined
-          && profileUpdates.isActive !== (currentStudentProfile?.isActive ?? null))
+      || (profileUpdates.year !== undefined
+        && profileUpdates.year !== (currentStudentProfile?.year ?? null))
+      || (profileUpdates.isActive !== undefined
+        && profileUpdates.isActive !== (currentStudentProfile?.isActive ?? null))
     }
 
     if (hasProfileUpdates && existing.role === 'tutor') {
       profileChanged = (profileUpdates.sectionId !== undefined
         && profileUpdates.sectionId !== (currentTutorProfile?.sectionId ?? null))
-        || (profileUpdates.year !== undefined
-          && profileUpdates.year !== (currentTutorProfile?.year ?? null))
+      || (profileUpdates.year !== undefined
+        && profileUpdates.year !== (currentTutorProfile?.year ?? null))
     }
 
     if (hasProfileUpdates && existing.role === 'admin') {
@@ -973,18 +971,12 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       const message = activationChanged
         ? buildActivationChangedMessage(Boolean(profileUpdates.isActive))
         : buildProfileUpdatedMessage()
-      try {
-        await sendMail({
-          to: user.email,
-          subject: message.subject,
-          text: message.text,
-          html: message.html
-        })
-      }
-      catch (error) {
-        // Avoid blocking profile updates on email delivery issues.
-        console.error('Failed to send profile update email', error)
-      }
+      sendMail({
+        to: user.email,
+        subject: message.subject,
+        text: message.text,
+        html: message.html
+      }).catch(err => console.error('Failed to send email:', err))
     }
   }
   catch (error) {

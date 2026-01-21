@@ -1,18 +1,19 @@
 // Purpose: Auth route handlers.
 import type { Context } from 'hono'
 
-import { and, eq, ilike, sql, gt } from 'drizzle-orm'
+import { and, eq, gt, ilike, sql } from 'drizzle-orm'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
+import { adminInviteTokens } from '@/db/schemas/admin-invite-tokens.schema'
 import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
+import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
-import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
-import { adminInviteTokens } from '@/db/schemas/admin-invite-tokens.schema'
 import { users } from '@/db/schemas/users.schema'
+import { consumeAdminInviteToken, issueAdminInviteToken } from '@/lib/admin-invite'
 import { createAccessToken } from '@/lib/auth'
 import { DEFAULT_TUTOR_SETTINGS, ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
 import {
@@ -24,32 +25,31 @@ import {
   buildTutorInviteMessage
 } from '@/lib/email-templates'
 import { consumeEmailVerificationToken, issueEmailVerificationToken } from '@/lib/email-verification'
-import { consumeAdminInviteToken, issueAdminInviteToken } from '@/lib/admin-invite'
-import { consumeTutorInviteToken, issueTutorInviteToken } from '@/lib/tutor-invite'
+import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
-import { buildErrorResponse } from '@/lib/error-response'
-import { buildPagedResponse } from '@/lib/pagination'
 import { sendMail } from '@/lib/mailer'
+import { buildPagedResponse } from '@/lib/pagination'
 import { hashPassword, verifyPassword } from '@/lib/password'
 import { consumePasswordResetToken, issuePasswordResetToken } from '@/lib/password-reset'
 import { issueRefreshToken, revokeRefreshToken, revokeUserRefreshTokens, rotateRefreshToken } from '@/lib/refresh-tokens'
+import { consumeTutorInviteToken, issueTutorInviteToken } from '@/lib/tutor-invite'
 
 import type {
+  ConfirmAdminInviteRoute,
   ConfirmEmailVerificationRoute,
   ConfirmPasswordResetRoute,
+  ConfirmTutorInviteRoute,
+  InviteAdminRoute,
+  InviteTutorRoute,
+  ListAdminInvitesRoute,
+  ListTutorInvitesRoute,
   LoginRoute,
   LogoutRoute,
   RefreshRoute,
   RegisterRoute,
   RequestEmailVerificationRoute,
-  RequestPasswordResetRoute,
-  InviteTutorRoute,
-  ConfirmTutorInviteRoute,
-  ListTutorInvitesRoute,
-  InviteAdminRoute,
-  ConfirmAdminInviteRoute,
-  ListAdminInvitesRoute
+  RequestPasswordResetRoute
 } from './auth.routes'
 
 function unauthorized(c: Context<AppBindings>) {
@@ -211,12 +211,12 @@ export const register: AppRouteHandler<RegisterRoute> = async (c) => {
 
   const verification = await issueEmailVerificationToken(inserted.id)
   const registrationEmail = buildStudentRegistrationMessage(verification.token)
-  await sendMail({
+  sendMail({
     to: inserted.email,
     subject: registrationEmail.subject,
     text: registrationEmail.text,
     html: registrationEmail.html
-  })
+  }).catch(err => console.error('Failed to send email:', err))
 
   c.header('Location', `/users/${inserted.id}`)
   return c.json(
@@ -229,8 +229,6 @@ export const register: AppRouteHandler<RegisterRoute> = async (c) => {
     HttpStatusCodes.CREATED
   )
 }
-
-
 
 export const listTutorInvites: AppRouteHandler<ListTutorInvitesRoute> = async (c) => {
   const currentUser = c.get('currentUser')
@@ -367,12 +365,12 @@ export const inviteAdmin: AppRouteHandler<InviteAdminRoute> = async (c) => {
 
   const invite = await issueAdminInviteToken(payload.email)
   const message = buildAdminInviteMessage(invite.token)
-  await sendMail({
+  sendMail({
     to: payload.email,
     subject: message.subject,
     text: message.text,
     html: message.html
-  })
+  }).catch(err => console.error('Failed to send email:', err))
 
   return c.json({ message: 'Invito inviato.' }, HttpStatusCodes.OK)
 }
@@ -423,16 +421,12 @@ export const confirmAdminInvite: AppRouteHandler<ConfirmAdminInviteRoute> = asyn
   })
 
   const confirmation = buildRegistrationConfirmedMessage()
-  try {
-    await sendMail({
-      to: inserted.email,
-      subject: confirmation.subject,
-      text: confirmation.text,
-      html: confirmation.html
-    })
-  } catch (error) {
-    console.error('Failed to send admin registration confirmation email', error)
-  }
+  sendMail({
+    to: inserted.email,
+    subject: confirmation.subject,
+    text: confirmation.text,
+    html: confirmation.html
+  }).catch(err => console.error('Failed to send email:', err))
 
   return c.json(
     {
@@ -466,12 +460,12 @@ export const inviteTutor: AppRouteHandler<InviteTutorRoute> = async (c) => {
 
   const invite = await issueTutorInviteToken(payload.email)
   const message = buildTutorInviteMessage(invite.token)
-  await sendMail({
+  sendMail({
     to: payload.email,
     subject: message.subject,
     text: message.text,
     html: message.html
-  })
+  }).catch(err => console.error('Failed to send email:', err))
 
   return c.json({ message: 'Invito inviato.' }, HttpStatusCodes.OK)
 }
@@ -539,16 +533,12 @@ export const confirmTutorInvite: AppRouteHandler<ConfirmTutorInviteRoute> = asyn
   })
 
   const confirmation = buildRegistrationConfirmedMessage()
-  try {
-    await sendMail({
-      to: inserted.email,
-      subject: confirmation.subject,
-      text: confirmation.text,
-      html: confirmation.html
-    })
-  } catch (error) {
-    console.error('Failed to send tutor registration confirmation email', error)
-  }
+  sendMail({
+    to: inserted.email,
+    subject: confirmation.subject,
+    text: confirmation.text,
+    html: confirmation.html
+  }).catch(err => console.error('Failed to send email:', err))
 
   return c.json(
     {
@@ -576,12 +566,12 @@ export const requestPasswordReset: AppRouteHandler<RequestPasswordResetRoute> = 
   if (user) {
     const reset = await issuePasswordResetToken(user.id)
     const resetEmail = buildPasswordResetMessage(reset.token)
-    await sendMail({
+    sendMail({
       to: user.email,
       subject: resetEmail.subject,
       text: resetEmail.text,
       html: resetEmail.html
-    })
+    }).catch(err => console.error('Failed to send email:', err))
   }
 
   return c.json(
@@ -628,12 +618,12 @@ export const requestEmailVerification: AppRouteHandler<RequestEmailVerificationR
   if (user && !user.emailVerifiedAt) {
     const verification = await issueEmailVerificationToken(user.id)
     const verificationEmail = buildEmailVerificationMessage(verification.token)
-    await sendMail({
+    sendMail({
       to: user.email,
       subject: verificationEmail.subject,
       text: verificationEmail.text,
       html: verificationEmail.html
-    })
+    }).catch(err => console.error('Failed to send email:', err))
   }
 
   return c.json(
@@ -682,17 +672,12 @@ export const confirmEmailVerification: AppRouteHandler<ConfirmEmailVerificationR
 
   if (!wasVerified && roleRecord?.role === 'student') {
     const confirmation = buildRegistrationConfirmedMessage()
-    try {
-      await sendMail({
-        to: user.email,
-        subject: confirmation.subject,
-        text: confirmation.text,
-        html: confirmation.html
-      })
-    }
-    catch (error) {
-      console.error('Failed to send registration confirmation email', error)
-    }
+    sendMail({
+      to: user.email,
+      subject: confirmation.subject,
+      text: confirmation.text,
+      html: confirmation.html
+    }).catch(err => console.error('Failed to send email:', err))
   }
 
   return c.json(

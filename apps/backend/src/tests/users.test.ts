@@ -10,10 +10,10 @@ import type { AuthenticatedUser } from '@/lib/types'
 import db from '@/db'
 import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
 import { classSections } from '@/db/schemas/class-sections.schema'
-import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
-import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
-import { users } from '@/db/schemas/users.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
+import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
+import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
+import { users } from '@/db/schemas/users.schema'
 import env from '@/env'
 import { createAccessToken } from '@/lib/auth'
 import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
@@ -207,7 +207,7 @@ describe('users routes', () => {
       header: bearer(adminToken)
     })
     expect(response.status).toBe(HttpStatusCodes.OK)
-    const body = (await response.json()) as { data: UserResponse[]; total: number }
+    const body = (await response.json()) as { data: UserResponse[], total: number }
     expect(body.data).toEqual([])
   })
 
@@ -238,7 +238,7 @@ describe('users routes', () => {
     })
 
     expect(response.status).toBe(HttpStatusCodes.OK)
-    const body = (await response.json()) as { data: UserResponse[]; total: number }
+    const body = (await response.json()) as { data: UserResponse[], total: number }
     expect(body.data.some(user => user.id === student.id)).toBe(true)
     expect(body.data.some(user => user.id === tutor.id)).toBe(false)
     expect(body.data.every(user => user.role === 'student')).toBe(true)
@@ -478,7 +478,7 @@ describe('users routes', () => {
       header: bearer(adminToken)
     })
     expect(response.status).toBe(HttpStatusCodes.OK)
-    const body = (await response.json()) as { data: UserResponse[]; total: number }
+    const body = (await response.json()) as { data: UserResponse[], total: number }
 
     expect(body.data).toHaveLength(2)
     expect(body.data).toEqual(

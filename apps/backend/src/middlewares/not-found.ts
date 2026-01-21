@@ -1,9 +1,9 @@
 // Purpose: Not-found handler.
 import type { Context } from 'hono'
 
+import { buildErrorResponse } from '@/lib/error-response'
 import { NOT_FOUND } from '@/lib/http-status-codes'
 import { NOT_FOUND as NOT_FOUND_MESSAGE } from '@/lib/http-status-phrases'
-import { buildErrorResponse } from '@/lib/error-response'
 
 export function notFound(c: Context) {
   return c.json(

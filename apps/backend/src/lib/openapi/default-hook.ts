@@ -4,9 +4,9 @@ import type { ZodIssue } from 'zod'
 
 import type { AppBindings } from '@/lib/types'
 
+import { buildErrorResponse } from '@/lib/error-response'
 import { UNPROCESSABLE_ENTITY } from '@/lib/http-status-codes'
 import { UNPROCESSABLE_ENTITY as UNPROCESSABLE_MESSAGE } from '@/lib/http-status-phrases'
-import { buildErrorResponse } from '@/lib/error-response'
 
 type DefaultHookResult = Hook<any, AppBindings, string, Response | void>
 
@@ -19,7 +19,7 @@ type ZodIssueWithParams = ZodIssue & {
 }
 
 function convertIssues(issues: readonly ZodIssue[]) {
-  return issues.map(issue => {
+  return issues.map((issue) => {
     const issueWithParams = issue as ZodIssueWithParams
     return {
       code: issue.code,

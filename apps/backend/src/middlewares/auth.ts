@@ -4,12 +4,10 @@ import type { Context, MiddlewareHandler } from 'hono'
 import type { AppBindings } from '@/lib/types'
 
 import db from '@/db'
-import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
-import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { verifyAccessToken } from '@/lib/auth'
+import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
-import { buildErrorResponse } from '@/lib/error-response'
 
 function unauthorized(c: Context<AppBindings>) {
   return c.json(buildErrorResponse(HttpStatusPhrases.UNAUTHORIZED), HttpStatusCodes.UNAUTHORIZED)
@@ -41,7 +39,8 @@ export function authenticate(): MiddlewareHandler<AppBindings> {
           columns: { isActive: true }
         })
         isActive = profile?.isActive ?? false
-      } else if (payload.role === 'tutor') {
+      }
+      else if (payload.role === 'tutor') {
         const profile = await db.query.tutorProfiles.findFirst({
           where(fields, operators) {
             return operators.eq(fields.userId, payload.sub)

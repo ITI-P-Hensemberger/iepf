@@ -1,6 +1,6 @@
 // Purpose: Shared helpers for paginated list responses.
 
-export type PagedResponse<T> = {
+export interface PagedResponse<T> {
   data: T[]
   total: number
   limit: number

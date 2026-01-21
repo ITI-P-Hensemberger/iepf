@@ -34,12 +34,15 @@ pnpm run build            # Compile TypeScript (tsc && tsc-alias)
 ## Architecture
 
 ### Route Module Pattern
+
 Each feature follows a 3-file structure in `src/routes/`:
+
 - `*.routes.ts` - OpenAPI route definitions using `@hono/zod-openapi`
 - `*.handlers.ts` - Business logic and database queries
 - `*.index.ts` - Router wiring with middleware
 
 ### Key Directories
+
 - `src/db/schemas/` - Drizzle ORM table definitions (18 tables)
 - `src/routes/` - Feature-based route modules (auth, users, lessons, etc.)
 - `src/middlewares/` - Auth, logging, error handling
@@ -47,17 +50,21 @@ Each feature follows a 3-file structure in `src/routes/`:
 - `src/scripts/` - Database seeding scripts
 
 ### Type Flow
+
 Drizzle schemas → `drizzle-zod` → Zod validators → OpenAPI specs. Route handlers receive typed context via `AppRouteHandler<RouteType>`.
 
 ### Authentication
+
 JWT Bearer tokens with access/refresh token pattern. Auth middleware sets `currentUser` in Hono context. Roles: `admin`, `tutor`, `student`, `activator`. Admin/tutor profiles have `isActive` flag.
 
 ### API Patterns
+
 - Pagination: `{ items, total, hasMore }` with `limit`, `offset`, `sortBy`, `sortDir` params
 - Errors: Italian messages, Zod issue formatting via `buildErrorResponse()`
 - OpenAPI docs auto-generated at `/api` (Scalar UI)
 
 ### Database
+
 PostgreSQL with Drizzle ORM. Tables use snake_case. Cascade deletes on user relationships.
 
 ## Testing

@@ -4,7 +4,7 @@ import { createRoute, z } from '@hono/zod-openapi'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { jsonContent } from '@/lib/openapi/helpers'
-import { createErrorSchema, createErrorMessageSchema, createPagedListSchema } from '@/lib/openapi/schemas'
+import { createErrorMessageSchema, createErrorSchema, createPagedListSchema } from '@/lib/openapi/schemas'
 
 const tags = ['Audit']
 const bearerAuth = [{

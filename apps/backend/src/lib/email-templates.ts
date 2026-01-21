@@ -145,7 +145,6 @@ export function buildActivationChangedMessage(isActive: boolean) {
   } satisfies EmailTemplate
 }
 
-
 export function buildTutorInviteMessage(token: string) {
   const baseUrl = env.SITE_URL ?? 'http://localhost:3000'
   const url = new URL('/auth/sign-up-tutor', baseUrl)

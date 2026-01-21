@@ -28,7 +28,7 @@ async function main() {
     firstName: env.ACTIVATOR_FIRST_NAME,
     lastName: env.ACTIVATOR_LAST_NAME,
     role: 'activator',
-    passwordHash: passwordHash,
+    passwordHash,
     emailVerifiedAt: new Date()
   })
 

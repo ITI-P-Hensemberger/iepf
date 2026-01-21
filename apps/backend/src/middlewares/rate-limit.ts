@@ -3,9 +3,9 @@ import type { Context, MiddlewareHandler } from 'hono'
 
 import type { AppBindings } from '@/lib/types'
 
+import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
-import { buildErrorResponse } from '@/lib/error-response'
 
 interface RateLimitOptions {
   windowMs: number
