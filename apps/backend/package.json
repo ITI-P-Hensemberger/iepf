@@ -21,7 +21,8 @@
     "seed:class-sections": "tsx src/scripts/seed-class-sections.ts",
     "seed:subjects": "tsx src/scripts/seed-subjects.ts",
     "seed:mocks": "tsx src/scripts/seed-mock-users.ts",
-    "generate:lessons": "tsx src/scripts/generate-weekly-lessons.ts"
+    "generate:lessons": "tsx src/scripts/generate-weekly-lessons.ts",
+    "seed:migration-journal": "tsx src/scripts/seed-migration-journal.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.6",

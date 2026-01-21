@@ -1,0 +1,1 @@
+ALTER TABLE "tutor_settings" RENAME COLUMN "default_seats" TO "daily_capacity";

@@ -50,6 +50,13 @@
       "when": 1769005369916,
       "tag": "0006_happy_robbie_robertson",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1769010000000,
+      "tag": "0007_rename_default_seats_to_daily_capacity",
+      "breakpoints": true
     }
   ]
 }
