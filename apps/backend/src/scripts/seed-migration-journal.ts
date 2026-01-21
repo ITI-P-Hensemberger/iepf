@@ -15,17 +15,11 @@ async function main() {
     );
   `)
 
-  // Check if any migrations are already recorded
-  const { rows } = await pool.query('SELECT COUNT(*) as count FROM "__drizzle_migrations"')
-  if (Number.parseInt(rows[0].count) > 0) {
-    process.stdout.write('Migration journal already has entries. Skipping seed.\n')
-    await pool.end()
-    return
-  }
+  // Get existing migration hashes
+  const { rows: existingRows } = await pool.query('SELECT hash FROM "__drizzle_migrations"')
+  const existingHashes = new Set(existingRows.map((r: { hash: string }) => r.hash))
 
-  process.stdout.write('Seeding migration journal with existing migrations (0000-0005)...\n')
-
-  // Insert entries for migrations that have already been applied to production
+  // Migrations that should already exist in production
   const migrations = [
     { hash: '0000_init', created_at: 1768748643333 },
     { hash: '0001_tutor_invite_tokens', created_at: 1768840000000 },
@@ -35,14 +29,25 @@ async function main() {
     { hash: '0005_admin_profiles_add_is_active', created_at: 1768858000000 }
   ]
 
-  for (const migration of migrations) {
+  const missing = migrations.filter(m => !existingHashes.has(m.hash))
+
+  if (missing.length === 0) {
+    process.stdout.write('All migrations (0000-0005) already recorded. Nothing to seed.\n')
+    await pool.end()
+    return
+  }
+
+  process.stdout.write(`Seeding ${missing.length} missing migration entries...\n`)
+
+  for (const migration of missing) {
     await pool.query(
       'INSERT INTO "__drizzle_migrations" (hash, created_at) VALUES ($1, $2)',
       [migration.hash, migration.created_at]
     )
+    process.stdout.write(`  ✓ ${migration.hash}\n`)
   }
 
-  process.stdout.write(`Seeded ${migrations.length} migration entries.\n`)
+  process.stdout.write('Migration journal seed complete.\n')
   await pool.end()
 }
 
