@@ -37,6 +37,14 @@ export function rateLimit(options: RateLimitOptions): MiddlewareHandler<AppBindi
   stores.add(store)
 
   return async (c, next) => {
+    const currentUser = c.get('currentUser')
+
+    // Skip rate limiting for admins
+    if (currentUser && currentUser.role === 'admin') {
+      await next()
+      return
+    }
+
     const now = Date.now()
     const key = `${options.keyPrefix}:${getClientKey(c)}`
     const existing = store.get(key)
