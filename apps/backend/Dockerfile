@@ -17,7 +17,7 @@ COPY . .
 RUN pnpm build
 
 FROM build AS migrate
-CMD ["pnpm", "db:migrate"]
+CMD ["sh", "-c", "pnpm seed:migration-journal && pnpm db:migrate"]
 
 FROM deps AS prod-deps
 RUN pnpm prune --prod
