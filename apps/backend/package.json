@@ -15,11 +15,12 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:reset": "tsx src/scripts/clean-db.ts && drizzle-kit migrate && tsx src/scripts/seed-class-sections.ts && tsx src/scripts/seed-admin.ts && tsx src/scripts/seed-mock-users.ts",
-    "seed:class-sections": "tsx src/scripts/seed-class-sections.ts",
+    "db:reset": "tsx src/scripts/clean-db.ts && drizzle-kit migrate && tsx src/scripts/seed-admin.ts && tsx src/scripts/seed-activator.ts && tsx src/scripts/seed-class-sections.ts && tsx src/scripts/seed-subjects.ts && tsx src/scripts/seed-mock-users.ts",
     "seed:admin": "tsx src/scripts/seed-admin.ts",
-    "seed:mocks": "tsx src/scripts/seed-mock-users.ts",
-    "seed:activator": "tsx src/scripts/seed-activator.ts"
+    "seed:activator": "tsx src/scripts/seed-activator.ts",
+    "seed:class-sections": "tsx src/scripts/seed-class-sections.ts",
+    "seed:subjects": "tsx src/scripts/seed-subjects.ts",
+    "seed:mocks": "tsx src/scripts/seed-mock-users.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.6",
