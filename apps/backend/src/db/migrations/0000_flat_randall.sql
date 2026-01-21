@@ -1,6 +1,16 @@
+CREATE TABLE "admin_invite_tokens" (
+	"id" uuid PRIMARY KEY NOT NULL,
+	"email" text NOT NULL,
+	"token_hash" text NOT NULL,
+	"expires_at" timestamp NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "admin_profiles" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"user_id" uuid NOT NULL,
+	"is_active" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -68,6 +78,8 @@ CREATE TABLE "lessons" (
 	"admin_resolved_at" timestamp,
 	"admin_resolved_by" uuid,
 	"admin_resolution_note" text,
+	"generated_by_job" boolean DEFAULT false,
+	"generated_for_week" timestamp,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -129,11 +141,21 @@ CREATE TABLE "tutor_availability" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "tutor_invite_tokens" (
+	"id" uuid PRIMARY KEY NOT NULL,
+	"email" text NOT NULL,
+	"token_hash" text NOT NULL,
+	"expires_at" timestamp NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "tutor_profiles" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"user_id" uuid NOT NULL,
-	"section_id" uuid,
-	"year" integer,
+	"section_id" uuid NOT NULL,
+	"year" integer NOT NULL,
+	"is_active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -143,7 +165,7 @@ CREATE TABLE "tutor_settings" (
 	"tutor_id" uuid NOT NULL,
 	"default_start_time" text DEFAULT '15:00' NOT NULL,
 	"default_duration_minutes" integer DEFAULT 60 NOT NULL,
-	"default_seats" integer DEFAULT 2 NOT NULL,
+	"daily_capacity" integer DEFAULT 2 NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -152,6 +174,15 @@ CREATE TABLE "tutor_subjects" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"tutor_id" uuid NOT NULL,
 	"subject_id" uuid NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "tutor_weekday_availability" (
+	"id" uuid PRIMARY KEY NOT NULL,
+	"tutor_id" uuid NOT NULL,
+	"weekday" smallint NOT NULL,
+	"is_available" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -184,12 +215,14 @@ ALTER TABLE "token_ledger" ADD CONSTRAINT "token_ledger_student_id_users_id_fk" 
 ALTER TABLE "token_ledger" ADD CONSTRAINT "token_ledger_lesson_id_lessons_id_fk" FOREIGN KEY ("lesson_id") REFERENCES "public"."lessons"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tutor_availability" ADD CONSTRAINT "tutor_availability_tutor_id_users_id_fk" FOREIGN KEY ("tutor_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tutor_profiles" ADD CONSTRAINT "tutor_profiles_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "tutor_profiles" ADD CONSTRAINT "tutor_profiles_section_id_class_sections_id_fk" FOREIGN KEY ("section_id") REFERENCES "public"."class_sections"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "tutor_profiles" ADD CONSTRAINT "tutor_profiles_section_id_class_sections_id_fk" FOREIGN KEY ("section_id") REFERENCES "public"."class_sections"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tutor_settings" ADD CONSTRAINT "tutor_settings_tutor_id_users_id_fk" FOREIGN KEY ("tutor_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tutor_subjects" ADD CONSTRAINT "tutor_subjects_tutor_id_users_id_fk" FOREIGN KEY ("tutor_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tutor_subjects" ADD CONSTRAINT "tutor_subjects_subject_id_subjects_id_fk" FOREIGN KEY ("subject_id") REFERENCES "public"."subjects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "tutor_weekday_availability" ADD CONSTRAINT "tutor_weekday_availability_tutor_id_users_id_fk" FOREIGN KEY ("tutor_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "admin_profiles_user_unique" ON "admin_profiles" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "student_profiles_user_unique" ON "student_profiles" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "tutor_profiles_user_unique" ON "tutor_profiles" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "tutor_settings_tutor_unique" ON "tutor_settings" USING btree ("tutor_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "tutor_subjects_tutor_subject_unique" ON "tutor_subjects" USING btree ("tutor_id","subject_id");
+CREATE UNIQUE INDEX "tutor_subjects_tutor_subject_unique" ON "tutor_subjects" USING btree ("tutor_id","subject_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "tutor_weekday_availability_tutor_weekday_unique" ON "tutor_weekday_availability" USING btree ("tutor_id","weekday");
