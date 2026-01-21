@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { useSession } from '@/lib/use-session'
+import { logout } from '@/lib/auth-client'
 
 import { extractPayloadArray } from '@/lib/backend-response'
 function normalizeName(value: string) {
@@ -375,20 +376,6 @@ export default function ProfilePage() {
     await submitProfile(values)
   }
 
-  async function logoutAndRedirect() {
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
-    } catch (err) {
-      // ignore logout errors
-    }
-    router.push('/auth/login')
-  }
-
   async function handlePasswordReset() {
     if (!profile?.email) {
       setResetStatus('error')
@@ -432,7 +419,8 @@ export default function ProfilePage() {
 
       setResetStatus('success')
       setResetMessage('Mail di reset inviata. Controlla la tua casella.')
-      await logoutAndRedirect()
+      await logout()
+      // logout() handles the redirect to /auth/login
     } catch (err) {
       setResetStatus('error')
       setResetMessage(parseErrorMessage(err, 'Impossibile inviare la mail di reset.'))

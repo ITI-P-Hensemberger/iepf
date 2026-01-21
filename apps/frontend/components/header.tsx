@@ -47,8 +47,7 @@ export default function Header() {
 
   async function handleLogout() {
     await logout()
-    await refresh()
-    router.replace('/')
+    // logout() handles the redirect to /auth/login
   }
 
   return (

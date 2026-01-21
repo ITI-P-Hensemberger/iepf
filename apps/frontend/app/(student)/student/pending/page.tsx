@@ -2,7 +2,6 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { ArrowDown } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -17,11 +16,9 @@ import { Separator } from '@/components/ui/separator'
 import { logout } from '@/lib/auth-client'
 
 export default function StudentPendingPage() {
-  const router = useRouter()
-
   async function handleLogout() {
     await logout()
-    router.replace('/auth/login')
+    // logout() handles the redirect to /auth/login
   }
 
   return (

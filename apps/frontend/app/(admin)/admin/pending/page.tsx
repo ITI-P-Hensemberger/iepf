@@ -1,7 +1,6 @@
 'use client'
 
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -15,11 +14,9 @@ import { Separator } from '@/components/ui/separator'
 import { logout } from '@/lib/auth-client'
 
 export default function AdminPendingPage() {
-  const router = useRouter()
-
   async function handleLogout() {
     await logout()
-    router.replace('/auth/login')
+    // logout() handles the redirect to /auth/login
   }
 
   return (

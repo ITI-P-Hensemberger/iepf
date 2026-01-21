@@ -425,8 +425,7 @@ export default function ActivatorStudentsPage() {
 
   async function handleLogout() {
     await logout()
-    await refresh()
-    router.replace('/')
+    // logout() handles the redirect to /auth/login
   }
 
   const loadStudents = React.useCallback(
