@@ -96,7 +96,7 @@ async function ensureTutorSettings(tutorId: string) {
     columns: {
       defaultStartTime: true,
       defaultDurationMinutes: true,
-      defaultSeats: true
+      dailyCapacity: true
     }
   })
 
@@ -110,7 +110,7 @@ async function ensureTutorSettings(tutorId: string) {
   }).returning({
     defaultStartTime: tutorSettings.defaultStartTime,
     defaultDurationMinutes: tutorSettings.defaultDurationMinutes,
-    defaultSeats: tutorSettings.defaultSeats
+    dailyCapacity: tutorSettings.dailyCapacity
   })
 
   return created
@@ -313,7 +313,7 @@ export const createAvailability: AppRouteHandler<CreateAvailabilityRoute> = asyn
     tutorId,
     startAt,
     durationMinutes: settings.defaultDurationMinutes,
-    seats: settings.defaultSeats
+    seats: settings.dailyCapacity
   }).returning({
     id: tutorAvailability.id,
     tutorId: tutorAvailability.tutorId,

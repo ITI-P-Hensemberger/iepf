@@ -1,7 +1,7 @@
 // Purpose: Lesson booking handlers enforcing availability and token rules.
 import type { Context } from 'hono'
 
-import { and, eq, gte, lte } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, lte } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
@@ -18,6 +18,7 @@ import { buildErrorResponse } from '@/lib/error-response'
 import { buildPagedResponse } from '@/lib/pagination'
 
 import type {
+  BookGeneratedLessonRoute,
   BookLessonRoute,
   CancelBookingRoute,
   CancelLessonRoute,
@@ -25,6 +26,7 @@ import type {
   ConfirmLessonTutorRoute,
   GetLessonConfirmationsRoute,
   ListLessonConfirmationsRoute,
+  ListLessonsRoute,
   OverrideLessonConfirmationsRoute,
   RescheduleLessonRoute,
   ResolveLessonRoute
@@ -140,6 +142,296 @@ async function isSubjectAllowed(tutorId: string, subjectId: string) {
   return Boolean(link)
 }
 
+async function getTutorDailyCapacity(tutorId: string): Promise<number> {
+  const settings = await db.query.tutorSettings.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.tutorId, tutorId)
+    },
+    columns: { dailyCapacity: true }
+  })
+  return settings?.dailyCapacity ?? 2
+}
+
+function getDateKey(date: Date): string {
+  return date.toISOString().split('T')[0]
+}
+
+async function getTutorDailyBookingCount(tutorId: string, date: Date): Promise<number> {
+  const dayStart = new Date(date)
+  dayStart.setHours(0, 0, 0, 0)
+  const dayEnd = new Date(date)
+  dayEnd.setHours(23, 59, 59, 999)
+
+  const tutorLessons = await db.query.lessons.findMany({
+    where(fields, operators) {
+      return operators.and(
+        operators.eq(fields.tutorId, tutorId),
+        operators.gte(fields.startAt, dayStart),
+        operators.lte(fields.startAt, dayEnd)
+      )
+    },
+    columns: { id: true }
+  })
+
+  if (tutorLessons.length === 0) {
+    return 0
+  }
+
+  const lessonIds = tutorLessons.map(l => l.id)
+  const bookings = await db.query.lessonBookings.findMany({
+    where(fields, operators) {
+      return operators.and(
+        operators.inArray(fields.lessonId, lessonIds),
+        operators.eq(fields.status, 'booked')
+      )
+    },
+    columns: { id: true }
+  })
+
+  return bookings.length
+}
+
+export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
+  const currentUser = c.get('currentUser')
+  if (!currentUser) {
+    forbid()
+  }
+
+  const query = c.req.valid('query')
+
+  const clauses = [eq(lessons.status, 'scheduled'), gte(lessons.startAt, new Date())]
+  if (query.tutorId) {
+    clauses.push(eq(lessons.tutorId, query.tutorId))
+  }
+  if (query.subjectId) {
+    clauses.push(eq(lessons.subjectId, query.subjectId))
+  }
+  if (query.from) {
+    clauses.push(gte(lessons.startAt, new Date(query.from)))
+  }
+  if (query.to) {
+    clauses.push(lte(lessons.startAt, new Date(query.to)))
+  }
+
+  const orderBy = query.sortBy === 'createdAt' ? lessons.createdAt : lessons.startAt
+  const direction = query.sortDir === 'desc' ? desc(orderBy) : asc(orderBy)
+
+  const allLessons = await db.query.lessons.findMany({
+    where() {
+      return and(...clauses)
+    },
+    columns: {
+      id: true,
+      tutorId: true,
+      subjectId: true,
+      startAt: true,
+      durationMinutes: true,
+      seats: true,
+      status: true,
+      createdAt: true
+    },
+    orderBy: direction
+  })
+
+  if (allLessons.length === 0) {
+    return c.json(buildPagedResponse([], 0, query.limit, query.offset), HttpStatusCodes.OK)
+  }
+
+  // Get unique tutor+day combinations
+  const tutorDayKeys = new Set<string>()
+  for (const lesson of allLessons) {
+    const dateKey = getDateKey(new Date(lesson.startAt))
+    tutorDayKeys.add(`${lesson.tutorId}:${dateKey}`)
+  }
+
+  // Get tutor capacities
+  const tutorIds = [...new Set(allLessons.map(l => l.tutorId))]
+  const tutorCapacities = new Map<string, number>()
+  for (const tutorId of tutorIds) {
+    tutorCapacities.set(tutorId, await getTutorDailyCapacity(tutorId))
+  }
+
+  // Get daily booking counts per tutor
+  const tutorDayBookings = new Map<string, number>()
+  for (const key of tutorDayKeys) {
+    const [tutorId, dateKey] = key.split(':')
+    const date = new Date(dateKey)
+    const count = await getTutorDailyBookingCount(tutorId, date)
+    tutorDayBookings.set(key, count)
+  }
+
+  // Get per-lesson booking counts
+  const lessonIds = allLessons.map(l => l.id)
+  const bookings = await db.query.lessonBookings.findMany({
+    where(fields, operators) {
+      return operators.and(
+        operators.inArray(fields.lessonId, lessonIds),
+        operators.eq(fields.status, 'booked')
+      )
+    },
+    columns: { lessonId: true }
+  })
+
+  const lessonBookingCounts = new Map<string, number>()
+  for (const booking of bookings) {
+    lessonBookingCounts.set(booking.lessonId, (lessonBookingCounts.get(booking.lessonId) ?? 0) + 1)
+  }
+
+  // Filter out lessons where tutor is at daily capacity
+  const availableLessons = allLessons.filter((lesson) => {
+    const dateKey = getDateKey(new Date(lesson.startAt))
+    const tutorDayKey = `${lesson.tutorId}:${dateKey}`
+    const dailyBookings = tutorDayBookings.get(tutorDayKey) ?? 0
+    const dailyCapacity = tutorCapacities.get(lesson.tutorId) ?? 2
+    return dailyBookings < dailyCapacity
+  })
+
+  const items = availableLessons.map((lesson) => {
+    const dateKey = getDateKey(new Date(lesson.startAt))
+    const tutorDayKey = `${lesson.tutorId}:${dateKey}`
+    const dailyBookings = tutorDayBookings.get(tutorDayKey) ?? 0
+    const dailyCapacity = tutorCapacities.get(lesson.tutorId) ?? 2
+    const lessonBookings = lessonBookingCounts.get(lesson.id) ?? 0
+
+    return {
+      id: lesson.id,
+      tutorId: lesson.tutorId,
+      subjectId: lesson.subjectId,
+      startAt: new Date(lesson.startAt).toISOString(),
+      durationMinutes: lesson.durationMinutes,
+      seats: lesson.seats,
+      availableSeats: Math.min(
+        lesson.seats - lessonBookings,
+        dailyCapacity - dailyBookings
+      ),
+      status: lesson.status
+    }
+  })
+
+  const total = items.length
+  const paged = items.slice(query.offset, query.offset + query.limit)
+
+  return c.json(buildPagedResponse(paged, total, query.limit, query.offset), HttpStatusCodes.OK)
+}
+
+export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = async (c) => {
+  const { lessonId } = c.req.valid('param')
+  const payload = c.req.valid('json')
+  const student = ensureStudent(c)
+
+  const lesson = await db.query.lessons.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.id, lessonId)
+    }
+  })
+
+  if (!lesson) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
+  }
+
+  if (lesson.status !== 'scheduled') {
+    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
+  }
+
+  if (sameDayOrAfter(new Date(), new Date(lesson.startAt))) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
+  }
+
+  const studentProfile = await db.query.studentProfiles.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.userId, student.id)
+    },
+    columns: {
+      lessonTokens: true,
+      isActive: true
+    }
+  })
+
+  if (!studentProfile?.isActive) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
+  }
+
+  if (studentProfile.lessonTokens <= 0) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
+  }
+
+  const existingBooking = await db.query.lessonBookings.findFirst({
+    where(fields, operators) {
+      return operators.and(
+        operators.eq(fields.lessonId, lesson.id),
+        operators.eq(fields.studentId, student.id),
+        operators.eq(fields.status, 'booked')
+      )
+    },
+    columns: { id: true }
+  })
+
+  if (existingBooking) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
+  }
+
+  // Check tutor's daily capacity
+  const dailyCapacity = await getTutorDailyCapacity(lesson.tutorId)
+  const dailyBookings = await getTutorDailyBookingCount(lesson.tutorId, new Date(lesson.startAt))
+  if (dailyBookings >= dailyCapacity) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
+  }
+
+  // Check per-lesson seat limit
+  const bookingCount = await db.query.lessonBookings.findMany({
+    where(fields, operators) {
+      return operators.and(
+        operators.eq(fields.lessonId, lesson.id),
+        operators.eq(fields.status, 'booked')
+      )
+    },
+    columns: { id: true }
+  })
+
+  if (bookingCount.length >= lesson.seats) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
+  }
+
+  const [booking] = await db.insert(lessonBookings).values({
+    lessonId: lesson.id,
+    studentId: student.id,
+    topic: payload.topic
+  }).returning({
+    id: lessonBookings.id,
+    lessonId: lessonBookings.lessonId,
+    studentId: lessonBookings.studentId,
+    topic: lessonBookings.topic,
+    status: lessonBookings.status
+  })
+
+  await db.update(studentProfiles)
+    .set({ lessonTokens: studentProfile.lessonTokens - 1 })
+    .where(eq(studentProfiles.userId, student.id))
+
+  await db.insert(tokenLedger).values({
+    studentId: student.id,
+    lessonId: lesson.id,
+    delta: -1,
+    reason: 'lesson_booking'
+  })
+
+  return c.json(
+    {
+      lesson: {
+        id: lesson.id,
+        tutorId: lesson.tutorId,
+        subjectId: lesson.subjectId,
+        startAt: new Date(lesson.startAt).toISOString(),
+        durationMinutes: lesson.durationMinutes,
+        seats: lesson.seats,
+        status: lesson.status
+      },
+      booking
+    },
+    HttpStatusCodes.CREATED
+  )
+}
+
 export const bookLesson: AppRouteHandler<BookLessonRoute> = async (c) => {
   const { tutorId } = c.req.valid('param')
   const payload = c.req.valid('json')
@@ -239,6 +531,8 @@ export const bookLesson: AppRouteHandler<BookLessonRoute> = async (c) => {
       adminResolvedAt: lessons.adminResolvedAt,
       adminResolvedBy: lessons.adminResolvedBy,
       adminResolutionNote: lessons.adminResolutionNote,
+      generatedByJob: lessons.generatedByJob,
+      generatedForWeek: lessons.generatedForWeek,
       createdAt: lessons.createdAt,
       updatedAt: lessons.updatedAt
     })

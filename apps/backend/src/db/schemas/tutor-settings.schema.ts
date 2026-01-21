@@ -10,7 +10,7 @@ export const tutorSettings = pgTable('tutor_settings', {
   tutorId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),
   defaultStartTime: text().notNull().default('15:00'),
   defaultDurationMinutes: integer().notNull().default(60),
-  defaultSeats: integer().notNull().default(2),
+  dailyCapacity: integer().notNull().default(2),
   createdAt: timestamp({ mode: 'date' })
     .defaultNow()
     .notNull(),

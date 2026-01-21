@@ -22,6 +22,8 @@ export const lessons = pgTable('lessons', {
   adminResolvedAt: timestamp({ mode: 'date' }),
   adminResolvedBy: uuid(),
   adminResolutionNote: text(),
+  generatedByJob: boolean().default(false),
+  generatedForWeek: timestamp({ mode: 'date' }),
   createdAt: timestamp({ mode: 'date' })
     .defaultNow()
     .notNull(),

@@ -155,6 +155,107 @@ const bookLessonSchema = z.object({
   topic: z.string().min(1).max(200)
 })
 
+const bookGeneratedLessonSchema = z.object({
+  topic: z.string().min(1).max(200)
+})
+
+const listLessonsQuerySchema = z.object({
+  tutorId: z.uuid().optional(),
+  subjectId: z.uuid().optional(),
+  from: z.iso.datetime().optional(),
+  to: z.iso.datetime().optional(),
+  sortBy: z.enum(['startAt', 'createdAt']).default('startAt'),
+  sortDir: z.enum(['asc', 'desc']).default('asc'),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0)
+})
+
+const lessonListItemSchema = z.object({
+  id: z.string(),
+  tutorId: z.string(),
+  subjectId: z.string(),
+  startAt: z.string(),
+  durationMinutes: z.number().int(),
+  seats: z.number().int(),
+  availableSeats: z.number().int(),
+  status: z.string()
+})
+
+export const listLessons = createRoute({
+  path: '/lessons',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  request: {
+    query: listLessonsQuerySchema
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      createPagedListSchema(lessonListItemSchema),
+      'List of scheduled lessons with available seats'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Authenticated access required'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(listLessonsQuerySchema),
+      'Validation error(s)'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
+export const bookGeneratedLesson = createRoute({
+  path: '/lessons/{lessonId}/book',
+  method: 'post',
+  tags,
+  security: bearerAuth,
+  request: {
+    params: LessonIdParamsSchema,
+    body: jsonContentRequired(
+      bookGeneratedLessonSchema,
+      'Booking payload'
+    )
+  },
+  responses: {
+    [HttpStatusCodes.CREATED]: jsonContent(
+      z.object({
+        lesson: lessonSchema,
+        booking: bookingSchema
+      }),
+      'Lesson booked'
+    ),
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
+      'Lesson not found'
+    ),
+    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
+      'Lesson not available for booking'
+    ),
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.CONFLICT),
+      'Already booked or no seats available'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Student access required'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(bookGeneratedLessonSchema).or(createErrorSchema(LessonIdParamsSchema)),
+      'Validation error(s)'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
 export const bookLesson = createRoute({
   path: '/tutors/{tutorId}/lessons/book',
   method: 'post',
@@ -546,6 +647,8 @@ export const confirmLessonBooking = createRoute({
   }
 })
 
+export type ListLessonsRoute = typeof listLessons
+export type BookGeneratedLessonRoute = typeof bookGeneratedLesson
 export type BookLessonRoute = typeof bookLesson
 export type CancelBookingRoute = typeof cancelBooking
 export type CancelLessonRoute = typeof cancelLesson

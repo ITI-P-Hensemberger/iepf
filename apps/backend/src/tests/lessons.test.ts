@@ -178,12 +178,12 @@ describe('lesson flows', () => {
     const body = await response.json() as {
       defaultStartTime: string
       defaultDurationMinutes: number
-      defaultSeats: number
+      dailyCapacity: number
     }
     expect(body).toMatchObject({
       defaultStartTime: '15:00',
       defaultDurationMinutes: 60,
-      defaultSeats: 2
+      dailyCapacity: 2
     })
   })
 
@@ -196,14 +196,14 @@ describe('lesson flows', () => {
       json: {
         defaultStartTime: '16:00',
         defaultDurationMinutes: 45,
-        defaultSeats: 3
+        dailyCapacity: 3
       },
       header: bearer(adminToken)
     })
 
     expect(response.status).toBe(HttpStatusCodes.OK)
-    const body = await response.json() as { defaultSeats: number }
-    expect(body.defaultSeats).toBe(3)
+    const body = await response.json() as { dailyCapacity: number }
+    expect(body.dailyCapacity).toBe(3)
   })
 
   it('creates availability using tutor settings defaults', async () => {
@@ -216,7 +216,7 @@ describe('lesson flows', () => {
       json: {
         defaultStartTime: '16:30',
         defaultDurationMinutes: 50,
-        defaultSeats: 4
+        dailyCapacity: 4
       },
       header: bearer(adminToken)
     })

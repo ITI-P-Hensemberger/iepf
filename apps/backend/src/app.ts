@@ -11,6 +11,7 @@ import tokens from '@/routes/tokens/tokens.index'
 import tutorAvailability from '@/routes/tutor-availability/tutor-availability.index'
 import tutorSettings from '@/routes/tutor-settings/tutor-settings.index'
 import tutorSubjects from '@/routes/tutor-subjects/tutor-subjects.index'
+import tutorWeekdayAvailability from '@/routes/tutor-weekday-availability/tutor-weekday-availability.index'
 import users from '@/routes/users/users.index'
 
 const app = createApp()
@@ -29,6 +30,7 @@ const routes = [
   tutorAvailability,
   tutorSettings,
   tutorSubjects,
+  tutorWeekdayAvailability,
   users
 ] as const
 

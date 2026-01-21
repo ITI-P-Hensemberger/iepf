@@ -21,6 +21,7 @@ import { tutorInviteTokens } from './schemas/tutor-invite-tokens.schema'
 import { tutorProfiles } from './schemas/tutor-profiles.schema'
 import { tutorSettings } from './schemas/tutor-settings.schema'
 import { tutorSubjects } from './schemas/tutor-subjects.schema'
+import { tutorWeekdayAvailability } from './schemas/tutor-weekday-availability.schema'
 import { users } from './schemas/users.schema'
 
 const schema = {
@@ -35,6 +36,7 @@ const schema = {
   tutorSubjects,
   tutorSettings,
   tutorAvailability,
+  tutorWeekdayAvailability,
   tutorInviteTokens,
   lessons,
   lessonBookings,

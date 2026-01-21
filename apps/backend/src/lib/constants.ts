@@ -21,7 +21,7 @@ export const ZOD_ERROR_CODES = {
 export const DEFAULT_TUTOR_SETTINGS = {
   defaultStartTime: '15:00',
   defaultDurationMinutes: 60,
-  defaultSeats: 2
+  dailyCapacity: 2
 }
 
 export const notFoundSchema = createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND)

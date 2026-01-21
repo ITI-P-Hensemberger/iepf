@@ -12,6 +12,8 @@ router.use('/tutors/*', authenticate())
 router.use('/lessons', authenticate())
 router.use('/lessons/*', authenticate())
 
+router.openapi(routes.listLessons, handlers.listLessons)
+router.openapi(routes.bookGeneratedLesson, handlers.bookGeneratedLesson)
 router.openapi(routes.bookLesson, handlers.bookLesson)
 router.openapi(routes.cancelBooking, handlers.cancelBooking)
 router.openapi(routes.cancelLesson, handlers.cancelLesson)
