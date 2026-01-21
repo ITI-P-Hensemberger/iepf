@@ -17,7 +17,7 @@ COPY . .
 RUN pnpm build
 
 FROM build AS migrate
-CMD ["sh", "-c", "pnpm fix:migration-journal && pnpm apply:schema-changes"]
+CMD ["pnpm", "apply:schema-changes"]
 
 FROM deps AS prod-deps
 RUN pnpm prune --prod
