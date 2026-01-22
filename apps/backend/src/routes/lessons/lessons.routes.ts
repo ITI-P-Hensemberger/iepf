@@ -11,18 +11,6 @@ const bearerAuth = [{
   bearerAuth: [] as string[]
 }]
 
-const TutorIdParamsSchema = z.object({
-  tutorId: z.uuid().openapi({
-    param: {
-      name: 'tutorId',
-      in: 'path',
-      required: true
-    },
-    required: ['tutorId'],
-    example: '4651e634-a530-4484-9b09-9616a28f35e3'
-  })
-})
-
 const LessonIdParamsSchema = z.object({
   lessonId: z.uuid().openapi({
     param: {
@@ -88,7 +76,7 @@ const resolveLessonSchema = z.object({
 })
 
 const rescheduleLessonSchema = z.object({
-  availabilityId: z.uuid(),
+  targetLessonId: z.uuid(),
   note: z.string().min(1).max(500).optional()
 })
 
@@ -147,12 +135,6 @@ const confirmationDetailSchema = z.object({
     studentConfirmedAt: z.string().nullable(),
     studentConfirmationNote: z.string().nullable()
   }))
-})
-
-const bookLessonSchema = z.object({
-  availabilityId: z.uuid(),
-  subjectId: z.uuid(),
-  topic: z.string().min(1).max(200)
 })
 
 const bookGeneratedLessonSchema = z.object({
@@ -256,52 +238,6 @@ export const bookGeneratedLesson = createRoute({
   }
 })
 
-export const bookLesson = createRoute({
-  path: '/tutors/{tutorId}/lessons/book',
-  method: 'post',
-  tags,
-  security: bearerAuth,
-  request: {
-    params: TutorIdParamsSchema,
-    body: jsonContentRequired(
-      bookLessonSchema,
-      'Lesson booking payload'
-    )
-  },
-  responses: {
-    [HttpStatusCodes.CREATED]: jsonContent(
-      z.object({
-        lesson: lessonSchema,
-        booking: bookingSchema
-      }),
-      'Lesson booked'
-    ),
-    [HttpStatusCodes.NOT_FOUND]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
-      'Tutor or subject not found'
-    ),
-    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
-      'Slot unavailable'
-    ),
-    [HttpStatusCodes.CONFLICT]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.CONFLICT),
-      'Slot already booked or full'
-    ),
-    [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
-      'Student access required'
-    ),
-    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
-      createErrorSchema(bookLessonSchema).or(createErrorSchema(TutorIdParamsSchema)),
-      'Validation error(s)'
-    ),
-    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
-      'Invalid credentials'
-    )
-  }
-})
 
 export const cancelBooking = createRoute({
   path: '/lessons/{lessonId}/bookings/{bookingId}',
@@ -489,7 +425,7 @@ export const rescheduleLesson = createRoute({
     ),
     [HttpStatusCodes.BAD_REQUEST]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
-      'Availability invalid'
+      'Target lesson invalid'
     ),
     [HttpStatusCodes.CONFLICT]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.CONFLICT),
@@ -497,7 +433,7 @@ export const rescheduleLesson = createRoute({
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
-      'Lesson or availability not found'
+      'Lesson not found'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
@@ -649,7 +585,6 @@ export const confirmLessonBooking = createRoute({
 
 export type ListLessonsRoute = typeof listLessons
 export type BookGeneratedLessonRoute = typeof bookGeneratedLesson
-export type BookLessonRoute = typeof bookLesson
 export type CancelBookingRoute = typeof cancelBooking
 export type CancelLessonRoute = typeof cancelLesson
 export type ListLessonConfirmationsRoute = typeof listLessonConfirmations

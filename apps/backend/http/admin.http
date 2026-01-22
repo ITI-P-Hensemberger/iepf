@@ -105,19 +105,19 @@ Content-Type: application/json
   "token": "{{tutorVerifyToken}}"
 }
 
-### Admin adds availability for tutor
-# @name createAvailabilityAdmin
-POST {{baseUrl}}/tutors/{{tutorId}}/availability
+### Admin updates tutor weekday availability
+# @name updateWeekdayAvailabilityAdmin
+PUT {{baseUrl}}/tutors/{{tutorId}}/weekday-availability
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
-  "date": "2026-01-14"
+  "weekdays": [
+    { "weekday": 1, "isAvailable": true },
+    { "weekday": 3, "isAvailable": true },
+    { "weekday": 5, "isAvailable": true }
+  ]
 }
-
-###
-
-@availabilityId = {{createAvailabilityAdmin.response.body.id}}
 
 ### Admin list audit logs
 GET {{baseUrl}}/audit/logs?limit=25

@@ -111,19 +111,18 @@ Content-Type: application/json
   "subjectId": "{{subjectId}}"
 }
 
-### Tutor adds availability (next week date)
-# @name createAvailability
-POST {{baseUrl}}/tutors/{{tutorId}}/availability
+### Tutor sets weekday availability
+# @name updateWeekdayAvailability
+PUT {{baseUrl}}/tutors/{{tutorId}}/weekday-availability
 Authorization: Bearer {{tutorToken}}
 Content-Type: application/json
 
 {
-  "date": "2026-01-13"
+  "weekdays": [
+    { "weekday": 2, "isAvailable": true },
+    { "weekday": 4, "isAvailable": true }
+  ]
 }
-
-###
-
-@availabilityId = {{createAvailability.response.body.id}}
 
 ### Student registration (copy token from server logs)
 # @name registerStudent

@@ -4,14 +4,12 @@ import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg
 import { randomUUID } from 'node:crypto'
 
 import { subjects } from './subjects.schema'
-import { tutorAvailability } from './tutor-availability.schema'
 import { users } from './users.schema'
 
 export const lessons = pgTable('lessons', {
   id: uuid().primaryKey().$defaultFn(() => randomUUID()),
   tutorId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),
   subjectId: uuid().notNull().references(() => subjects.id, { onDelete: 'restrict' }),
-  availabilityId: uuid().references(() => tutorAvailability.id, { onDelete: 'set null' }),
   startAt: timestamp({ mode: 'date' }).notNull(),
   durationMinutes: integer().notNull(),
   seats: integer().notNull(),
@@ -37,10 +35,6 @@ export const lessonsRelations = relations(lessons, ({ one }) => ({
   tutor: one(users, {
     fields: [lessons.tutorId],
     references: [users.id]
-  }),
-  availability: one(tutorAvailability, {
-    fields: [lessons.availabilityId],
-    references: [tutorAvailability.id]
   }),
   subject: one(subjects, {
     fields: [lessons.subjectId],

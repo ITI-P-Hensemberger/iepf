@@ -1,6 +1,7 @@
 ### Purpose: Lesson booking/confirmation flow (VS Code REST Client).
 ### Flow notes:
-### - Paste `tutorId`, `availabilityId`, and `subjectId` from other flows.
+### - Paste `lessonId` from the list lessons call.
+### - Use another `targetLessonId` from the list when rescheduling.
 ### - Use after admin/tutor/student flows so tokens and IDs exist.
 ### Environment:
 ### - Select "local" in VS Code REST Client environments (from .vscode/settings.json).
@@ -47,15 +48,23 @@ Content-Type: application/json
 
 @studentToken = {{studentLogin.response.body.accessToken}}
 
-### Book a lesson (uses availability id)
+### List available lessons (filter by tutor/subject if needed)
+# @name listLessons
+GET {{baseUrl}}/lessons?from={{fromDate}}&to={{toDate}}
+Authorization: Bearer {{studentToken}}
+
+###
+
+@lessonId = {{listLessons.response.body.data.0.id}}
+@targetLessonId = {{listLessons.response.body.data.1.id}}
+
+### Book a lesson
 # @name bookLesson
-POST {{baseUrl}}/tutors/{{tutorId}}/lessons/book
+POST {{baseUrl}}/lessons/{{lessonId}}/book
 Authorization: Bearer {{studentToken}}
 Content-Type: application/json
 
 {
-  "availabilityId": "{{availabilityId}}",
-  "subjectId": "{{subjectId}}",
   "topic": "Linear equations"
 }
 
@@ -125,13 +134,11 @@ Authorization: Bearer {{studentToken}}
 
 ### Student rebooks the same lesson after canceling
 # @name rebookLesson
-POST {{baseUrl}}/tutors/{{tutorId}}/lessons/book
+POST {{baseUrl}}/lessons/{{lessonId}}/book
 Authorization: Bearer {{studentToken}}
 Content-Type: application/json
 
 {
-  "availabilityId": "{{availabilityId}}",
-  "subjectId": "{{subjectId}}",
   "topic": "Rebooked lesson"
 }
 
@@ -149,12 +156,12 @@ Content-Type: application/json
   "note": "Admin resolved"
 }
 
-### Admin reschedule a lesson to a new availability slot
+### Admin reschedule a lesson to another scheduled lesson slot
 POST {{baseUrl}}/lessons/{{lessonId}}/reschedule
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
-  "availabilityId": "{{availabilityId}}",
+  "targetLessonId": "{{targetLessonId}}",
   "note": "Rescheduled by admin"
 }

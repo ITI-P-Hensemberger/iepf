@@ -28,19 +28,18 @@ Content-Type: application/json
   "subjectId": "{{subjectId}}"
 }
 
-### Tutor adds availability (next week date)
-# @name createAvailability
-POST {{baseUrl}}/tutors/{{tutorId}}/availability
+### Tutor sets weekday availability
+# @name updateWeekdayAvailability
+PUT {{baseUrl}}/tutors/{{tutorId}}/weekday-availability
 Authorization: Bearer {{tutorToken}}
 Content-Type: application/json
 
 {
-  "date": "2026-01-13"
+  "weekdays": [
+    { "weekday": 1, "isAvailable": true },
+    { "weekday": 3, "isAvailable": true }
+  ]
 }
-
-###
-
-@availabilityId = {{createAvailability.response.body.id}}
 
 ### Tutor confirms lesson completion (use after scheduled end time)
 @lessonId = 00000000-0000-0000-0000-000000000000

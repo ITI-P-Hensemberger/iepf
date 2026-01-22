@@ -8,7 +8,6 @@ import health from '@/routes/health.route'
 import lessons from '@/routes/lessons/lessons.index'
 import subjects from '@/routes/subjects/subjects.index'
 import tokens from '@/routes/tokens/tokens.index'
-import tutorAvailability from '@/routes/tutor-availability/tutor-availability.index'
 import tutorSettings from '@/routes/tutor-settings/tutor-settings.index'
 import tutorSubjects from '@/routes/tutor-subjects/tutor-subjects.index'
 import tutorWeekdayAvailability from '@/routes/tutor-weekday-availability/tutor-weekday-availability.index'
@@ -27,7 +26,6 @@ const routes = [
   lessons,
   subjects,
   tokens,
-  tutorAvailability,
   tutorSettings,
   tutorSubjects,
   tutorWeekdayAvailability,

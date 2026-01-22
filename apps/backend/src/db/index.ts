@@ -16,7 +16,6 @@ import { refreshTokens } from './schemas/refresh-tokens.schema'
 import { studentProfiles } from './schemas/student-profiles.schema'
 import { subjects } from './schemas/subjects.schema'
 import { tokenLedger } from './schemas/token-ledger.schema'
-import { tutorAvailability } from './schemas/tutor-availability.schema'
 import { tutorInviteTokens } from './schemas/tutor-invite-tokens.schema'
 import { tutorProfiles } from './schemas/tutor-profiles.schema'
 import { tutorSettings } from './schemas/tutor-settings.schema'
@@ -35,7 +34,6 @@ const schema = {
   subjects,
   tutorSubjects,
   tutorSettings,
-  tutorAvailability,
   tutorWeekdayAvailability,
   tutorInviteTokens,
   lessons,

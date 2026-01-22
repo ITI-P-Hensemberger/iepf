@@ -21,6 +21,8 @@
     "seed:class-sections": "tsx src/scripts/seed-class-sections.ts",
     "seed:subjects": "tsx src/scripts/seed-subjects.ts",
     "seed:mocks": "tsx src/scripts/seed-mock-users.ts",
+    "seed:mock-tutor-subjects": "tsx src/scripts/seed-mock-tutor-subjects.ts",
+    "seed:mock-tutor-weekday-availability": "tsx src/scripts/seed-mock-tutor-weekday-availability.ts",
     "generate:lessons": "tsx src/scripts/generate-weekly-lessons.ts"
   },
   "dependencies": {

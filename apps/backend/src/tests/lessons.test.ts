@@ -1,4 +1,4 @@
-// Purpose: Lessons, availability, and token flows integration tests.
+// Purpose: Lessons and token flows integration tests.
 import { testClient } from 'hono/testing'
 import { randomUUID } from 'node:crypto'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -11,7 +11,6 @@ import { lessons } from '@/db/schemas/lessons.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { subjects } from '@/db/schemas/subjects.schema'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
-import { tutorAvailability } from '@/db/schemas/tutor-availability.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'
@@ -21,7 +20,6 @@ import { createTestApp } from '@/lib/create-app'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import lessonsRouter from '@/routes/lessons/lessons.index'
 import tokensRouter from '@/routes/tokens/tokens.index'
-import tutorAvailabilityRouter from '@/routes/tutor-availability/tutor-availability.index'
 import tutorSettingsRouter from '@/routes/tutor-settings/tutor-settings.index'
 import { attachActiveTutorProfile, seedAdminUser } from '@/tests/test-helpers'
 import { ensureTestSchema } from '@/tests/test-setup'
@@ -31,7 +29,6 @@ if (env.NODE_ENV !== 'test') {
 }
 
 const lessonsClient = testClient(createTestApp(lessonsRouter)) as any
-const availabilityClient = testClient(createTestApp(tutorAvailabilityRouter)) as any
 const settingsClient = testClient(createTestApp(tutorSettingsRouter)) as any
 const tokensClient = testClient(createTestApp(tokensRouter)) as any
 
@@ -155,7 +152,6 @@ beforeEach(async () => {
   await db.delete(lessonBookings)
   await db.delete(lessons)
   await db.delete(tokenLedger)
-  await db.delete(tutorAvailability)
   await db.delete(tutorSettings)
   await db.delete(tutorSubjects)
   await db.delete(subjects)
@@ -206,130 +202,31 @@ describe('lesson flows', () => {
     expect(body.dailyCapacity).toBe(3)
   })
 
-  it('creates availability using tutor settings defaults', async () => {
-    const tutor = await createTutor()
-    const adminToken = await issueToken(adminIdentity)
-    const tutorToken = await tokenForTutor(tutor.id)
-
-    await settingsClient.tutors[':tutorId'].settings.$put({
-      param: { tutorId: tutor.id },
-      json: {
-        defaultStartTime: '16:30',
-        defaultDurationMinutes: 50,
-        dailyCapacity: 4
-      },
-      header: bearer(adminToken)
-    })
-
-    const date = nextWeekDateForWeekday(2)
-    const response = await availabilityClient.tutors[':tutorId'].availability.$post({
-      param: { tutorId: tutor.id },
-      json: { date },
-      header: bearer(tutorToken)
-    })
-
-    expect(response.status).toBe(HttpStatusCodes.CREATED)
-    const body = await response.json() as { durationMinutes: number, seats: number }
-    expect(body.durationMinutes).toBe(50)
-    expect(body.seats).toBe(4)
-  })
-
-  it('allows tutors to manage availability', async () => {
-    const tutor = await createTutor()
-    const tutorToken = await tokenForTutor(tutor.id)
-
-    const date = nextWeekDateForWeekday(2)
-    const response = await availabilityClient.tutors[':tutorId'].availability.$post({
-      param: { tutorId: tutor.id },
-      json: {
-        date
-      },
-      header: bearer(tutorToken)
-    })
-
-    expect(response.status).toBe(HttpStatusCodes.CREATED)
-  })
-
-  it('lists and deletes availability entries', async () => {
-    const tutor = await createTutor()
-    const tutorToken = await tokenForTutor(tutor.id)
-
-    const date = nextWeekDateForWeekday(3)
-    const createResponse = await availabilityClient.tutors[':tutorId'].availability.$post({
-      param: { tutorId: tutor.id },
-      json: {
-        date
-      },
-      header: bearer(tutorToken)
-    })
-    const created = await createResponse.json() as { id: string }
-
-    const listResponse = await availabilityClient.tutors[':tutorId'].availability.$get({
-      param: { tutorId: tutor.id },
-      header: bearer(tutorToken)
-    })
-    expect(listResponse.status).toBe(HttpStatusCodes.OK)
-    const listBody = await listResponse.json() as { data: Array<{ id: string }> }
-    expect(listBody.data.map(row => row.id)).toContain(created.id)
-
-    const deleteResponse = await availabilityClient.tutors[':tutorId'].availability[':availabilityId'].$delete({
-      param: { tutorId: tutor.id, availabilityId: created.id },
-      header: bearer(tutorToken)
-    })
-    expect(deleteResponse.status).toBe(HttpStatusCodes.NO_CONTENT)
-
-    const listAfterDelete = await availabilityClient.tutors[':tutorId'].availability.$get({
-      param: { tutorId: tutor.id },
-      header: bearer(tutorToken)
-    })
-    const remaining = await listAfterDelete.json() as { data: Array<{ id: string }> }
-    expect(remaining.data).toHaveLength(0)
-  })
-
-  it('lists available slots for students', async () => {
+  it('lists scheduled lessons for students', async () => {
     const tutor = await createTutor()
     const student = await createStudent(1)
+    const subject = await createSubject()
+    await db.insert(tutorSubjects).values({ tutorId: tutor.id, subjectId: subject.id })
 
-    const date = nextWeekDateForWeekday(5)
-    const startAt = slotStartAt(date)
-    const [availability] = await db.insert(tutorAvailability).values({
+    const startAt = slotStartAt(nextWeekDateForWeekday(5))
+    const [lesson] = await db.insert(lessons).values({
       tutorId: tutor.id,
+      subjectId: subject.id,
       startAt,
       durationMinutes: 60,
-      seats: 2
-    }).returning({ id: tutorAvailability.id })
+      seats: 2,
+      generatedByJob: true,
+      generatedForWeek: new Date(startAt)
+    }).returning({ id: lessons.id })
 
     const studentToken = await tokenForStudent(student.id)
-    const response = await availabilityClient.tutors[':tutorId'].availability.slots.$get({
-      param: { tutorId: tutor.id },
+    const response = await lessonsClient.lessons.$get({
       header: bearer(studentToken)
     })
 
     expect(response.status).toBe(HttpStatusCodes.OK)
     const body = await response.json() as { data: Array<{ id: string }> }
-    expect(body.data.map(row => row.id)).toContain(availability.id)
-  })
-
-  it('prevents inactive students from listing available slots', async () => {
-    const tutor = await createTutor()
-    const student = await createStudent(1, false)
-
-    const date = nextWeekDateForWeekday(5)
-    const startAt = slotStartAt(date)
-    await db.insert(tutorAvailability).values({
-      tutorId: tutor.id,
-      startAt,
-      durationMinutes: 60,
-      seats: 2
-    })
-
-    const studentToken = await tokenForStudent(student.id)
-    const response = await availabilityClient.tutors[':tutorId'].availability.slots.$get({
-      param: { tutorId: tutor.id },
-      header: bearer(studentToken)
-    })
-
-    expect(response.status).toBe(HttpStatusCodes.FORBIDDEN)
+    expect(body.data.map(row => row.id)).toContain(lesson.id)
   })
 
   it('prevents inactive students from booking lessons', async () => {
@@ -340,22 +237,21 @@ describe('lesson flows', () => {
 
     const date = nextWeekDateForWeekday(2)
     const startAt = slotStartAt(date)
-    const [availability] = await db.insert(tutorAvailability).values({
+    const [lesson] = await db.insert(lessons).values({
       tutorId: tutor.id,
+      subjectId: subject.id,
       startAt,
       durationMinutes: 60,
-      seats: 2
-    }).returning({ id: tutorAvailability.id })
+      seats: 2,
+      generatedByJob: true,
+      generatedForWeek: new Date(startAt)
+    }).returning({ id: lessons.id })
 
     const studentToken = await tokenForStudent(student.id)
 
-    const response = await lessonsClient.tutors[':tutorId'].lessons.book.$post({
-      param: { tutorId: tutor.id },
-      json: {
-        availabilityId: availability.id,
-        subjectId: subject.id,
-        topic: 'Inactive booking'
-      },
+    const response = await lessonsClient.lessons[':lessonId'].book.$post({
+      param: { lessonId: lesson.id },
+      json: { topic: 'Inactive booking' },
       header: bearer(studentToken)
     })
 
@@ -370,22 +266,21 @@ describe('lesson flows', () => {
 
     const date = nextWeekDateForWeekday(2)
     const startAt = slotStartAt(date)
-    const [availability] = await db.insert(tutorAvailability).values({
+    const [lesson] = await db.insert(lessons).values({
       tutorId: tutor.id,
+      subjectId: subject.id,
       startAt,
       durationMinutes: 60,
-      seats: 2
-    }).returning({ id: tutorAvailability.id })
+      seats: 2,
+      generatedByJob: true,
+      generatedForWeek: new Date(startAt)
+    }).returning({ id: lessons.id })
 
     const studentToken = await tokenForStudent(student.id)
 
-    const response = await lessonsClient.tutors[':tutorId'].lessons.book.$post({
-      param: { tutorId: tutor.id },
-      json: {
-        availabilityId: availability.id,
-        subjectId: subject.id,
-        topic: 'Linear equations'
-      },
+    const response = await lessonsClient.lessons[':lessonId'].book.$post({
+      param: { lessonId: lesson.id },
+      json: { topic: 'Linear equations' },
       header: bearer(studentToken)
     })
 
@@ -420,21 +315,20 @@ describe('lesson flows', () => {
 
     const date = nextWeekDateForWeekday(2)
     const startAt = slotStartAt(date)
-    const [availability] = await db.insert(tutorAvailability).values({
+    const [lesson] = await db.insert(lessons).values({
       tutorId: tutor.id,
+      subjectId: subject.id,
       startAt,
       durationMinutes: 60,
-      seats: 2
-    }).returning({ id: tutorAvailability.id })
+      seats: 2,
+      generatedByJob: true,
+      generatedForWeek: new Date(startAt)
+    }).returning({ id: lessons.id })
 
     const studentToken = await tokenForStudent(student.id)
-    const firstResponse = await lessonsClient.tutors[':tutorId'].lessons.book.$post({
-      param: { tutorId: tutor.id },
-      json: {
-        availabilityId: availability.id,
-        subjectId: subject.id,
-        topic: 'First booking'
-      },
+    const firstResponse = await lessonsClient.lessons[':lessonId'].book.$post({
+      param: { lessonId: lesson.id },
+      json: { topic: 'First booking' },
       header: bearer(studentToken)
     })
     expect(firstResponse.status).toBe(HttpStatusCodes.CREATED)
@@ -446,13 +340,9 @@ describe('lesson flows', () => {
     })
     expect(cancelResponse.status).toBe(HttpStatusCodes.NO_CONTENT)
 
-    const secondResponse = await lessonsClient.tutors[':tutorId'].lessons.book.$post({
-      param: { tutorId: tutor.id },
-      json: {
-        availabilityId: availability.id,
-        subjectId: subject.id,
-        topic: 'Second booking'
-      },
+    const secondResponse = await lessonsClient.lessons[':lessonId'].book.$post({
+      param: { lessonId: lesson.id },
+      json: { topic: 'Second booking' },
       header: bearer(studentToken)
     })
     expect(secondResponse.status).toBe(HttpStatusCodes.CREATED)
@@ -465,22 +355,21 @@ describe('lesson flows', () => {
 
     const date = nextWeekDateForWeekday(2)
     const startAt = slotStartAt(date)
-    const [availability] = await db.insert(tutorAvailability).values({
+    const [lesson] = await db.insert(lessons).values({
       tutorId: tutor.id,
+      subjectId: subject.id,
       startAt,
       durationMinutes: 60,
-      seats: 2
-    }).returning({ id: tutorAvailability.id })
+      seats: 2,
+      generatedByJob: true,
+      generatedForWeek: new Date(startAt)
+    }).returning({ id: lessons.id })
 
     const studentToken = await tokenForStudent(student.id)
 
-    const response = await lessonsClient.tutors[':tutorId'].lessons.book.$post({
-      param: { tutorId: tutor.id },
-      json: {
-        availabilityId: availability.id,
-        subjectId: subject.id,
-        topic: 'Intro topic'
-      },
+    const response = await lessonsClient.lessons[':lessonId'].book.$post({
+      param: { lessonId: lesson.id },
+      json: { topic: 'Intro topic' },
       header: bearer(studentToken)
     })
 
@@ -495,58 +384,56 @@ describe('lesson flows', () => {
 
     const date = nextWeekDateForWeekday(2)
     const startAt = slotStartAt(date)
-    const [availability] = await db.insert(tutorAvailability).values({
+    const [lesson] = await db.insert(lessons).values({
       tutorId: tutor.id,
+      subjectId: subject.id,
       startAt,
       durationMinutes: 60,
-      seats: 2
-    }).returning({ id: tutorAvailability.id })
+      seats: 2,
+      generatedByJob: true,
+      generatedForWeek: new Date(startAt)
+    }).returning({ id: lessons.id })
 
     const studentToken = await tokenForStudent(student.id)
 
-    const response = await lessonsClient.tutors[':tutorId'].lessons.book.$post({
-      param: { tutorId: tutor.id },
-      json: {
-        availabilityId: availability.id,
-        subjectId: subject.id,
-        topic: 'No tokens'
-      },
+    const response = await lessonsClient.lessons[':lessonId'].book.$post({
+      param: { lessonId: lesson.id },
+      json: { topic: 'No tokens' },
       header: bearer(studentToken)
     })
 
     expect(response.status).toBe(HttpStatusCodes.FORBIDDEN)
   })
 
-  it('rejects bookings for past availability slots', async () => {
+  it('rejects bookings for past lesson slots', async () => {
     const tutor = await createTutor()
     const student = await createStudent(1)
     const subject = await createSubject()
     await db.insert(tutorSubjects).values({ tutorId: tutor.id, subjectId: subject.id })
 
     const startAt = pastLessonStart(2)
-    const [availability] = await db.insert(tutorAvailability).values({
+    const [lesson] = await db.insert(lessons).values({
       tutorId: tutor.id,
+      subjectId: subject.id,
       startAt,
       durationMinutes: 60,
-      seats: 2
-    }).returning({ id: tutorAvailability.id })
+      seats: 2,
+      generatedByJob: true,
+      generatedForWeek: new Date(startAt)
+    }).returning({ id: lessons.id })
 
     const studentToken = await tokenForStudent(student.id)
 
-    const response = await lessonsClient.tutors[':tutorId'].lessons.book.$post({
-      param: { tutorId: tutor.id },
-      json: {
-        availabilityId: availability.id,
-        subjectId: subject.id,
-        topic: 'Past slot'
-      },
+    const response = await lessonsClient.lessons[':lessonId'].book.$post({
+      param: { lessonId: lesson.id },
+      json: { topic: 'Past slot' },
       header: bearer(studentToken)
     })
 
     expect(response.status).toBe(HttpStatusCodes.BAD_REQUEST)
   })
 
-  it('rejects bookings on the same day as the availability', async () => {
+  it('rejects bookings on the same day as the lesson', async () => {
     const tutor = await createTutor()
     const student = await createStudent(1)
     const subject = await createSubject()
@@ -556,22 +443,21 @@ describe('lesson flows', () => {
     const sameDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
     sameDay.setUTCHours(15, 0, 0, 0)
 
-    const [availability] = await db.insert(tutorAvailability).values({
+    const [lesson] = await db.insert(lessons).values({
       tutorId: tutor.id,
+      subjectId: subject.id,
       startAt: sameDay,
       durationMinutes: 60,
-      seats: 2
-    }).returning({ id: tutorAvailability.id })
+      seats: 2,
+      generatedByJob: true,
+      generatedForWeek: new Date(sameDay)
+    }).returning({ id: lessons.id })
 
     const studentToken = await tokenForStudent(student.id)
 
-    const response = await lessonsClient.tutors[':tutorId'].lessons.book.$post({
-      param: { tutorId: tutor.id },
-      json: {
-        availabilityId: availability.id,
-        subjectId: subject.id,
-        topic: 'Same day booking'
-      },
+    const response = await lessonsClient.lessons[':lessonId'].book.$post({
+      param: { lessonId: lesson.id },
+      json: { topic: 'Same day booking' },
       header: bearer(studentToken)
     })
 
@@ -587,34 +473,29 @@ describe('lesson flows', () => {
 
     const date = nextWeekDateForWeekday(4)
     const startAt = slotStartAt(date)
-    const [availability] = await db.insert(tutorAvailability).values({
+    const [lesson] = await db.insert(lessons).values({
       tutorId: tutor.id,
+      subjectId: subject.id,
       startAt,
       durationMinutes: 60,
-      seats: 1
-    }).returning({ id: tutorAvailability.id })
+      seats: 1,
+      generatedByJob: true,
+      generatedForWeek: new Date(startAt)
+    }).returning({ id: lessons.id })
 
     const studentTokenA = await tokenForStudent(studentA.id)
     const studentTokenB = await tokenForStudent(studentB.id)
 
-    const first = await lessonsClient.tutors[':tutorId'].lessons.book.$post({
-      param: { tutorId: tutor.id },
-      json: {
-        availabilityId: availability.id,
-        subjectId: subject.id,
-        topic: 'Seat 1'
-      },
+    const first = await lessonsClient.lessons[':lessonId'].book.$post({
+      param: { lessonId: lesson.id },
+      json: { topic: 'Seat 1' },
       header: bearer(studentTokenA)
     })
     expect(first.status).toBe(HttpStatusCodes.CREATED)
 
-    const second = await lessonsClient.tutors[':tutorId'].lessons.book.$post({
-      param: { tutorId: tutor.id },
-      json: {
-        availabilityId: availability.id,
-        subjectId: subject.id,
-        topic: 'Seat 2'
-      },
+    const second = await lessonsClient.lessons[':lessonId'].book.$post({
+      param: { lessonId: lesson.id },
+      json: { topic: 'Seat 2' },
       header: bearer(studentTokenB)
     })
     expect(second.status).toBe(HttpStatusCodes.CONFLICT)
@@ -1133,22 +1014,16 @@ describe('lesson flows', () => {
 
     const date = nextWeekDateForWeekday(2)
     const startAt = slotStartAt(date)
-    const [availability] = await db.insert(tutorAvailability).values({
-      tutorId: tutor.id,
-      startAt,
-      durationMinutes: 60,
-      seats: 2
-    }).returning({ id: tutorAvailability.id })
-
     const [lesson] = await db.insert(lessons).values({
       tutorId: tutor.id,
       subjectId: subject.id,
-      availabilityId: availability.id,
       startAt,
       durationMinutes: 60,
       seats: 2,
       tutorConfirmed: true,
-      tutorConfirmedAt: new Date()
+      tutorConfirmedAt: new Date(),
+      generatedByJob: true,
+      generatedForWeek: new Date(startAt)
     }).returning({ id: lessons.id })
 
     await db.insert(lessonBookings).values({
@@ -1161,18 +1036,21 @@ describe('lesson flows', () => {
 
     const newDate = nextWeekDateForWeekday(3)
     const newStartAt = slotStartAt(newDate)
-    const [newAvailability] = await db.insert(tutorAvailability).values({
+    const [targetLesson] = await db.insert(lessons).values({
       tutorId: tutor.id,
+      subjectId: subject.id,
       startAt: newStartAt,
       durationMinutes: 45,
-      seats: 2
-    }).returning({ id: tutorAvailability.id })
+      seats: 2,
+      generatedByJob: true,
+      generatedForWeek: new Date(newStartAt)
+    }).returning({ id: lessons.id })
 
     const adminToken = await issueToken(adminIdentity)
     const response = await lessonsClient.lessons[':lessonId'].reschedule.$post({
       param: { lessonId: lesson.id },
       json: {
-        availabilityId: newAvailability.id,
+        targetLessonId: targetLesson.id,
         note: 'Rescheduled by admin'
       },
       header: bearer(adminToken)
@@ -1184,13 +1062,11 @@ describe('lesson flows', () => {
         return operators.eq(fields.id, lesson.id)
       },
       columns: {
-        availabilityId: true,
         startAt: true,
         durationMinutes: true,
         tutorConfirmed: true
       }
     })
-    expect(updatedLesson?.availabilityId).toBe(newAvailability.id)
     expect(new Date(updatedLesson!.startAt).toISOString()).toBe(newStartAt.toISOString())
     expect(updatedLesson?.durationMinutes).toBe(45)
     expect(updatedLesson?.tutorConfirmed).toBeNull()
@@ -1216,20 +1092,14 @@ describe('lesson flows', () => {
 
     const date = nextWeekDateForWeekday(2)
     const startAt = slotStartAt(date)
-    const [availabilityA] = await db.insert(tutorAvailability).values({
-      tutorId: tutorA.id,
-      startAt,
-      durationMinutes: 60,
-      seats: 2
-    }).returning({ id: tutorAvailability.id })
-
     const [lesson] = await db.insert(lessons).values({
       tutorId: tutorA.id,
       subjectId: subject.id,
-      availabilityId: availabilityA.id,
       startAt,
       durationMinutes: 60,
-      seats: 2
+      seats: 2,
+      generatedByJob: true,
+      generatedForWeek: new Date(startAt)
     }).returning({ id: lessons.id })
 
     await db.insert(lessonBookings).values({
@@ -1240,18 +1110,21 @@ describe('lesson flows', () => {
 
     const newDate = nextWeekDateForWeekday(3)
     const newStartAt = slotStartAt(newDate)
-    const [availabilityB] = await db.insert(tutorAvailability).values({
+    const [targetLesson] = await db.insert(lessons).values({
       tutorId: tutorB.id,
+      subjectId: subject.id,
       startAt: newStartAt,
       durationMinutes: 45,
-      seats: 2
-    }).returning({ id: tutorAvailability.id })
+      seats: 2,
+      generatedByJob: true,
+      generatedForWeek: new Date(newStartAt)
+    }).returning({ id: lessons.id })
 
     const adminToken = await issueToken(adminIdentity)
     const response = await lessonsClient.lessons[':lessonId'].reschedule.$post({
       param: { lessonId: lesson.id },
       json: {
-        availabilityId: availabilityB.id,
+        targetLessonId: targetLesson.id,
         note: 'Assign to tutor B'
       },
       header: bearer(adminToken)
@@ -1262,10 +1135,9 @@ describe('lesson flows', () => {
       where(fields, operators) {
         return operators.eq(fields.id, lesson.id)
       },
-      columns: { tutorId: true, availabilityId: true }
+      columns: { tutorId: true }
     })
     expect(updated?.tutorId).toBe(tutorB.id)
-    expect(updated?.availabilityId).toBe(availabilityB.id)
   })
 
   it('allows admins to resolve stalled lessons as canceled with refunds', async () => {
@@ -1314,22 +1186,21 @@ describe('lesson flows', () => {
 
     const date = nextWeekDateForWeekday(2)
     const startAt = slotStartAt(date)
-    const [availability] = await db.insert(tutorAvailability).values({
+    const [lesson] = await db.insert(lessons).values({
       tutorId: tutor.id,
+      subjectId: subject.id,
       startAt,
       durationMinutes: 60,
-      seats: 2
-    }).returning({ id: tutorAvailability.id })
+      seats: 2,
+      generatedByJob: true,
+      generatedForWeek: new Date(startAt)
+    }).returning({ id: lessons.id })
 
     const studentToken = await tokenForStudent(student.id)
 
-    const bookResponse = await lessonsClient.tutors[':tutorId'].lessons.book.$post({
-      param: { tutorId: tutor.id },
-      json: {
-        availabilityId: availability.id,
-        subjectId: subject.id,
-        topic: 'Quadratic equations'
-      },
+    const bookResponse = await lessonsClient.lessons[':lessonId'].book.$post({
+      param: { lessonId: lesson.id },
+      json: { topic: 'Quadratic equations' },
       header: bearer(studentToken)
     })
     const booked = await bookResponse.json() as { lesson: { id: string }, booking: { id: string } }
@@ -1396,22 +1267,21 @@ describe('lesson flows', () => {
 
     const date = nextWeekDateForWeekday(2)
     const startAt = slotStartAt(date)
-    const [availability] = await db.insert(tutorAvailability).values({
+    const [lesson] = await db.insert(lessons).values({
       tutorId: tutor.id,
+      subjectId: subject.id,
       startAt,
       durationMinutes: 60,
-      seats: 2
-    }).returning({ id: tutorAvailability.id })
+      seats: 2,
+      generatedByJob: true,
+      generatedForWeek: new Date(startAt)
+    }).returning({ id: lessons.id })
 
     const studentToken = await tokenForStudent(student.id)
 
-    const bookResponse = await lessonsClient.tutors[':tutorId'].lessons.book.$post({
-      param: { tutorId: tutor.id },
-      json: {
-        availabilityId: availability.id,
-        subjectId: subject.id,
-        topic: 'Polynomials'
-      },
+    const bookResponse = await lessonsClient.lessons[':lessonId'].book.$post({
+      param: { lessonId: lesson.id },
+      json: { topic: 'Polynomials' },
       header: bearer(studentToken)
     })
     const booked = await bookResponse.json() as { lesson: { id: string } }
