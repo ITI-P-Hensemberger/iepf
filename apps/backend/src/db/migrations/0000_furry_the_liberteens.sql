@@ -53,10 +53,9 @@ CREATE TABLE "lesson_bookings" (
 	"lesson_id" uuid NOT NULL,
 	"student_id" uuid NOT NULL,
 	"topic" text NOT NULL,
-	"status" text DEFAULT 'booked' NOT NULL,
-	"student_confirmed" boolean,
-	"student_confirmed_at" timestamp,
-	"student_confirmation_note" text,
+	"status" text DEFAULT 'confirmed' NOT NULL,
+	"student_presence" boolean,
+	"student_presence_at" timestamp,
 	"canceled_at" timestamp,
 	"canceled_by" uuid,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -67,7 +66,6 @@ CREATE TABLE "lessons" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"tutor_id" uuid NOT NULL,
 	"subject_id" uuid NOT NULL,
-	"availability_id" uuid,
 	"start_at" timestamp NOT NULL,
 	"duration_minutes" integer NOT NULL,
 	"seats" integer NOT NULL,
@@ -129,16 +127,6 @@ CREATE TABLE "token_ledger" (
 	"delta" integer NOT NULL,
 	"reason" text NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "tutor_availability" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"tutor_id" uuid NOT NULL,
-	"start_at" timestamp NOT NULL,
-	"duration_minutes" integer NOT NULL,
-	"seats" integer NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "tutor_invite_tokens" (
@@ -206,14 +194,12 @@ ALTER TABLE "lesson_bookings" ADD CONSTRAINT "lesson_bookings_lesson_id_lessons_
 ALTER TABLE "lesson_bookings" ADD CONSTRAINT "lesson_bookings_student_id_users_id_fk" FOREIGN KEY ("student_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "lessons" ADD CONSTRAINT "lessons_tutor_id_users_id_fk" FOREIGN KEY ("tutor_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "lessons" ADD CONSTRAINT "lessons_subject_id_subjects_id_fk" FOREIGN KEY ("subject_id") REFERENCES "public"."subjects"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "lessons" ADD CONSTRAINT "lessons_availability_id_tutor_availability_id_fk" FOREIGN KEY ("availability_id") REFERENCES "public"."tutor_availability"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "password_reset_tokens" ADD CONSTRAINT "password_reset_tokens_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "student_profiles" ADD CONSTRAINT "student_profiles_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "student_profiles" ADD CONSTRAINT "student_profiles_section_id_class_sections_id_fk" FOREIGN KEY ("section_id") REFERENCES "public"."class_sections"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "token_ledger" ADD CONSTRAINT "token_ledger_student_id_users_id_fk" FOREIGN KEY ("student_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "token_ledger" ADD CONSTRAINT "token_ledger_lesson_id_lessons_id_fk" FOREIGN KEY ("lesson_id") REFERENCES "public"."lessons"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "tutor_availability" ADD CONSTRAINT "tutor_availability_tutor_id_users_id_fk" FOREIGN KEY ("tutor_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tutor_profiles" ADD CONSTRAINT "tutor_profiles_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tutor_profiles" ADD CONSTRAINT "tutor_profiles_section_id_class_sections_id_fk" FOREIGN KEY ("section_id") REFERENCES "public"."class_sections"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tutor_settings" ADD CONSTRAINT "tutor_settings_tutor_id_users_id_fk" FOREIGN KEY ("tutor_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

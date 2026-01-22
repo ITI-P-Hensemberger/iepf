@@ -1,5 +1,5 @@
 {
-  "id": "5e918809-af3d-4ed6-966c-b6c801af23c1",
+  "id": "78b83e7c-c14d-41b3-b602-8462bc031f70",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -368,23 +368,17 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'booked'"
+          "default": "'confirmed'"
         },
-        "student_confirmed": {
-          "name": "student_confirmed",
+        "student_presence": {
+          "name": "student_presence",
           "type": "boolean",
           "primaryKey": false,
           "notNull": false
         },
-        "student_confirmed_at": {
-          "name": "student_confirmed_at",
+        "student_presence_at": {
+          "name": "student_presence_at",
           "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "student_confirmation_note": {
-          "name": "student_confirmation_note",
-          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -471,12 +465,6 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
-        },
-        "availability_id": {
-          "name": "availability_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
         },
         "start_at": {
           "name": "start_at",
@@ -593,19 +581,6 @@
             "id"
           ],
           "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "lessons_availability_id_tutor_availability_id_fk": {
-          "name": "lessons_availability_id_tutor_availability_id_fk",
-          "tableFrom": "lessons",
-          "tableTo": "tutor_availability",
-          "columnsFrom": [
-            "availability_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -974,77 +949,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.tutor_availability": {
-      "name": "tutor_availability",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "tutor_id": {
-          "name": "tutor_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "start_at": {
-          "name": "start_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "duration_minutes": {
-          "name": "duration_minutes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "seats": {
-          "name": "seats",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "tutor_availability_tutor_id_users_id_fk": {
-          "name": "tutor_availability_tutor_id_users_id_fk",
-          "tableFrom": "tutor_availability",
-          "tableTo": "users",
-          "columnsFrom": [
-            "tutor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },

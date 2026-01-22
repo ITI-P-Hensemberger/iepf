@@ -1,4 +1,5 @@
 // Purpose: Lesson booking handlers enforcing availability and token rules.
+import type { SQL } from 'drizzle-orm'
 import type { Context } from 'hono'
 
 import { and, asc, desc, eq, gte, lte } from 'drizzle-orm'
@@ -11,25 +12,25 @@ import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
-import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
-import env from '@/env'
+import { buildBookingCanceledByAdminMessage } from '@/lib/email-templates'
 import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { sendMail } from '@/lib/mailer'
 import { buildPagedResponse } from '@/lib/pagination'
 
 import type {
   BookGeneratedLessonRoute,
   CancelBookingRoute,
   CancelLessonRoute,
-  ConfirmLessonBookingRoute,
-  ConfirmLessonTutorRoute,
-  GetLessonConfirmationsRoute,
-  ListLessonConfirmationsRoute,
+  GetLessonRoute,
+  ListLessonBookingsRoute,
   ListLessonsRoute,
-  OverrideLessonConfirmationsRoute,
   RescheduleLessonRoute,
-  ResolveLessonRoute
+  SetBookingPresenceRoute,
+  UpdateBookingCountsRoute,
+  UpdateBookingTopicRoute,
+  UpdateLessonCountsRoute
 } from './lessons.routes'
 
 type HandlerContext = Context<AppBindings>
@@ -56,57 +57,27 @@ function ensureAdmin(c: HandlerContext) {
   return currentUser
 }
 
-function lessonEndTime(lesson: { startAt: Date | number, durationMinutes: number }) {
-  const start = new Date(lesson.startAt)
+function getWeekStart(date: Date) {
+  const day = date.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  const start = new Date(date)
+  start.setHours(0, 0, 0, 0)
+  start.setDate(start.getDate() + diff)
+  return start
+}
+
+function getWeekEnd(date: Date) {
+  const start = getWeekStart(date)
   const end = new Date(start)
-  end.setMinutes(end.getMinutes() + lesson.durationMinutes)
+  end.setDate(end.getDate() + 6)
+  end.setHours(23, 59, 59, 999)
   return end
 }
 
-function canConfirmLesson(lesson: { startAt: Date | number, durationMinutes: number }) {
-  // Confirmations open one minute after the scheduled end time.
-  const windowStart = lessonEndTime(lesson)
-  windowStart.setMinutes(windowStart.getMinutes() + 1)
-  return new Date() >= windowStart
-}
-
-function confirmationStallDeadline(lesson: { startAt: Date | number, durationMinutes: number }) {
-  const deadline = lessonEndTime(lesson)
-  deadline.setMinutes(deadline.getMinutes() + env.LESSON_CONFIRMATION_STALL_MINUTES)
-  return deadline
-}
-
-async function autoStallLessonIfNeeded(lesson: {
-  id: string
-  status: string
-  startAt: Date | number
-  durationMinutes: number
-  tutorConfirmed: boolean | null
-}, bookings: Array<{
-  studentConfirmed: boolean | null
-}>) {
-  if (lesson.status !== 'scheduled') {
-    return lesson.status
-  }
-
-  // Auto-stall overdue lessons without full confirmations.
-  if (new Date() <= confirmationStallDeadline(lesson)) {
-    return lesson.status
-  }
-
-  const allConfirmed = lesson.tutorConfirmed === true
-    && bookings.length > 0
-    && bookings.every(booking => booking.studentConfirmed === true)
-
-  if (allConfirmed) {
-    return lesson.status
-  }
-
-  await db.update(lessons)
-    .set({ status: 'stalled' })
-    .where(eq(lessons.id, lesson.id))
-
-  return 'stalled'
+function withinLessonWeek(lessonStart: Date, now = new Date()) {
+  const start = getWeekStart(lessonStart)
+  const end = getWeekEnd(lessonStart)
+  return now >= start && now <= end
 }
 
 function sameDayOrAfter(a: Date, b: Date) {
@@ -140,6 +111,50 @@ async function isSubjectAllowed(tutorId: string, subjectId: string) {
   return Boolean(link)
 }
 
+async function cancelConfirmedBookings(lessonId: string, adminId: string) {
+  const bookings = await db.query.lessonBookings.findMany({
+    where(fields, operators) {
+      return operators.and(
+        operators.eq(fields.lessonId, lessonId),
+        operators.eq(fields.status, 'confirmed')
+      )
+    }
+  })
+
+  for (const booking of bookings) {
+    await db.update(lessonBookings)
+      .set({
+        status: 'canceled',
+        canceledAt: new Date(),
+        canceledBy: adminId,
+        studentPresence: null,
+        studentPresenceAt: null,
+        countsForStudent: false
+      })
+      .where(eq(lessonBookings.id, booking.id))
+
+    const profile = await db.query.studentProfiles.findFirst({
+      where(fields, operators) {
+        return operators.eq(fields.userId, booking.studentId)
+      },
+      columns: { lessonTokens: true }
+    })
+
+    if (profile) {
+      await db.update(studentProfiles)
+        .set({ lessonTokens: profile.lessonTokens + 1 })
+        .where(eq(studentProfiles.userId, booking.studentId))
+
+      await db.insert(tokenLedger).values({
+        studentId: booking.studentId,
+        lessonId,
+        delta: 1,
+        reason: 'lesson_cancel_admin'
+      })
+    }
+  }
+}
+
 function getDateKey(date: Date): string {
   return date.toISOString().split('T')[0]
 }
@@ -170,7 +185,7 @@ async function getTutorDailyBookingCount(tutorId: string, date: Date): Promise<n
     where(fields, operators) {
       return operators.and(
         operators.inArray(fields.lessonId, lessonIds),
-        operators.eq(fields.status, 'booked')
+        operators.eq(fields.status, 'confirmed')
       )
     },
     columns: { id: true }
@@ -187,12 +202,15 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
 
   const query = c.req.valid('query')
 
-  const clauses = [eq(lessons.status, 'scheduled'), gte(lessons.startAt, new Date())]
+  const clauses: SQL[] = []
   if (query.tutorId) {
     clauses.push(eq(lessons.tutorId, query.tutorId))
   }
   if (query.subjectId) {
     clauses.push(eq(lessons.subjectId, query.subjectId))
+  }
+  if (query.status) {
+    clauses.push(eq(lessons.status, query.status))
   }
   if (query.from) {
     clauses.push(gte(lessons.startAt, new Date(query.from)))
@@ -216,7 +234,8 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
       durationMinutes: true,
       seats: true,
       status: true,
-      createdAt: true
+      createdAt: true,
+      countsForTutor: true
     },
     orderBy: direction
   })
@@ -254,7 +273,7 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
     where(fields, operators) {
       return operators.and(
         operators.inArray(fields.lessonId, lessonIds),
-        operators.eq(fields.status, 'booked')
+        operators.eq(fields.status, 'confirmed')
       )
     },
     columns: { lessonId: true }
@@ -265,16 +284,17 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
     lessonBookingCounts.set(booking.lessonId, (lessonBookingCounts.get(booking.lessonId) ?? 0) + 1)
   }
 
-  // Filter out lessons where tutor is at daily capacity
-  const availableLessons = allLessons.filter((lesson) => {
-    const dateKey = getDateKey(new Date(lesson.startAt))
-    const tutorDayKey = `${lesson.tutorId}:${dateKey}`
-    const dailyBookings = tutorDayBookings.get(tutorDayKey) ?? 0
-    const dailyCapacity = tutorCapacities.get(lesson.tutorId) ?? 2
-    return dailyBookings < dailyCapacity
+  const sortedLessons = [...allLessons].sort((a, b) => {
+    const aTime = query.sortBy === 'createdAt'
+      ? new Date(a.createdAt).getTime()
+      : new Date(a.startAt).getTime()
+    const bTime = query.sortBy === 'createdAt'
+      ? new Date(b.createdAt).getTime()
+      : new Date(b.startAt).getTime()
+    return query.sortDir === 'desc' ? bTime - aTime : aTime - bTime
   })
 
-  const items = availableLessons.map((lesson) => {
+  const items = sortedLessons.map((lesson) => {
     const dateKey = getDateKey(new Date(lesson.startAt))
     const tutorDayKey = `${lesson.tutorId}:${dateKey}`
     const dailyBookings = tutorDayBookings.get(tutorDayKey) ?? 0
@@ -287,11 +307,13 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
       subjectId: lesson.subjectId,
       startAt: new Date(lesson.startAt).toISOString(),
       durationMinutes: lesson.durationMinutes,
-      seats: lesson.seats,
-      availableSeats: Math.min(
+      lessonCapacity: lesson.seats,
+      dailyCapacity,
+      availableSeats: Math.max(0, Math.min(
         lesson.seats - lessonBookings,
         dailyCapacity - dailyBookings
-      ),
+      )),
+      countsForTutor: lesson.countsForTutor ?? false,
       status: lesson.status
     }
   })
@@ -300,6 +322,119 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
   const paged = items.slice(query.offset, query.offset + query.limit)
 
   return c.json(buildPagedResponse(paged, total, query.limit, query.offset), HttpStatusCodes.OK)
+}
+
+export const getLesson: AppRouteHandler<GetLessonRoute> = async (c) => {
+  const { lessonId } = c.req.valid('param')
+  const currentUser = c.get('currentUser')
+  if (!currentUser) {
+    forbid()
+  }
+
+  const lesson = await db.query.lessons.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.id, lessonId)
+    },
+    columns: {
+      id: true,
+      tutorId: true,
+      subjectId: true,
+      startAt: true,
+      durationMinutes: true,
+      seats: true,
+      status: true,
+      countsForTutor: true
+    }
+  })
+
+  if (!lesson) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
+  }
+
+  const bookingCount = await db.query.lessonBookings.findMany({
+    where(fields, operators) {
+      return operators.and(
+        operators.eq(fields.lessonId, lesson.id),
+        operators.eq(fields.status, 'confirmed')
+      )
+    },
+    columns: { id: true }
+  })
+
+  const dailyCapacity = await getTutorDailyCapacity(lesson.tutorId)
+  const availableSeats = Math.max(0, lesson.seats - bookingCount.length)
+
+  return c.json(
+    {
+      id: lesson.id,
+      tutorId: lesson.tutorId,
+      subjectId: lesson.subjectId,
+      startAt: new Date(lesson.startAt).toISOString(),
+      durationMinutes: lesson.durationMinutes,
+      status: lesson.status,
+      lessonCapacity: lesson.seats,
+      dailyCapacity,
+      availableSeats,
+      countsForTutor: lesson.countsForTutor ?? false
+    },
+    HttpStatusCodes.OK
+  )
+}
+
+export const listLessonBookings: AppRouteHandler<ListLessonBookingsRoute> = async (c) => {
+  const { lessonId } = c.req.valid('param')
+  const currentUser = c.get('currentUser')
+
+  if (!currentUser) {
+    forbid()
+  }
+
+  const lesson = await db.query.lessons.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.id, lessonId)
+    },
+    columns: { id: true, tutorId: true }
+  })
+
+  if (!lesson) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
+  }
+
+  const isAdmin = currentUser.role === 'admin' && currentUser.isActive === true
+  const isTutor = currentUser.role === 'tutor' && currentUser.id === lesson.tutorId
+  const isStudent = currentUser.role === 'student'
+
+  if (!isAdmin && !isTutor && !isStudent) {
+    forbid()
+  }
+
+  const conditions = [eq(lessonBookings.lessonId, lessonId)]
+  if (isStudent) {
+    conditions.push(eq(lessonBookings.studentId, currentUser.id))
+  }
+
+  const rows = await db.query.lessonBookings.findMany({
+    where(fields, operators) {
+      return operators.and(...conditions)
+    },
+    columns: {
+      id: true,
+      lessonId: true,
+      studentId: true,
+      topic: true,
+      status: true,
+      countsForStudent: true,
+      studentPresence: true,
+      studentPresenceAt: true
+    }
+  })
+
+  const data = rows.map(row => ({
+    ...row,
+    studentPresenceAt: row.studentPresenceAt ? row.studentPresenceAt.toISOString() : null
+  }))
+
+  return c.json(buildPagedResponse(data, data.length, data.length, 0), HttpStatusCodes.OK)
 }
 
 export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = async (c) => {
@@ -315,6 +450,10 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
 
   if (!lesson) {
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
+  }
+
+  if (lesson.status === 'canceled' || lesson.status === 'completed') {
+    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
   }
 
   const allowed = await isSubjectAllowed(lesson.tutorId, lesson.subjectId)
@@ -353,7 +492,7 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
       return operators.and(
         operators.eq(fields.lessonId, lesson.id),
         operators.eq(fields.studentId, student.id),
-        operators.eq(fields.status, 'booked')
+        operators.eq(fields.status, 'confirmed')
       )
     },
     columns: { id: true }
@@ -375,7 +514,7 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
     where(fields, operators) {
       return operators.and(
         operators.eq(fields.lessonId, lesson.id),
-        operators.eq(fields.status, 'booked')
+        operators.eq(fields.status, 'confirmed')
       )
     },
     columns: { id: true }
@@ -388,13 +527,18 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
   const [booking] = await db.insert(lessonBookings).values({
     lessonId: lesson.id,
     studentId: student.id,
-    topic: payload.topic
+    topic: payload.topic,
+    status: 'confirmed',
+    countsForStudent: true
   }).returning({
     id: lessonBookings.id,
     lessonId: lessonBookings.lessonId,
     studentId: lessonBookings.studentId,
     topic: lessonBookings.topic,
-    status: lessonBookings.status
+    status: lessonBookings.status,
+    countsForStudent: lessonBookings.countsForStudent,
+    studentPresence: lessonBookings.studentPresence,
+    studentPresenceAt: lessonBookings.studentPresenceAt
   })
 
   await db.update(studentProfiles)
@@ -408,6 +552,19 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
     reason: 'lesson_booking'
   })
 
+  if (lesson.status === 'scheduled') {
+    await db.update(lessons)
+      .set({ status: 'confirmed' })
+      .where(eq(lessons.id, lesson.id))
+  }
+
+  const updatedConfirmedCount = bookingCount.length + 1
+  const updatedDailyBookings = dailyBookings + 1
+  const availableSeats = Math.max(0, Math.min(
+    lesson.seats - updatedConfirmedCount,
+    dailyCapacity - updatedDailyBookings
+  ))
+
   return c.json(
     {
       lesson: {
@@ -416,10 +573,16 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
         subjectId: lesson.subjectId,
         startAt: new Date(lesson.startAt).toISOString(),
         durationMinutes: lesson.durationMinutes,
-        seats: lesson.seats,
+        lessonCapacity: lesson.seats,
+        dailyCapacity,
+        availableSeats,
+        countsForTutor: lesson.countsForTutor ?? false,
         status: lesson.status
       },
-      booking
+      booking: {
+        ...booking,
+        studentPresenceAt: booking.studentPresenceAt ? booking.studentPresenceAt.toISOString() : null
+      }
     },
     HttpStatusCodes.CREATED
   )
@@ -427,6 +590,7 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
 
 export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
   const { lessonId, bookingId } = c.req.valid('param')
+  const payload = c.req.valid('json') ?? {}
   const currentUser = c.get('currentUser')
   if (!currentUser) {
     forbid()
@@ -452,6 +616,10 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
     return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
   }
 
+  if (booking.status !== 'confirmed') {
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
+  }
+
   const lesson = await db.query.lessons.findFirst({
     where(fields, operators) {
       return operators.eq(fields.id, lessonId)
@@ -462,17 +630,50 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
-  const shouldRefund = currentUser.role === 'admin'
-    ? true
-    : !sameDayOrAfter(new Date(), new Date(lesson.startAt))
+  const now = new Date()
+  const lessonStart = new Date(lesson.startAt)
+  const cutoff = new Date(lessonStart)
+  cutoff.setDate(lessonStart.getDate() - 1)
+  cutoff.setHours(20, 0, 0, 0)
+
+  let countsForStudent = false
+  if (currentUser.role === 'admin') {
+    countsForStudent = payload?.countsForStudent ?? false
+  }
+  else {
+    countsForStudent = now >= cutoff
+  }
+
+  const shouldRefund = !countsForStudent
 
   await db.update(lessonBookings)
     .set({
       status: 'canceled',
       canceledAt: new Date(),
-      canceledBy: currentUser.id
+      canceledBy: currentUser.id,
+      studentPresence: null,
+      studentPresenceAt: null,
+      countsForStudent
     })
     .where(eq(lessonBookings.id, bookingId))
+
+  if (lesson.status === 'confirmed') {
+    const remaining = await db.query.lessonBookings.findMany({
+      where(fields, operators) {
+        return operators.and(
+          operators.eq(fields.lessonId, lesson.id),
+          operators.eq(fields.status, 'confirmed')
+        )
+      },
+      columns: { id: true }
+    })
+
+    if (remaining.length === 0) {
+      await db.update(lessons)
+        .set({ status: 'scheduled' })
+        .where(eq(lessons.id, lesson.id))
+    }
+  }
 
   if (shouldRefund) {
     const studentProfile = await db.query.studentProfiles.findFirst({
@@ -496,156 +697,202 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
     }
   }
 
-  return c.body(null, HttpStatusCodes.NO_CONTENT)
-}
-
-export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
-  const { lessonId } = c.req.valid('param')
-  const admin = ensureAdmin(c)
-
-  const lesson = await db.query.lessons.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.id, lessonId)
-    }
-  })
-
-  if (!lesson) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
-  }
-
-  await db.update(lessons)
-    .set({ status: 'canceled' })
-    .where(eq(lessons.id, lessonId))
-
-  const bookings = await db.query.lessonBookings.findMany({
-    where(fields, operators) {
-      return operators.and(
-        operators.eq(fields.lessonId, lessonId),
-        operators.eq(fields.status, 'booked')
-      )
-    }
-  })
-
-  for (const booking of bookings) {
-    await db.update(lessonBookings)
-      .set({
-        status: 'admin_canceled',
-        canceledAt: new Date(),
-        canceledBy: admin.id
-      })
-      .where(eq(lessonBookings.id, booking.id))
-
-    const profile = await db.query.studentProfiles.findFirst({
+  if (currentUser.role === 'admin') {
+    const usersFound = await db.query.users.findMany({
       where(fields, operators) {
-        return operators.eq(fields.userId, booking.studentId)
+        return operators.inArray(fields.id, [booking.studentId, lesson.tutorId])
       },
-      columns: { lessonTokens: true }
+      columns: { id: true, email: true }
     })
 
-    if (profile) {
-      await db.update(studentProfiles)
-        .set({ lessonTokens: profile.lessonTokens + 1 })
-        .where(eq(studentProfiles.userId, booking.studentId))
-
-      await db.insert(tokenLedger).values({
-        studentId: booking.studentId,
-        lessonId: lesson.id,
-        delta: 1,
-        reason: 'lesson_cancel_admin'
-      })
+    const recipients = usersFound
+    for (const recipient of recipients) {
+      if (!recipient.email) {
+        continue
+      }
+      const role = recipient.id === booking.studentId ? 'student' : 'tutor'
+      const message = buildBookingCanceledByAdminMessage(role, new Date(lesson.startAt))
+      sendMail({
+        to: recipient.email,
+        subject: message.subject,
+        text: message.text,
+        html: message.html
+      }).catch(err => console.error('Failed to send cancel booking email:', err))
     }
   }
 
-  return c.json({ message: 'Lezione annullata' }, HttpStatusCodes.OK)
-}
-
-export const confirmLessonTutor: AppRouteHandler<ConfirmLessonTutorRoute> = async (c) => {
-  const { lessonId } = c.req.valid('param')
-  const payload = c.req.valid('json')
-  const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'tutor' || currentUser.isActive !== true) {
-    forbid()
-  }
-
-  const lesson = await db.query.lessons.findFirst({
+  const updated = await db.query.lessonBookings.findFirst({
     where(fields, operators) {
-      return operators.eq(fields.id, lessonId)
-    }
-  })
-
-  if (!lesson) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
-  }
-
-  if (lesson.tutorId !== currentUser.id) {
-    forbid()
-  }
-
-  if (!canConfirmLesson(lesson)) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
-  }
-
-  const bookings = await db.query.lessonBookings.findMany({
-    where(fields, operators) {
-      return operators.and(
-        operators.eq(fields.lessonId, lessonId),
-        operators.eq(fields.status, 'booked')
-      )
+      return operators.eq(fields.id, bookingId)
     },
-    columns: { studentConfirmed: true }
+    columns: {
+      id: true,
+      lessonId: true,
+      studentId: true,
+      topic: true,
+      status: true,
+      countsForStudent: true,
+      studentPresence: true,
+      studentPresenceAt: true
+    }
   })
-
-  const currentStatus = await autoStallLessonIfNeeded(lesson, bookings)
-  if (currentStatus === 'stalled' || currentStatus === 'canceled' || currentStatus === 'completed') {
-    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
-  }
-
-  if (lesson.tutorConfirmed !== null && lesson.tutorConfirmed !== undefined) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
-  }
-
-  const confirmedAt = new Date()
-  await db.update(lessons)
-    .set({
-      tutorConfirmed: payload.completed,
-      tutorConfirmedAt: confirmedAt,
-      tutorConfirmationNote: payload.note ?? null
-    })
-    .where(eq(lessons.id, lessonId))
-
-  let nextStatus = lesson.status
-  const hasNegative = payload.completed === false
-    || bookings.some(booking => booking.studentConfirmed === false)
-
-  if (hasNegative) {
-    nextStatus = 'stalled'
-  }
-  else if (lesson.status !== 'stalled' && bookings.every(booking => booking.studentConfirmed === true)) {
-    nextStatus = 'completed'
-  }
-
-  if (nextStatus !== lesson.status) {
-    await db.update(lessons)
-      .set({ status: nextStatus })
-      .where(eq(lessons.id, lessonId))
-  }
 
   return c.json(
     {
-      status: nextStatus,
-      tutorConfirmed: payload.completed,
-      tutorConfirmedAt: confirmedAt.toISOString()
+      ...updated!,
+      studentPresenceAt: updated?.studentPresenceAt ? updated.studentPresenceAt.toISOString() : null
     },
     HttpStatusCodes.OK
   )
 }
 
-export const confirmLessonBooking: AppRouteHandler<ConfirmLessonBookingRoute> = async (c) => {
+export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
+  const { lessonId } = c.req.valid('param')
+  const payload = c.req.valid('json') ?? {}
+  const currentUser = c.get('currentUser')
+  if (!currentUser) {
+    forbid()
+  }
+
+  const isAdmin = currentUser.role === 'admin' && currentUser.isActive === true
+  const isTutor = currentUser.role === 'tutor'
+
+  if (!isAdmin && !isTutor) {
+    forbid()
+  }
+
+  const lesson = await db.query.lessons.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.id, lessonId)
+    }
+  })
+
+  if (!lesson) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
+  }
+
+  if (isTutor && lesson.tutorId !== currentUser.id) {
+    forbid()
+  }
+
+  if (isTutor) {
+    const confirmedBookings = await db.query.lessonBookings.findMany({
+      where(fields, operators) {
+        return operators.and(
+          operators.eq(fields.lessonId, lesson.id),
+          operators.eq(fields.status, 'confirmed')
+        )
+      },
+      columns: { id: true }
+    })
+
+    if (confirmedBookings.length > 0) {
+      return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
+    }
+  }
+
+  const countsForTutor = isAdmin ? (payload?.countsForTutor ?? false) : false
+
+  await db.update(lessons)
+    .set({ status: 'canceled', countsForTutor })
+    .where(eq(lessons.id, lessonId))
+
+  if (isAdmin) {
+    await cancelConfirmedBookings(lessonId, currentUser.id)
+  }
+
+  return c.json({ message: 'Lezione annullata' }, HttpStatusCodes.OK)
+}
+
+export const updateLessonCounts: AppRouteHandler<UpdateLessonCountsRoute> = async (c) => {
+  const { lessonId } = c.req.valid('param')
+  const payload = c.req.valid('json')
+  ensureAdmin(c)
+
+  const lesson = await db.query.lessons.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.id, lessonId)
+    }
+  })
+
+  if (!lesson) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
+  }
+
+  const [updated] = await db.update(lessons)
+    .set({ countsForTutor: payload.countsForTutor })
+    .where(eq(lessons.id, lessonId))
+    .returning({
+      id: lessons.id,
+      tutorId: lessons.tutorId,
+      subjectId: lessons.subjectId,
+      startAt: lessons.startAt,
+      durationMinutes: lessons.durationMinutes,
+      seats: lessons.seats,
+      countsForTutor: lessons.countsForTutor,
+      status: lessons.status
+    })
+
+  const bookingCount = await db.query.lessonBookings.findMany({
+    where(fields, operators) {
+      return operators.and(
+        operators.eq(fields.lessonId, updated.id),
+        operators.eq(fields.status, 'confirmed')
+      )
+    },
+    columns: { id: true }
+  })
+  const dailyCapacity = await getTutorDailyCapacity(updated.tutorId)
+  const availableSeats = Math.max(0, updated.seats - bookingCount.length)
+
+  return c.json(
+    {
+      id: updated.id,
+      tutorId: updated.tutorId,
+      subjectId: updated.subjectId,
+      startAt: new Date(updated.startAt).toISOString(),
+      durationMinutes: updated.durationMinutes,
+      status: updated.status,
+      lessonCapacity: updated.seats,
+      dailyCapacity,
+      availableSeats,
+      countsForTutor: updated.countsForTutor ?? false
+    },
+    HttpStatusCodes.OK
+  )
+}
+
+export const setBookingPresence: AppRouteHandler<SetBookingPresenceRoute> = async (c) => {
   const { lessonId, bookingId } = c.req.valid('param')
   const payload = c.req.valid('json')
   const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'student') {
+  if (!currentUser) {
     forbid()
+  }
+
+  const isAdmin = currentUser.role === 'admin' && currentUser.isActive === true
+  const isTutor = currentUser.role === 'tutor'
+
+  if (!isAdmin && !isTutor) {
+    forbid()
+  }
+
+  const lesson = await db.query.lessons.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.id, lessonId)
+    }
+  })
+
+  if (!lesson) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
+  }
+
+  if (isTutor && lesson.tutorId !== currentUser.id) {
+    forbid()
+  }
+
+  if (isTutor && !withinLessonWeek(new Date(lesson.startAt))) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
   }
 
   const booking = await db.query.lessonBookings.findFirst({
@@ -661,281 +908,111 @@ export const confirmLessonBooking: AppRouteHandler<ConfirmLessonBookingRoute> = 
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
-  if (booking.studentId !== currentUser.id) {
-    forbid()
-  }
-
-  if (booking.status !== 'booked') {
+  if (booking.status !== 'confirmed') {
     return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
-  if (booking.studentConfirmed !== null && booking.studentConfirmed !== undefined) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
-  }
-
-  const lesson = await db.query.lessons.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.id, lessonId)
-    }
-  })
-
-  if (!lesson) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
-  }
-
-  if (!canConfirmLesson(lesson)) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
-  }
-
-  const bookings = await db.query.lessonBookings.findMany({
-    where(fields, operators) {
-      return operators.and(
-        operators.eq(fields.lessonId, lessonId),
-        operators.eq(fields.status, 'booked')
-      )
-    },
-    columns: { studentConfirmed: true }
-  })
-
-  const currentStatus = await autoStallLessonIfNeeded(lesson, bookings)
-  if (currentStatus === 'stalled' || currentStatus === 'canceled' || currentStatus === 'completed') {
-    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
-  }
-
-  const confirmedAt = new Date()
+  const presenceAt = new Date()
   await db.update(lessonBookings)
     .set({
-      studentConfirmed: payload.completed,
-      studentConfirmedAt: confirmedAt,
-      studentConfirmationNote: payload.note ?? null
+      studentPresence: payload.present,
+      studentPresenceAt: presenceAt
     })
     .where(eq(lessonBookings.id, bookingId))
 
-  let nextStatus = lesson.status
-  const hasNegative = payload.completed === false
-    || lesson.tutorConfirmed === false
-    || bookings.some(row => row.studentConfirmed === false)
-
-  if (hasNegative) {
-    nextStatus = 'stalled'
-  }
-  else if (lesson.status !== 'stalled'
-    && lesson.tutorConfirmed === true
-    && bookings.every(row => row.studentConfirmed === true)) {
-    nextStatus = 'completed'
-  }
-
-  if (nextStatus !== lesson.status) {
+  if (payload.present && (isTutor || isAdmin) && !lesson.countsForTutor) {
     await db.update(lessons)
-      .set({ status: nextStatus })
-      .where(eq(lessons.id, lessonId))
+      .set({ countsForTutor: true })
+      .where(eq(lessons.id, lesson.id))
   }
 
   return c.json(
     {
-      lesson: {
-        status: nextStatus,
-        tutorConfirmed: lesson.tutorConfirmed == null ? null : Boolean(lesson.tutorConfirmed),
-        tutorConfirmedAt: lesson.tutorConfirmedAt
-          ? new Date(lesson.tutorConfirmedAt).toISOString()
-          : null
-      },
-      booking: {
-        status: booking.status,
-        studentConfirmed: payload.completed,
-        studentConfirmedAt: confirmedAt.toISOString()
-      }
+      status: booking.status,
+      studentPresence: payload.present,
+      studentPresenceAt: presenceAt.toISOString()
     },
     HttpStatusCodes.OK
   )
 }
 
-export const listLessonConfirmations: AppRouteHandler<ListLessonConfirmationsRoute> = async (c) => {
+export const updateBookingTopic: AppRouteHandler<UpdateBookingTopicRoute> = async (c) => {
+  const { lessonId, bookingId } = c.req.valid('param')
+  const payload = c.req.valid('json')
   ensureAdmin(c)
-  const query = c.req.valid('query')
-  const state = query.state
 
-  const lessonsRows = await db.query.lessons.findMany({
-    where(fields) {
-      const clauses = [eq(fields.status, state === 'stalled' ? 'stalled' : 'scheduled')]
-      if (query.tutorId) {
-        clauses.push(eq(fields.tutorId, query.tutorId))
-      }
-      if (query.subjectId) {
-        clauses.push(eq(fields.subjectId, query.subjectId))
-      }
-      if (query.from) {
-        clauses.push(gte(fields.startAt, new Date(query.from)))
-      }
-      if (query.to) {
-        clauses.push(lte(fields.startAt, new Date(query.to)))
-      }
-      return and(...clauses)
-    },
-    columns: {
-      id: true,
-      tutorId: true,
-      subjectId: true,
-      startAt: true,
-      durationMinutes: true,
-      status: true,
-      tutorConfirmed: true,
-      createdAt: true
-    }
-  })
-
-  // Pending confirmations are only visible after the scheduled end window.
-  const eligibleLessons = state === 'pending'
-    ? lessonsRows.filter(lesson => canConfirmLesson(lesson))
-    : lessonsRows
-
-  if (eligibleLessons.length === 0) {
-    return c.json(
-      buildPagedResponse([], 0, query.limit, query.offset),
-      HttpStatusCodes.OK
-    )
-  }
-
-  const lessonIds = eligibleLessons.map(lesson => lesson.id)
-  const bookings = await db.query.lessonBookings.findMany({
+  const booking = await db.query.lessonBookings.findFirst({
     where(fields, operators) {
       return operators.and(
-        operators.inArray(fields.lessonId, lessonIds),
-        operators.eq(fields.status, 'booked')
+        operators.eq(fields.id, bookingId),
+        operators.eq(fields.lessonId, lessonId)
       )
-    },
-    columns: {
-      lessonId: true,
-      studentConfirmed: true
     }
   })
 
-  const bookingMap = new Map<string, Array<{ studentConfirmed: boolean | null }>>()
-  for (const booking of bookings) {
-    const list = bookingMap.get(booking.lessonId) ?? []
-    list.push({ studentConfirmed: booking.studentConfirmed ?? null })
-    bookingMap.set(booking.lessonId, list)
-  }
-
-  let items = []
-  for (const lesson of eligibleLessons) {
-    const lessonBookings = bookingMap.get(lesson.id) ?? []
-    if (lessonBookings.length === 0) {
-      continue
-    }
-
-    let status = lesson.status
-    if (state === 'pending') {
-      // Auto-stall overdue lessons with missing confirmations.
-      status = await autoStallLessonIfNeeded(lesson, lessonBookings)
-      if (status === 'stalled') {
-        continue
-      }
-    }
-
-    const confirmedCount = lessonBookings.filter(booking => booking.studentConfirmed === true).length
-    const bookedCount = lessonBookings.length
-    const tutorConfirmed = lesson.tutorConfirmed == null ? null : Boolean(lesson.tutorConfirmed)
-
-    if (state === 'pending' && tutorConfirmed === true && confirmedCount === bookedCount) {
-      continue
-    }
-
-    items.push({
-      id: lesson.id,
-      tutorId: lesson.tutorId,
-      subjectId: lesson.subjectId,
-      startAt: new Date(lesson.startAt).toISOString(),
-      durationMinutes: lesson.durationMinutes,
-      status,
-      tutorConfirmed,
-      bookedCount,
-      confirmedCount,
-      createdAt: lesson.createdAt
-    })
-  }
-
-  if (query.q) {
-    const needle = query.q.toLowerCase()
-    items = items.filter(item => item.tutorId.toLowerCase().includes(needle)
-      || item.subjectId.toLowerCase().includes(needle))
-  }
-
-  const direction = query.sortDir === 'desc' ? -1 : 1
-  if (query.sortBy === 'createdAt') {
-    items.sort((a, b) => (a.createdAt.getTime() - b.createdAt.getTime()) * direction)
-  }
-  else {
-    items.sort((a, b) => (new Date(a.startAt).getTime() - new Date(b.startAt).getTime()) * direction)
-  }
-
-  const start = query.offset
-  const end = query.offset + query.limit
-  const total = items.length
-  const paged = items.slice(start, end).map(({ createdAt, ...item }) => item)
-
-  return c.json(buildPagedResponse(paged, total, query.limit, query.offset), HttpStatusCodes.OK)
-}
-
-export const getLessonConfirmations: AppRouteHandler<GetLessonConfirmationsRoute> = async (c) => {
-  ensureAdmin(c)
-  const { lessonId } = c.req.valid('param')
-
-  const lesson = await db.query.lessons.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.id, lessonId)
-    }
-  })
-
-  if (!lesson) {
+  if (!booking) {
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
-  const bookings = await db.query.lessonBookings.findMany({
+  const [updated] = await db.update(lessonBookings)
+    .set({ topic: payload.topic })
+    .where(eq(lessonBookings.id, bookingId))
+    .returning({
+      id: lessonBookings.id,
+      lessonId: lessonBookings.lessonId,
+      studentId: lessonBookings.studentId,
+      topic: lessonBookings.topic,
+      status: lessonBookings.status,
+      countsForStudent: lessonBookings.countsForStudent,
+      studentPresence: lessonBookings.studentPresence,
+      studentPresenceAt: lessonBookings.studentPresenceAt
+    })
+
+  return c.json({
+    ...updated,
+    studentPresenceAt: updated.studentPresenceAt ? updated.studentPresenceAt.toISOString() : null
+  }, HttpStatusCodes.OK)
+}
+
+export const updateBookingCounts: AppRouteHandler<UpdateBookingCountsRoute> = async (c) => {
+  const { lessonId, bookingId } = c.req.valid('param')
+  const payload = c.req.valid('json')
+  ensureAdmin(c)
+
+  const booking = await db.query.lessonBookings.findFirst({
     where(fields, operators) {
-      return operators.eq(fields.lessonId, lessonId)
-    },
-    columns: {
-      id: true,
-      studentId: true,
-      status: true,
-      studentConfirmed: true,
-      studentConfirmedAt: true,
-      studentConfirmationNote: true
+      return operators.and(
+        operators.eq(fields.id, bookingId),
+        operators.eq(fields.lessonId, lessonId)
+      )
     }
   })
 
-  return c.json(
-    {
-      lesson: {
-        id: lesson.id,
-        tutorId: lesson.tutorId,
-        subjectId: lesson.subjectId,
-        startAt: new Date(lesson.startAt).toISOString(),
-        durationMinutes: lesson.durationMinutes,
-        status: lesson.status,
-        tutorConfirmed: lesson.tutorConfirmed == null ? null : Boolean(lesson.tutorConfirmed),
-        tutorConfirmedAt: lesson.tutorConfirmedAt
-          ? new Date(lesson.tutorConfirmedAt).toISOString()
-          : null,
-        tutorConfirmationNote: lesson.tutorConfirmationNote ?? null
-      },
-      bookings: bookings.map(booking => ({
-        id: booking.id,
-        studentId: booking.studentId,
-        status: booking.status,
-        studentConfirmed: booking.studentConfirmed == null ? null : Boolean(booking.studentConfirmed),
-        studentConfirmedAt: booking.studentConfirmedAt
-          ? new Date(booking.studentConfirmedAt).toISOString()
-          : null,
-        studentConfirmationNote: booking.studentConfirmationNote ?? null
-      }))
-    },
-    HttpStatusCodes.OK
-  )
+  if (!booking) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
+  }
+
+  const [updated] = await db.update(lessonBookings)
+    .set({ countsForStudent: payload.countsForStudent })
+    .where(eq(lessonBookings.id, bookingId))
+    .returning({
+      id: lessonBookings.id,
+      lessonId: lessonBookings.lessonId,
+      studentId: lessonBookings.studentId,
+      topic: lessonBookings.topic,
+      status: lessonBookings.status,
+      countsForStudent: lessonBookings.countsForStudent,
+      studentPresence: lessonBookings.studentPresence,
+      studentPresenceAt: lessonBookings.studentPresenceAt
+    })
+
+  return c.json({
+    ...updated,
+    studentPresenceAt: updated.studentPresenceAt ? updated.studentPresenceAt.toISOString() : null
+  }, HttpStatusCodes.OK)
 }
 
-export const resolveLesson: AppRouteHandler<ResolveLessonRoute> = async (c) => {
+export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c) => {
   const { lessonId } = c.req.valid('param')
   const payload = c.req.valid('json')
   const admin = ensureAdmin(c)
@@ -954,287 +1031,84 @@ export const resolveLesson: AppRouteHandler<ResolveLessonRoute> = async (c) => {
     return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
-  if (lesson.status !== 'stalled') {
-    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
-  }
-
-  const resolvedAt = new Date()
-  // Admins finalize stalled lessons as completed or canceled.
-  if (payload.action === 'complete') {
-    await db.update(lessons)
-      .set({
-        status: 'completed',
-        adminResolvedAt: resolvedAt,
-        adminResolvedBy: admin.id,
-        adminResolutionNote: payload.note ?? null
-      })
-      .where(eq(lessons.id, lessonId))
-
-    await db.update(lessonBookings)
-      .set({ status: 'completed' })
-      .where(eq(lessonBookings.lessonId, lessonId))
-
-    return c.json({ message: 'Lezione risolta' }, HttpStatusCodes.OK)
-  }
-
-  await db.update(lessons)
-    .set({
-      status: 'canceled',
-      adminResolvedAt: resolvedAt,
-      adminResolvedBy: admin.id,
-      adminResolutionNote: payload.note ?? null
-    })
-    .where(eq(lessons.id, lessonId))
-
-  const bookings = await db.query.lessonBookings.findMany({
-    where(fields, operators) {
-      return operators.and(
-        operators.eq(fields.lessonId, lessonId),
-        operators.eq(fields.status, 'booked')
-      )
-    }
-  })
-
-  for (const booking of bookings) {
-    await db.update(lessonBookings)
-      .set({
-        status: 'admin_canceled',
-        canceledAt: new Date(),
-        canceledBy: admin.id
-      })
-      .where(eq(lessonBookings.id, booking.id))
-
-    const profile = await db.query.studentProfiles.findFirst({
-      where(fields, operators) {
-        return operators.eq(fields.userId, booking.studentId)
-      },
-      columns: { lessonTokens: true }
-    })
-
-    if (profile) {
-      await db.update(studentProfiles)
-        .set({ lessonTokens: profile.lessonTokens + 1 })
-        .where(eq(studentProfiles.userId, booking.studentId))
-
-      await db.insert(tokenLedger).values({
-        studentId: booking.studentId,
-        lessonId,
-        delta: 1,
-        reason: 'lesson_cancel_admin'
-      })
-    }
-  }
-
-  return c.json({ message: 'Lezione risolta' }, HttpStatusCodes.OK)
-}
-
-export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c) => {
-  const { lessonId } = c.req.valid('param')
-  const payload = c.req.valid('json')
-  ensureAdmin(c)
-
-  const lesson = await db.query.lessons.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.id, lessonId)
-    }
-  })
-
-  if (!lesson) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
-  }
-
-  if (lesson.status === 'completed' || lesson.status === 'canceled') {
-    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
-  }
-
-  const targetLesson = await db.query.lessons.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.id, payload.targetLessonId)
-    }
-  })
-
-  if (!targetLesson) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
-  }
-
-  if (targetLesson.id === lesson.id) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
-  }
-
-  if (targetLesson.status !== 'scheduled') {
-    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
-  }
-
-  if (targetLesson.subjectId !== lesson.subjectId) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
-  }
-
-  const subjectAllowed = await isSubjectAllowed(targetLesson.tutorId, lesson.subjectId)
+  const subjectAllowed = await isSubjectAllowed(payload.tutorId, payload.subjectId)
   if (!subjectAllowed) {
     return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
   }
 
-  const newStartAt = new Date(targetLesson.startAt)
-  if (sameDayOrAfter(new Date(), newStartAt)) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
-  }
+  const newStartAt = new Date(payload.startAt)
 
-  const bookingCount = await db.query.lessonBookings.findMany({
+  const dailyCapacity = await getTutorDailyCapacity(payload.tutorId)
+  const seats = dailyCapacity
+
+  const [newLesson] = await db.insert(lessons).values({
+    tutorId: payload.tutorId,
+    subjectId: payload.subjectId,
+    startAt: newStartAt,
+    durationMinutes: payload.durationMinutes,
+    seats,
+    status: lesson.status
+  }).returning({
+    id: lessons.id,
+    countsForTutor: lessons.countsForTutor
+  })
+
+  await db.update(lessons)
+    .set({ status: 'canceled', countsForTutor: false })
+    .where(eq(lessons.id, lesson.id))
+
+  const existingBookings = await db.query.lessonBookings.findMany({
     where(fields, operators) {
       return operators.and(
         operators.eq(fields.lessonId, lesson.id),
-        operators.eq(fields.status, 'booked')
+        operators.eq(fields.status, 'confirmed')
       )
     },
-    columns: { id: true }
-  })
-
-  if (bookingCount.length > targetLesson.seats) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
-  }
-
-  const targetBookings = await db.query.lessonBookings.findMany({
-    where(fields, operators) {
-      return operators.and(
-        operators.eq(fields.lessonId, targetLesson.id),
-        operators.eq(fields.status, 'booked')
-      )
-    },
-    columns: { id: true }
-  })
-
-  if (targetBookings.length > 0) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
-  }
-
-  await db.update(lessons)
-    .set({
-      tutorId: targetLesson.tutorId,
-      startAt: newStartAt,
-      durationMinutes: targetLesson.durationMinutes,
-      seats: targetLesson.seats,
-      status: 'scheduled',
-      tutorConfirmed: null,
-      tutorConfirmedAt: null,
-      tutorConfirmationNote: payload.note ?? null,
-      generatedByJob: targetLesson.generatedByJob,
-      generatedForWeek: targetLesson.generatedForWeek
-    })
-    .where(eq(lessons.id, lesson.id))
-
-  await db.update(lessonBookings)
-    .set({
-      studentConfirmed: null,
-      studentConfirmedAt: null,
-      studentConfirmationNote: null
-    })
-    .where(eq(lessonBookings.lessonId, lesson.id))
-
-  await db.delete(lessons).where(eq(lessons.id, targetLesson.id))
-
-  return c.json({ message: 'Lezione riprogrammata' }, HttpStatusCodes.OK)
-}
-
-export const overrideLessonConfirmations: AppRouteHandler<OverrideLessonConfirmationsRoute> = async (c) => {
-  ensureAdmin(c)
-  const { lessonId } = c.req.valid('param')
-  const payload = c.req.valid('json')
-
-  const lesson = await db.query.lessons.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.id, lessonId)
+    columns: {
+      studentId: true,
+      topic: true,
+      countsForStudent: true,
+      studentPresence: true,
+      studentPresenceAt: true
     }
   })
 
-  if (!lesson) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
-  }
+  if (existingBookings.length > 0) {
+    await db.insert(lessonBookings).values(existingBookings.map(booking => ({
+      lessonId: newLesson.id,
+      studentId: booking.studentId,
+      topic: booking.topic,
+      status: 'confirmed',
+      countsForStudent: booking.countsForStudent,
+      studentPresence: booking.studentPresence,
+      studentPresenceAt: booking.studentPresenceAt
+    })))
 
-  if (lesson.status === 'completed' || lesson.status === 'canceled') {
-    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
-  }
+    if (existingBookings.some(booking => booking.studentPresence === true)) {
+      await db.update(lessons)
+        .set({ countsForTutor: true })
+        .where(eq(lessons.id, newLesson.id))
+    }
 
-  if (payload.tutorConfirmed !== undefined || payload.tutorNote !== undefined) {
-    await db.update(lessons)
+    await db.update(lessonBookings)
       .set({
-        tutorConfirmed: payload.tutorConfirmed ?? lesson.tutorConfirmed,
-        tutorConfirmedAt: payload.tutorConfirmed !== undefined ? new Date() : lesson.tutorConfirmedAt,
-        tutorConfirmationNote: payload.tutorNote ?? lesson.tutorConfirmationNote
+        status: 'canceled',
+        canceledAt: new Date(),
+        canceledBy: admin.id,
+        countsForStudent: false,
+        studentPresence: null,
+        studentPresenceAt: null
       })
-      .where(eq(lessons.id, lessonId))
-  }
-
-  if (payload.bookings && payload.bookings.length > 0) {
-    for (const booking of payload.bookings) {
-      await db.update(lessonBookings)
-        .set({
-          studentConfirmed: booking.completed,
-          studentConfirmedAt: new Date(),
-          studentConfirmationNote: booking.note ?? null
-        })
-        .where(eq(lessonBookings.id, booking.bookingId))
-    }
-  }
-
-  const updatedLesson = await db.query.lessons.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.id, lessonId)
-    }
-  })
-
-  const updatedBookings = await db.query.lessonBookings.findMany({
-    where(fields, operators) {
-      return operators.eq(fields.lessonId, lessonId)
-    }
-  })
-
-  const hasNegative = updatedLesson?.tutorConfirmed === false
-    || updatedBookings.some(booking => booking.studentConfirmed === false)
-
-  let nextStatus = updatedLesson?.status ?? lesson.status
-  if (hasNegative) {
-    nextStatus = 'stalled'
-  }
-  else if (updatedLesson?.tutorConfirmed === true
-    && updatedBookings.length > 0
-    && updatedBookings.every(booking => booking.studentConfirmed === true)) {
-    nextStatus = 'completed'
-  }
-
-  if (updatedLesson && nextStatus !== updatedLesson.status) {
-    await db.update(lessons)
-      .set({ status: nextStatus })
-      .where(eq(lessons.id, lessonId))
-  }
-
-  const resultSource = updatedLesson ?? lesson
-  const resultLesson = {
-    id: resultSource.id,
-    tutorId: resultSource.tutorId,
-    subjectId: resultSource.subjectId,
-    startAt: new Date(resultSource.startAt).toISOString(),
-    durationMinutes: resultSource.durationMinutes,
-    status: nextStatus,
-    tutorConfirmed: resultSource.tutorConfirmed == null ? null : Boolean(resultSource.tutorConfirmed),
-    tutorConfirmedAt: resultSource.tutorConfirmedAt
-      ? new Date(resultSource.tutorConfirmedAt).toISOString()
-      : null,
-    tutorConfirmationNote: resultSource.tutorConfirmationNote ?? null
+      .where(and(
+        eq(lessonBookings.lessonId, lesson.id),
+        eq(lessonBookings.status, 'confirmed')
+      ))
   }
 
   return c.json(
     {
-      lesson: resultLesson,
-      bookings: updatedBookings.map(booking => ({
-        id: booking.id,
-        studentId: booking.studentId,
-        status: booking.status,
-        studentConfirmed: booking.studentConfirmed == null ? null : Boolean(booking.studentConfirmed),
-        studentConfirmedAt: booking.studentConfirmedAt
-          ? new Date(booking.studentConfirmedAt).toISOString()
-          : null,
-        studentConfirmationNote: booking.studentConfirmationNote ?? null
-      }))
+      message: 'Lezione riprogrammata',
+      lessonId: newLesson.id
     },
     HttpStatusCodes.OK
   )

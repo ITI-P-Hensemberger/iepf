@@ -66,21 +66,12 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
     ))
   }
 
-  const sortBy = query.sortBy
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
   const subjectsList = await db.query.subjects.findMany({
     where: whereClause,
     orderBy(fields, operators) {
-      const direction = query.sortDir === 'desc' ? operators.desc : operators.asc
-      switch (sortBy) {
-        case 'canonicalName':
-          return direction(fields.canonicalName)
-        case 'createdAt':
-          return direction(fields.createdAt)
-        default:
-          return direction(fields.name)
-      }
+      return operators.asc(fields.name)
     },
     limit: query.limit,
     offset: query.offset

@@ -1,0 +1,1 @@
+ALTER TABLE "lesson_bookings" ALTER COLUMN "counts_for_student" SET DEFAULT true;

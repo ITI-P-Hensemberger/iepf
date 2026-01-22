@@ -1,6 +1,5 @@
 // Purpose: Default OpenAPI error hook.
 import type { Hook } from '@hono/zod-openapi'
-import type { ZodIssue } from 'zod'
 
 import type { AppBindings } from '@/lib/types'
 
@@ -14,11 +13,18 @@ function normalizeIssuePath(path: readonly (string | number | symbol)[]) {
   return path.filter((key): key is string | number => typeof key === 'string' || typeof key === 'number')
 }
 
-type ZodIssueWithParams = ZodIssue & {
+interface ZodIssueWithParams {
+  code: string
+  path: readonly (string | number | symbol)[]
+  message?: string
   params?: Record<string, unknown>
 }
 
-function convertIssues(issues: readonly ZodIssue[]) {
+type ZodIssueLike = ZodIssueWithParams & {
+  params?: Record<string, unknown>
+}
+
+function convertIssues(issues: readonly ZodIssueLike[]) {
   return issues.map((issue) => {
     const issueWithParams = issue as ZodIssueWithParams
     return {

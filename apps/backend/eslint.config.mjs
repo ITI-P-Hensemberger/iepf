@@ -12,7 +12,7 @@ export default antfu(
       semi: false,
       quotes: 'single'
     },
-    ignores: ['**/migrations/*']
+    ignores: ['**/migrations/*', 'AGENTS.md', 'CLAUDE.md']
   },
   {
     rules: {

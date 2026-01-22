@@ -189,3 +189,44 @@ export function buildRegistrationConfirmedMessage() {
     )
   } satisfies EmailTemplate
 }
+
+export function buildLessonFeedbackReminderMessage(role: 'student' | 'tutor', count: number) {
+  const baseUrl = env.SITE_URL ?? 'http://localhost:3000'
+  const url = new URL('/lessons', baseUrl).toString()
+  const heading = role === 'tutor'
+    ? 'Ricorda di lasciare il feedback'
+    : 'Ricorda di lasciare il feedback al tutor'
+  const message = role === 'tutor'
+    ? `Hai ${count} feedback da completare per le lezioni di oggi.`
+    : `Hai ${count} feedback da completare per le lezioni di oggi.`
+
+  return {
+    subject: 'Promemoria feedback lezioni',
+    text: `${message} Accedi qui: ${url}`,
+    html: buildEmailHtml(
+      heading,
+      message,
+      { label: 'Vai alle lezioni', url }
+    )
+  } satisfies EmailTemplate
+}
+
+export function buildBookingCanceledByAdminMessage(recipientRole: 'student' | 'tutor', lessonStartAt: Date) {
+  const formattedDate = lessonStartAt.toLocaleString('it-IT', {
+    year: 'numeric',
+    month: 'long',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+  const heading = recipientRole === 'tutor'
+    ? 'Lezione annullata da un amministratore'
+    : 'Lezione annullata da un amministratore'
+  const message = `La lezione prevista per ${formattedDate} è stata annullata da un amministratore.`
+
+  return {
+    subject: 'Lezione annullata',
+    text: message,
+    html: buildEmailHtml(heading, message)
+  } satisfies EmailTemplate
+}

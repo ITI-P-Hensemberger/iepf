@@ -14,12 +14,7 @@ export const lessons = pgTable('lessons', {
   durationMinutes: integer().notNull(),
   seats: integer().notNull(),
   status: text().notNull().default('scheduled'),
-  tutorConfirmed: boolean(),
-  tutorConfirmedAt: timestamp({ mode: 'date' }),
-  tutorConfirmationNote: text(),
-  adminResolvedAt: timestamp({ mode: 'date' }),
-  adminResolvedBy: uuid(),
-  adminResolutionNote: text(),
+  countsForTutor: boolean().notNull().default(false),
   generatedByJob: boolean().default(false),
   generatedForWeek: timestamp({ mode: 'date' }),
   createdAt: timestamp({ mode: 'date' })

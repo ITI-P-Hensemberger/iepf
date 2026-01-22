@@ -22,6 +22,7 @@ const DEFAULT_SUBJECTS = [
   { name: 'Chimica organica', canonicalName: 'organic_chemistry' },
   { name: 'Igiene', canonicalName: 'hygiene_anatomy_physiology_and_pathology' },
   { name: 'Biologia', canonicalName: 'biology' },
+  { name: 'Microbiologia', canonicalName: 'microbiology' },
 
   // Elettronica ed Elettrotecnica
   { name: 'STA - Elettronica ed Elettrotecnica', canonicalName: 'applied_sciences_and_technologies_electronics_and_electrical_engineering' },

@@ -35,13 +35,20 @@ const BookingIdParamsSchema = z.object({
   })
 })
 
+const bookingTopicSchema = z.object({
+  topic: z.string().min(1).max(200)
+})
+
 export const lessonSchema = z.object({
   id: z.string(),
   tutorId: z.string(),
   subjectId: z.string(),
   startAt: z.string(),
   durationMinutes: z.number().int(),
-  seats: z.number().int(),
+  lessonCapacity: z.number().int(),
+  dailyCapacity: z.number().int(),
+  availableSeats: z.number().int(),
+  countsForTutor: z.boolean(),
   status: z.string()
 })
 
@@ -50,91 +57,37 @@ export const bookingSchema = z.object({
   lessonId: z.string(),
   studentId: z.string(),
   topic: z.string(),
-  status: z.string()
-})
-
-const confirmationBodySchema = z.object({
-  completed: z.boolean(),
-  note: z.string().min(1).max(500).optional()
-})
-
-const lessonConfirmationSchema = z.object({
   status: z.string(),
-  tutorConfirmed: z.boolean().nullable(),
-  tutorConfirmedAt: z.string().nullable()
-})
-
-const bookingConfirmationSchema = z.object({
-  status: z.string(),
-  studentConfirmed: z.boolean().nullable(),
-  studentConfirmedAt: z.string().nullable()
-})
-
-const resolveLessonSchema = z.object({
-  action: z.enum(['complete', 'cancel']),
-  note: z.string().min(1).max(500).optional()
+  countsForStudent: z.boolean(),
+  studentPresence: z.boolean().nullable(),
+  studentPresenceAt: z.string().nullable()
 })
 
 const rescheduleLessonSchema = z.object({
-  targetLessonId: z.uuid(),
-  note: z.string().min(1).max(500).optional()
+  tutorId: z.uuid(),
+  subjectId: z.uuid(),
+  startAt: z.iso.datetime(),
+  durationMinutes: z.number().int()
 })
 
-const overrideConfirmationsSchema = z.object({
-  tutorConfirmed: z.boolean().optional(),
-  tutorNote: z.string().min(1).max(500).optional(),
-  bookings: z.array(z.object({
-    bookingId: z.uuid(),
-    completed: z.boolean(),
-    note: z.string().min(1).max(500).optional()
-  })).optional()
+const cancelLessonSchema = z.object({
+  countsForTutor: z.boolean().optional()
+}).optional()
+
+const cancelBookingSchema = z.object({
+  countsForStudent: z.boolean().optional()
+}).optional()
+
+const lessonCountsSchema = z.object({
+  countsForTutor: z.boolean()
 })
 
-const confirmationListQuerySchema = z.object({
-  state: z.enum(['pending', 'stalled']).default('pending'),
-  q: z.string().min(1).optional(),
-  tutorId: z.uuid().optional(),
-  subjectId: z.uuid().optional(),
-  from: z.iso.datetime().optional(),
-  to: z.iso.datetime().optional(),
-  sortBy: z.enum(['startAt', 'createdAt']).default('startAt'),
-  sortDir: z.enum(['asc', 'desc']).default('asc'),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
-  offset: z.coerce.number().int().min(0).default(0)
+const bookingCountsSchema = z.object({
+  countsForStudent: z.boolean()
 })
 
-const confirmationListItemSchema = z.object({
-  id: z.string(),
-  tutorId: z.string(),
-  subjectId: z.string(),
-  startAt: z.string(),
-  durationMinutes: z.number().int(),
-  status: z.string(),
-  tutorConfirmed: z.boolean().nullable(),
-  bookedCount: z.number().int(),
-  confirmedCount: z.number().int()
-})
-
-const confirmationDetailSchema = z.object({
-  lesson: z.object({
-    id: z.string(),
-    tutorId: z.string(),
-    subjectId: z.string(),
-    startAt: z.string(),
-    durationMinutes: z.number().int(),
-    status: z.string(),
-    tutorConfirmed: z.boolean().nullable(),
-    tutorConfirmedAt: z.string().nullable(),
-    tutorConfirmationNote: z.string().nullable()
-  }),
-  bookings: z.array(z.object({
-    id: z.string(),
-    studentId: z.string(),
-    status: z.string(),
-    studentConfirmed: z.boolean().nullable(),
-    studentConfirmedAt: z.string().nullable(),
-    studentConfirmationNote: z.string().nullable()
-  }))
+const presenceSchema = z.object({
+  present: z.boolean()
 })
 
 const bookGeneratedLessonSchema = z.object({
@@ -144,6 +97,7 @@ const bookGeneratedLessonSchema = z.object({
 const listLessonsQuerySchema = z.object({
   tutorId: z.uuid().optional(),
   subjectId: z.uuid().optional(),
+  status: z.string().optional(),
   from: z.iso.datetime().optional(),
   to: z.iso.datetime().optional(),
   sortBy: z.enum(['startAt', 'createdAt']).default('startAt'),
@@ -158,8 +112,10 @@ const lessonListItemSchema = z.object({
   subjectId: z.string(),
   startAt: z.string(),
   durationMinutes: z.number().int(),
-  seats: z.number().int(),
+  lessonCapacity: z.number().int(),
+  dailyCapacity: z.number().int(),
   availableSeats: z.number().int(),
+  countsForTutor: z.boolean(),
   status: z.string()
 })
 
@@ -182,6 +138,66 @@ export const listLessons = createRoute({
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
       createErrorSchema(listLessonsQuerySchema),
+      'Validation error(s)'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
+export const getLesson = createRoute({
+  path: '/lessons/{lessonId}',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  request: {
+    params: LessonIdParamsSchema
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      lessonSchema,
+      'Lesson details'
+    ),
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
+      'Lesson not found'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(LessonIdParamsSchema),
+      'Validation error(s)'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
+export const listLessonBookings = createRoute({
+  path: '/lessons/{lessonId}/bookings',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  request: {
+    params: LessonIdParamsSchema
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      createPagedListSchema(bookingSchema),
+      'Lesson bookings'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Access denied'
+    ),
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
+      'Lesson not found'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(LessonIdParamsSchema),
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
@@ -237,20 +253,24 @@ export const bookGeneratedLesson = createRoute({
     )
   }
 })
-
-
 export const cancelBooking = createRoute({
-  path: '/lessons/{lessonId}/bookings/{bookingId}',
-  method: 'delete',
+  path: '/lessons/{lessonId}/bookings/{bookingId}/cancel',
+  method: 'patch',
   tags,
   security: bearerAuth,
   request: {
-    params: LessonIdParamsSchema.extend(BookingIdParamsSchema.shape)
+    params: LessonIdParamsSchema.extend(BookingIdParamsSchema.shape),
+    body: jsonContent(cancelBookingSchema, 'Cancel booking payload')
   },
   responses: {
-    [HttpStatusCodes.NO_CONTENT]: {
-      description: 'Booking canceled'
-    },
+    [HttpStatusCodes.OK]: jsonContent(
+      bookingSchema,
+      'Booking canceled'
+    ),
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.CONFLICT),
+      'Booking already canceled'
+    ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
       'Booking not found'
@@ -276,7 +296,8 @@ export const cancelLesson = createRoute({
   tags,
   security: bearerAuth,
   request: {
-    params: LessonIdParamsSchema
+    params: LessonIdParamsSchema,
+    body: jsonContent(cancelLessonSchema, 'Cancel lesson payload')
   },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
@@ -302,90 +323,19 @@ export const cancelLesson = createRoute({
   }
 })
 
-export const listLessonConfirmations = createRoute({
-  path: '/lessons/confirmations',
-  method: 'get',
-  tags,
-  security: bearerAuth,
-  request: {
-    query: confirmationListQuerySchema
-  },
-  responses: {
-    [HttpStatusCodes.OK]: jsonContent(
-      createPagedListSchema(confirmationListItemSchema),
-      'Lessons awaiting confirmation'
-    ),
-    [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
-      'Admin access required'
-    ),
-    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
-      createErrorSchema(confirmationListQuerySchema),
-      'Validation error(s)'
-    ),
-    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
-      'Invalid credentials'
-    )
-  }
-})
-
-export const getLessonConfirmations = createRoute({
-  path: '/lessons/{lessonId}/confirmations',
-  method: 'get',
-  tags,
-  security: bearerAuth,
-  request: {
-    params: LessonIdParamsSchema
-  },
-  responses: {
-    [HttpStatusCodes.OK]: jsonContent(
-      confirmationDetailSchema,
-      'Lesson confirmation details'
-    ),
-    [HttpStatusCodes.NOT_FOUND]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
-      'Lesson not found'
-    ),
-    [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
-      'Admin access required'
-    ),
-    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
-      createErrorSchema(LessonIdParamsSchema),
-      'Validation error(s)'
-    ),
-    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
-      'Invalid credentials'
-    )
-  }
-})
-
-export const resolveLesson = createRoute({
-  path: '/lessons/{lessonId}/resolve',
-  method: 'post',
+export const updateLessonCounts = createRoute({
+  path: '/lessons/{lessonId}/counts',
+  method: 'patch',
   tags,
   security: bearerAuth,
   request: {
     params: LessonIdParamsSchema,
-    body: jsonContentRequired(
-      resolveLessonSchema,
-      'Admin resolution payload'
-    )
+    body: jsonContentRequired(lessonCountsSchema, 'Lesson counts payload')
   },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      createMessageObjectSchema('Lezione risolta'),
-      'Lezione risolta'
-    ),
-    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
-      'Lesson not eligible for resolution'
-    ),
-    [HttpStatusCodes.CONFLICT]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.CONFLICT),
-      'Lesson already finalized'
+      lessonSchema,
+      'Lesson updated'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
@@ -396,7 +346,7 @@ export const resolveLesson = createRoute({
       'Admin access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
-      createErrorSchema(resolveLessonSchema).or(createErrorSchema(LessonIdParamsSchema)),
+      createErrorSchema(lessonCountsSchema),
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
@@ -420,16 +370,19 @@ export const rescheduleLesson = createRoute({
   },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      createMessageObjectSchema('Lezione riprogrammata'),
+      z.object({
+        message: z.string(),
+        lessonId: z.string()
+      }),
       'Lezione riprogrammata'
     ),
     [HttpStatusCodes.BAD_REQUEST]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
-      'Target lesson invalid'
+      'Lesson details invalid'
     ),
     [HttpStatusCodes.CONFLICT]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.CONFLICT),
-      'Lesson already finalized or slot unavailable'
+      'Lesson already finalized'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
@@ -450,128 +403,45 @@ export const rescheduleLesson = createRoute({
   }
 })
 
-export const overrideLessonConfirmations = createRoute({
-  path: '/lessons/{lessonId}/confirmations/override',
-  method: 'post',
+export const setBookingPresence = createRoute({
+  path: '/lessons/{lessonId}/bookings/{bookingId}/presence',
+  method: 'patch',
   tags,
   security: bearerAuth,
   request: {
-    params: LessonIdParamsSchema,
+    params: LessonIdParamsSchema.extend(BookingIdParamsSchema.shape),
     body: jsonContentRequired(
-      overrideConfirmationsSchema,
-      'Admin confirmation override payload'
+      presenceSchema,
+      'Student presence payload'
     )
   },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      confirmationDetailSchema,
-      'Lesson confirmations updated'
-    ),
-    [HttpStatusCodes.CONFLICT]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.CONFLICT),
-      'Lesson already finalized'
-    ),
-    [HttpStatusCodes.NOT_FOUND]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
-      'Lesson not found'
-    ),
-    [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
-      'Admin access required'
-    ),
-    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
-      createErrorSchema(overrideConfirmationsSchema).or(createErrorSchema(LessonIdParamsSchema)),
-      'Validation error(s)'
-    ),
-    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
-      'Invalid credentials'
-    )
-  }
-})
-
-export const confirmLessonTutor = createRoute({
-  path: '/lessons/{lessonId}/confirm/tutor',
-  method: 'post',
-  tags,
-  security: bearerAuth,
-  request: {
-    params: LessonIdParamsSchema,
-    body: jsonContentRequired(
-      confirmationBodySchema,
-      'Tutor confirmation payload'
-    )
-  },
-  responses: {
-    [HttpStatusCodes.OK]: jsonContent(
-      lessonConfirmationSchema,
-      'Lesson confirmation recorded'
+      z.object({
+        status: z.string(),
+        studentPresence: z.boolean(),
+        studentPresenceAt: z.string()
+      }),
+      'Student presence recorded'
     ),
     [HttpStatusCodes.BAD_REQUEST]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
-      'Lesson not eligible for confirmation'
+      'Presence window closed'
     ),
     [HttpStatusCodes.CONFLICT]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.CONFLICT),
-      'Lesson already confirmed'
+      'Booking not eligible'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
-      'Lesson not found'
+      'Lesson or booking not found'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Tutor access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
-      createErrorSchema(confirmationBodySchema).or(createErrorSchema(LessonIdParamsSchema)),
-      'Validation error(s)'
-    ),
-    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
-      'Invalid credentials'
-    )
-  }
-})
-
-export const confirmLessonBooking = createRoute({
-  path: '/lessons/{lessonId}/bookings/{bookingId}/confirm',
-  method: 'post',
-  tags,
-  security: bearerAuth,
-  request: {
-    params: LessonIdParamsSchema.extend(BookingIdParamsSchema.shape),
-    body: jsonContentRequired(
-      confirmationBodySchema,
-      'Student confirmation payload'
-    )
-  },
-  responses: {
-    [HttpStatusCodes.OK]: jsonContent(
-      z.object({
-        lesson: lessonConfirmationSchema,
-        booking: bookingConfirmationSchema
-      }),
-      'Booking confirmation recorded'
-    ),
-    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
-      'Lesson not eligible for confirmation'
-    ),
-    [HttpStatusCodes.CONFLICT]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.CONFLICT),
-      'Booking already confirmed'
-    ),
-    [HttpStatusCodes.NOT_FOUND]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
-      'Booking not found'
-    ),
-    [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
-      'Student access required'
-    ),
-    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
-      createErrorSchema(confirmationBodySchema).or(
+      createErrorSchema(presenceSchema).or(
         createErrorSchema(LessonIdParamsSchema.extend(BookingIdParamsSchema.shape))
       ),
       'Validation error(s)'
@@ -583,14 +453,80 @@ export const confirmLessonBooking = createRoute({
   }
 })
 
+export const updateBookingTopic = createRoute({
+  path: '/lessons/{lessonId}/bookings/{bookingId}/topic',
+  method: 'patch',
+  tags,
+  security: bearerAuth,
+  request: {
+    params: LessonIdParamsSchema.extend(BookingIdParamsSchema.shape),
+    body: jsonContentRequired(bookingTopicSchema, 'Booking topic payload')
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      bookingSchema,
+      'Updated booking'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Admin access required'
+    ),
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
+      'Booking not found'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(bookingTopicSchema),
+      'Validation error(s)'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
+export const updateBookingCounts = createRoute({
+  path: '/lessons/{lessonId}/bookings/{bookingId}/counts',
+  method: 'patch',
+  tags,
+  security: bearerAuth,
+  request: {
+    params: LessonIdParamsSchema.extend(BookingIdParamsSchema.shape),
+    body: jsonContentRequired(bookingCountsSchema, 'Booking counts payload')
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      bookingSchema,
+      'Booking updated'
+    ),
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
+      'Booking not found'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Admin access required'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(bookingCountsSchema),
+      'Validation error(s)'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
 export type ListLessonsRoute = typeof listLessons
+export type GetLessonRoute = typeof getLesson
+export type ListLessonBookingsRoute = typeof listLessonBookings
 export type BookGeneratedLessonRoute = typeof bookGeneratedLesson
 export type CancelBookingRoute = typeof cancelBooking
 export type CancelLessonRoute = typeof cancelLesson
-export type ListLessonConfirmationsRoute = typeof listLessonConfirmations
-export type GetLessonConfirmationsRoute = typeof getLessonConfirmations
-export type ResolveLessonRoute = typeof resolveLesson
 export type RescheduleLessonRoute = typeof rescheduleLesson
-export type OverrideLessonConfirmationsRoute = typeof overrideLessonConfirmations
-export type ConfirmLessonTutorRoute = typeof confirmLessonTutor
-export type ConfirmLessonBookingRoute = typeof confirmLessonBooking
+export type SetBookingPresenceRoute = typeof setBookingPresence
+export type UpdateBookingTopicRoute = typeof updateBookingTopic
+export type UpdateLessonCountsRoute = typeof updateLessonCounts
+export type UpdateBookingCountsRoute = typeof updateBookingCounts

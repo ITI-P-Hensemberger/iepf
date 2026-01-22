@@ -26,8 +26,6 @@ const EnvSchema = z.object({
   PASSWORD_RESET_TTL: z.coerce.number().int().positive().default(60 * 15),
   TUTOR_INVITE_TTL: z.coerce.number().int().positive().default(60 * 60 * 24 * 7),
   ADMIN_INVITE_TTL: z.coerce.number().int().positive().default(60 * 60 * 24 * 7),
-  // Auto-stall lessons if confirmations are missing after this window (minutes).
-  LESSON_CONFIRMATION_STALL_MINUTES: z.coerce.number().int().positive().default(60 * 24),
   SITE_URL: z.url().optional(),
   SMTP_HOST: z.preprocess(
     value => (typeof value === 'string' && value.trim() === '' ? undefined : value),

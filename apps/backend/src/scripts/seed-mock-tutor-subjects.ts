@@ -2,7 +2,6 @@
 import { and, eq, ilike } from 'drizzle-orm'
 
 import db from '@/db'
-import { subjects } from '@/db/schemas/subjects.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'

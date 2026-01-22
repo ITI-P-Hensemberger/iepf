@@ -1,6 +1,6 @@
 {
-  "id": "b244964c-f71b-46a0-ba76-9fb48d12bdc0",
-  "prevId": "5e918809-af3d-4ed6-966c-b6c801af23c1",
+  "id": "9c735e89-e248-4d0b-bcc6-ea108f414480",
+  "prevId": "78b83e7c-c14d-41b3-b602-8462bc031f70",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -368,23 +368,17 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'booked'"
+          "default": "'confirmed'"
         },
-        "student_confirmed": {
-          "name": "student_confirmed",
+        "student_presence": {
+          "name": "student_presence",
           "type": "boolean",
           "primaryKey": false,
           "notNull": false
         },
-        "student_confirmed_at": {
-          "name": "student_confirmed_at",
+        "student_presence_at": {
+          "name": "student_presence_at",
           "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "student_confirmation_note": {
-          "name": "student_confirmation_note",
-          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -436,6 +430,162 @@
           "tableTo": "users",
           "columnsFrom": [
             "student_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.lesson_feedback": {
+      "name": "lesson_feedback",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "lesson_id": {
+          "name": "lesson_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "booking_id": {
+          "name": "booking_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "author_user_id": {
+          "name": "author_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_user_id": {
+          "name": "target_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "author_role": {
+          "name": "author_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rating": {
+          "name": "rating",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "lesson_feedback_booking_author_unique": {
+          "name": "lesson_feedback_booking_author_unique",
+          "columns": [
+            {
+              "expression": "booking_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "author_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "author_role",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "lesson_feedback_lesson_id_lessons_id_fk": {
+          "name": "lesson_feedback_lesson_id_lessons_id_fk",
+          "tableFrom": "lesson_feedback",
+          "tableTo": "lessons",
+          "columnsFrom": [
+            "lesson_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "lesson_feedback_booking_id_lesson_bookings_id_fk": {
+          "name": "lesson_feedback_booking_id_lesson_bookings_id_fk",
+          "tableFrom": "lesson_feedback",
+          "tableTo": "lesson_bookings",
+          "columnsFrom": [
+            "booking_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "lesson_feedback_author_user_id_users_id_fk": {
+          "name": "lesson_feedback_author_user_id_users_id_fk",
+          "tableFrom": "lesson_feedback",
+          "tableTo": "users",
+          "columnsFrom": [
+            "author_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "lesson_feedback_target_user_id_users_id_fk": {
+          "name": "lesson_feedback_target_user_id_users_id_fk",
+          "tableFrom": "lesson_feedback",
+          "tableTo": "users",
+          "columnsFrom": [
+            "target_user_id"
           ],
           "columnsTo": [
             "id"

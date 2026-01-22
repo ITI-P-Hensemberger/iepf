@@ -1,8 +1,0 @@
-### Purpose: Manual API testing flow (split by role).
-### Suggested order:
-### 1) http/bootstrap.http
-### 2) http/admin.http
-### 3) http/student.http
-### 4) http/tutor.http
-### 5) http/lessons.http
-### Shared variables live in .vscode/settings.json (select "local" in VS Code).

@@ -10,6 +10,7 @@ import { auditLogs } from './schemas/audit-logs.schema'
 import { classSections } from './schemas/class-sections.schema'
 import { emailVerificationTokens } from './schemas/email-verification-tokens.schema'
 import { lessonBookings } from './schemas/lesson-bookings.schema'
+import { lessonFeedback } from './schemas/lesson-feedback.schema'
 import { lessons } from './schemas/lessons.schema'
 import { passwordResetTokens } from './schemas/password-reset-tokens.schema'
 import { refreshTokens } from './schemas/refresh-tokens.schema'
@@ -38,6 +39,7 @@ const schema = {
   tutorInviteTokens,
   lessons,
   lessonBookings,
+  lessonFeedback,
   tokenLedger,
   refreshTokens,
   emailVerificationTokens,

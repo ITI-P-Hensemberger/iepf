@@ -18,6 +18,98 @@ function buildEmail(alias: string) {
   return `${EMAIL_PREFIX}${alias}${EMAIL_DOMAIN}`
 }
 
+const ITALIAN_FIRST_NAMES = [
+  'Marco',
+  'Luca',
+  'Matteo',
+  'Giovanni',
+  'Alessandro',
+  'Francesco',
+  'Andrea',
+  'Davide',
+  'Stefano',
+  'Simone',
+  'Gabriele',
+  'Riccardo',
+  'Federico',
+  'Tommaso',
+  'Emanuele',
+  'Pietro',
+  'Nicolo',
+  'Giulio',
+  'Filippo',
+  'Lorenzo',
+  'Giada',
+  'Chiara',
+  'Martina',
+  'Sara',
+  'Francesca',
+  'Elena',
+  'Alessia',
+  'Sofia',
+  'Valentina',
+  'Camilla',
+  'Giorgia',
+  'Alice',
+  'Beatrice',
+  'Aurora',
+  'Viola',
+  'Marta',
+  'Ilaria',
+  'Noemi',
+  'Rachele',
+  'Arianna'
+]
+
+const ITALIAN_LAST_NAMES = [
+  'Rossi',
+  'Russo',
+  'Ferrari',
+  'Esposito',
+  'Bianchi',
+  'Romano',
+  'Colombo',
+  'Ricci',
+  'Marino',
+  'Greco',
+  'Bruno',
+  'Gallo',
+  'Conti',
+  'Costa',
+  'Giordano',
+  'Mancini',
+  'Rizzo',
+  'Lombardi',
+  'Moretti',
+  'Barbieri',
+  'Fontana',
+  'Santoro',
+  'Mariani',
+  'Rinaldi',
+  'Caruso',
+  'Ferrara',
+  'Galli',
+  'Martini',
+  'Leone',
+  'Longo',
+  'Gentile',
+  'Martinelli',
+  'Vitale',
+  'Lombardo',
+  'Serra',
+  'Coppola',
+  'De Luca',
+  'Bernardi',
+  'Ferri',
+  'Fabbri'
+]
+
+function pickName(index: number) {
+  const firstName = ITALIAN_FIRST_NAMES[index % ITALIAN_FIRST_NAMES.length]!
+  const lastName = ITALIAN_LAST_NAMES[index % ITALIAN_LAST_NAMES.length]!
+  return { firstName, lastName }
+}
+
 async function getSections() {
   const sections = await db.query.classSections.findMany({
     columns: { id: true, name: true }
@@ -117,7 +209,8 @@ async function main() {
 
   for (let i = 1; i <= totals.studentsActive; i += 1) {
     const email = buildEmail(`student-active-${String(i).padStart(2, '0')}`)
-    const { id } = await getOrCreateUser(email, 'student', 'Studente', `Attivo${i}`, passwordHash, true)
+    const { firstName, lastName } = pickName(i)
+    const { id } = await getOrCreateUser(email, 'student', firstName, lastName, passwordHash, true)
     const section = nextSection()
     const year = (i % 3) + 1
     await ensureStudentProfile(id, section.id, year, true)
@@ -126,7 +219,8 @@ async function main() {
 
   for (let i = 1; i <= totals.studentsInactive; i += 1) {
     const email = buildEmail(`student-inactive-${String(i).padStart(2, '0')}`)
-    const { id } = await getOrCreateUser(email, 'student', 'Studente', `NonAttivo${i}`, passwordHash, true)
+    const { firstName, lastName } = pickName(i + 100)
+    const { id } = await getOrCreateUser(email, 'student', firstName, lastName, passwordHash, true)
     const section = nextSection()
     const year = (i % 3) + 1
     await ensureStudentProfile(id, section.id, year, false)
@@ -135,7 +229,8 @@ async function main() {
 
   for (let i = 1; i <= totals.studentsUnverified; i += 1) {
     const email = buildEmail(`student-pending-${String(i).padStart(2, '0')}`)
-    const { id } = await getOrCreateUser(email, 'student', 'Studente', `NonVerificato${i}`, passwordHash, true)
+    const { firstName, lastName } = pickName(i + 200)
+    const { id } = await getOrCreateUser(email, 'student', firstName, lastName, passwordHash, true)
     const section = nextSection()
     const year = (i % 3) + 1
     await ensureStudentProfile(id, section.id, year, false)
@@ -144,7 +239,8 @@ async function main() {
 
   for (let i = 1; i <= totals.tutorsActive; i += 1) {
     const email = buildEmail(`tutor-active-${String(i).padStart(2, '0')}`)
-    const { id } = await getOrCreateUser(email, 'tutor', 'Tutor', `Attivo${i}`, passwordHash, true)
+    const { firstName, lastName } = pickName(i + 300)
+    const { id } = await getOrCreateUser(email, 'tutor', firstName, lastName, passwordHash, true)
     const section = nextSection()
     const year = (i % 2) + 4
     await ensureTutorProfile(id, section.id, year, true)
@@ -153,7 +249,8 @@ async function main() {
 
   for (let i = 1; i <= totals.tutorsInactive; i += 1) {
     const email = buildEmail(`tutor-inactive-${String(i).padStart(2, '0')}`)
-    const { id } = await getOrCreateUser(email, 'tutor', 'Tutor', `User${i}`, passwordHash, true)
+    const { firstName, lastName } = pickName(i + 400)
+    const { id } = await getOrCreateUser(email, 'tutor', firstName, lastName, passwordHash, true)
     const section = nextSection()
     const year = (i % 2) + 4
     await ensureTutorProfile(id, section.id, year, false)
@@ -168,14 +265,16 @@ async function main() {
 
   for (let i = 1; i <= totals.adminsActive; i += 1) {
     const email = buildEmail(`admin-active-${String(i).padStart(2, '0')}`)
-    const { id } = await getOrCreateUser(email, 'admin', 'Admin', `Attivo${i}`, passwordHash, true)
+    const { firstName, lastName } = pickName(i + 500)
+    const { id } = await getOrCreateUser(email, 'admin', firstName, lastName, passwordHash, true)
     await ensureAdminProfile(id, true)
     created += 1
   }
 
   for (let i = 1; i <= totals.adminsInactive; i += 1) {
     const email = buildEmail(`admin-inactive-${String(i).padStart(2, '0')}`)
-    const { id } = await getOrCreateUser(email, 'admin', 'Admin', `NonAttivo${i}`, passwordHash, true)
+    const { firstName, lastName } = pickName(i + 600)
+    const { id } = await getOrCreateUser(email, 'admin', firstName, lastName, passwordHash, true)
     await ensureAdminProfile(id, false)
     created += 1
   }

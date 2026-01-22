@@ -4,6 +4,7 @@ import createApp from '@/lib/create-app'
 import audit from '@/routes/audit/audit.index'
 import auth from '@/routes/auth/auth.index'
 import classSections from '@/routes/class-sections/class-sections.index'
+import feedback from '@/routes/feedback/feedback.index'
 import health from '@/routes/health.route'
 import lessons from '@/routes/lessons/lessons.index'
 import subjects from '@/routes/subjects/subjects.index'
@@ -22,6 +23,7 @@ const routes = [
   audit,
   auth,
   classSections,
+  feedback,
   health,
   lessons,
   subjects,
