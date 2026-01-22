@@ -265,6 +265,7 @@ function DataTable<TData>({
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns,

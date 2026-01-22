@@ -148,6 +148,15 @@ export default function Header() {
                   className='cursor-pointer'
                   onSelect={(event) => {
                     event.preventDefault()
+                    window.location.assign('/admin/lessons')
+                  }}
+                >
+                  Gestione Lezioni
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className='cursor-pointer'
+                  onSelect={(event) => {
+                    event.preventDefault()
                     window.location.assign('/admin/admins')
                   }}
                 >
