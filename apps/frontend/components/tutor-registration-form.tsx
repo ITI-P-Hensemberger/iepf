@@ -4,6 +4,7 @@ import * as React from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
@@ -105,12 +106,10 @@ export function TutorRegistrationForm({
   const [showPassword, setShowPassword] = React.useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [submitError, setSubmitError] = React.useState<string | null>(null)
   const [isSuccess, setIsSuccess] = React.useState(false)
   const [sections, setSections] = React.useState<
     Array<{ id: string; name: string }>
   >([])
-  const [sectionsError, setSectionsError] = React.useState<string | null>(null)
   const [isLoadingSections, setIsLoadingSections] = React.useState(true)
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -131,7 +130,6 @@ export function TutorRegistrationForm({
 
     async function loadSections() {
       setIsLoadingSections(true)
-      setSectionsError(null)
 
       try {
         const response = await fetch('/api/class-sections')
@@ -148,7 +146,7 @@ export function TutorRegistrationForm({
         }
       } catch (err) {
         if (isMounted) {
-          setSectionsError(
+          toast.error(
             err instanceof Error
               ? err.message
               : 'Impossibile caricare le sezioni.'
@@ -212,7 +210,6 @@ export function TutorRegistrationForm({
 
   async function onSubmit(data: z.infer<typeof formSchema>) {
     setIsSubmitting(true)
-    setSubmitError(null)
 
     const yearValue = data.year?.trim() ?? ''
     const sectionValue = data.sectionId?.trim() ?? ''
@@ -248,9 +245,7 @@ export function TutorRegistrationForm({
       setIsSuccess(true)
       onSuccess?.()
     } catch (err) {
-      setSubmitError(
-        err instanceof Error ? err.message : 'Registrazione fallita.'
-      )
+      toast.error(err instanceof Error ? err.message : 'Registrazione fallita.')
     } finally {
       setIsSubmitting(false)
     }
@@ -472,11 +467,6 @@ export function TutorRegistrationForm({
                         )}
                     </SelectContent>
                   </Select>
-                  {sectionsError && (
-                    <p className='text-destructive text-xs mt-1'>
-                      {sectionsError}
-                    </p>
-                  )}
                   {fieldState.invalid && (
                     <FieldError errors={[fieldState.error]} />
                   )}
@@ -629,11 +619,7 @@ export function TutorRegistrationForm({
           >
             {isSubmitting ? 'Invio...' : 'Completa registrazione'}
           </Button>
-          {submitError ? (
-            <p className='text-destructive text-sm'>{submitError}</p>
-          ) : (
-            <span />
-          )}
+          <span />
         </div>
       </CardFooter>
     </Card>

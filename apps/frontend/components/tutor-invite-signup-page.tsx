@@ -1,9 +1,10 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { TutorRegistrationForm } from '@/components/tutor-registration-form'
@@ -14,6 +15,12 @@ export default function TutorInviteSignUpPage() {
   const [isSuccess, setIsSuccess] = useState(false)
 
   const isTokenMissing = useMemo(() => token.length === 0, [token])
+
+  useEffect(() => {
+    if (isTokenMissing) {
+      toast.error('Token mancante o non valido. Richiedi un nuovo invito.')
+    }
+  }, [isTokenMissing])
 
   return (
     <main className='flex-1'>
@@ -38,11 +45,7 @@ export default function TutorInviteSignUpPage() {
             Completa la registrazione per attivare il tuo account tutor.
           </p>
         )}
-        {isTokenMissing ? (
-          <p className='mt-4 text-center text-sm text-red-600'>
-            Token mancante o non valido. Richiedi un nuovo invito.
-          </p>
-        ) : (
+        {!isTokenMissing && (
           <div className='w-full max-w-md mt-6'>
             <TutorRegistrationForm
               token={token}

@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -84,8 +85,6 @@ export default function AdminAdminDetailPage() {
   const [admin, setAdmin] = React.useState<Admin | null>(null)
   const [isLoading, setIsLoading] = React.useState(true)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [submitError, setSubmitError] = React.useState<string | null>(null)
-  const [isSuccess, setIsSuccess] = React.useState(false)
   const [showEmailAlert, setShowEmailAlert] = React.useState(false)
   const [pendingValues, setPendingValues] =
     React.useState<AdminFormValues | null>(null)
@@ -115,8 +114,6 @@ export default function AdminAdminDetailPage() {
 
     async function loadAdmin() {
       setIsLoading(true)
-      setSubmitError(null)
-      setIsSuccess(false)
 
       try {
         const response = await fetch(`/api/users/${adminId}`)
@@ -135,7 +132,7 @@ export default function AdminAdminDetailPage() {
         }
       } catch (err) {
         if (isMounted) {
-          setSubmitError(
+          toast.error(
             err instanceof Error ? err.message : "Impossibile recuperare l'admin."
           )
         }
@@ -187,7 +184,7 @@ export default function AdminAdminDetailPage() {
         throw new Error(message)
       }
 
-      setIsSuccess(true)
+      toast.success('Admin aggiornato con successo.')
       setAdmin((prev) =>
         prev
           ? {
@@ -201,7 +198,7 @@ export default function AdminAdminDetailPage() {
       )
       form.reset(values)
     } catch (err) {
-      setSubmitError(
+      toast.error(
         err instanceof Error ? err.message : "Impossibile aggiornare l'admin."
       )
     } finally {
@@ -210,11 +207,8 @@ export default function AdminAdminDetailPage() {
   }
 
   async function onSubmit(values: AdminFormValues) {
-    setSubmitError(null)
-    setIsSuccess(false)
-
     if (!form.formState.isDirty) {
-      setSubmitError('Nessuna modifica da salvare.')
+      toast.error('Nessuna modifica da salvare.')
       return
     }
 
@@ -232,7 +226,6 @@ export default function AdminAdminDetailPage() {
       return
     }
     setIsDeleting(true)
-    setSubmitError(null)
     try {
       const response = await fetch(`/api/users/${adminId}`, {
         method: 'DELETE'
@@ -249,7 +242,7 @@ export default function AdminAdminDetailPage() {
       }
       router.push('/admin/admins')
     } catch (err) {
-      setSubmitError(
+      toast.error(
         err instanceof Error ? err.message : "Impossibile eliminare l'admin."
       )
     } finally {
@@ -390,14 +383,6 @@ export default function AdminAdminDetailPage() {
                       )}
                     />
                   </FieldGroup>
-                  {submitError && (
-                    <p className='text-sm text-destructive'>{submitError}</p>
-                  )}
-                  {isSuccess && (
-                    <p className='text-sm text-emerald-600'>
-                      Admin aggiornato con successo.
-                    </p>
-                  )}
                   <Accordion type='single' collapsible className='w-full'>
                     <AccordionItem value='tech-details'>
                       <AccordionTrigger>Dettagli tecnici</AccordionTrigger>

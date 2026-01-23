@@ -5,12 +5,12 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   type ColumnDef,
-  type SortingState,
   flexRender,
   getCoreRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { ArrowUpDown, MoreHorizontal, Search } from 'lucide-react'
+import { ExternalLink, MessageSquare, Search } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -23,13 +23,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu'
+import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Table,
@@ -65,11 +67,8 @@ type PendingInvite = {
 type DataTableProps<TData> = {
   data: TData[]
   columns: ColumnDef<TData>[]
-  searchPlaceholder: string
   isLoading: boolean
   emptyMessage: string
-  searchKey: string
-  sortKey: string
   pageKey: string
   page: number
   pageSize: number
@@ -127,11 +126,8 @@ function normalizePaged<T>(payload: unknown): { items: T[]; total: number } {
 function DataTable<TData>({
   data,
   columns,
-  searchPlaceholder,
   isLoading,
   emptyMessage,
-  searchKey,
-  sortKey,
   pageKey,
   page,
   pageSize,
@@ -141,112 +137,6 @@ function DataTable<TData>({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const searchParamsString = searchParams.toString()
-
-  const parseSorting = React.useCallback((value: string | null) => {
-    if (!value) {
-      return []
-    }
-    const [id, direction] = value.split(':')
-    if (!id) {
-      return []
-    }
-    return [{ id, desc: direction === 'desc' }]
-  }, [])
-
-  const [sorting, setSorting] = React.useState<SortingState>(() =>
-    parseSorting(searchParams.get(sortKey))
-  )
-  const [globalFilter, setGlobalFilter] = React.useState(
-    () => searchParams.get(searchKey) ?? ''
-  )
-  const [debouncedFilter, setDebouncedFilter] = React.useState(globalFilter)
-  const didInitRef = React.useRef(false)
-  const lastNavigationRef = React.useRef('')
-
-  React.useEffect(() => {
-    const nextFilter = searchParams.get(searchKey) ?? ''
-    setGlobalFilter((prev) => (prev === nextFilter ? prev : nextFilter))
-    const nextSorting = parseSorting(searchParams.get(sortKey))
-    setSorting((prev) => {
-      const currentSort = prev[0]
-      const nextSort = nextSorting[0]
-      const isSameSort =
-        (!currentSort && !nextSort) ||
-        (currentSort &&
-          nextSort &&
-          currentSort.id === nextSort.id &&
-          currentSort.desc === nextSort.desc)
-      return isSameSort ? prev : nextSorting
-    })
-  }, [parseSorting, searchKey, searchParams, sortKey])
-
-  React.useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setDebouncedFilter(globalFilter)
-    }, 300)
-    return () => window.clearTimeout(timeoutId)
-  }, [globalFilter])
-
-  React.useEffect(() => {
-    if (!didInitRef.current) {
-      didInitRef.current = true
-      return
-    }
-
-    const currentFilter = searchParams.get(searchKey) ?? ''
-    const desiredFilter = debouncedFilter
-    const filterChanged = currentFilter !== desiredFilter
-
-    const desiredSort = sorting[0]
-      ? `${sorting[0].id}:${sorting[0].desc ? 'desc' : 'asc'}`
-      : null
-    const currentSort = searchParams.get(sortKey)
-    const sortChanged = desiredSort !== currentSort
-
-    const currentPage = searchParams.get(pageKey) ?? ''
-    const pageChanged =
-      page > 1 ? currentPage !== String(page) : currentPage !== ''
-
-    if (!filterChanged && !sortChanged && !pageChanged) {
-      return
-    }
-
-    const params = new URLSearchParams(searchParamsString)
-    if (desiredFilter) {
-      params.set(searchKey, desiredFilter)
-    } else {
-      params.delete(searchKey)
-    }
-    if (desiredSort) {
-      params.set(sortKey, desiredSort)
-    } else {
-      params.delete(sortKey)
-    }
-    if (page > 1) {
-      params.set(pageKey, String(page))
-    } else {
-      params.delete(pageKey)
-    }
-
-    const nextParams = params.toString()
-    const url = nextParams ? `${pathname}?${nextParams}` : pathname
-    if (lastNavigationRef.current === url) {
-      return
-    }
-    lastNavigationRef.current = url
-    router.replace(url, { scroll: false })
-  }, [
-    debouncedFilter,
-    pathname,
-    page,
-    router,
-    searchKey,
-    searchParams,
-    searchParamsString,
-    sortKey,
-    sorting,
-    pageKey
-  ])
 
   const updatePage = React.useCallback(
     (nextPage: number) => {
@@ -269,36 +159,23 @@ function DataTable<TData>({
   const table = useReactTable({
     data,
     columns,
-    state: {
-      sorting
-    },
-    onSortingChange: setSorting,
-    manualSorting: true,
-    getCoreRowModel: getCoreRowModel(),
-    manualFiltering: true
+    getCoreRowModel: getCoreRowModel()
   })
 
   return (
     <div className='space-y-4'>
-      <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-        <div className='relative max-w-xs'>
-          <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
-          <Input
-            type='search'
-            placeholder={searchPlaceholder}
-            value={globalFilter}
-            onChange={(event) => setGlobalFilter(event.target.value)}
-            className='pl-9'
-          />
-        </div>
-      </div>
       <div className='rounded-lg border'>
         <Table>
           <TableHeader className='bg-muted/50'>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
+                  <TableHead
+                    key={header.id}
+                    className={
+                      header.column.id === 'actions' ? 'w-16' : undefined
+                    }
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -323,8 +200,15 @@ function DataTable<TData>({
             ) : table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                {row.getVisibleCells().map((cell) => (
+                    <TableCell
+                      key={cell.id}
+                      className={
+                        cell.column.id === 'actions'
+                          ? 'w-16 text-right'
+                          : undefined
+                      }
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()
@@ -373,8 +257,29 @@ function DataTable<TData>({
   )
 }
 
+type TableFilters = {
+  search: string
+  sortBy: string
+  sortDir: 'asc' | 'desc'
+}
+
+const defaultTutorFilters: TableFilters = {
+  search: '',
+  sortBy: 'lastName',
+  sortDir: 'asc'
+}
+
+const defaultInviteFilters: TableFilters = {
+  search: '',
+  sortBy: 'createdAt',
+  sortDir: 'desc'
+}
+
 export default function AdminTutorsPage() {
+  const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
+  const searchParamsString = searchParams.toString()
   const [activeTutors, setActiveTutors] = React.useState<Tutor[]>([])
   const [inactiveTutors, setInactiveTutors] = React.useState<Tutor[]>([])
   const [pendingInvites, setPendingInvites] = React.useState<PendingInvite[]>(
@@ -386,15 +291,15 @@ export default function AdminTutorsPage() {
   const [activeLoading, setActiveLoading] = React.useState(true)
   const [inactiveLoading, setInactiveLoading] = React.useState(true)
   const [pendingLoading, setPendingLoading] = React.useState(true)
-  const [activeError, setActiveError] = React.useState<string | null>(null)
-  const [inactiveError, setInactiveError] = React.useState<string | null>(null)
-  const [pendingError, setPendingError] = React.useState<string | null>(null)
-  const [openMenuId, setOpenMenuId] = React.useState<string | null>(null)
   const [showInviteDialog, setShowInviteDialog] = React.useState(false)
   const [inviteEmails, setInviteEmails] = React.useState('')
-  const [inviteError, setInviteError] = React.useState<string | null>(null)
-  const [inviteSuccess, setInviteSuccess] = React.useState<string | null>(null)
   const [isInviting, setIsInviting] = React.useState(false)
+  const [activeFilters, setActiveFilters] =
+    React.useState<TableFilters>(defaultTutorFilters)
+  const [inactiveFilters, setInactiveFilters] =
+    React.useState<TableFilters>(defaultTutorFilters)
+  const [pendingFilters, setPendingFilters] =
+    React.useState<TableFilters>(defaultInviteFilters)
 
   const parsePage = React.useCallback(
     (key: string) => {
@@ -420,33 +325,147 @@ export default function AdminTutorsPage() {
     return { sortBy, sortDir }
   }, [])
 
-  const activeSearch = searchParams.get('activeTutorSearch') ?? ''
-  const inactiveSearch = searchParams.get('inactiveTutorSearch') ?? ''
-  const pendingSearch = searchParams.get('pendingTutorSearch') ?? ''
-  const activeSortParam = searchParams.get('activeTutorSort') ?? ''
-  const inactiveSortParam = searchParams.get('inactiveTutorSort') ?? ''
-  const pendingSortParam = searchParams.get('pendingTutorSort') ?? ''
-  const activeSort = React.useMemo(
-    () => parseSortParam(activeSortParam),
-    [activeSortParam, parseSortParam]
+  const buildFilters = React.useCallback(
+    (
+      searchKey: string,
+      sortKey: string,
+      pageKey: string,
+      defaults: TableFilters
+    ) => {
+      const sortParam = parseSortParam(searchParams.get(sortKey))
+      return {
+        search: searchParams.get(searchKey) ?? '',
+        sortBy: sortParam?.sortBy ?? defaults.sortBy,
+        sortDir: sortParam?.sortDir ?? defaults.sortDir,
+        page: parsePage(pageKey)
+      }
+    },
+    [parsePage, parseSortParam, searchParams]
   )
-  const inactiveSort = React.useMemo(
-    () => parseSortParam(inactiveSortParam),
-    [inactiveSortParam, parseSortParam]
+
+  const currentActiveFilters = React.useMemo(
+    () =>
+      buildFilters(
+        'activeTutorSearch',
+        'activeTutorSort',
+        'activeTutorPage',
+        defaultTutorFilters
+      ),
+    [buildFilters]
   )
-  const pendingSort = React.useMemo(
-    () => parseSortParam(pendingSortParam),
-    [pendingSortParam, parseSortParam]
+  const currentInactiveFilters = React.useMemo(
+    () =>
+      buildFilters(
+        'inactiveTutorSearch',
+        'inactiveTutorSort',
+        'inactiveTutorPage',
+        defaultTutorFilters
+      ),
+    [buildFilters]
   )
-  const activePage = parsePage('activeTutorPage')
-  const inactivePage = parsePage('inactiveTutorPage')
-  const pendingPage = parsePage('pendingTutorPage')
+  const currentPendingFilters = React.useMemo(
+    () =>
+      buildFilters(
+        'pendingTutorSearch',
+        'pendingTutorSort',
+        'pendingTutorPage',
+        defaultInviteFilters
+      ),
+    [buildFilters]
+  )
+
+  React.useEffect(() => {
+    setActiveFilters((prev) => {
+      const next = {
+        search: currentActiveFilters.search,
+        sortBy: currentActiveFilters.sortBy,
+        sortDir: currentActiveFilters.sortDir
+      }
+      return prev.search === next.search &&
+        prev.sortBy === next.sortBy &&
+        prev.sortDir === next.sortDir
+        ? prev
+        : next
+    })
+  }, [
+    currentActiveFilters.search,
+    currentActiveFilters.sortBy,
+    currentActiveFilters.sortDir
+  ])
+
+  React.useEffect(() => {
+    setInactiveFilters((prev) => {
+      const next = {
+        search: currentInactiveFilters.search,
+        sortBy: currentInactiveFilters.sortBy,
+        sortDir: currentInactiveFilters.sortDir
+      }
+      return prev.search === next.search &&
+        prev.sortBy === next.sortBy &&
+        prev.sortDir === next.sortDir
+        ? prev
+        : next
+    })
+  }, [
+    currentInactiveFilters.search,
+    currentInactiveFilters.sortBy,
+    currentInactiveFilters.sortDir
+  ])
+
+  React.useEffect(() => {
+    setPendingFilters((prev) => {
+      const next = {
+        search: currentPendingFilters.search,
+        sortBy: currentPendingFilters.sortBy,
+        sortDir: currentPendingFilters.sortDir
+      }
+      return prev.search === next.search &&
+        prev.sortBy === next.sortBy &&
+        prev.sortDir === next.sortDir
+        ? prev
+        : next
+    })
+  }, [
+    currentPendingFilters.search,
+    currentPendingFilters.sortBy,
+    currentPendingFilters.sortDir
+  ])
+
+  const updateParams = React.useCallback(
+    (
+      keys: { searchKey: string; sortKey: string; pageKey: string },
+      filters: TableFilters,
+      page: number
+    ) => {
+      const params = new URLSearchParams(searchParamsString)
+      if (filters.search) {
+        params.set(keys.searchKey, filters.search)
+      } else {
+        params.delete(keys.searchKey)
+      }
+      if (filters.sortBy) {
+        params.set(keys.sortKey, `${filters.sortBy}:${filters.sortDir}`)
+      } else {
+        params.delete(keys.sortKey)
+      }
+      if (page > 1) {
+        params.set(keys.pageKey, String(page))
+      } else {
+        params.delete(keys.pageKey)
+      }
+
+      const nextParams = params.toString()
+      const url = nextParams ? `${pathname}?${nextParams}` : pathname
+      router.replace(url, { scroll: false })
+    },
+    [pathname, router, searchParamsString]
+  )
 
   const loadTutors = React.useCallback(
     async (options: {
       isActive: boolean
       search: string
-      sort: { sortBy: string; sortDir: 'asc' | 'desc' } | null
+      sort: { sortBy: string; sortDir: 'asc' | 'desc' }
       page: number
     }) => {
       const { isActive, search, sort, page } = options
@@ -456,19 +475,15 @@ export default function AdminTutorsPage() {
       if (search) {
         params.set('q', search)
       }
-      if (sort) {
-        params.set('sortBy', sort.sortBy)
-        params.set('sortDir', sort.sortDir)
-      }
+      params.set('sortBy', sort.sortBy)
+      params.set('sortDir', sort.sortDir)
       params.set('limit', String(pageSize))
       params.set('offset', String((page - 1) * pageSize))
 
       if (isActive) {
         setActiveLoading(true)
-        setActiveError(null)
       } else {
         setInactiveLoading(true)
-        setInactiveError(null)
       }
 
       try {
@@ -488,11 +503,7 @@ export default function AdminTutorsPage() {
       } catch (err) {
         const message =
           err instanceof Error ? err.message : 'Impossibile caricare i tutor.'
-        if (isActive) {
-          setActiveError(message)
-        } else {
-          setInactiveError(message)
-        }
+        toast.error(message)
       } finally {
         if (isActive) {
           setActiveLoading(false)
@@ -507,7 +518,7 @@ export default function AdminTutorsPage() {
   const loadPendingInvites = React.useCallback(
     async (options: {
       search: string
-      sort: { sortBy: string; sortDir: 'asc' | 'desc' } | null
+      sort: { sortBy: string; sortDir: 'asc' | 'desc' }
       page: number
     }) => {
       const { search, sort, page } = options
@@ -515,15 +526,12 @@ export default function AdminTutorsPage() {
       if (search) {
         params.set('q', search)
       }
-      if (sort) {
-        params.set('sortBy', sort.sortBy)
-        params.set('sortDir', sort.sortDir)
-      }
+      params.set('sortBy', sort.sortBy)
+      params.set('sortDir', sort.sortDir)
       params.set('limit', String(pageSize))
       params.set('offset', String((page - 1) * pageSize))
 
       setPendingLoading(true)
-      setPendingError(null)
 
       try {
         const response = await fetch(
@@ -541,7 +549,7 @@ export default function AdminTutorsPage() {
           err instanceof Error
             ? err.message
             : 'Impossibile caricare gli inviti.'
-        setPendingError(message)
+        toast.error(message)
       } finally {
         setPendingLoading(false)
       }
@@ -596,15 +604,12 @@ export default function AdminTutorsPage() {
   )
 
   const handleInviteTutor = React.useCallback(async () => {
-    setInviteError(null)
-    setInviteSuccess(null)
-
     // Parse and validate emails
     const { valid, invalid } = parseAndValidateEmails(inviteEmails)
 
     // Check if any emails were provided
     if (valid.length === 0 && invalid.length === 0) {
-      setInviteError('Inserisci almeno un indirizzo email.')
+      toast.error('Inserisci almeno un indirizzo email.')
       return
     }
 
@@ -613,7 +618,7 @@ export default function AdminTutorsPage() {
       const errorList = invalid
         .map(({ email, reason }) => `• ${email}: ${reason}`)
         .join('\n')
-      setInviteError(
+      toast.error(
         `${invalid.length} email ${invalid.length === 1 ? 'non valida' : 'non valide'}:\n${errorList}`
       )
       return
@@ -658,22 +663,25 @@ export default function AdminTutorsPage() {
       // Build feedback message
       if (successes.length === valid.length) {
         // All succeeded
-        setInviteSuccess(
+        toast.success(
           `${successes.length} ${successes.length === 1 ? 'invito inviato' : 'inviti inviati'} con successo.`
         )
         setInviteEmails('')
         setShowInviteDialog(false)
         void loadPendingInvites({
-          search: pendingSearch,
-          sort: pendingSort,
-          page: pendingPage
+          search: currentPendingFilters.search,
+          sort: {
+            sortBy: currentPendingFilters.sortBy,
+            sortDir: currentPendingFilters.sortDir
+          },
+          page: currentPendingFilters.page
         })
       } else if (successes.length > 0) {
         // Partial success
         const failureList = failures
           .map(({ email, error }) => `• ${email}: ${error}`)
           .join('\n')
-        setInviteError(
+        toast.error(
           `${successes.length} ${successes.length === 1 ? 'invito inviato' : 'inviti inviati'} con successo.\n${failures.length} ${failures.length === 1 ? 'fallito' : 'falliti'}:\n${failureList}`
         )
         // Don't close dialog, let admin retry failed ones
@@ -682,10 +690,10 @@ export default function AdminTutorsPage() {
         const failureList = failures
           .map(({ email, error }) => `• ${email}: ${error}`)
           .join('\n')
-        setInviteError(`Tutti gli inviti sono falliti:\n${failureList}`)
+        toast.error(`Tutti gli inviti sono falliti:\n${failureList}`)
       }
     } catch (err) {
-      setInviteError(
+      toast.error(
         err instanceof Error
           ? err.message
           : 'Si è verificato un errore. Riprova.'
@@ -694,39 +702,67 @@ export default function AdminTutorsPage() {
       setIsInviting(false)
     }
   }, [
+    currentPendingFilters.page,
+    currentPendingFilters.search,
+    currentPendingFilters.sortBy,
+    currentPendingFilters.sortDir,
     inviteEmails,
     loadPendingInvites,
-    parseAndValidateEmails,
-    pendingPage,
-    pendingSearch,
-    pendingSort
+    parseAndValidateEmails
   ])
 
   React.useEffect(() => {
     void loadTutors({
       isActive: true,
-      search: activeSearch,
-      sort: activeSort,
-      page: activePage
+      search: currentActiveFilters.search,
+      sort: {
+        sortBy: currentActiveFilters.sortBy,
+        sortDir: currentActiveFilters.sortDir
+      },
+      page: currentActiveFilters.page
     })
-  }, [activePage, activeSearch, activeSort, loadTutors])
+  }, [
+    currentActiveFilters.page,
+    currentActiveFilters.search,
+    currentActiveFilters.sortBy,
+    currentActiveFilters.sortDir,
+    loadTutors
+  ])
 
   React.useEffect(() => {
     void loadTutors({
       isActive: false,
-      search: inactiveSearch,
-      sort: inactiveSort,
-      page: inactivePage
+      search: currentInactiveFilters.search,
+      sort: {
+        sortBy: currentInactiveFilters.sortBy,
+        sortDir: currentInactiveFilters.sortDir
+      },
+      page: currentInactiveFilters.page
     })
-  }, [inactivePage, inactiveSearch, inactiveSort, loadTutors])
+  }, [
+    currentInactiveFilters.page,
+    currentInactiveFilters.search,
+    currentInactiveFilters.sortBy,
+    currentInactiveFilters.sortDir,
+    loadTutors
+  ])
 
   React.useEffect(() => {
     void loadPendingInvites({
-      search: pendingSearch,
-      sort: pendingSort,
-      page: pendingPage
+      search: currentPendingFilters.search,
+      sort: {
+        sortBy: currentPendingFilters.sortBy,
+        sortDir: currentPendingFilters.sortDir
+      },
+      page: currentPendingFilters.page
     })
-  }, [loadPendingInvites, pendingPage, pendingSearch, pendingSort])
+  }, [
+    currentPendingFilters.page,
+    currentPendingFilters.search,
+    currentPendingFilters.sortBy,
+    currentPendingFilters.sortDir,
+    loadPendingInvites
+  ])
 
   const getSectionLabel = React.useCallback((tutor: Tutor) => {
     if (tutor.sectionName) {
@@ -739,41 +775,17 @@ export default function AdminTutorsPage() {
     const columns: ColumnDef<Tutor>[] = [
       {
         accessorKey: 'lastName',
-        header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Cognome
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
-        ),
+        header: 'Cognome',
         cell: ({ row }) => row.original.lastName
       },
       {
         accessorKey: 'firstName',
-        header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Nome
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
-        ),
+        header: 'Nome',
         cell: ({ row }) => row.original.firstName
       },
       {
         accessorKey: 'year',
-        header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Classe
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
-        ),
+        header: 'Classe',
         cell: ({ row }) => (
           <span>
             {row.original.year ?? ''}
@@ -783,36 +795,40 @@ export default function AdminTutorsPage() {
       },
       {
         id: 'actions',
-        header: '',
+        header: () => <span className='sr-only'>Azioni</span>,
         cell: ({ row }) => (
-          <DropdownMenu
-            open={openMenuId === row.original.id}
-            onOpenChange={(open) =>
-              setOpenMenuId(open ? row.original.id : null)
-            }
-          >
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant='ghost'
-                size='icon'
-                aria-label='Azioni'
-                className='h-6 w-6 p-0'
+          <div className='flex items-center justify-end gap-1'>
+            <Button
+              asChild
+              variant='ghost'
+              size='icon'
+              aria-label='Apri profilo tutor'
+              className='h-6 w-6 p-0'
+            >
+              <Link href={`/admin/tutors/${row.original.id}`}>
+                <ExternalLink className='h-4 w-4' />
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant='ghost'
+              size='icon'
+              aria-label='Gestione feedback tutor'
+              className='h-6 w-6 p-0'
+            >
+              <Link
+                href={`/admin/feedback?feedbackAuthor=${row.original.id}&feedbackRole=tutor`}
               >
-                <MoreHorizontal className='h-4 w-4' />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end'>
-              <DropdownMenuItem asChild>
-                <Link href={`/admin/tutors/${row.original.id}`}>Dettagli</Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <MessageSquare className='h-4 w-4' />
+              </Link>
+            </Button>
+          </div>
         )
       }
     ]
 
     return columns
-  }, [getSectionLabel, openMenuId])
+  }, [getSectionLabel])
 
   const columns = React.useMemo(() => makeColumns(), [makeColumns])
 
@@ -825,28 +841,12 @@ export default function AdminTutorsPage() {
       },
       {
         accessorKey: 'createdAt',
-        header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Invitato il
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
-        ),
+        header: 'Invitato il',
         cell: ({ row }) => formatItalianDate(row.original.createdAt)
       },
       {
         accessorKey: 'expiresAt',
-        header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Scade il
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
-        ),
+        header: 'Scade il',
         cell: ({ row }) => formatItalianDate(row.original.expiresAt)
       }
     ],
@@ -855,9 +855,9 @@ export default function AdminTutorsPage() {
 
   const showPendingTab =
     pendingTotal > 0 ||
-    Boolean(pendingSearch) ||
-    Boolean(pendingSort) ||
-    pendingPage > 1
+    Boolean(searchParams.get('pendingTutorSearch')) ||
+    Boolean(searchParams.get('pendingTutorSort')) ||
+    parsePage('pendingTutorPage') > 1
 
   return (
     <main className='flex-1'>
@@ -891,69 +891,363 @@ export default function AdminTutorsPage() {
                 )}
               </TabsList>
               <TabsContent value='active' className='mt-6'>
+                <div className='rounded-lg border bg-card p-4 shadow-sm'>
+                  <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
+                    <Field className='gap-2 lg:col-span-2'>
+                      <FieldLabel htmlFor='active-tutor-search'>
+                        Cerca
+                      </FieldLabel>
+                      <div className='relative'>
+                        <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+                        <Input
+                          id='active-tutor-search'
+                          type='search'
+                          placeholder='Nome, cognome o email'
+                          value={activeFilters.search}
+                          onChange={(event) =>
+                            setActiveFilters((prev) => ({
+                              ...prev,
+                              search: event.target.value
+                            }))
+                          }
+                          className='pl-9'
+                        />
+                      </div>
+                    </Field>
+                    <Field className='gap-2'>
+                      <FieldLabel>Ordina per</FieldLabel>
+                      <Select
+                        value={activeFilters.sortBy}
+                        onValueChange={(value) =>
+                          setActiveFilters((prev) => ({
+                            ...prev,
+                            sortBy: value
+                          }))
+                        }
+                      >
+                        <SelectTrigger className='w-full'>
+                          <SelectValue placeholder='Ordinamento' />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='lastName'>Cognome</SelectItem>
+                          <SelectItem value='firstName'>Nome</SelectItem>
+                          <SelectItem value='year'>Classe</SelectItem>
+                          <SelectItem value='createdAt'>Creazione</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field className='gap-2'>
+                      <FieldLabel>Direzione</FieldLabel>
+                      <Select
+                        value={activeFilters.sortDir}
+                        onValueChange={(value) =>
+                          setActiveFilters((prev) => ({
+                            ...prev,
+                            sortDir: value === 'desc' ? 'desc' : 'asc'
+                          }))
+                        }
+                      >
+                        <SelectTrigger className='w-full'>
+                          <SelectValue placeholder='Direzione' />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='asc'>Crescente</SelectItem>
+                          <SelectItem value='desc'>Decrescente</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  </div>
+                  <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between'>
+                    <div />
+                    <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
+                      <Button
+                        variant='outline'
+                        onClick={() => {
+                          setActiveFilters(defaultTutorFilters)
+                          updateParams(
+                            {
+                              searchKey: 'activeTutorSearch',
+                              sortKey: 'activeTutorSort',
+                              pageKey: 'activeTutorPage'
+                            },
+                            defaultTutorFilters,
+                            1
+                          )
+                        }}
+                      >
+                        Reset filtri
+                      </Button>
+                      <Button
+                        onClick={() =>
+                          updateParams(
+                            {
+                              searchKey: 'activeTutorSearch',
+                              sortKey: 'activeTutorSort',
+                              pageKey: 'activeTutorPage'
+                            },
+                            activeFilters,
+                            1
+                          )
+                        }
+                      >
+                        Applica filtri
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <div className='mt-6'>
                 <DataTable
                   data={activeTutors}
                   columns={columns}
-                  searchPlaceholder='Cerca tutor'
                   isLoading={activeLoading}
                   emptyMessage='Nessun tutor attivo.'
-                  searchKey='activeTutorSearch'
-                  sortKey='activeTutorSort'
                   pageKey='activeTutorPage'
-                  page={activePage}
+                  page={currentActiveFilters.page}
                   pageSize={pageSize}
                   total={activeTotal}
                 />
-                {activeError && (
-                  <p className='mt-3 text-sm text-destructive'>{activeError}</p>
-                )}
+                </div>
               </TabsContent>
               <TabsContent value='inactive' className='mt-6'>
+                <div className='rounded-lg border bg-card p-4 shadow-sm'>
+                  <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
+                    <Field className='gap-2 lg:col-span-2'>
+                      <FieldLabel htmlFor='inactive-tutor-search'>
+                        Cerca
+                      </FieldLabel>
+                      <div className='relative'>
+                        <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+                        <Input
+                          id='inactive-tutor-search'
+                          type='search'
+                          placeholder='Nome, cognome o email'
+                          value={inactiveFilters.search}
+                          onChange={(event) =>
+                            setInactiveFilters((prev) => ({
+                              ...prev,
+                              search: event.target.value
+                            }))
+                          }
+                          className='pl-9'
+                        />
+                      </div>
+                    </Field>
+                    <Field className='gap-2'>
+                      <FieldLabel>Ordina per</FieldLabel>
+                      <Select
+                        value={inactiveFilters.sortBy}
+                        onValueChange={(value) =>
+                          setInactiveFilters((prev) => ({
+                            ...prev,
+                            sortBy: value
+                          }))
+                        }
+                      >
+                        <SelectTrigger className='w-full'>
+                          <SelectValue placeholder='Ordinamento' />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='lastName'>Cognome</SelectItem>
+                          <SelectItem value='firstName'>Nome</SelectItem>
+                          <SelectItem value='year'>Classe</SelectItem>
+                          <SelectItem value='createdAt'>Creazione</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field className='gap-2'>
+                      <FieldLabel>Direzione</FieldLabel>
+                      <Select
+                        value={inactiveFilters.sortDir}
+                        onValueChange={(value) =>
+                          setInactiveFilters((prev) => ({
+                            ...prev,
+                            sortDir: value === 'desc' ? 'desc' : 'asc'
+                          }))
+                        }
+                      >
+                        <SelectTrigger className='w-full'>
+                          <SelectValue placeholder='Direzione' />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='asc'>Crescente</SelectItem>
+                          <SelectItem value='desc'>Decrescente</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  </div>
+                  <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between'>
+                    <div />
+                    <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
+                      <Button
+                        variant='outline'
+                        onClick={() => {
+                          setInactiveFilters(defaultTutorFilters)
+                          updateParams(
+                            {
+                              searchKey: 'inactiveTutorSearch',
+                              sortKey: 'inactiveTutorSort',
+                              pageKey: 'inactiveTutorPage'
+                            },
+                            defaultTutorFilters,
+                            1
+                          )
+                        }}
+                      >
+                        Reset filtri
+                      </Button>
+                      <Button
+                        onClick={() =>
+                          updateParams(
+                            {
+                              searchKey: 'inactiveTutorSearch',
+                              sortKey: 'inactiveTutorSort',
+                              pageKey: 'inactiveTutorPage'
+                            },
+                            inactiveFilters,
+                            1
+                          )
+                        }
+                      >
+                        Applica filtri
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <div className='mt-6'>
                 <DataTable
                   data={inactiveTutors}
                   columns={columns}
-                  searchPlaceholder='Cerca tutor'
                   isLoading={inactiveLoading}
                   emptyMessage='Nessun tutor non attivo.'
-                  searchKey='inactiveTutorSearch'
-                  sortKey='inactiveTutorSort'
                   pageKey='inactiveTutorPage'
-                  page={inactivePage}
+                  page={currentInactiveFilters.page}
                   pageSize={pageSize}
                   total={inactiveTotal}
                 />
-                {inactiveError && (
-                  <p className='mt-3 text-sm text-destructive'>
-                    {inactiveError}
-                  </p>
-                )}
+                </div>
               </TabsContent>
               {showPendingTab && (
                 <TabsContent value='invites' className='mt-6'>
+                  <div className='rounded-lg border bg-card p-4 shadow-sm'>
+                    <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
+                      <Field className='gap-2 lg:col-span-2'>
+                        <FieldLabel htmlFor='pending-tutor-search'>
+                          Cerca
+                        </FieldLabel>
+                        <div className='relative'>
+                          <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+                          <Input
+                            id='pending-tutor-search'
+                            type='search'
+                            placeholder='Email'
+                            value={pendingFilters.search}
+                            onChange={(event) =>
+                              setPendingFilters((prev) => ({
+                                ...prev,
+                                search: event.target.value
+                              }))
+                            }
+                            className='pl-9'
+                          />
+                        </div>
+                      </Field>
+                      <Field className='gap-2'>
+                        <FieldLabel>Ordina per</FieldLabel>
+                        <Select
+                          value={pendingFilters.sortBy}
+                          onValueChange={(value) =>
+                            setPendingFilters((prev) => ({
+                              ...prev,
+                              sortBy: value
+                            }))
+                          }
+                        >
+                          <SelectTrigger className='w-full'>
+                            <SelectValue placeholder='Ordinamento' />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value='createdAt'>
+                              Invitato il
+                            </SelectItem>
+                            <SelectItem value='expiresAt'>Scade il</SelectItem>
+                            <SelectItem value='email'>Email</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                      <Field className='gap-2'>
+                        <FieldLabel>Direzione</FieldLabel>
+                        <Select
+                          value={pendingFilters.sortDir}
+                          onValueChange={(value) =>
+                            setPendingFilters((prev) => ({
+                              ...prev,
+                              sortDir: value === 'desc' ? 'desc' : 'asc'
+                            }))
+                          }
+                        >
+                          <SelectTrigger className='w-full'>
+                            <SelectValue placeholder='Direzione' />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value='asc'>Crescente</SelectItem>
+                            <SelectItem value='desc'>Decrescente</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                    </div>
+                    <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between'>
+                      <div />
+                      <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
+                        <Button
+                          variant='outline'
+                          onClick={() => {
+                            setPendingFilters(defaultInviteFilters)
+                            updateParams(
+                              {
+                                searchKey: 'pendingTutorSearch',
+                                sortKey: 'pendingTutorSort',
+                                pageKey: 'pendingTutorPage'
+                              },
+                              defaultInviteFilters,
+                              1
+                            )
+                          }}
+                        >
+                          Reset filtri
+                        </Button>
+                        <Button
+                          onClick={() =>
+                            updateParams(
+                              {
+                                searchKey: 'pendingTutorSearch',
+                                sortKey: 'pendingTutorSort',
+                                pageKey: 'pendingTutorPage'
+                              },
+                              pendingFilters,
+                              1
+                            )
+                          }
+                        >
+                          Applica filtri
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className='mt-6'>
                   <DataTable
                     data={pendingInvites}
                     columns={pendingColumns}
-                    searchPlaceholder='Cerca inviti'
                     isLoading={pendingLoading}
                     emptyMessage='Nessun invito in attesa.'
-                    searchKey='pendingTutorSearch'
-                    sortKey='pendingTutorSort'
                     pageKey='pendingTutorPage'
-                    page={pendingPage}
+                    page={currentPendingFilters.page}
                     pageSize={pageSize}
                     total={pendingTotal}
                   />
-                  {pendingError && (
-                    <p className='mt-3 text-sm text-destructive'>
-                      {pendingError}
-                    </p>
-                  )}
+                  </div>
                 </TabsContent>
               )}
             </Tabs>
-            {inviteSuccess && (
-              <p className='text-sm text-emerald-600'>{inviteSuccess}</p>
-            )}
           </div>
         </div>
       </div>
@@ -995,18 +1289,10 @@ export default function AdminTutorsPage() {
               className='font-mono text-sm'
             />
 
-            {inviteError && (
-              <div className='rounded-md border border-destructive/50 bg-destructive/10 p-3'>
-                <p className='text-sm text-destructive whitespace-pre-line'>
-                  {inviteError}
-                </p>
-              </div>
-            )}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel
               onClick={() => {
-                setInviteError(null)
                 setInviteEmails('')
               }}
             >

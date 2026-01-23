@@ -11,6 +11,7 @@ import {
   useReactTable
 } from '@tanstack/react-table'
 import { ArrowUpDown, MoreHorizontal, Search } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -381,14 +382,9 @@ export default function AdminAdminsPage() {
   const [activeLoading, setActiveLoading] = React.useState(true)
   const [inactiveLoading, setInactiveLoading] = React.useState(true)
   const [pendingLoading, setPendingLoading] = React.useState(true)
-  const [activeError, setActiveError] = React.useState<string | null>(null)
-  const [inactiveError, setInactiveError] = React.useState<string | null>(null)
-  const [pendingError, setPendingError] = React.useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = React.useState<string | null>(null)
   const [showInviteDialog, setShowInviteDialog] = React.useState(false)
   const [inviteEmails, setInviteEmails] = React.useState('')
-  const [inviteError, setInviteError] = React.useState<string | null>(null)
-  const [inviteSuccess, setInviteSuccess] = React.useState<string | null>(null)
   const [isInviting, setIsInviting] = React.useState(false)
   const pageSize = 15
 
@@ -439,10 +435,8 @@ export default function AdminAdminsPage() {
 
       if (isActive) {
         setActiveLoading(true)
-        setActiveError(null)
       } else {
         setInactiveLoading(true)
-        setInactiveError(null)
       }
 
       try {
@@ -462,11 +456,7 @@ export default function AdminAdminsPage() {
       } catch (err) {
         const message =
           err instanceof Error ? err.message : 'Impossibile caricare gli admin.'
-        if (isActive) {
-          setActiveError(message)
-        } else {
-          setInactiveError(message)
-        }
+        toast.error(message)
       } finally {
         if (isActive) {
           setActiveLoading(false)
@@ -497,8 +487,6 @@ export default function AdminAdminsPage() {
       params.set('offset', String((page - 1) * pageSize))
 
       setPendingLoading(true)
-      setPendingError(null)
-
       try {
         const response = await fetch(`/api/auth/admin-invite?${params}`)
         if (!response.ok) {
@@ -509,7 +497,7 @@ export default function AdminAdminsPage() {
         setPendingInvites(items)
         setPendingTotal(total)
       } catch (err) {
-        setPendingError(
+        toast.error(
           err instanceof Error
             ? err.message
             : 'Impossibile caricare gli inviti.'
@@ -568,15 +556,12 @@ export default function AdminAdminsPage() {
   )
 
   async function handleInviteAdmin() {
-    setInviteError(null)
-    setInviteSuccess(null)
-
     // Parse and validate emails
     const { valid, invalid } = parseAndValidateEmails(inviteEmails)
 
     // Check if any emails were provided
     if (valid.length === 0 && invalid.length === 0) {
-      setInviteError('Inserisci almeno un indirizzo email.')
+      toast.error('Inserisci almeno un indirizzo email.')
       return
     }
 
@@ -585,7 +570,7 @@ export default function AdminAdminsPage() {
       const errorList = invalid
         .map(({ email, reason }) => `• ${email}: ${reason}`)
         .join('\n')
-      setInviteError(
+      toast.error(
         `${invalid.length} email ${invalid.length === 1 ? 'non valida' : 'non valide'}:\n${errorList}`
       )
       return
@@ -630,7 +615,7 @@ export default function AdminAdminsPage() {
       // Build feedback message
       if (successes.length === valid.length) {
         // All succeeded
-        setInviteSuccess(
+        toast.success(
           `${successes.length} ${successes.length === 1 ? 'invito inviato' : 'inviti inviati'} con successo.`
         )
         setInviteEmails('')
@@ -645,7 +630,7 @@ export default function AdminAdminsPage() {
         const failureList = failures
           .map(({ email, error }) => `• ${email}: ${error}`)
           .join('\n')
-        setInviteError(
+        toast.error(
           `${successes.length} ${successes.length === 1 ? 'invito inviato' : 'inviti inviati'} con successo.\n${failures.length} ${failures.length === 1 ? 'fallito' : 'falliti'}:\n${failureList}`
         )
         // Don't close dialog, let admin retry failed ones
@@ -654,10 +639,10 @@ export default function AdminAdminsPage() {
         const failureList = failures
           .map(({ email, error }) => `• ${email}: ${error}`)
           .join('\n')
-        setInviteError(`Tutti gli inviti sono falliti:\n${failureList}`)
+        toast.error(`Tutti gli inviti sono falliti:\n${failureList}`)
       }
     } catch (err) {
-      setInviteError(
+      toast.error(
         err instanceof Error
           ? err.message
           : 'Si è verificato un errore. Riprova.'
@@ -866,9 +851,6 @@ export default function AdminAdminsPage() {
                   pageSize={pageSize}
                   total={activeTotal}
                 />
-                {activeError && (
-                  <p className='mt-3 text-sm text-destructive'>{activeError}</p>
-                )}
               </TabsContent>
               <TabsContent value='inactive' className='mt-6'>
                 <DataTable
@@ -884,11 +866,6 @@ export default function AdminAdminsPage() {
                   pageSize={pageSize}
                   total={inactiveTotal}
                 />
-                {inactiveError && (
-                  <p className='mt-3 text-sm text-destructive'>
-                    {inactiveError}
-                  </p>
-                )}
               </TabsContent>
               {showPendingTab && (
                 <TabsContent value='invites' className='mt-6'>
@@ -905,17 +882,9 @@ export default function AdminAdminsPage() {
                     pageSize={pageSize}
                     total={pendingTotal}
                   />
-                  {pendingError && (
-                    <p className='mt-3 text-sm text-destructive'>
-                      {pendingError}
-                    </p>
-                  )}
                 </TabsContent>
               )}
             </Tabs>
-            {inviteSuccess && (
-              <p className='text-sm text-emerald-600'>{inviteSuccess}</p>
-            )}
           </div>
         </div>
       </div>
@@ -957,18 +926,10 @@ export default function AdminAdminsPage() {
               className='font-mono text-sm'
             />
 
-            {inviteError && (
-              <div className='rounded-md border border-destructive/50 bg-destructive/10 p-3'>
-                <p className='text-sm text-destructive whitespace-pre-line'>
-                  {inviteError}
-                </p>
-              </div>
-            )}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel
               onClick={() => {
-                setInviteError(null)
                 setInviteEmails('')
               }}
             >

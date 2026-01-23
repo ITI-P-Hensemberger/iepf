@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { CalendarIcon, MoreHorizontal } from 'lucide-react'
+import { CalendarIcon, ExternalLink, MessageSquare } from 'lucide-react'
 
 import {
   AlertDialog,
@@ -19,12 +19,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Label } from '@/components/ui/label'
 import {
@@ -44,6 +38,7 @@ import {
 } from '@/components/ui/table'
 
 import { format } from 'date-fns'
+import { toast } from 'sonner'
 
 import { formatItalianDate } from '@/lib/format-date'
 import { type DateRange } from 'react-day-picker'
@@ -133,19 +128,6 @@ function parseDateParam(value: string | null) {
   return parsed
 }
 
-function timeFromDate(value?: string | null) {
-  if (!value) {
-    return null
-  }
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) {
-    return null
-  }
-  const hours = `${parsed.getHours()}`.padStart(2, '0')
-  const minutes = `${parsed.getMinutes()}`.padStart(2, '0')
-  return `${hours}:${minutes}`
-}
-
 function combineDateAndTime(date: Date, time: string) {
   const [hours, minutes] = time.split(':').map(Number)
   const combined = new Date(date)
@@ -181,14 +163,6 @@ function statusVariant(
     return 'default'
   }
   return 'secondary'
-}
-
-function isCanceledStatus(status?: string | null) {
-  if (!status) {
-    return false
-  }
-  const normalized = status.toLowerCase()
-  return normalized === 'canceled' || normalized === 'cancelled'
 }
 
 function parseNumeric(value: unknown) {
@@ -267,19 +241,11 @@ export default function AdminLessonsPage() {
   const [lessons, setLessons] = React.useState<Lesson[]>([])
   const [total, setTotal] = React.useState(0)
   const [isLoading, setIsLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
-
   const [subjects, setSubjects] = React.useState<Subject[]>([])
   const [subjectsLoading, setSubjectsLoading] = React.useState(true)
-  const [subjectsError, setSubjectsError] = React.useState<string | null>(null)
 
   const [tutors, setTutors] = React.useState<Tutor[]>([])
   const [tutorsLoading, setTutorsLoading] = React.useState(true)
-  const [tutorsError, setTutorsError] = React.useState<string | null>(null)
-
-  const [openMenuId, setOpenMenuId] = React.useState<string | null>(null)
-  const [actionMessage, setActionMessage] = React.useState<string | null>(null)
-  const [actionError, setActionError] = React.useState<string | null>(null)
   const [isFilterDateDialogOpen, setIsFilterDateDialogOpen] =
     React.useState(false)
   const [isRescheduleDateDialogOpen, setIsRescheduleDateDialogOpen] =
@@ -293,9 +259,6 @@ export default function AdminLessonsPage() {
     null
   )
   const [isRescheduling, setIsRescheduling] = React.useState(false)
-  const [rescheduleError, setRescheduleError] = React.useState<string | null>(
-    null
-  )
   const [rescheduleForm, setRescheduleForm] = React.useState({
     lessonId: '',
     tutorId: '',
@@ -376,7 +339,6 @@ export default function AdminLessonsPage() {
 
   const loadLessons = React.useCallback(async () => {
     setIsLoading(true)
-    setError(null)
     const params = new URLSearchParams()
     if (currentFilters.tutorId) {
       params.set('tutorId', currentFilters.tutorId)
@@ -423,7 +385,7 @@ export default function AdminLessonsPage() {
       setLessons(items)
       setTotal(totalValue)
     } catch (err) {
-      setError(
+      toast.error(
         err instanceof Error ? err.message : 'Impossibile caricare le lezioni.'
       )
       setLessons([])
@@ -438,7 +400,6 @@ export default function AdminLessonsPage() {
 
     async function loadSubjects() {
       setSubjectsLoading(true)
-      setSubjectsError(null)
 
       try {
         const response = await fetch('/api/subjects')
@@ -452,7 +413,7 @@ export default function AdminLessonsPage() {
         }
       } catch (err) {
         if (isMounted) {
-          setSubjectsError(
+          toast.error(
             err instanceof Error
               ? err.message
               : 'Impossibile caricare le materie.'
@@ -467,7 +428,6 @@ export default function AdminLessonsPage() {
 
     async function loadTutors() {
       setTutorsLoading(true)
-      setTutorsError(null)
 
       try {
         const params = new URLSearchParams({
@@ -495,7 +455,7 @@ export default function AdminLessonsPage() {
         }
       } catch (err) {
         if (isMounted) {
-          setTutorsError(
+          toast.error(
             err instanceof Error ? err.message : 'Impossibile caricare i tutor.'
           )
         }
@@ -613,36 +573,12 @@ export default function AdminLessonsPage() {
     )
   }, [updateParams])
 
-  const openRescheduleDialog = React.useCallback((lesson: Lesson) => {
-    setRescheduleTarget(lesson)
-    setRescheduleError(null)
-    const defaultTime = timeFromDate(lesson.startAt)
-    const timeValue =
-      defaultTime && AVAILABLE_TIMES.includes(defaultTime)
-        ? defaultTime
-        : '15:00'
-    setRescheduleForm({
-      lessonId: lesson.id,
-      tutorId: lesson.tutorId,
-      subjectId: lesson.subjectId,
-      date: parseDateParam(lesson.startAt),
-      time: timeValue
-    })
-  }, [])
-
-  const openCancelDialog = React.useCallback((lesson: Lesson) => {
-    setCancelTarget(lesson)
-    setCancelCountsForTutor(Boolean(lesson.countsForTutor))
-  }, [])
-
   const handleCancelLesson = React.useCallback(async () => {
     if (!cancelTarget) {
       return
     }
 
     setIsCancelling(true)
-    setActionError(null)
-    setActionMessage(null)
 
     try {
       const response = await fetch(`/api/lessons/${cancelTarget.id}/cancel`, {
@@ -662,11 +598,11 @@ export default function AdminLessonsPage() {
         }
         throw new Error(message)
       }
-      setActionMessage('Lezione annullata.')
+      toast.success('Lezione annullata.')
       setCancelTarget(null)
       await loadLessons()
     } catch (err) {
-      setActionError(
+      toast.error(
         err instanceof Error ? err.message : 'Impossibile annullare la lezione.'
       )
     } finally {
@@ -688,21 +624,18 @@ export default function AdminLessonsPage() {
       : ''
 
     if (!rescheduleForm.tutorId.trim()) {
-      setRescheduleError('Inserisci un tutor valido.')
+      toast.error('Inserisci un tutor valido.')
       return
     }
     if (!rescheduleForm.subjectId.trim()) {
-      setRescheduleError('Inserisci una materia valida.')
+      toast.error('Inserisci una materia valida.')
       return
     }
     if (!dateValue) {
-      setRescheduleError('Inserisci una data valida.')
+      toast.error('Inserisci una data valida.')
       return
     }
     setIsRescheduling(true)
-    setRescheduleError(null)
-    setActionError(null)
-    setActionMessage(null)
 
     try {
       const payload = {
@@ -734,11 +667,11 @@ export default function AdminLessonsPage() {
         throw new Error(message)
       }
 
-      setActionMessage('Lezione riprogrammata.')
+      toast.success('Lezione riprogrammata.')
       setRescheduleTarget(null)
       await loadLessons()
     } catch (err) {
-      setRescheduleError(
+      toast.error(
         err instanceof Error
           ? err.message
           : 'Impossibile riprogrammare la lezione.'
@@ -790,9 +723,6 @@ export default function AdminLessonsPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                {!tutorsLoading && tutorsError && (
-                  <p className='text-xs text-muted-foreground'>{tutorsError}</p>
-                )}
               </Field>
               <Field className='gap-2'>
                 <FieldLabel>Materia</FieldLabel>
@@ -821,11 +751,6 @@ export default function AdminLessonsPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                {!subjectsLoading && subjectsError && (
-                  <p className='text-xs text-muted-foreground'>
-                    {subjectsError}
-                  </p>
-                )}
               </Field>
               <Field className='gap-2'>
                 <FieldLabel>Stato</FieldLabel>
@@ -934,7 +859,9 @@ export default function AdminLessonsPage() {
                   <TableHead>Materia</TableHead>
                   <TableHead>Posti</TableHead>
                   <TableHead>Stato</TableHead>
-                  <TableHead></TableHead>
+                  <TableHead className='w-16'>
+                    <span className='sr-only'>Azioni</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -969,45 +896,33 @@ export default function AdminLessonsPage() {
                             {formatStatusLabel(lesson.status)}
                           </Badge>
                         </TableCell>
-                        <TableCell className='text-right'>
-                          <DropdownMenu
-                            open={openMenuId === lesson.id}
-                            onOpenChange={(open) =>
-                              setOpenMenuId(open ? lesson.id : null)
-                            }
-                          >
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant='ghost'
-                                size='icon'
-                                aria-label='Azioni'
-                                className='h-6 w-6 p-0'
+                        <TableCell className='w-16 text-right'>
+                          <div className='flex items-center justify-end gap-1'>
+                            <Button
+                              asChild
+                              variant='ghost'
+                              size='icon'
+                              aria-label='Apri dettagli lezione'
+                              className='h-6 w-6 p-0'
+                            >
+                              <Link href={`/admin/lessons/${lesson.id}`}>
+                                <ExternalLink className='h-4 w-4' />
+                              </Link>
+                            </Button>
+                            <Button
+                              asChild
+                              variant='ghost'
+                              size='icon'
+                              aria-label='Gestione feedback lezione'
+                              className='h-6 w-6 p-0'
+                            >
+                              <Link
+                                href={`/admin/feedback?feedbackLesson=${lesson.id}`}
                               >
-                                <MoreHorizontal className='h-4 w-4' />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align='end'>
-                              <DropdownMenuItem asChild>
-                                <Link href={`/admin/lessons/${lesson.id}`}>
-                                  Dettagli
-                                </Link>
-                              </DropdownMenuItem>
-                              {!isCanceledStatus(lesson.status) && (
-                                <DropdownMenuItem
-                                  onSelect={() => openRescheduleDialog(lesson)}
-                                >
-                                  Riprogramma
-                                </DropdownMenuItem>
-                              )}
-                              {!isCanceledStatus(lesson.status) && (
-                                <DropdownMenuItem
-                                  onSelect={() => openCancelDialog(lesson)}
-                                >
-                                  Annulla
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                                <MessageSquare className='h-4 w-4' />
+                              </Link>
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     )
@@ -1057,17 +972,6 @@ export default function AdminLessonsPage() {
             </div>
           </div>
 
-          {(actionMessage || actionError || error) && (
-            <div className='mt-4 space-y-2'>
-              {actionMessage && (
-                <p className='text-sm text-emerald-600'>{actionMessage}</p>
-              )}
-              {actionError && (
-                <p className='text-sm text-destructive'>{actionError}</p>
-              )}
-              {error && <p className='text-sm text-destructive'>{error}</p>}
-            </div>
-          )}
         </div>
       </div>
 
@@ -1138,7 +1042,6 @@ export default function AdminLessonsPage() {
         onOpenChange={(open) => {
           if (!open) {
             setRescheduleTarget(null)
-            setRescheduleError(null)
           }
         }}
       >
@@ -1227,11 +1130,6 @@ export default function AdminLessonsPage() {
                 </Button>
               </Field>
             </div>
-            {rescheduleError && (
-              <div className='rounded-md border border-destructive/50 bg-destructive/10 p-3'>
-                <p className='text-sm text-destructive'>{rescheduleError}</p>
-              </div>
-            )}
           </div>
           <AlertDialogFooter className='pt-2 sm:pt-0'>
             <AlertDialogCancel>Chiudi</AlertDialogCancel>

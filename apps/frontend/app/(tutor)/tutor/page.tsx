@@ -6,8 +6,6 @@ import { BookOpen, Calendar, ChevronRight } from 'lucide-react'
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
   CardTitle
 } from '@/components/ui/card'
 import { useSession } from '@/lib/use-session'
@@ -26,62 +24,40 @@ export default function TutorPage() {
             Gestisci le tue lezioni da questa pagina.
           </p>
 
-          <div className='grid gap-6 md:grid-cols-2'>
-            <Link
-              href='/tutor/settings/availability'
-              className='group block transition-transform hover:scale-[1.02]'
-            >
-              <Card className='h-full border-2 group-hover:border-primary transition-colors'>
-                <CardHeader>
-                  <div className='flex items-start justify-between'>
+          <div className='grid gap-4 sm:gap-6 md:grid-cols-2'>
+            <Link href='/tutor/settings/availability' className='group block'>
+              <Card className='border py-4 sm:py-6'>
+                <CardContent>
+                  <div className='flex items-center justify-between'>
                     <div className='flex items-center gap-3'>
                       <div className='rounded-lg bg-primary/10 p-2.5'>
-                        <Calendar className='h-5 w-5 text-primary' />
+                        <Calendar className='h-4 w-4 text-primary' />
                       </div>
                       <div>
-                        <CardTitle className='text-lg'>Disponibilità</CardTitle>
+                        <CardTitle className='text-md'>Disponibilità</CardTitle>
                       </div>
                     </div>
-                    <ChevronRight className='h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors' />
+                    <ChevronRight className='h-5 w-5 text-muted-foreground' />
                   </div>
-                  <CardDescription className='mt-2'>
-                    Aggiorna i giorni di disponibilità
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className='text-sm text-muted-foreground'>
-                    Seleziona i giorni della settimana in cui sei disponibile
-                    per tenere lezioni. Le lezioni si svolgono sempre dalle
-                    15:00 alle 16:00.
-                  </p>
                 </CardContent>
               </Card>
             </Link>
-            <Link
-              href='/tutor/settings/'
-              className='group block transition-transform hover:scale-[1.02]'
-            >
-              <Card className='h-full border-2 group-hover:border-primary transition-colors'>
-                <CardHeader>
-                  <div className='flex items-start justify-between'>
+            <Link href='/tutor/settings/' className='group block'>
+              <Card className='border py-4 sm:py-6'>
+                <CardContent>
+                  <div className='flex items-center justify-between'>
                     <div className='flex items-center gap-3'>
                       <div className='rounded-lg bg-primary/10 p-2.5'>
-                        <BookOpen className='h-5 w-5 text-primary' />
+                        <BookOpen className='h-4 w-4 text-primary' />
                       </div>
                       <div>
-                        <CardTitle className='text-lg'>
+                        <CardTitle className='text-md'>
                           Storico lezioni
                         </CardTitle>
                       </div>
                     </div>
-                    <ChevronRight className='h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors' />
+                    <ChevronRight className='h-5 w-5 text-muted-foreground' />
                   </div>
-                  <CardDescription className='mt-2'>
-                    Visualizza il tuo storico lezioni
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className='text-sm text-muted-foreground'></p>
                 </CardContent>
               </Card>
             </Link>

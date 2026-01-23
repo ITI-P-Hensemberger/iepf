@@ -7,6 +7,7 @@ import * as z from 'zod'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
@@ -44,7 +45,6 @@ export default function ResetPasswordPage() {
   const token = searchParams.get('token')
   const hasToken = Boolean(token)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [submitError, setSubmitError] = React.useState<string | null>(null)
   const [isSuccess, setIsSuccess] = React.useState(false)
 
   const form = useForm<ResetFormValues>({
@@ -57,18 +57,17 @@ export default function ResetPasswordPage() {
 
   React.useEffect(() => {
     if (!hasToken) {
-      setSubmitError('Token mancante o non valido.')
+      toast.error('Token mancante o non valido.')
     }
   }, [hasToken])
 
   async function onSubmit(values: ResetFormValues) {
     if (!token) {
-      setSubmitError('Token mancante o non valido.')
+      toast.error('Token mancante o non valido.')
       return
     }
 
     setIsSubmitting(true)
-    setSubmitError(null)
 
     try {
       const response = await fetch('/api/auth/password/reset/confirm', {
@@ -93,7 +92,7 @@ export default function ResetPasswordPage() {
       setIsSuccess(true)
       form.reset()
     } catch (err) {
-      setSubmitError(
+      toast.error(
         err instanceof Error
           ? err.message
           : 'Reset della password non riuscito.'
@@ -179,9 +178,6 @@ export default function ResetPasswordPage() {
                       )}
                     </Field>
                   </FieldGroup>
-                  {submitError && (
-                    <p className='text-sm text-destructive'>{submitError}</p>
-                  )}
                 </form>
               )}
             </CardContent>

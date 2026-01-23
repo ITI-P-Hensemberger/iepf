@@ -1,10 +1,12 @@
 'use client'
 
 import * as React from 'react'
+import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -102,11 +104,8 @@ export default function AdminTutorDetailPage() {
 
   const [tutor, setTutor] = React.useState<Tutor | null>(null)
   const [sections, setSections] = React.useState<Section[]>([])
-  const [sectionsError, setSectionsError] = React.useState<string | null>(null)
   const [isLoading, setIsLoading] = React.useState(true)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [submitError, setSubmitError] = React.useState<string | null>(null)
-  const [isSuccess, setIsSuccess] = React.useState(false)
   const [showEmailAlert, setShowEmailAlert] = React.useState(false)
   const [pendingValues, setPendingValues] =
     React.useState<TutorFormValues | null>(null)
@@ -140,8 +139,6 @@ export default function AdminTutorDetailPage() {
 
     async function loadTutor() {
       setIsLoading(true)
-      setSubmitError(null)
-      setIsSuccess(false)
 
       try {
         const response = await fetch(`/api/users/${tutorId}`)
@@ -162,7 +159,7 @@ export default function AdminTutorDetailPage() {
         }
       } catch (err) {
         if (isMounted) {
-          setSubmitError(
+          toast.error(
             err instanceof Error
               ? err.message
               : 'Impossibile recuperare il tutor.'
@@ -176,7 +173,6 @@ export default function AdminTutorDetailPage() {
     }
 
     async function loadSections() {
-      setSectionsError(null)
       try {
         const response = await fetch('/api/class-sections')
         if (!response.ok) {
@@ -189,7 +185,7 @@ export default function AdminTutorDetailPage() {
         }
       } catch (err) {
         if (isMounted) {
-          setSectionsError(
+          toast.error(
             err instanceof Error
               ? err.message
               : 'Impossibile recuperare le sezioni.'
@@ -286,7 +282,7 @@ export default function AdminTutorDetailPage() {
         throw new Error(message)
       }
 
-      setIsSuccess(true)
+      toast.success('Tutor aggiornato con successo.')
       setTutor((prev) =>
         prev
           ? {
@@ -302,7 +298,7 @@ export default function AdminTutorDetailPage() {
       )
       form.reset(values)
     } catch (err) {
-      setSubmitError(
+      toast.error(
         err instanceof Error ? err.message : 'Impossibile aggiornare il tutor.'
       )
     } finally {
@@ -311,11 +307,8 @@ export default function AdminTutorDetailPage() {
   }
 
   async function onSubmit(values: TutorFormValues) {
-    setSubmitError(null)
-    setIsSuccess(false)
-
     if (!form.formState.isDirty) {
-      setSubmitError('Nessuna modifica da salvare.')
+      toast.error('Nessuna modifica da salvare.')
       return
     }
 
@@ -333,7 +326,6 @@ export default function AdminTutorDetailPage() {
       return
     }
     setIsDeleting(true)
-    setSubmitError(null)
     try {
       const response = await fetch(`/api/users/${tutorId}`, {
         method: 'DELETE'
@@ -350,7 +342,7 @@ export default function AdminTutorDetailPage() {
       }
       router.push('/admin/tutors')
     } catch (err) {
-      setSubmitError(
+      toast.error(
         err instanceof Error ? err.message : 'Impossibile eliminare il tutor.'
       )
     } finally {
@@ -370,12 +362,21 @@ export default function AdminTutorDetailPage() {
                 Gestisci i dati del tutor.
               </p>
             </div>
-            <Button
-              variant='outline'
-              onClick={() => router.push('/admin/tutors')}
-            >
-              Torna ai tutor
-            </Button>
+            <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+              <Button asChild variant='outline'>
+                <Link
+                  href={`/admin/feedback?feedbackAuthor=${tutorId}&feedbackRole=tutor`}
+                >
+                  Feedback
+                </Link>
+              </Button>
+              <Button
+                variant='outline'
+                onClick={() => router.push('/admin/tutors')}
+              >
+                Torna ai tutor
+              </Button>
+            </div>
           </div>
           <Card className='mt-6'>
             <CardContent className='pt-6'>
@@ -606,11 +607,6 @@ export default function AdminTutorDetailPage() {
                           {fieldState.invalid && (
                             <FieldError errors={[fieldState.error]} />
                           )}
-                          {sectionsError && (
-                            <p className='text-sm text-destructive'>
-                              {sectionsError}
-                            </p>
-                          )}
                         </Field>
                       )}
                     />
@@ -633,14 +629,6 @@ export default function AdminTutorDetailPage() {
                       )}
                     />
                   </FieldGroup>
-                  {submitError && (
-                    <p className='text-sm text-destructive'>{submitError}</p>
-                  )}
-                  {isSuccess && (
-                    <p className='text-sm text-emerald-600'>
-                      Tutor aggiornato con successo.
-                    </p>
-                  )}
                   <Accordion type='single' collapsible className='w-full'>
                     <AccordionItem value='tech-details'>
                       <AccordionTrigger>Dettagli tecnici</AccordionTrigger>

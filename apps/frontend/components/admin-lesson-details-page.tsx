@@ -3,7 +3,12 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { CalendarIcon, MoreHorizontal } from 'lucide-react'
+import {
+  CalendarIcon,
+  ExternalLink,
+  MessageSquare,
+  MoreHorizontal
+} from 'lucide-react'
 
 import {
   AlertDialog,
@@ -22,7 +27,6 @@ import { Calendar } from '@/components/ui/calendar'
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle
 } from '@/components/ui/card'
@@ -52,6 +56,7 @@ import {
 } from '@/components/ui/table'
 
 import { format } from 'date-fns'
+import { toast } from 'sonner'
 
 import { formatItalianDate } from '@/lib/format-date'
 
@@ -300,12 +305,10 @@ export default function AdminLessonDetailsPage() {
   const lessonId = params?.id as string
 
   const [lesson, setLesson] = React.useState<Lesson | null>(null)
-  const [lessonError, setLessonError] = React.useState<string | null>(null)
   const [lessonLoading, setLessonLoading] = React.useState(true)
 
   const [bookings, setBookings] = React.useState<Booking[]>([])
   const [bookingsLoading, setBookingsLoading] = React.useState(true)
-  const [bookingsError, setBookingsError] = React.useState<string | null>(null)
   const [bookingFilter, setBookingFilter] = React.useState<
     'confirmed' | 'canceled' | 'all'
   >('all')
@@ -317,9 +320,6 @@ export default function AdminLessonDetailsPage() {
   const [studentMap, setStudentMap] = React.useState<Map<string, Student>>(
     () => new Map()
   )
-
-  const [actionMessage, setActionMessage] = React.useState<string | null>(null)
-  const [actionError, setActionError] = React.useState<string | null>(null)
 
   const [selectedBooking, setSelectedBooking] = React.useState<Booking | null>(
     null
@@ -348,6 +348,11 @@ export default function AdminLessonDetailsPage() {
   const [isUpdatingLessonCounts, setIsUpdatingLessonCounts] =
     React.useState(false)
 
+  const [cancelLessonOpen, setCancelLessonOpen] = React.useState(false)
+  const [cancelLessonCountsForTutor, setCancelLessonCountsForTutor] =
+    React.useState(false)
+  const [isCancellingLesson, setIsCancellingLesson] = React.useState(false)
+
   const [isRescheduleOpen, setIsRescheduleOpen] = React.useState(false)
   const [isRescheduleDateOpen, setIsRescheduleDateOpen] = React.useState(false)
   const [rescheduleForm, setRescheduleForm] = React.useState({
@@ -356,9 +361,6 @@ export default function AdminLessonDetailsPage() {
     date: undefined as Date | undefined,
     time: '15:00'
   })
-  const [rescheduleError, setRescheduleError] = React.useState<string | null>(
-    null
-  )
   const [isRescheduling, setIsRescheduling] = React.useState(false)
   const [rescheduleTutors, setRescheduleTutors] = React.useState<Tutor[]>([])
   const [rescheduleSubjects, setRescheduleSubjects] = React.useState<Subject[]>(
@@ -371,7 +373,6 @@ export default function AdminLessonDetailsPage() {
 
   const loadLesson = React.useCallback(async () => {
     setLessonLoading(true)
-    setLessonError(null)
     try {
       const response = await fetch(`/api/lessons/${lessonId}`)
       if (!response.ok) {
@@ -380,7 +381,7 @@ export default function AdminLessonDetailsPage() {
       const payload = await response.json()
       setLesson(payload as Lesson)
     } catch (err) {
-      setLessonError(
+      toast.error(
         err instanceof Error ? err.message : 'Impossibile caricare la lezione.'
       )
     } finally {
@@ -390,7 +391,6 @@ export default function AdminLessonDetailsPage() {
 
   const loadBookings = React.useCallback(async () => {
     setBookingsLoading(true)
-    setBookingsError(null)
     try {
       const response = await fetch(`/api/lessons/${lessonId}/bookings`)
       if (!response.ok) {
@@ -400,7 +400,7 @@ export default function AdminLessonDetailsPage() {
       const { items } = normalizePaged<Booking>(payload)
       setBookings(items)
     } catch (err) {
-      setBookingsError(
+      toast.error(
         err instanceof Error
           ? err.message
           : 'Impossibile caricare le prenotazioni.'
@@ -563,8 +563,6 @@ export default function AdminLessonDetailsPage() {
     }
 
     setIsUpdatingPresence(true)
-    setActionMessage(null)
-    setActionError(null)
 
     try {
       const response = await fetch(
@@ -587,13 +585,13 @@ export default function AdminLessonDetailsPage() {
         }
         throw new Error(message)
       }
-      setActionMessage('Presenza aggiornata.')
+      toast.success('Presenza aggiornata.')
       setPresenceTarget(null)
       setPresenceValue(null)
       await loadBookings()
       await loadLesson()
     } catch (err) {
-      setActionError(
+      toast.error(
         err instanceof Error
           ? err.message
           : 'Impossibile aggiornare la presenza.'
@@ -610,13 +608,11 @@ export default function AdminLessonDetailsPage() {
 
     const nextTopic = topicValue.trim()
     if (!nextTopic) {
-      setActionError('Inserisci un topic valido.')
+      toast.error('Inserisci un topic valido.')
       return
     }
 
     setIsUpdatingTopic(true)
-    setActionMessage(null)
-    setActionError(null)
 
     try {
       const response = await fetch(
@@ -639,13 +635,13 @@ export default function AdminLessonDetailsPage() {
         }
         throw new Error(message)
       }
-      setActionMessage('Topic aggiornato.')
+      toast.success('Topic aggiornato.')
       setTopicTarget(null)
       setTopicValue('')
       await loadBookings()
       await loadLesson()
     } catch (err) {
-      setActionError(
+      toast.error(
         err instanceof Error ? err.message : 'Impossibile aggiornare il topic.'
       )
     } finally {
@@ -659,8 +655,6 @@ export default function AdminLessonDetailsPage() {
     }
 
     setIsCanceling(true)
-    setActionMessage(null)
-    setActionError(null)
 
     try {
       const response = await fetch(
@@ -683,12 +677,12 @@ export default function AdminLessonDetailsPage() {
         }
         throw new Error(message)
       }
-      setActionMessage('Prenotazione annullata.')
+      toast.success('Prenotazione annullata.')
       setCancelTarget(null)
       await loadBookings()
       await loadLesson()
     } catch (err) {
-      setActionError(
+      toast.error(
         err instanceof Error
           ? err.message
           : 'Impossibile annullare la prenotazione.'
@@ -719,8 +713,6 @@ export default function AdminLessonDetailsPage() {
     }
 
     setIsUpdatingCounts(true)
-    setActionMessage(null)
-    setActionError(null)
 
     try {
       const response = await fetch(
@@ -743,12 +735,12 @@ export default function AdminLessonDetailsPage() {
         }
         throw new Error(message)
       }
-      setActionMessage('Conteggio aggiornato.')
+      toast.success('Conteggio aggiornato.')
       setCountsTarget(null)
       await loadBookings()
       await loadLesson()
     } catch (err) {
-      setActionError(
+      toast.error(
         err instanceof Error
           ? err.message
           : 'Impossibile aggiornare il conteggio.'
@@ -758,14 +750,52 @@ export default function AdminLessonDetailsPage() {
     }
   }, [countsTarget, countsValue, lessonId, loadBookings, loadLesson])
 
+  const handleCancelLesson = React.useCallback(async () => {
+    if (!lesson) {
+      return
+    }
+
+    setIsCancellingLesson(true)
+
+    try {
+      const response = await fetch(`/api/lessons/${lesson.id}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          countsForTutor: cancelLessonCountsForTutor
+        })
+      })
+      if (!response.ok) {
+        let message = 'Impossibile annullare la lezione.'
+        try {
+          const payload = await response.json()
+          message = extractErrorMessage(payload, message)
+        } catch {
+          // ignore
+        }
+        throw new Error(message)
+      }
+      toast.success('Lezione annullata.')
+      setCancelLessonOpen(false)
+      await loadLesson()
+      await loadBookings()
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Impossibile annullare la lezione.'
+      )
+    } finally {
+      setIsCancellingLesson(false)
+    }
+  }, [cancelLessonCountsForTutor, lesson, loadBookings, loadLesson])
+
   const handleUpdateLessonCounts = React.useCallback(async () => {
     if (!lesson) {
       return
     }
 
     setIsUpdatingLessonCounts(true)
-    setActionMessage(null)
-    setActionError(null)
 
     try {
       const response = await fetch(`/api/lessons/${lesson.id}/counts`, {
@@ -785,11 +815,11 @@ export default function AdminLessonDetailsPage() {
         }
         throw new Error(message)
       }
-      setActionMessage('Conteggio tutor aggiornato.')
+      toast.success('Conteggio tutor aggiornato.')
       setLessonCountsOpen(false)
       await loadLesson()
     } catch (err) {
-      setActionError(
+      toast.error(
         err instanceof Error
           ? err.message
           : 'Impossibile aggiornare il conteggio tutor.'
@@ -814,7 +844,6 @@ export default function AdminLessonDetailsPage() {
       date: new Date(lesson.startAt),
       time: timeValue
     })
-    setRescheduleError(null)
     void loadRescheduleLists()
     setIsRescheduleOpen(true)
   }, [lesson, loadRescheduleLists])
@@ -823,17 +852,16 @@ export default function AdminLessonDetailsPage() {
     if (!lesson) {
       return
     }
-    setRescheduleError(null)
     if (!rescheduleForm.tutorId.trim()) {
-      setRescheduleError('Seleziona un tutor valido.')
+      toast.error('Seleziona un tutor valido.')
       return
     }
     if (!rescheduleForm.subjectId.trim()) {
-      setRescheduleError('Seleziona una materia valida.')
+      toast.error('Seleziona una materia valida.')
       return
     }
     if (!rescheduleForm.date) {
-      setRescheduleError('Inserisci una data valida.')
+      toast.error('Inserisci una data valida.')
       return
     }
     const timeValue = AVAILABLE_TIMES.includes(rescheduleForm.time)
@@ -845,8 +873,6 @@ export default function AdminLessonDetailsPage() {
     ).toISOString()
 
     setIsRescheduling(true)
-    setActionMessage(null)
-    setActionError(null)
 
     try {
       const response = await fetch(`/api/lessons/${lesson.id}/reschedule`, {
@@ -871,12 +897,12 @@ export default function AdminLessonDetailsPage() {
         }
         throw new Error(message)
       }
-      setActionMessage('Lezione riprogrammata.')
+      toast.success('Lezione riprogrammata.')
       setIsRescheduleOpen(false)
       await loadLesson()
       await loadBookings()
     } catch (err) {
-      setRescheduleError(
+      toast.error(
         err instanceof Error
           ? err.message
           : 'Impossibile riprogrammare la lezione.'
@@ -941,6 +967,19 @@ export default function AdminLessonDetailsPage() {
                   >
                     Modifica conteggio tutor
                   </Button>
+                  <Button
+                    variant='destructive'
+                    size='sm'
+                    onClick={() => {
+                      setCancelLessonCountsForTutor(
+                        Boolean(lesson?.countsForTutor)
+                      )
+                      setCancelLessonOpen(true)
+                    }}
+                    disabled={!lesson || isCanceledStatus(lesson?.status)}
+                  >
+                    Annulla lezione
+                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -958,9 +997,23 @@ export default function AdminLessonDetailsPage() {
                   <div>
                     <p className='text-xs text-muted-foreground'>Tutor</p>
                     <p className='text-sm'>
-                      {tutorLoading
-                        ? 'Caricamento...'
-                        : (tutorLabel(tutor) ?? '-')}
+                      {tutorLoading ? (
+                        'Caricamento...'
+                      ) : tutor ? (
+                        <Link
+                          className='inline-flex items-center gap-1 text-primary hover:underline'
+                          href={`/admin/tutors/${tutor.id}`}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          title='Apri il profilo tutor in una nuova scheda'
+                        >
+                          <span>{tutorLabel(tutor) ?? '-'}</span>
+                          <ExternalLink className='h-4 w-4 shrink-0' />
+                          <span className='sr-only'>Apri in nuova scheda</span>
+                        </Link>
+                      ) : (
+                        '-'
+                      )}
                     </p>
                   </div>
                   <div>
@@ -1002,22 +1055,28 @@ export default function AdminLessonDetailsPage() {
                     </Badge>
                   </div>
                 </div>
-              ) : (
-                <p className='text-sm text-destructive'>
-                  {lessonError ?? 'Lezione non trovata.'}
-                </p>
-              )}
+              ) : null}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Prenotazioni</CardTitle>
-              <CardDescription>
-                {bookingsLoading
-                  ? 'Caricamento prenotazioni...'
-                  : `Totale ${bookings.length} prenotazioni`}
-              </CardDescription>
+              <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                <div>
+                  <CardTitle>Prenotazioni</CardTitle>
+                  <span className='text-sm text-muted-foreground'>
+                    {bookingsLoading
+                      ? 'Caricamento prenotazioni...'
+                      : `Totale ${bookings.length} prenotazioni`}
+                  </span>
+                </div>
+                <Button asChild variant='outline' size='sm' disabled={!lesson}>
+                  <Link href={`/admin/feedback?feedbackLesson=${lesson?.id}`}>
+                    <MessageSquare className='mr-2 h-4 w-4' />
+                    Feedback
+                  </Link>
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className='mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
@@ -1078,7 +1137,19 @@ export default function AdminLessonDetailsPage() {
                             <TableCell>
                               {student ? (
                                 <div className='flex flex-col'>
-                                  <span>{studentLabel(student)}</span>
+                                  <Link
+                                    className='inline-flex items-center gap-1 text-primary hover:underline'
+                                    href={`/admin/students/${student.id}`}
+                                    target='_blank'
+                                    rel='noopener noreferrer'
+                                    title='Apri il profilo studente in una nuova scheda'
+                                  >
+                                    <span>{studentLabel(student)}</span>
+                                    <ExternalLink className='h-4 w-4 shrink-0' />
+                                    <span className='sr-only'>
+                                      Apri in nuova scheda
+                                    </span>
+                                  </Link>
                                   {studentClassLabel(student) && (
                                     <span className='text-xs text-muted-foreground'>
                                       {studentClassLabel(student)}
@@ -1129,15 +1200,6 @@ export default function AdminLessonDetailsPage() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align='end'>
-                                  <DropdownMenuItem asChild>
-                                    <a
-                                      href={`/admin/students/${booking.studentId}`}
-                                      target='_blank'
-                                      rel='noreferrer'
-                                    >
-                                      Apri profilo studente
-                                    </a>
-                                  </DropdownMenuItem>
                                   {!isCanceledBooking(booking.status) &&
                                     !isCanceledStatus(lesson?.status) && (
                                       <DropdownMenuItem
@@ -1203,19 +1265,6 @@ export default function AdminLessonDetailsPage() {
                   </TableBody>
                 </Table>
               </div>
-              {bookingsError && (
-                <p className='mt-3 text-sm text-destructive'>{bookingsError}</p>
-              )}
-              {(actionMessage || actionError) && (
-                <div className='mt-3 space-y-1'>
-                  {actionMessage && (
-                    <p className='text-sm text-emerald-600'>{actionMessage}</p>
-                  )}
-                  {actionError && (
-                    <p className='text-sm text-destructive'>{actionError}</p>
-                  )}
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>
@@ -1305,6 +1354,24 @@ export default function AdminLessonDetailsPage() {
               Confermi l&apos;annullamento della prenotazione selezionata?
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {cancelTarget && (
+            <div className='rounded-md border p-3 text-sm text-muted-foreground space-y-1'>
+              <div>
+                Studente:{' '}
+                {studentMap.get(cancelTarget.studentId)
+                  ? studentLabel(studentMap.get(cancelTarget.studentId)!)
+                  : 'Caricamento...'}
+              </div>
+              <div>
+                Lezione:{' '}
+                {lesson ? formatItalianDate(lesson.startAt) : 'Caricamento...'}
+              </div>
+              <div>Tutor: {tutorLabel(tutor) ?? '-'}</div>
+              <div>Materia: {subject?.name ?? '-'}</div>
+              <div>Topic: {cancelTarget.topic || '-'}</div>
+              <div>Stato: {formatBookingStatus(cancelTarget.status)}</div>
+            </div>
+          )}
           <div className='flex items-center gap-3'>
             <Checkbox
               id='cancel-counts-student'
@@ -1327,6 +1394,57 @@ export default function AdminLessonDetailsPage() {
               disabled={isCanceling}
             >
               {isCanceling ? 'Annullamento...' : 'Conferma'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={cancelLessonOpen}
+        onOpenChange={(open) => {
+          setCancelLessonOpen(open)
+        }}
+      >
+        <AlertDialogContent className='max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] overflow-y-auto sm:max-w-lg'>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Annulla lezione</AlertDialogTitle>
+            <AlertDialogDescription>
+              Confermi l&apos;annullamento della lezione selezionata?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {lesson && (
+            <div className='rounded-md border p-3 text-sm text-muted-foreground space-y-1'>
+              <div>Data: {formatItalianDate(lesson.startAt)}</div>
+              <div>Tutor: {tutorLabel(tutor) ?? '-'}</div>
+              <div>Materia: {subject?.name ?? '-'}</div>
+              <div>
+                Posti occupati: {lessonOccupiedSeats(lesson)}/
+                {lesson.lessonCapacity}
+              </div>
+            </div>
+          )}
+          <div className='flex items-center gap-3'>
+            <Checkbox
+              id='cancel-lesson-counts-tutor'
+              checked={cancelLessonCountsForTutor}
+              onCheckedChange={(value) =>
+                setCancelLessonCountsForTutor(Boolean(value))
+              }
+            />
+            <Label htmlFor='cancel-lesson-counts-tutor'>
+              Conteggia per il tutor
+            </Label>
+          </div>
+          <AlertDialogFooter className='pt-2 sm:pt-0'>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault()
+                void handleCancelLesson()
+              }}
+              disabled={isCancellingLesson}
+            >
+              {isCancellingLesson ? 'Annullamento...' : 'Conferma'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1413,9 +1531,6 @@ export default function AdminLessonDetailsPage() {
       <AlertDialog
         open={isRescheduleOpen}
         onOpenChange={(open) => {
-          if (!open) {
-            setRescheduleError(null)
-          }
           setIsRescheduleOpen(open)
         }}
       >
@@ -1508,11 +1623,6 @@ export default function AdminLessonDetailsPage() {
                 </Button>
               </Field>
             </div>
-            {rescheduleError && (
-              <div className='rounded-md border border-destructive/50 bg-destructive/10 p-3'>
-                <p className='text-sm text-destructive'>{rescheduleError}</p>
-              </div>
-            )}
           </div>
           <AlertDialogFooter className='pt-2 sm:pt-0'>
             <AlertDialogCancel>Chiudi</AlertDialogCancel>

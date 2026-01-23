@@ -4,6 +4,7 @@ import * as React from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
@@ -79,7 +80,6 @@ export function AdminRegistrationForm({
   const [showPassword, setShowPassword] = React.useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [submitError, setSubmitError] = React.useState<string | null>(null)
   const [isSuccess, setIsSuccess] = React.useState(false)
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -96,7 +96,6 @@ export function AdminRegistrationForm({
 
   async function onSubmit(data: z.infer<typeof formSchema>) {
     setIsSubmitting(true)
-    setSubmitError(null)
 
     try {
       const normalizedFirstName = normalizeName(data.first_name)
@@ -127,9 +126,7 @@ export function AdminRegistrationForm({
       setIsSuccess(true)
       onSuccess?.()
     } catch (err) {
-      setSubmitError(
-        err instanceof Error ? err.message : 'Registrazione fallita.'
-      )
+      toast.error(err instanceof Error ? err.message : 'Registrazione fallita.')
     } finally {
       setIsSubmitting(false)
     }
@@ -364,11 +361,7 @@ export function AdminRegistrationForm({
           >
             {isSubmitting ? 'Invio...' : 'Completa registrazione'}
           </Button>
-          {submitError ? (
-            <p className='text-destructive text-sm'>{submitError}</p>
-          ) : (
-            <span />
-          )}
+          <span />
         </div>
       </CardFooter>
     </Card>

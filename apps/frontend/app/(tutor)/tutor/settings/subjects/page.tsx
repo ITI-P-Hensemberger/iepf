@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { ChevronLeft } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
@@ -32,8 +33,6 @@ export default function TutorSubjectsSettingsPage() {
   const [originalSubjects, setOriginalSubjects] = React.useState<string[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [submitErrors, setSubmitErrors] = React.useState<string[]>([])
-  const [isSuccess, setIsSuccess] = React.useState(false)
 
   const form = useForm<SubjectsFormValues>({
     resolver: zodResolver(subjectsSchema),
@@ -73,6 +72,9 @@ export default function TutorSubjectsSettingsPage() {
         }
       } catch (err) {
         console.error('Error fetching subjects:', err)
+        toast.error(
+          err instanceof Error ? err.message : 'Impossibile caricare le materie.'
+        )
       } finally {
         if (isMounted) {
           setIsLoading(false)
@@ -91,8 +93,6 @@ export default function TutorSubjectsSettingsPage() {
     if (!tutorId) return
 
     setIsSubmitting(true)
-    setSubmitErrors([])
-    setIsSuccess(false)
 
     const toAdd = values.subjectIds.filter(
       (id) => !originalSubjects.includes(id)
@@ -147,12 +147,14 @@ export default function TutorSubjectsSettingsPage() {
       form.reset({ subjectIds })
 
       if (errors.length > 0) {
-        setSubmitErrors(errors)
+        toast.error(
+          `Alcune operazioni non sono riuscite:\n${errors.join('\n')}`
+        )
       } else {
-        setIsSuccess(true)
+        toast.success('Materie aggiornate con successo.')
       }
     } catch {
-      setSubmitErrors(['Impossibile aggiornare le materie. Riprova.'])
+      toast.error('Impossibile aggiornare le materie. Riprova.')
     } finally {
       setIsSubmitting(false)
     }
@@ -197,28 +199,6 @@ export default function TutorSubjectsSettingsPage() {
               </p>
             )}
 
-            {submitErrors.length > 0 && (
-              <div className='mt-4 rounded-md border border-destructive/50 bg-destructive/10 p-3'>
-                <p className='text-sm font-medium text-destructive'>
-                  Alcune operazioni non sono riuscite:
-                </p>
-                <ul className='mt-2 list-disc list-inside space-y-1'>
-                  {submitErrors.map((error, i) => (
-                    <li key={i} className='text-sm text-destructive'>
-                      {error}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {isSuccess && (
-              <div className='mt-4 rounded-md border border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950 p-3'>
-                <p className='text-sm text-emerald-600 dark:text-emerald-400'>
-                  Materie aggiornate con successo.
-                </p>
-              </div>
-            )}
           </form>
         </CardContent>
         <CardFooter className='flex justify-end'>

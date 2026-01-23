@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { ChevronLeft } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
@@ -42,8 +43,6 @@ export default function TutorAvailabilitySettingsPage() {
   )
   const [, setIsLoading] = React.useState(true)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [submitError, setSubmitError] = React.useState<string | null>(null)
-  const [isSuccess, setIsSuccess] = React.useState(false)
 
   // Fetch current availability on mount
   React.useEffect(() => {
@@ -72,12 +71,17 @@ export default function TutorAvailabilitySettingsPage() {
         if (isMounted) {
           setInitialWeekdays(availableWeekdays)
         }
-      } catch (err) {
-        console.error('Error fetching availability:', err)
-        if (isMounted) {
-          setInitialWeekdays([])
-        }
-      } finally {
+    } catch (err) {
+      console.error('Error fetching availability:', err)
+      if (isMounted) {
+        setInitialWeekdays([])
+      }
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : 'Impossibile caricare la disponibilità.'
+      )
+    } finally {
         if (isMounted) {
           setIsLoading(false)
         }
@@ -129,10 +133,6 @@ export default function TutorAvailabilitySettingsPage() {
       initialWeekdays={initialWeekdays}
       isSubmitting={isSubmitting}
       setIsSubmitting={setIsSubmitting}
-      submitError={submitError}
-      setSubmitError={setSubmitError}
-      isSuccess={isSuccess}
-      setIsSuccess={setIsSuccess}
       setInitialWeekdays={setInitialWeekdays}
       router={router}
     />
@@ -144,10 +144,6 @@ type AvailabilityFormProps = {
   initialWeekdays: number[]
   isSubmitting: boolean
   setIsSubmitting: React.Dispatch<React.SetStateAction<boolean>>
-  submitError: string | null
-  setSubmitError: React.Dispatch<React.SetStateAction<string | null>>
-  isSuccess: boolean
-  setIsSuccess: React.Dispatch<React.SetStateAction<boolean>>
   setInitialWeekdays: React.Dispatch<React.SetStateAction<number[] | null>>
   router: ReturnType<typeof useRouter>
 }
@@ -157,10 +153,6 @@ function AvailabilityForm({
   initialWeekdays,
   isSubmitting,
   setIsSubmitting,
-  submitError,
-  setSubmitError,
-  isSuccess,
-  setIsSuccess,
   setInitialWeekdays,
   router
 }: AvailabilityFormProps) {
@@ -172,8 +164,6 @@ function AvailabilityForm({
 
   async function onSubmit(values: AvailabilityFormValues) {
     setIsSubmitting(true)
-    setSubmitError(null)
-    setIsSuccess(false)
 
     try {
       // Transform to API format: all weekdays with isAvailable flag
@@ -212,9 +202,9 @@ function AvailabilityForm({
 
       setInitialWeekdays(availableWeekdays)
       form.reset({ weekdays: availableWeekdays })
-      setIsSuccess(true)
+      toast.success('Disponibilità aggiornata con successo.')
     } catch (err) {
-      setSubmitError(
+      toast.error(
         err instanceof Error
           ? err.message
           : 'Impossibile aggiornare la disponibilità. Riprova.'
@@ -259,19 +249,6 @@ function AvailabilityForm({
               </p>
             )}
 
-            {submitError && (
-              <div className='mt-4 rounded-md border border-destructive/50 bg-destructive/10 p-3'>
-                <p className='text-sm text-destructive'>{submitError}</p>
-              </div>
-            )}
-
-            {isSuccess && (
-              <div className='mt-4 rounded-md border border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950 p-3'>
-                <p className='text-sm text-emerald-600 dark:text-emerald-400'>
-                  Disponibilità aggiornata con successo.
-                </p>
-              </div>
-            )}
           </form>
         </CardContent>
         <CardFooter className='flex justify-end'>

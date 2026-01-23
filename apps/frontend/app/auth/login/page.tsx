@@ -5,6 +5,7 @@ import { Suspense } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
+import { toast } from 'sonner'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -41,17 +42,14 @@ function LoginContent() {
   const searchParams = useSearchParams()
   const nextParam = searchParams.get('next')
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [submitError, setSubmitError] = React.useState<string | null>(null)
   const [showPassword, setShowPassword] = React.useState(false)
   const [needsVerification, setNeedsVerification] = React.useState(false)
   const [resendStatus, setResendStatus] = React.useState<
     'idle' | 'loading' | 'success' | 'error'
   >('idle')
-  const [resendMessage, setResendMessage] = React.useState<string | null>(null)
   const [resetStatus, setResetStatus] = React.useState<
     'idle' | 'loading' | 'success' | 'error'
   >('idle')
-  const [resetMessage, setResetMessage] = React.useState<string | null>(null)
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(formSchema),
@@ -64,12 +62,9 @@ function LoginContent() {
 
   async function onSubmit(values: LoginFormValues) {
     setIsSubmitting(true)
-    setSubmitError(null)
     setNeedsVerification(false)
     setResendStatus('idle')
-    setResendMessage(null)
     setResetStatus('idle')
-    setResetMessage(null)
 
     try {
       const response = await fetch('/api/auth/login', {
@@ -84,14 +79,14 @@ function LoginContent() {
         })
       })
 
-      if (!response.ok) {
-        if (response.status === 403) {
-          setNeedsVerification(true)
-          setSubmitError(
-            "Email non verificata. Controlla la tua casella email o invia un'altra email di verifica."
-          )
-          return
-        }
+        if (!response.ok) {
+          if (response.status === 403) {
+            setNeedsVerification(true)
+            toast.error(
+              "Email non verificata. Controlla la tua casella email o invia un'altra email di verifica."
+            )
+            return
+          }
         let message = 'Accesso non riuscito.'
 
         try {
@@ -147,7 +142,7 @@ function LoginContent() {
 
       router.push(payload.isActive === true ? '/student' : '/student/pending')
     } catch (err) {
-      setSubmitError(
+      toast.error(
         err instanceof Error ? err.message : 'Accesso non riuscito.'
       )
     } finally {
@@ -159,12 +154,11 @@ function LoginContent() {
     const email = form.getValues('email')
     if (!email) {
       setResendStatus('error')
-      setResendMessage('Inserisci la tua email per ricevere la verifica.')
+      toast.error('Inserisci la tua email per ricevere la verifica.')
       return
     }
 
     setResendStatus('loading')
-    setResendMessage(null)
 
     try {
       const response = await fetch('/api/auth/verify-email/request', {
@@ -190,12 +184,12 @@ function LoginContent() {
       }
 
       setResendStatus('success')
-      setResendMessage(
+      toast.success(
         'Se l’account esiste, abbiamo inviato una nuova email di verifica.'
       )
     } catch (err) {
       setResendStatus('error')
-      setResendMessage(
+      toast.error(
         err instanceof Error
           ? err.message
           : 'Impossibile inviare la verifica.'
@@ -207,12 +201,11 @@ function LoginContent() {
     const email = form.getValues('email')
     if (!email) {
       setResetStatus('error')
-      setResetMessage('Inserisci la tua email per recuperare la password.')
+      toast.error('Inserisci la tua email per recuperare la password.')
       return
     }
 
     setResetStatus('loading')
-    setResetMessage(null)
 
     try {
       const response = await fetch('/api/auth/password/reset/request', {
@@ -238,12 +231,10 @@ function LoginContent() {
       }
 
       setResetStatus('success')
-      setResetMessage(
-        'Se l’account esiste, abbiamo inviato un link per il reset.'
-      )
+      toast.success('Se l’account esiste, abbiamo inviato un link per il reset.')
     } catch (err) {
       setResetStatus('error')
-      setResetMessage(
+      toast.error(
         err instanceof Error
           ? err.message
           : 'Impossibile inviare il reset della password.'
@@ -349,33 +340,8 @@ function LoginContent() {
                     />
                   </Field>
                 </FieldGroup>
-                {submitError && (
-                  <p className='text-sm text-destructive'>{submitError}</p>
-                )}
-                {resetMessage && (
-                  <p
-                    className={
-                      resetStatus === 'success'
-                        ? 'text-sm text-emerald-600'
-                        : 'text-sm text-destructive'
-                    }
-                  >
-                    {resetMessage}
-                  </p>
-                )}
                 {needsVerification && (
                   <div className='space-y-2'>
-                    {resendMessage && (
-                      <p
-                        className={
-                          resendStatus === 'success'
-                            ? 'text-sm text-emerald-600'
-                            : 'text-sm text-destructive'
-                        }
-                      >
-                        {resendMessage}
-                      </p>
-                    )}
                     <Button
                       type='button'
                       variant='outline'

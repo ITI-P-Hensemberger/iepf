@@ -27,6 +27,9 @@ export default function AdminPage() {
           <Button asChild variant='outline'>
             <Link href='/admin/lessons'>Gestione lezioni</Link>
           </Button>
+          <Button asChild variant='outline'>
+            <Link href='/admin/feedback'>Gestione feedback</Link>
+          </Button>
         </div>
       </div>
     </main>

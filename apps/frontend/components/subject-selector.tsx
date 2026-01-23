@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { BookOpen, Check, Search } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -32,7 +33,6 @@ export function SubjectSelector({
     providedSubjects || []
   )
   const [isLoading, setIsLoading] = React.useState(!providedSubjects)
-  const [error, setError] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState('')
 
   React.useEffect(() => {
@@ -47,7 +47,6 @@ export function SubjectSelector({
 
     async function loadSubjects() {
       setIsLoading(true)
-      setError(null)
 
       try {
         const response = await fetch('/api/subjects')
@@ -61,7 +60,7 @@ export function SubjectSelector({
         }
       } catch (err) {
         if (isMounted) {
-          setError(
+          toast.error(
             err instanceof Error
               ? err.message
               : 'Impossibile caricare le materie.'
@@ -131,13 +130,7 @@ export function SubjectSelector({
         </div>
       )}
 
-      {error && (
-        <div className='rounded-md border border-destructive/50 bg-destructive/10 p-3'>
-          <p className='text-sm text-destructive'>{error}</p>
-        </div>
-      )}
-
-      {!isLoading && !error && (
+      {!isLoading && (
         <>
           {subjects.length > 6 && (
             <div className='relative'>

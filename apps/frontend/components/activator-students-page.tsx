@@ -4,15 +4,23 @@ import * as React from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   type ColumnDef,
-  type SortingState,
   flexRender,
   getCoreRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { ArrowUpDown, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -44,11 +52,8 @@ type User = {
 type DataTableProps<TData> = {
   data: TData[]
   columns: ColumnDef<TData>[]
-  searchPlaceholder: string
   isLoading: boolean
   emptyMessage: string
-  searchKey: string
-  sortKey: string
   pageKey: string
   page: number
   pageSize: number
@@ -109,11 +114,8 @@ function normalizePaged<T>(payload: unknown): { items: T[]; total: number } {
 function DataTable<TData>({
   data,
   columns,
-  searchPlaceholder,
   isLoading,
   emptyMessage,
-  searchKey,
-  sortKey,
   pageKey,
   page,
   pageSize,
@@ -126,112 +128,6 @@ function DataTable<TData>({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const searchParamsString = searchParams.toString()
-
-  const parseSorting = React.useCallback((value: string | null) => {
-    if (!value) {
-      return []
-    }
-    const [id, direction] = value.split(':')
-    if (!id) {
-      return []
-    }
-    return [{ id, desc: direction === 'desc' }]
-  }, [])
-
-  const [sorting, setSorting] = React.useState<SortingState>(() =>
-    parseSorting(searchParams.get(sortKey))
-  )
-  const [globalFilter, setGlobalFilter] = React.useState(
-    () => searchParams.get(searchKey) ?? ''
-  )
-  const [debouncedFilter, setDebouncedFilter] = React.useState(globalFilter)
-  const didInitRef = React.useRef(false)
-  const lastNavigationRef = React.useRef('')
-
-  React.useEffect(() => {
-    const nextFilter = searchParams.get(searchKey) ?? ''
-    setGlobalFilter((prev) => (prev === nextFilter ? prev : nextFilter))
-    const nextSorting = parseSorting(searchParams.get(sortKey))
-    setSorting((prev) => {
-      const currentSort = prev[0]
-      const nextSort = nextSorting[0]
-      const isSameSort =
-        (!currentSort && !nextSort) ||
-        (currentSort &&
-          nextSort &&
-          currentSort.id === nextSort.id &&
-          currentSort.desc === nextSort.desc)
-      return isSameSort ? prev : nextSorting
-    })
-  }, [parseSorting, searchKey, searchParams, sortKey])
-
-  React.useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setDebouncedFilter(globalFilter)
-    }, 300)
-    return () => window.clearTimeout(timeoutId)
-  }, [globalFilter])
-
-  React.useEffect(() => {
-    if (!didInitRef.current) {
-      didInitRef.current = true
-      return
-    }
-
-    const currentFilter = searchParams.get(searchKey) ?? ''
-    const desiredFilter = debouncedFilter
-    const filterChanged = currentFilter !== desiredFilter
-
-    const desiredSort = sorting[0]
-      ? `${sorting[0].id}:${sorting[0].desc ? 'desc' : 'asc'}`
-      : null
-    const currentSort = searchParams.get(sortKey)
-    const sortChanged = desiredSort !== currentSort
-
-    const currentPage = searchParams.get(pageKey) ?? ''
-    const pageChanged =
-      page > 1 ? currentPage !== String(page) : currentPage !== ''
-
-    if (!filterChanged && !sortChanged && !pageChanged) {
-      return
-    }
-
-    const params = new URLSearchParams(searchParamsString)
-    if (desiredFilter) {
-      params.set(searchKey, desiredFilter)
-    } else {
-      params.delete(searchKey)
-    }
-    if (desiredSort) {
-      params.set(sortKey, desiredSort)
-    } else {
-      params.delete(sortKey)
-    }
-    if (page > 1) {
-      params.set(pageKey, String(page))
-    } else {
-      params.delete(pageKey)
-    }
-
-    const nextParams = params.toString()
-    const url = nextParams ? `${pathname}?${nextParams}` : pathname
-    if (lastNavigationRef.current === url) {
-      return
-    }
-    lastNavigationRef.current = url
-    router.replace(url, { scroll: false })
-  }, [
-    debouncedFilter,
-    pathname,
-    page,
-    router,
-    searchKey,
-    searchParams,
-    searchParamsString,
-    sortKey,
-    sorting,
-    pageKey
-  ])
 
   const updatePage = React.useCallback(
     (nextPage: number) => {
@@ -254,28 +150,12 @@ function DataTable<TData>({
   const table = useReactTable({
     data,
     columns,
-    state: {
-      sorting
-    },
-    onSortingChange: setSorting,
-    manualSorting: true,
-    getCoreRowModel: getCoreRowModel(),
-    manualFiltering: true
+    getCoreRowModel: getCoreRowModel()
   })
 
   return (
     <div className='space-y-4'>
-      <div className='flex gap-2 items-center justify-between'>
-        <div className='relative max-w-xs'>
-          <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
-          <Input
-            type='search'
-            placeholder={searchPlaceholder}
-            value={globalFilter}
-            onChange={(event) => setGlobalFilter(event.target.value)}
-            className='pl-9'
-          />
-        </div>
+      <div className='flex gap-2 items-center justify-end'>
         <Button
           variant={tab === 'inactive' ? 'default' : 'destructive'}
           disabled={
@@ -382,19 +262,34 @@ function DataTable<TData>({
   )
 }
 
+type TableFilters = {
+  search: string
+  sortBy: string
+  sortDir: 'asc' | 'desc'
+}
+
+const defaultFilters: TableFilters = {
+  search: '',
+  sortBy: 'lastName',
+  sortDir: 'asc'
+}
+
 export default function ActivatorStudentsPage() {
+  const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
+  const searchParamsString = searchParams.toString()
   const [activeStudents, setActiveStudents] = React.useState<User[]>([])
   const [inactiveStudents, setInactiveStudents] = React.useState<User[]>([])
   const [activeTotal, setActiveTotal] = React.useState(0)
   const [inactiveTotal, setInactiveTotal] = React.useState(0)
   const [activeLoading, setActiveLoading] = React.useState(true)
   const [inactiveLoading, setInactiveLoading] = React.useState(true)
-  const [activeError, setActiveError] = React.useState<string | null>(null)
-  const [inactiveError, setInactiveError] = React.useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [isSuccess, setIsSuccess] = React.useState(false)
-  const [submitError, setSubmitError] = React.useState<string | null>(null)
+  const [activeFilters, setActiveFilters] =
+    React.useState<TableFilters>(defaultFilters)
+  const [inactiveFilters, setInactiveFilters] =
+    React.useState<TableFilters>(defaultFilters)
 
   const parsePage = React.useCallback(
     (key: string) => {
@@ -420,6 +315,96 @@ export default function ActivatorStudentsPage() {
     return { sortBy, sortDir }
   }, [])
 
+  const buildFilters = React.useCallback(
+    (searchKey: string, sortKey: string, pageKey: string) => {
+      const sortParam = parseSortParam(searchParams.get(sortKey))
+      return {
+        search: searchParams.get(searchKey) ?? '',
+        sortBy: sortParam?.sortBy ?? defaultFilters.sortBy,
+        sortDir: sortParam?.sortDir ?? defaultFilters.sortDir,
+        page: parsePage(pageKey)
+      }
+    },
+    [parsePage, parseSortParam, searchParams]
+  )
+
+  const currentActiveFilters = React.useMemo(
+    () => buildFilters('activeSearch', 'activeSort', 'activePage'),
+    [buildFilters]
+  )
+  const currentInactiveFilters = React.useMemo(
+    () => buildFilters('inactiveSearch', 'inactiveSort', 'inactivePage'),
+    [buildFilters]
+  )
+
+  React.useEffect(() => {
+    setActiveFilters((prev) => {
+      const next = {
+        search: currentActiveFilters.search,
+        sortBy: currentActiveFilters.sortBy,
+        sortDir: currentActiveFilters.sortDir
+      }
+      return prev.search === next.search &&
+        prev.sortBy === next.sortBy &&
+        prev.sortDir === next.sortDir
+        ? prev
+        : next
+    })
+  }, [
+    currentActiveFilters.search,
+    currentActiveFilters.sortBy,
+    currentActiveFilters.sortDir
+  ])
+
+  React.useEffect(() => {
+    setInactiveFilters((prev) => {
+      const next = {
+        search: currentInactiveFilters.search,
+        sortBy: currentInactiveFilters.sortBy,
+        sortDir: currentInactiveFilters.sortDir
+      }
+      return prev.search === next.search &&
+        prev.sortBy === next.sortBy &&
+        prev.sortDir === next.sortDir
+        ? prev
+        : next
+    })
+  }, [
+    currentInactiveFilters.search,
+    currentInactiveFilters.sortBy,
+    currentInactiveFilters.sortDir
+  ])
+
+  const updateParams = React.useCallback(
+    (
+      keys: { searchKey: string; sortKey: string; pageKey: string },
+      filters: TableFilters,
+      page: number
+    ) => {
+      const params = new URLSearchParams(searchParamsString)
+      if (filters.search) {
+        params.set(keys.searchKey, filters.search)
+      } else {
+        params.delete(keys.searchKey)
+      }
+      if (filters.sortBy) {
+        params.set(keys.sortKey, `${filters.sortBy}:${filters.sortDir}`)
+      } else {
+        params.delete(keys.sortKey)
+      }
+      if (page > 1) {
+        params.set(keys.pageKey, String(page))
+      } else {
+        params.delete(keys.pageKey)
+      }
+
+      const nextParams = params.toString()
+      const url = nextParams ? `${pathname}?${nextParams}` : pathname
+      router.replace(url, { scroll: false })
+    },
+    [pathname, router, searchParamsString]
+  )
+
   async function handleLogout() {
     await logout()
   }
@@ -428,7 +413,7 @@ export default function ActivatorStudentsPage() {
     async (options: {
       isActive: boolean
       search: string
-      sort: { sortBy: string; sortDir: 'asc' | 'desc' } | null
+      sort: { sortBy: string; sortDir: 'asc' | 'desc' }
       page: number
     }) => {
       const { isActive, search, sort, page } = options
@@ -438,19 +423,15 @@ export default function ActivatorStudentsPage() {
       if (search) {
         params.set('q', search)
       }
-      if (sort) {
-        params.set('sortBy', sort.sortBy)
-        params.set('sortDir', sort.sortDir)
-      }
+      params.set('sortBy', sort.sortBy)
+      params.set('sortDir', sort.sortDir)
       params.set('limit', String(pageSize))
       params.set('offset', String((page - 1) * pageSize))
 
       if (isActive) {
         setActiveLoading(true)
-        setActiveError(null)
       } else {
         setInactiveLoading(true)
-        setInactiveError(null)
       }
 
       try {
@@ -472,11 +453,7 @@ export default function ActivatorStudentsPage() {
           err instanceof Error
             ? err.message
             : 'Impossibile caricare gli studenti.'
-        if (isActive) {
-          setActiveError(message)
-        } else {
-          setInactiveError(message)
-        }
+        toast.error(message)
       } finally {
         if (isActive) {
           setActiveLoading(false)
@@ -488,38 +465,41 @@ export default function ActivatorStudentsPage() {
     []
   )
 
-  const activeSearch = searchParams.get('activeSearch') ?? ''
-  const inactiveSearch = searchParams.get('inactiveSearch') ?? ''
-  const activeSortParam = searchParams.get('activeSort') ?? ''
-  const inactiveSortParam = searchParams.get('inactiveSort') ?? ''
-  const activeSort = React.useMemo(
-    () => parseSortParam(activeSortParam),
-    [activeSortParam, parseSortParam]
-  )
-  const inactiveSort = React.useMemo(
-    () => parseSortParam(inactiveSortParam),
-    [inactiveSortParam, parseSortParam]
-  )
-  const activePage = parsePage('activePage')
-  const inactivePage = parsePage('inactivePage')
-
   React.useEffect(() => {
     void loadStudents({
       isActive: true,
-      search: activeSearch,
-      sort: activeSort,
-      page: activePage
+      search: currentActiveFilters.search,
+      sort: {
+        sortBy: currentActiveFilters.sortBy,
+        sortDir: currentActiveFilters.sortDir
+      },
+      page: currentActiveFilters.page
     })
-  }, [activePage, activeSearch, activeSort, loadStudents])
+  }, [
+    currentActiveFilters.page,
+    currentActiveFilters.search,
+    currentActiveFilters.sortBy,
+    currentActiveFilters.sortDir,
+    loadStudents
+  ])
 
   React.useEffect(() => {
     void loadStudents({
       isActive: false,
-      search: inactiveSearch,
-      sort: inactiveSort,
-      page: inactivePage
+      search: currentInactiveFilters.search,
+      sort: {
+        sortBy: currentInactiveFilters.sortBy,
+        sortDir: currentInactiveFilters.sortDir
+      },
+      page: currentInactiveFilters.page
     })
-  }, [inactivePage, inactiveSearch, inactiveSort, loadStudents])
+  }, [
+    currentInactiveFilters.page,
+    currentInactiveFilters.search,
+    currentInactiveFilters.sortBy,
+    currentInactiveFilters.sortDir,
+    loadStudents
+  ])
 
   const getSectionLabel = React.useCallback((user: User) => {
     if (user.sectionName) {
@@ -529,8 +509,6 @@ export default function ActivatorStudentsPage() {
   }, [])
 
   async function activateStudent(studentId: string, value: true | false) {
-    setSubmitError(null)
-    setIsSuccess(false)
     setIsSubmitting(true)
 
     try {
@@ -559,9 +537,9 @@ export default function ActivatorStudentsPage() {
         throw new Error(message)
       }
 
-      setIsSuccess(true)
+      toast.success(value ? 'Studente attivato.' : 'Studente disattivato.')
     } catch (err) {
-      setSubmitError(
+      toast.error(
         err instanceof Error
           ? err.message
           : value
@@ -603,41 +581,17 @@ export default function ActivatorStudentsPage() {
       },
       {
         accessorKey: 'lastName',
-        header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Cognome
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
-        ),
+        header: 'Cognome',
         cell: ({ row }) => row.original.lastName
       },
       {
         accessorKey: 'firstName',
-        header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Nome
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
-        ),
+        header: 'Nome',
         cell: ({ row }) => row.original.firstName
       },
       {
         accessorKey: 'year',
-        header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Classe
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
-        ),
+        header: 'Classe',
         cell: ({ row }) => (
           <span>
             {row.original.year ?? ''}
@@ -647,15 +601,7 @@ export default function ActivatorStudentsPage() {
       },
       {
         accessorKey: 'email',
-        header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Email @itismonza.it
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
-        ),
+        header: 'Email @itismonza.it',
         cell: ({ row }) => <span>{row.original.email.split('@')[0]}</span>
       },
       {
@@ -702,58 +648,250 @@ export default function ActivatorStudentsPage() {
                 <TabsTrigger value='active'>Attivi ({activeTotal})</TabsTrigger>
               </TabsList>
               <TabsContent value='active' className='mt-6'>
+                <div className='rounded-lg border bg-card p-4 shadow-sm'>
+                  <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
+                    <Field className='gap-2 lg:col-span-2'>
+                      <FieldLabel htmlFor='active-student-search'>
+                        Cerca
+                      </FieldLabel>
+                      <div className='relative'>
+                        <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+                        <Input
+                          id='active-student-search'
+                          type='search'
+                          placeholder='Nome, cognome o email'
+                          value={activeFilters.search}
+                          onChange={(event) =>
+                            setActiveFilters((prev) => ({
+                              ...prev,
+                              search: event.target.value
+                            }))
+                          }
+                          className='pl-9'
+                        />
+                      </div>
+                    </Field>
+                    <Field className='gap-2'>
+                      <FieldLabel>Ordina per</FieldLabel>
+                      <Select
+                        value={activeFilters.sortBy}
+                        onValueChange={(value) =>
+                          setActiveFilters((prev) => ({
+                            ...prev,
+                            sortBy: value
+                          }))
+                        }
+                      >
+                        <SelectTrigger className='w-full'>
+                          <SelectValue placeholder='Ordinamento' />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='lastName'>Cognome</SelectItem>
+                          <SelectItem value='firstName'>Nome</SelectItem>
+                          <SelectItem value='year'>Classe</SelectItem>
+                          <SelectItem value='email'>Email</SelectItem>
+                          <SelectItem value='createdAt'>Creazione</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field className='gap-2'>
+                      <FieldLabel>Direzione</FieldLabel>
+                      <Select
+                        value={activeFilters.sortDir}
+                        onValueChange={(value) =>
+                          setActiveFilters((prev) => ({
+                            ...prev,
+                            sortDir: value === 'desc' ? 'desc' : 'asc'
+                          }))
+                        }
+                      >
+                        <SelectTrigger className='w-full'>
+                          <SelectValue placeholder='Direzione' />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='asc'>Crescente</SelectItem>
+                          <SelectItem value='desc'>Decrescente</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  </div>
+                  <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between'>
+                    <div />
+                    <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
+                      <Button
+                        variant='outline'
+                        onClick={() => {
+                          setActiveFilters(defaultFilters)
+                          updateParams(
+                            {
+                              searchKey: 'activeSearch',
+                              sortKey: 'activeSort',
+                              pageKey: 'activePage'
+                            },
+                            defaultFilters,
+                            1
+                          )
+                        }}
+                      >
+                        Reset filtri
+                      </Button>
+                      <Button
+                        onClick={() =>
+                          updateParams(
+                            {
+                              searchKey: 'activeSearch',
+                              sortKey: 'activeSort',
+                              pageKey: 'activePage'
+                            },
+                            activeFilters,
+                            1
+                          )
+                        }
+                      >
+                        Applica filtri
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <div className='mt-6'>
                 <DataTable
                   data={activeStudents}
                   columns={activeColumns}
-                  searchPlaceholder='Cerca studente'
                   isLoading={activeLoading}
                   emptyMessage='Nessuno studente attivo.'
-                  searchKey='activeSearch'
-                  sortKey='activeSort'
                   pageKey='activePage'
-                  page={activePage}
+                  page={currentActiveFilters.page}
                   pageSize={pageSize}
                   total={activeTotal}
                   isSubmitting={isSubmitting}
                   onActivateStudent={activateStudent}
                   tab='active'
                 />
-                {activeError && (
-                  <p className='mt-3 text-sm text-destructive'>{activeError}</p>
-                )}
+                </div>
               </TabsContent>
               <TabsContent value='inactive' className='mt-6'>
+                <div className='rounded-lg border bg-card p-4 shadow-sm'>
+                  <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
+                    <Field className='gap-2 lg:col-span-2'>
+                      <FieldLabel htmlFor='inactive-student-search'>
+                        Cerca
+                      </FieldLabel>
+                      <div className='relative'>
+                        <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+                        <Input
+                          id='inactive-student-search'
+                          type='search'
+                          placeholder='Nome, cognome o email'
+                          value={inactiveFilters.search}
+                          onChange={(event) =>
+                            setInactiveFilters((prev) => ({
+                              ...prev,
+                              search: event.target.value
+                            }))
+                          }
+                          className='pl-9'
+                        />
+                      </div>
+                    </Field>
+                    <Field className='gap-2'>
+                      <FieldLabel>Ordina per</FieldLabel>
+                      <Select
+                        value={inactiveFilters.sortBy}
+                        onValueChange={(value) =>
+                          setInactiveFilters((prev) => ({
+                            ...prev,
+                            sortBy: value
+                          }))
+                        }
+                      >
+                        <SelectTrigger className='w-full'>
+                          <SelectValue placeholder='Ordinamento' />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='lastName'>Cognome</SelectItem>
+                          <SelectItem value='firstName'>Nome</SelectItem>
+                          <SelectItem value='year'>Classe</SelectItem>
+                          <SelectItem value='email'>Email</SelectItem>
+                          <SelectItem value='createdAt'>Creazione</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field className='gap-2'>
+                      <FieldLabel>Direzione</FieldLabel>
+                      <Select
+                        value={inactiveFilters.sortDir}
+                        onValueChange={(value) =>
+                          setInactiveFilters((prev) => ({
+                            ...prev,
+                            sortDir: value === 'desc' ? 'desc' : 'asc'
+                          }))
+                        }
+                      >
+                        <SelectTrigger className='w-full'>
+                          <SelectValue placeholder='Direzione' />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='asc'>Crescente</SelectItem>
+                          <SelectItem value='desc'>Decrescente</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  </div>
+                  <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between'>
+                    <div />
+                    <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
+                      <Button
+                        variant='outline'
+                        onClick={() => {
+                          setInactiveFilters(defaultFilters)
+                          updateParams(
+                            {
+                              searchKey: 'inactiveSearch',
+                              sortKey: 'inactiveSort',
+                              pageKey: 'inactivePage'
+                            },
+                            defaultFilters,
+                            1
+                          )
+                        }}
+                      >
+                        Reset filtri
+                      </Button>
+                      <Button
+                        onClick={() =>
+                          updateParams(
+                            {
+                              searchKey: 'inactiveSearch',
+                              sortKey: 'inactiveSort',
+                              pageKey: 'inactivePage'
+                            },
+                            inactiveFilters,
+                            1
+                          )
+                        }
+                      >
+                        Applica filtri
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <div className='mt-6'>
                 <DataTable
                   data={inactiveStudents}
                   columns={inactiveColumns}
-                  searchPlaceholder='Cerca studente'
                   isLoading={inactiveLoading}
                   emptyMessage='Nessuno studente in attesa.'
-                  searchKey='inactiveSearch'
-                  sortKey='inactiveSort'
                   pageKey='inactivePage'
-                  page={inactivePage}
+                  page={currentInactiveFilters.page}
                   pageSize={pageSize}
                   total={inactiveTotal}
                   isSubmitting={isSubmitting}
                   onActivateStudent={activateStudent}
                   tab='inactive'
                 />
-                {inactiveError && (
-                  <p className='mt-3 text-sm text-destructive'>
-                    {inactiveError}
-                  </p>
-                )}
+                </div>
               </TabsContent>
             </Tabs>
-            {submitError && (
-              <p className='mt-3 text-sm text-destructive'>{submitError}</p>
-            )}
-            {isSuccess && (
-              <p className='mt-3 text-sm text-green-400'>
-                Utente aggiornato con successo.
-              </p>
-            )}
           </div>
         </div>
       </div>

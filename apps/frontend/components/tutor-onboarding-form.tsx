@@ -4,6 +4,7 @@ import * as React from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
+import { toast } from 'sonner'
 import { GraduationCap } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -33,7 +34,6 @@ type TutorOnboardingFormProps = {
 
 export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [submitError, setSubmitError] = React.useState<string | null>(null)
 
   const form = useForm<OnboardingFormValues>({
     resolver: zodResolver(onboardingSchema),
@@ -46,7 +46,6 @@ export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
 
   async function onSubmit(data: OnboardingFormValues) {
     setIsSubmitting(true)
-    setSubmitError(null)
 
     try {
       // Assign each selected subject
@@ -97,7 +96,7 @@ export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
       // Redirect to tutor home with full page reload to refresh data
       window.location.href = '/tutor'
     } catch (err) {
-      setSubmitError(
+      toast.error(
         err instanceof Error
           ? err.message
           : 'Si è verificato un errore. Riprova.'
@@ -169,11 +168,6 @@ export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
         </form>
       </CardContent>
       <CardFooter className='flex flex-col gap-3'>
-        {submitError && (
-          <div className='w-full rounded-md border border-destructive/50 bg-destructive/10 p-3'>
-            <p className='text-sm text-destructive'>{submitError}</p>
-          </div>
-        )}
         <div className='flex justify-end w-full'>
           <Button
             type='submit'

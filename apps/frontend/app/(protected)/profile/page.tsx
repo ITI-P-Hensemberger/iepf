@@ -4,6 +4,7 @@ import * as React from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import * as z from 'zod'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -116,15 +117,11 @@ export default function ProfilePage() {
   const isLimited = !isAdmin
   const [sectionName, setSectionName] = React.useState<string | null>(null)
   const [sections, setSections] = React.useState<Section[]>([])
-  const [sectionsError, setSectionsError] = React.useState<string | null>(null)
   const [isLoadingSections, setIsLoadingSections] = React.useState(true)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [submitError, setSubmitError] = React.useState<string | null>(null)
-  const [isSuccess, setIsSuccess] = React.useState(false)
   const [resetStatus, setResetStatus] = React.useState<
     'idle' | 'loading' | 'success' | 'error'
   >('idle')
-  const [resetMessage, setResetMessage] = React.useState<string | null>(null)
   const [showEmailAlert, setShowEmailAlert] = React.useState(false)
   const [pendingValues, setPendingValues] =
     React.useState<ProfileFormValues | null>(null)
@@ -160,6 +157,12 @@ export default function ProfilePage() {
       normalizeEmail(watchedEmail ?? '') !== normalizeEmail(profile.email ?? '')
     )
   }, [profile, watchedEmail])
+
+  React.useEffect(() => {
+    if (error) {
+      toast.error(error)
+    }
+  }, [error])
 
   const canSave = React.useMemo(() => {
     if (!profile) {
@@ -197,7 +200,6 @@ export default function ProfilePage() {
   React.useEffect(() => {
     if (isAdmin) {
       setSections([])
-      setSectionsError(null)
       setIsLoadingSections(false)
       return
     }
@@ -206,7 +208,6 @@ export default function ProfilePage() {
 
     async function loadSections() {
       setIsLoadingSections(true)
-      setSectionsError(null)
 
       try {
         const response = await fetch('/api/class-sections', {
@@ -222,7 +223,7 @@ export default function ProfilePage() {
         }
       } catch (err) {
         if (isMounted) {
-          setSectionsError(
+          toast.error(
             err instanceof Error
               ? err.message
               : 'Impossibile recuperare le sezioni.'
@@ -351,24 +352,19 @@ export default function ProfilePage() {
         }
       }
 
-      setIsSuccess(true)
+      toast.success('Profilo aggiornato con successo.')
       await refresh()
       window.location.reload()
     } catch (err) {
-      setSubmitError(
-        parseErrorMessage(err, 'Impossibile aggiornare il profilo.')
-      )
+      toast.error(parseErrorMessage(err, 'Impossibile aggiornare il profilo.'))
     } finally {
       setIsSubmitting(false)
     }
   }
 
   async function onSubmit(values: ProfileFormValues) {
-    setSubmitError(null)
-    setIsSuccess(false)
-
     if (!canSave) {
-      setSubmitError('Nessuna modifica da salvare.')
+      toast.error('Nessuna modifica da salvare.')
       return
     }
 
@@ -384,12 +380,11 @@ export default function ProfilePage() {
   async function handlePasswordReset() {
     if (!profile?.email) {
       setResetStatus('error')
-      setResetMessage('Email non disponibile.')
+      toast.error('Email non disponibile.')
       return
     }
 
     setResetStatus('loading')
-    setResetMessage(null)
 
     try {
       const response = await fetch('/api/auth/password/reset/request', {
@@ -425,20 +420,18 @@ export default function ProfilePage() {
       }
 
       setResetStatus('success')
-      setResetMessage('Mail di reset inviata. Controlla la tua casella.')
+      toast.success('Mail di reset inviata. Controlla la tua casella.')
       await logout()
     } catch (err) {
       setResetStatus('error')
-      setResetMessage(
-        parseErrorMessage(err, 'Impossibile inviare la mail di reset.')
-      )
+      toast.error(parseErrorMessage(err, 'Impossibile inviare la mail di reset.'))
     }
   }
 
   return (
     <main className='flex-1'>
-      <div className='container mx-auto px-4 py-10'>
-        <div className='mx-auto max-w-2xl'>
+      <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
+        <div className='w-full max-w-6xl'>
           <h1 className='text-2xl'>Profilo</h1>
           <p className='mt-2 text-muted-foreground'>
             Aggiorna i tuoi dati personali.
@@ -458,8 +451,6 @@ export default function ProfilePage() {
                 <p className='text-sm text-muted-foreground'>
                   Caricamento profilo...
                 </p>
-              ) : error ? (
-                <p className='text-sm text-destructive'>{error}</p>
               ) : profile ? (
                 <form
                   id='profile-form'
@@ -561,22 +552,9 @@ export default function ProfilePage() {
                             ? 'Caricamento...'
                             : `${profile?.year ? String(profile.year) : 'N/D'}${sectionName ?? profile?.sectionId ?? 'N/D'}`}
                         </div>
-                        {sectionsError && (
-                          <p className='text-sm text-destructive'>
-                            {sectionsError}
-                          </p>
-                        )}
                       </Field>
                     )}
                   </FieldGroup>
-                  {submitError && (
-                    <p className='text-sm text-destructive'>{submitError}</p>
-                  )}
-                  {isSuccess && (
-                    <p className='text-sm text-emerald-600'>
-                      Profilo aggiornato con successo.
-                    </p>
-                  )}
                 </form>
               ) : (
                 <p className='text-sm text-muted-foreground'>
@@ -589,6 +567,7 @@ export default function ProfilePage() {
                 <Button
                   type='submit'
                   form='profile-form'
+                  className='w-full sm:w-auto self-end'
                   disabled={isSubmitting || !canSave}
                 >
                   {isSubmitting ? 'Salvataggio...' : 'Salva modifiche'}
@@ -597,6 +576,7 @@ export default function ProfilePage() {
               <Button
                 type='button'
                 variant='outline'
+                className='w-full sm:w-auto self-end'
                 onClick={handlePasswordReset}
                 disabled={resetStatus == 'loading' || !profile?.email}
               >
@@ -604,17 +584,6 @@ export default function ProfilePage() {
                   ? 'Invio in corso...'
                   : 'Richiedi reset password'}
               </Button>
-              {resetMessage && (
-                <p
-                  className={
-                    resetStatus == 'success'
-                      ? 'text-sm text-emerald-600'
-                      : 'text-sm text-destructive'
-                  }
-                >
-                  {resetMessage}
-                </p>
-              )}
             </CardFooter>
           </Card>
         </div>

@@ -1,10 +1,12 @@
 'use client'
 
 import * as React from 'react'
+import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -103,11 +105,8 @@ export default function AdminStudentDetailPage() {
 
   const [student, setStudent] = React.useState<Student | null>(null)
   const [sections, setSections] = React.useState<Section[]>([])
-  const [sectionsError, setSectionsError] = React.useState<string | null>(null)
   const [isLoading, setIsLoading] = React.useState(true)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [submitError, setSubmitError] = React.useState<string | null>(null)
-  const [isSuccess, setIsSuccess] = React.useState(false)
   const [showEmailAlert, setShowEmailAlert] = React.useState(false)
   const [pendingValues, setPendingValues] =
     React.useState<StudentFormValues | null>(null)
@@ -141,8 +140,6 @@ export default function AdminStudentDetailPage() {
 
     async function loadStudent() {
       setIsLoading(true)
-      setSubmitError(null)
-      setIsSuccess(false)
 
       try {
         const response = await fetch(`/api/users/${studentId}`)
@@ -163,7 +160,7 @@ export default function AdminStudentDetailPage() {
         }
       } catch (err) {
         if (isMounted) {
-          setSubmitError(
+          toast.error(
             err instanceof Error
               ? err.message
               : 'Impossibile recuperare lo studente.'
@@ -177,7 +174,6 @@ export default function AdminStudentDetailPage() {
     }
 
     async function loadSections() {
-      setSectionsError(null)
       try {
         const response = await fetch('/api/class-sections')
         if (!response.ok) {
@@ -190,7 +186,7 @@ export default function AdminStudentDetailPage() {
         }
       } catch (err) {
         if (isMounted) {
-          setSectionsError(
+          toast.error(
             err instanceof Error
               ? err.message
               : 'Impossibile recuperare le sezioni.'
@@ -287,7 +283,7 @@ export default function AdminStudentDetailPage() {
         throw new Error(message)
       }
 
-      setIsSuccess(true)
+      toast.success('Studente aggiornato con successo.')
       setStudent((prev) =>
         prev
           ? {
@@ -303,7 +299,7 @@ export default function AdminStudentDetailPage() {
       )
       form.reset(values)
     } catch (err) {
-      setSubmitError(
+      toast.error(
         err instanceof Error
           ? err.message
           : 'Impossibile aggiornare lo studente.'
@@ -314,11 +310,8 @@ export default function AdminStudentDetailPage() {
   }
 
   async function onSubmit(values: StudentFormValues) {
-    setSubmitError(null)
-    setIsSuccess(false)
-
     if (!form.formState.isDirty) {
-      setSubmitError('Nessuna modifica da salvare.')
+      toast.error('Nessuna modifica da salvare.')
       return
     }
 
@@ -336,7 +329,6 @@ export default function AdminStudentDetailPage() {
       return
     }
     setIsDeleting(true)
-    setSubmitError(null)
     try {
       const response = await fetch(`/api/users/${studentId}`, {
         method: 'DELETE'
@@ -353,7 +345,7 @@ export default function AdminStudentDetailPage() {
       }
       router.push('/admin/students')
     } catch (err) {
-      setSubmitError(
+      toast.error(
         err instanceof Error
           ? err.message
           : 'Impossibile eliminare lo studente.'
@@ -375,12 +367,21 @@ export default function AdminStudentDetailPage() {
                 Gestisci i dati dello studente.
               </p>
             </div>
-            <Button
-              variant='outline'
-              onClick={() => router.push('/admin/students')}
-            >
-              Torna agli studenti
-            </Button>
+            <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+              <Button asChild variant='outline'>
+                <Link
+                  href={`/admin/feedback?feedbackAuthor=${studentId}&feedbackRole=student`}
+                >
+                  Feedback
+                </Link>
+              </Button>
+              <Button
+                variant='outline'
+                onClick={() => router.push('/admin/students')}
+              >
+                Torna agli studenti
+              </Button>
+            </div>
           </div>
           <Card className='mt-6'>
             <CardContent className='pt-6'>
@@ -612,11 +613,6 @@ export default function AdminStudentDetailPage() {
                           {fieldState.invalid && (
                             <FieldError errors={[fieldState.error]} />
                           )}
-                          {sectionsError && (
-                            <p className='text-sm text-destructive'>
-                              {sectionsError}
-                            </p>
-                          )}
                         </Field>
                       )}
                     />
@@ -645,14 +641,6 @@ export default function AdminStudentDetailPage() {
                       </div>
                     </Field>
                   </FieldGroup>
-                  {submitError && (
-                    <p className='text-sm text-destructive'>{submitError}</p>
-                  )}
-                  {isSuccess && (
-                    <p className='text-sm text-emerald-600'>
-                      Studente aggiornato con successo.
-                    </p>
-                  )}
                   <Accordion type='single' collapsible className='w-full'>
                     <AccordionItem value='tech-details'>
                       <AccordionTrigger>Dettagli tecnici</AccordionTrigger>

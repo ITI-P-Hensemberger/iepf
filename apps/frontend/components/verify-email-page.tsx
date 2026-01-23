@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
@@ -21,6 +22,7 @@ export default function VerifyEmailPage() {
     async function verifyEmail() {
       if (!token) {
         setStatus('error')
+        toast.error('Token non valido o scaduto.')
         return
       }
 
@@ -56,10 +58,12 @@ export default function VerifyEmailPage() {
 
         if (isMounted) {
           setStatus('success')
+          toast.success('Email verificata con successo.')
         }
       } catch {
         if (isMounted) {
           setStatus('error')
+          toast.error('Verifica non riuscita.')
         }
       }
     }
@@ -91,27 +95,6 @@ export default function VerifyEmailPage() {
                 <p className='text-center text-sm text-muted-foreground'>
                   Verifica in corso...
                 </p>
-              )}
-              {status === 'success' && (
-                <div className='text-center space-y-2'>
-                  <p className='text-sm font-medium'>
-                    Email verificata con successo.
-                  </p>
-                  <p className='text-sm text-muted-foreground'>
-                    Ora puoi accedere al tuo account.
-                  </p>
-                </div>
-              )}
-              {status === 'error' && (
-                <div className='text-center space-y-2'>
-                  <p className='text-sm font-medium text-destructive'>
-                    Verifica non riuscita.
-                  </p>
-                  <p className='text-sm text-muted-foreground'>
-                    Token non valido o scaduto. Per richiedere una nuova email
-                    di verifica, effettua il login.
-                  </p>
-                </div>
               )}
             </CardContent>
             <CardFooter className='justify-center'>
