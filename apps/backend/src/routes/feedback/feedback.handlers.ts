@@ -8,6 +8,7 @@ import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
 import { lessonFeedback } from '@/db/schemas/lesson-feedback.schema'
+import { lessons } from '@/db/schemas/lessons.schema'
 import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
@@ -328,6 +329,12 @@ export const adminListFeedback: AppRouteHandler<AdminListFeedbackRoute> = async 
   if (query.rating !== undefined) {
     conditions.push(eq(lessonFeedback.rating, query.rating))
   }
+  if (query.lessonFrom) {
+    conditions.push(gte(lessons.startAt, new Date(query.lessonFrom)))
+  }
+  if (query.lessonTo) {
+    conditions.push(lte(lessons.startAt, new Date(query.lessonTo)))
+  }
   if (query.from) {
     conditions.push(gte(lessonFeedback.createdAt, new Date(query.from)))
   }
@@ -337,32 +344,48 @@ export const adminListFeedback: AppRouteHandler<AdminListFeedbackRoute> = async 
 
   const whereClause = conditions.length ? and(...conditions) : undefined
 
-  const rows = await db.query.lessonFeedback.findMany({
-    where: whereClause,
-    columns: {
-      id: true,
-      lessonId: true,
-      bookingId: true,
-      authorUserId: true,
-      targetUserId: true,
-      authorRole: true,
-      rating: true,
-      text: true,
-      createdAt: true,
-      updatedAt: true
-    },
-    orderBy(fields, operators) {
-      return query.sortDir === 'desc'
-        ? operators.desc(fields.createdAt)
-        : operators.asc(fields.createdAt)
-    },
-    limit: query.limit,
-    offset: query.offset
-  })
+  const orderField = (() => {
+    switch (query.sortBy) {
+      case 'rating':
+        return lessonFeedback.rating
+      case 'lessonStartAt':
+        return lessons.startAt
+      default:
+        return lessonFeedback.createdAt
+    }
+  })()
+
+  let listQuery = db
+    .select({
+      id: lessonFeedback.id,
+      lessonId: lessonFeedback.lessonId,
+      bookingId: lessonFeedback.bookingId,
+      authorUserId: lessonFeedback.authorUserId,
+      targetUserId: lessonFeedback.targetUserId,
+      authorRole: lessonFeedback.authorRole,
+      rating: lessonFeedback.rating,
+      text: lessonFeedback.text,
+      createdAt: lessonFeedback.createdAt,
+      updatedAt: lessonFeedback.updatedAt
+    })
+    .from(lessonFeedback)
+    .innerJoin(lessons, eq(lessonFeedback.lessonId, lessons.id))
+
+  if (whereClause) {
+    listQuery = listQuery.where(whereClause)
+  }
+
+  const rows = await listQuery
+    .orderBy(query.sortDir === 'desc' ? desc(orderField) : asc(orderField))
+    .limit(query.limit)
+    .offset(query.offset)
 
   const totalQuery = db
     .select({ total: sql<number>`count(*)` })
     .from(lessonFeedback)
+  if (query.lessonFrom || query.lessonTo) {
+    totalQuery.innerJoin(lessons, eq(lessonFeedback.lessonId, lessons.id))
+  }
   if (whereClause) {
     totalQuery.where(whereClause)
   }

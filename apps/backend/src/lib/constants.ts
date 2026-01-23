@@ -24,4 +24,6 @@ export const DEFAULT_TUTOR_SETTINGS = {
   dailyCapacity: 2
 }
 
+export const DEFAULT_LESSON_TOKENS = 30
+
 export const notFoundSchema = createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND)

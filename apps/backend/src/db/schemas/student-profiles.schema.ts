@@ -1,4 +1,4 @@
-// Purpose: Student profile data (class info and lesson tokens).
+// Purpose: Student profile data (class info and activation).
 import { relations } from 'drizzle-orm'
 import { boolean, integer, pgTable, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import { randomUUID } from 'node:crypto'
@@ -12,7 +12,6 @@ export const studentProfiles = pgTable('student_profiles', {
   sectionId: uuid().references(() => classSections.id, { onDelete: 'set null' }),
   year: integer(),
   isActive: boolean().notNull().default(false),
-  lessonTokens: integer().notNull().default(30),
   createdAt: timestamp({ mode: 'date' })
     .defaultNow()
     .notNull(),

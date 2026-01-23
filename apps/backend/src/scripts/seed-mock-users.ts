@@ -2,11 +2,12 @@
 import db from '@/db'
 import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
+import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { users } from '@/db/schemas/users.schema'
 import { issueAdminInviteToken } from '@/lib/admin-invite'
-import { DEFAULT_TUTOR_SETTINGS } from '@/lib/constants'
+import { DEFAULT_LESSON_TOKENS, DEFAULT_TUTOR_SETTINGS } from '@/lib/constants'
 import { hashPassword } from '@/lib/password'
 import { issueTutorInviteToken } from '@/lib/tutor-invite'
 
@@ -162,6 +163,21 @@ async function ensureStudentProfile(userId: string, sectionId: string, year: num
       isActive
     })
     .onConflictDoNothing({ target: studentProfiles.userId })
+
+  const existingLedger = await db.query.tokenLedger.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.studentId, userId)
+    },
+    columns: { id: true }
+  })
+
+  if (!existingLedger) {
+    await db.insert(tokenLedger).values({
+      studentId: userId,
+      delta: DEFAULT_LESSON_TOKENS,
+      reason: 'initial_grant'
+    })
+  }
 }
 
 async function ensureTutorProfile(userId: string, sectionId: string, year: number, isActive: boolean) {

@@ -1,0 +1,1 @@
+ALTER TABLE "student_profiles" DROP COLUMN "lesson_tokens";

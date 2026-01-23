@@ -76,9 +76,11 @@ const adminListFeedbackQuerySchema = z.object({
   targetUserId: z.uuid().optional(),
   authorRole: z.enum(['student', 'tutor']).optional(),
   rating: z.coerce.number().int().min(1).max(5).optional(),
+  lessonFrom: z.iso.datetime().optional(),
+  lessonTo: z.iso.datetime().optional(),
   from: z.iso.datetime().optional(),
   to: z.iso.datetime().optional(),
-  sortBy: z.enum(['createdAt']).default('createdAt'),
+  sortBy: z.enum(['createdAt', 'rating', 'lessonStartAt']).default('createdAt'),
   sortDir: z.enum(['asc', 'desc']).default('desc'),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0)

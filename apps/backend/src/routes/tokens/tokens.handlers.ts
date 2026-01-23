@@ -1,17 +1,16 @@
 // Purpose: Token adjustment handlers for admins.
 import type { Context } from 'hono'
 
-import { eq } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
-import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { getStudentTokenBalance } from '@/lib/lesson-tokens'
 
 import type { AdjustTokensRoute } from './tokens.routes'
 
@@ -51,33 +50,17 @@ export const adjustTokens: AppRouteHandler<AdjustTokensRoute> = async (c) => {
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
-  const profile = await db.query.studentProfiles.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.userId, studentId)
-    },
-    columns: { lessonTokens: true }
-  })
-
-  const currentTokens = profile?.lessonTokens ?? 0
+  const currentTokens = await getStudentTokenBalance(studentId)
   const nextTokens = Math.max(currentTokens + payload.delta, 0)
+  const appliedDelta = nextTokens - currentTokens
 
-  if (profile) {
-    await db.update(studentProfiles)
-      .set({ lessonTokens: nextTokens })
-      .where(eq(studentProfiles.userId, studentId))
-  }
-  else {
-    await db.insert(studentProfiles).values({
-      userId: studentId,
-      lessonTokens: nextTokens
+  if (appliedDelta !== 0) {
+    await db.insert(tokenLedger).values({
+      studentId,
+      delta: appliedDelta,
+      reason: payload.reason
     })
   }
-
-  await db.insert(tokenLedger).values({
-    studentId,
-    delta: payload.delta,
-    reason: payload.reason
-  })
 
   return c.json({ studentId, lessonTokens: nextTokens }, HttpStatusCodes.OK)
 }

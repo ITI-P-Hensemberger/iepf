@@ -7,6 +7,7 @@ import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
 import { lessonFeedback } from '@/db/schemas/lesson-feedback.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
+import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'
@@ -124,35 +125,64 @@ async function main() {
 
   if (bookingRows.length > 0) {
     await db.insert(lessonBookings).values(bookingRows)
+
+    await db.insert(tokenLedger).values(
+      bookingRows.map(row => ({
+        studentId: row.studentId!,
+        lessonId: row.lessonId!,
+        delta: -1,
+        reason: 'lesson_booking'
+      }))
+    )
   }
 
   // Edge cases: canceled bookings and rebookings for the same lesson/student.
   const canceledPairs = randomPick(bookingRows, Math.min(5, bookingRows.length))
   if (canceledPairs.length > 0) {
-    const canceledIds = canceledPairs
-      .map(row => row.id)
-      .filter((id): id is string => Boolean(id))
-    if (canceledIds.length > 0) {
+    const refundRows: Array<typeof tokenLedger.$inferInsert> = []
+    for (const row of canceledPairs) {
+      const countsForStudent = Math.random() > 0.5
       await db.update(lessonBookings)
         .set({
           status: 'canceled',
           canceledAt: new Date(),
-          canceledBy: canceledPairs[0]?.studentId ?? null,
-          countsForStudent: Math.random() > 0.5
+          canceledBy: row.studentId ?? null,
+          countsForStudent
         })
-        .where(inArray(lessonBookings.id, canceledIds))
+        .where(eq(lessonBookings.id, row.id!))
 
-      const rebookRows: Array<typeof lessonBookings.$inferInsert> = canceledPairs.map(row => ({
-        id: randomUUID(),
-        lessonId: row.lessonId!,
-        studentId: row.studentId!,
-        topic: 'Rebooking',
-        status: 'confirmed'
-      }))
-
-      await db.insert(lessonBookings).values(rebookRows)
-      createdBookings += rebookRows.length
+      if (!countsForStudent) {
+        refundRows.push({
+          studentId: row.studentId!,
+          lessonId: row.lessonId!,
+          delta: 1,
+          reason: 'lesson_cancel_admin'
+        })
+      }
     }
+
+    if (refundRows.length > 0) {
+      await db.insert(tokenLedger).values(refundRows)
+    }
+
+    const rebookRows: Array<typeof lessonBookings.$inferInsert> = canceledPairs.map(row => ({
+      id: randomUUID(),
+      lessonId: row.lessonId!,
+      studentId: row.studentId!,
+      topic: 'Rebooking',
+      status: 'confirmed'
+    }))
+
+    await db.insert(lessonBookings).values(rebookRows)
+    await db.insert(tokenLedger).values(
+      rebookRows.map(row => ({
+        studentId: row.studentId!,
+        lessonId: row.lessonId!,
+        delta: -1,
+        reason: 'lesson_booking'
+      }))
+    )
+    createdBookings += rebookRows.length
   }
 
   const lessonsToConfirm = new Set<string>()
@@ -217,6 +247,14 @@ async function main() {
 
   if (pastBookingRows.length > 0) {
     await db.insert(lessonBookings).values(pastBookingRows)
+    await db.insert(tokenLedger).values(
+      pastBookingRows.map(row => ({
+        studentId: row.studentId!,
+        lessonId: row.lessonId!,
+        delta: -1,
+        reason: 'lesson_booking'
+      }))
+    )
   }
 
   const feedbackRows: Array<typeof lessonFeedback.$inferInsert> = []

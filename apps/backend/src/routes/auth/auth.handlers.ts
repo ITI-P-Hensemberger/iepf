@@ -71,9 +71,10 @@ function buildDuplicateEmailError() {
 
 export const login: AppRouteHandler<LoginRoute> = async (c) => {
   const credentials = c.req.valid('json')
+  const email = credentials.email.trim().toLowerCase()
   const user = await db.query.users.findFirst({
     where(fields, operators) {
-      return operators.eq(fields.email, credentials.email)
+      return operators.eq(fields.email, email)
     },
     columns: {
       id: true,
@@ -157,12 +158,13 @@ export const logout: AppRouteHandler<LogoutRoute> = async (c) => {
 
 export const register: AppRouteHandler<RegisterRoute> = async (c) => {
   const payload = c.req.valid('json')
+  const email = payload.email.trim().toLowerCase()
   const { password, ...userData } = payload
   const passwordHash = await hashPassword(password)
 
   const existing = await db.query.users.findFirst({
     where(fields, operators) {
-      return operators.eq(fields.email, payload.email)
+      return operators.eq(fields.email, email)
     },
     columns: { id: true }
   })
@@ -185,7 +187,7 @@ export const register: AppRouteHandler<RegisterRoute> = async (c) => {
   const [inserted] = await db
     .insert(users)
     .values({
-      email: userData.email,
+      email,
       firstName: userData.firstName,
       lastName: userData.lastName,
       passwordHash,

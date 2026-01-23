@@ -4,11 +4,13 @@ import type { Context } from 'hono'
 
 import { and, asc, desc, eq, gte, lte } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
+import { randomUUID } from 'node:crypto'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
+import { lessonFeedback } from '@/db/schemas/lesson-feedback.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
@@ -16,6 +18,7 @@ import { buildBookingCanceledByAdminMessage } from '@/lib/email-templates'
 import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { getStudentTokenBalance } from '@/lib/lesson-tokens'
 import { sendMail } from '@/lib/mailer'
 import { buildPagedResponse } from '@/lib/pagination'
 
@@ -133,25 +136,12 @@ async function cancelConfirmedBookings(lessonId: string, adminId: string) {
       })
       .where(eq(lessonBookings.id, booking.id))
 
-    const profile = await db.query.studentProfiles.findFirst({
-      where(fields, operators) {
-        return operators.eq(fields.userId, booking.studentId)
-      },
-      columns: { lessonTokens: true }
+    await db.insert(tokenLedger).values({
+      studentId: booking.studentId,
+      lessonId,
+      delta: 1,
+      reason: 'lesson_cancel_admin'
     })
-
-    if (profile) {
-      await db.update(studentProfiles)
-        .set({ lessonTokens: profile.lessonTokens + 1 })
-        .where(eq(studentProfiles.userId, booking.studentId))
-
-      await db.insert(tokenLedger).values({
-        studentId: booking.studentId,
-        lessonId,
-        delta: 1,
-        reason: 'lesson_cancel_admin'
-      })
-    }
   }
 }
 
@@ -474,7 +464,6 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
       return operators.eq(fields.userId, student.id)
     },
     columns: {
-      lessonTokens: true,
       isActive: true
     }
   })
@@ -483,7 +472,8 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
     return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
   }
 
-  if (studentProfile.lessonTokens <= 0) {
+  const tokenBalance = await getStudentTokenBalance(student.id)
+  if (tokenBalance <= 0) {
     return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
   }
 
@@ -540,10 +530,6 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
     studentPresence: lessonBookings.studentPresence,
     studentPresenceAt: lessonBookings.studentPresenceAt
   })
-
-  await db.update(studentProfiles)
-    .set({ lessonTokens: studentProfile.lessonTokens - 1 })
-    .where(eq(studentProfiles.userId, student.id))
 
   await db.insert(tokenLedger).values({
     studentId: student.id,
@@ -676,25 +662,12 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
   }
 
   if (shouldRefund) {
-    const studentProfile = await db.query.studentProfiles.findFirst({
-      where(fields, operators) {
-        return operators.eq(fields.userId, booking.studentId)
-      },
-      columns: { lessonTokens: true }
+    await db.insert(tokenLedger).values({
+      studentId: booking.studentId,
+      lessonId: lesson.id,
+      delta: 1,
+      reason: 'lesson_cancel_student'
     })
-
-    if (studentProfile) {
-      await db.update(studentProfiles)
-        .set({ lessonTokens: studentProfile.lessonTokens + 1 })
-        .where(eq(studentProfiles.userId, booking.studentId))
-
-      await db.insert(tokenLedger).values({
-        studentId: booking.studentId,
-        lessonId: lesson.id,
-        delta: 1,
-        reason: 'lesson_cancel_student'
-      })
-    }
   }
 
   if (currentUser.role === 'admin') {
@@ -992,6 +965,8 @@ export const updateBookingCounts: AppRouteHandler<UpdateBookingCountsRoute> = as
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
+  const countsForStudentChanged = booking.countsForStudent !== payload.countsForStudent
+
   const [updated] = await db.update(lessonBookings)
     .set({ countsForStudent: payload.countsForStudent })
     .where(eq(lessonBookings.id, bookingId))
@@ -1005,6 +980,16 @@ export const updateBookingCounts: AppRouteHandler<UpdateBookingCountsRoute> = as
       studentPresence: lessonBookings.studentPresence,
       studentPresenceAt: lessonBookings.studentPresenceAt
     })
+
+  if (countsForStudentChanged) {
+    const delta = payload.countsForStudent ? -1 : 1
+    await db.insert(tokenLedger).values({
+      studentId: booking.studentId,
+      lessonId: booking.lessonId,
+      delta,
+      reason: 'lesson_counts_adjusted'
+    })
+  }
 
   return c.json({
     ...updated,
@@ -1065,6 +1050,7 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
       )
     },
     columns: {
+      id: true,
       studentId: true,
       topic: true,
       countsForStudent: true,
@@ -1074,20 +1060,37 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
   })
 
   if (existingBookings.length > 0) {
-    await db.insert(lessonBookings).values(existingBookings.map(booking => ({
-      lessonId: newLesson.id,
-      studentId: booking.studentId,
-      topic: booking.topic,
-      status: 'confirmed',
-      countsForStudent: booking.countsForStudent,
-      studentPresence: booking.studentPresence,
-      studentPresenceAt: booking.studentPresenceAt
-    })))
+    const bookingIdMap = new Map<string, string>()
+    const newBookingRows = existingBookings.map((booking) => {
+      const newId = randomUUID()
+      bookingIdMap.set(booking.id, newId)
+      return {
+        id: newId,
+        lessonId: newLesson.id,
+        studentId: booking.studentId,
+        topic: booking.topic,
+        status: 'confirmed',
+        countsForStudent: booking.countsForStudent,
+        studentPresence: booking.studentPresence,
+        studentPresenceAt: booking.studentPresenceAt
+      }
+    })
+
+    await db.insert(lessonBookings).values(newBookingRows)
 
     if (existingBookings.some(booking => booking.studentPresence === true)) {
       await db.update(lessons)
         .set({ countsForTutor: true })
         .where(eq(lessons.id, newLesson.id))
+    }
+
+    for (const [oldBookingId, newBookingId] of bookingIdMap) {
+      await db.update(lessonFeedback)
+        .set({
+          lessonId: newLesson.id,
+          bookingId: newBookingId
+        })
+        .where(eq(lessonFeedback.bookingId, oldBookingId))
     }
 
     await db.update(lessonBookings)

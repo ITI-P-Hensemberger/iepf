@@ -9,9 +9,11 @@ import type { AppBindings, AppRouteHandler } from '@/lib/types'
 import db from '@/db'
 import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
+import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
-import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
+import { DEFAULT_LESSON_TOKENS, ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
+import { getStudentTokenBalances } from '@/lib/lesson-tokens'
 import {
   buildActivationChangedMessage,
   buildProfileUpdatedMessage,
@@ -131,7 +133,6 @@ async function attachProfiles(records: UserPublicRecord[]): Promise<UserWithProf
     sectionId: string | null
     year: number | null
     isActive: boolean | null
-    lessonTokens: number | null
   }> = []
   if (studentIds.length > 0) {
     studentProfilesList = await db.query.studentProfiles.findMany({
@@ -142,8 +143,7 @@ async function attachProfiles(records: UserPublicRecord[]): Promise<UserWithProf
         userId: true,
         sectionId: true,
         year: true,
-        isActive: true,
-        lessonTokens: true
+        isActive: true
       }
     })
   }
@@ -187,6 +187,7 @@ async function attachProfiles(records: UserPublicRecord[]): Promise<UserWithProf
   const studentProfileMap = new Map(studentProfilesList.map(profile => [profile.userId, profile]))
   const tutorProfileMap = new Map(tutorProfilesList.map(profile => [profile.userId, profile]))
   const adminProfileMap = new Map(adminProfilesList.map(profile => [profile.userId, profile]))
+  const tokenBalances = await getStudentTokenBalances(studentIds)
 
   const sectionIds = new Set<string>()
   for (const profile of studentProfilesList) {
@@ -232,7 +233,7 @@ async function attachProfiles(records: UserPublicRecord[]): Promise<UserWithProf
         sectionName: resolveSectionName(profile?.sectionId ?? null),
         year: profile?.year ?? null,
         isActive: profile?.isActive ?? false,
-        lessonTokens: profile?.lessonTokens ?? 0
+        lessonTokens: tokenBalances.get(user.id) ?? 0
       }
     }
 
@@ -390,6 +391,7 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
   ensureAdmin(c)
 
   const user = c.req.valid('json')
+  const email = user.email.trim().toLowerCase()
   const profileUpdates = extractProfileUpdates(user)
   const studentProfileUpdates = {
     sectionId: profileUpdates.sectionId,
@@ -406,7 +408,7 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
 
   const existing = await db.query.users.findFirst({
     where(fields, operators) {
-      return operators.eq(fields.email, user.email)
+      return operators.eq(fields.email, email)
     },
     columns: { id: true }
   })
@@ -465,7 +467,7 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
     const [inserted] = await db
       .insert(users)
       .values({
-        email: user.email,
+        email,
         firstName: user.firstName,
         lastName: user.lastName,
         // Role is validated by the admin-only schema.
@@ -489,6 +491,12 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
         sectionId: studentProfileUpdates.sectionId,
         year: studentProfileUpdates.year,
         isActive: studentProfileUpdates.isActive ?? false
+      })
+
+      await db.insert(tokenLedger).values({
+        studentId: inserted.id,
+        delta: DEFAULT_LESSON_TOKENS,
+        reason: 'initial_grant'
       })
     }
 
@@ -622,7 +630,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     lastName?: string
     passwordHash?: string
   } = {
-    email: updates.email,
+    email: updates.email?.trim().toLowerCase(),
     firstName: updates.firstName,
     lastName: updates.lastName
   }
@@ -648,7 +656,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
   const hasUserUpdates = Object.values(userUpdates).some(value => value !== undefined)
 
   if (typeof updates.email === 'string') {
-    const email = updates.email
+    const email = updates.email.trim().toLowerCase()
     const existing = await db.query.users.findFirst({
       where(fields, operators) {
         return operators.eq(fields.email, email)
@@ -727,8 +735,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
         columns: {
           sectionId: true,
           year: true,
-          isActive: true,
-          lessonTokens: true
+          isActive: true
         }
       })) ?? null
     }
