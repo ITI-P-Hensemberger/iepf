@@ -68,40 +68,6 @@ export const studentRegisterSchema = toZodV4SchemaTyped(baseUserInputSchema.exte
   }
 })
 
-// Admins can set the role and profile fields when creating users.
-export const adminCreateUserSchema = toZodV4SchemaTyped(baseUserInputSchema.extend({
-  role: z.enum(['student', 'tutor', 'activator']).default('student'),
-  sectionId: z.uuid().optional(),
-  year: z.number().int().optional(),
-  isActive: z.boolean().optional()
-})).superRefine((value, ctx) => {
-  if (value.role !== 'student' && value.isActive !== undefined) {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['isActive'],
-      message: 'L\'attivazione e consentita solo per studenti'
-    })
-  }
-  if (value.role === 'activator' && (value.sectionId !== undefined || value.year !== undefined)) {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['role'],
-      message: 'Sezioni e anno non sono consentiti per il ruolo activator'
-    })
-  }
-  if (value.year !== undefined) {
-    const min = value.role === 'tutor' ? 4 : 1
-    const max = value.role === 'tutor' ? 5 : 3
-    if (value.year < min || value.year > max) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['year'],
-        message: `L\'anno deve essere compreso tra ${min} e ${max}`
-      })
-    }
-  }
-})
-
 export const selectUsersWithProfilesSchema = toZodV4SchemaTyped(
   selectUsersSchema.and(z.object({
     sectionId: z.string().nullable().optional(),

@@ -355,7 +355,7 @@ export const adminListFeedback: AppRouteHandler<AdminListFeedbackRoute> = async 
     }
   })()
 
-  let listQuery = db
+  const baseQuery = db
     .select({
       id: lessonFeedback.id,
       lessonId: lessonFeedback.lessonId,
@@ -371,25 +371,18 @@ export const adminListFeedback: AppRouteHandler<AdminListFeedbackRoute> = async 
     .from(lessonFeedback)
     .innerJoin(lessons, eq(lessonFeedback.lessonId, lessons.id))
 
-  if (whereClause) {
-    listQuery = listQuery.where(whereClause)
-  }
-
-  const rows = await listQuery
+  const rows = await (whereClause ? baseQuery.where(whereClause) : baseQuery)
     .orderBy(query.sortDir === 'desc' ? desc(orderField) : asc(orderField))
     .limit(query.limit)
     .offset(query.offset)
 
-  const totalQuery = db
+  const baseTotalQuery = db
     .select({ total: sql<number>`count(*)` })
     .from(lessonFeedback)
-  if (query.lessonFrom || query.lessonTo) {
-    totalQuery.innerJoin(lessons, eq(lessonFeedback.lessonId, lessons.id))
-  }
-  if (whereClause) {
-    totalQuery.where(whereClause)
-  }
-  const [{ total }] = await totalQuery
+  const totalQuery = (query.lessonFrom || query.lessonTo)
+    ? baseTotalQuery.innerJoin(lessons, eq(lessonFeedback.lessonId, lessons.id))
+    : baseTotalQuery
+  const [{ total }] = await (whereClause ? totalQuery.where(whereClause) : totalQuery)
 
   const data = rows.map(row => ({
     ...row,

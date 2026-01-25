@@ -19,6 +19,7 @@ import { DEFAULT_TUTOR_SETTINGS, ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/l
 import {
   buildAdminInviteMessage,
   buildEmailVerificationMessage,
+  buildPasswordChangedMessage,
   buildPasswordResetMessage,
   buildRegistrationConfirmedMessage,
   buildStudentRegistrationMessage,
@@ -597,6 +598,13 @@ export const confirmPasswordReset: AppRouteHandler<ConfirmPasswordResetRoute> = 
     .where(eq(users.id, user.id))
 
   await revokeUserRefreshTokens(user.id)
+  const message = buildPasswordChangedMessage()
+  sendMail({
+    to: user.email,
+    subject: message.subject,
+    text: message.text,
+    html: message.html
+  }).catch(err => console.error('Failed to send email:', err))
 
   return c.json(
     { message: 'Password reimpostata con successo.' },

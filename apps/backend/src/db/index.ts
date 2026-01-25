@@ -9,6 +9,7 @@ import { adminProfiles } from './schemas/admin-profiles.schema'
 import { auditLogs } from './schemas/audit-logs.schema'
 import { classSections } from './schemas/class-sections.schema'
 import { emailVerificationTokens } from './schemas/email-verification-tokens.schema'
+import { globalSettings } from './schemas/global-settings.schema'
 import { lessonBookings } from './schemas/lesson-bookings.schema'
 import { lessonFeedback } from './schemas/lesson-feedback.schema'
 import { lessons } from './schemas/lessons.schema'
@@ -30,6 +31,7 @@ const schema = {
   adminInviteTokens,
   adminProfiles,
   classSections,
+  globalSettings,
   studentProfiles,
   tutorProfiles,
   subjects,

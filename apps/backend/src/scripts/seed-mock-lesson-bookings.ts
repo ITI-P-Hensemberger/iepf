@@ -9,6 +9,7 @@ import { lessons } from '@/db/schemas/lessons.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
+import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'
 
@@ -39,6 +40,10 @@ function pastDate(daysAgo: number, hour = 10) {
   date.setDate(date.getDate() - daysAgo)
   date.setHours(hour, 0, 0, 0)
   return date
+}
+
+function getDateKey(date: Date) {
+  return date.toISOString().split('T')[0]
 }
 
 async function main() {
@@ -78,6 +83,21 @@ async function main() {
     .where(eq(lessons.status, 'scheduled'))
     .orderBy(desc(lessons.startAt))
 
+  const tutorSettingsRows = scheduledLessons.length
+    ? await db
+        .select({
+          tutorId: tutorSettings.tutorId,
+          dailyCapacity: tutorSettings.dailyCapacity
+        })
+        .from(tutorSettings)
+        .where(inArray(tutorSettings.tutorId, scheduledLessons.map(lesson => lesson.tutorId)))
+    : []
+
+  const tutorDailyCapacities = new Map<string, number>()
+  for (const row of tutorSettingsRows) {
+    tutorDailyCapacities.set(row.tutorId, row.dailyCapacity)
+  }
+
   const lessonIds = scheduledLessons.map(lesson => lesson.id)
   const existingBookings = lessonIds.length
     ? await db
@@ -90,11 +110,22 @@ async function main() {
         .where(inArray(lessonBookings.lessonId, lessonIds))
     : []
 
+  const lessonById = new Map(scheduledLessons.map(lesson => [lesson.id, lesson]))
+
   const bookingByLesson = new Map<string, Set<string>>()
+  const dailyBookingsByTutor = new Map<string, number>()
   for (const booking of existingBookings) {
+    if (booking.status !== 'confirmed') {
+      continue
+    }
     const set = bookingByLesson.get(booking.lessonId) ?? new Set<string>()
     set.add(booking.studentId)
     bookingByLesson.set(booking.lessonId, set)
+    const lesson = lessonById.get(booking.lessonId)
+    if (lesson) {
+      const key = `${lesson.tutorId}:${getDateKey(new Date(lesson.startAt))}`
+      dailyBookingsByTutor.set(key, (dailyBookingsByTutor.get(key) ?? 0) + 1)
+    }
   }
 
   let createdBookings = 0
@@ -103,11 +134,16 @@ async function main() {
   for (const lesson of scheduledLessons) {
     const existing = bookingByLesson.get(lesson.id) ?? new Set<string>()
     const availableSeats = Math.max(0, lesson.seats - existing.size)
-    if (availableSeats <= 0) {
+    const dailyCapacity = tutorDailyCapacities.get(lesson.tutorId) ?? 1
+    const dailyKey = `${lesson.tutorId}:${getDateKey(new Date(lesson.startAt))}`
+    const currentDaily = dailyBookingsByTutor.get(dailyKey) ?? 0
+    const availableDaily = Math.max(0, dailyCapacity - currentDaily)
+    const available = Math.min(availableSeats, availableDaily)
+    if (available <= 0) {
       continue
     }
 
-    const desired = Math.min(availableSeats, 2)
+    const desired = Math.min(available, 2)
     const selectedStudents = randomPick(activeStudents.filter(student => !existing.has(student.id)), desired)
 
     for (const student of selectedStudents) {
@@ -119,6 +155,7 @@ async function main() {
         status: 'confirmed'
       })
       existing.add(student.id)
+      dailyBookingsByTutor.set(dailyKey, (dailyBookingsByTutor.get(dailyKey) ?? 0) + 1)
       createdBookings += 1
     }
   }
@@ -141,6 +178,7 @@ async function main() {
   if (canceledPairs.length > 0) {
     const refundRows: Array<typeof tokenLedger.$inferInsert> = []
     for (const row of canceledPairs) {
+      const lesson = lessonById.get(row.lessonId!)
       const countsForStudent = Math.random() > 0.5
       await db.update(lessonBookings)
         .set({
@@ -159,30 +197,61 @@ async function main() {
           reason: 'lesson_cancel_admin'
         })
       }
+
+      if (lesson) {
+        const dailyKey = `${lesson.tutorId}:${getDateKey(new Date(lesson.startAt))}`
+        const current = dailyBookingsByTutor.get(dailyKey) ?? 0
+        dailyBookingsByTutor.set(dailyKey, Math.max(0, current - 1))
+      }
+      const existing = bookingByLesson.get(row.lessonId!) ?? new Set<string>()
+      existing.delete(row.studentId!)
+      bookingByLesson.set(row.lessonId!, existing)
     }
 
     if (refundRows.length > 0) {
       await db.insert(tokenLedger).values(refundRows)
     }
 
-    const rebookRows: Array<typeof lessonBookings.$inferInsert> = canceledPairs.map(row => ({
-      id: randomUUID(),
-      lessonId: row.lessonId!,
-      studentId: row.studentId!,
-      topic: 'Rebooking',
-      status: 'confirmed'
-    }))
-
-    await db.insert(lessonBookings).values(rebookRows)
-    await db.insert(tokenLedger).values(
-      rebookRows.map(row => ({
-        studentId: row.studentId!,
+    const rebookRows: Array<typeof lessonBookings.$inferInsert> = []
+    for (const row of canceledPairs) {
+      const lesson = lessonById.get(row.lessonId!)
+      if (!lesson) {
+        continue
+      }
+      const existing = bookingByLesson.get(row.lessonId!) ?? new Set<string>()
+      const availableSeats = Math.max(0, lesson.seats - existing.size)
+      const dailyCapacity = tutorDailyCapacities.get(lesson.tutorId) ?? 1
+      const dailyKey = `${lesson.tutorId}:${getDateKey(new Date(lesson.startAt))}`
+      const currentDaily = dailyBookingsByTutor.get(dailyKey) ?? 0
+      const availableDaily = Math.max(0, dailyCapacity - currentDaily)
+      const available = Math.min(availableSeats, availableDaily)
+      if (available <= 0 || existing.has(row.studentId!)) {
+        continue
+      }
+      rebookRows.push({
+        id: randomUUID(),
         lessonId: row.lessonId!,
-        delta: -1,
-        reason: 'lesson_booking'
-      }))
-    )
-    createdBookings += rebookRows.length
+        studentId: row.studentId!,
+        topic: 'Rebooking',
+        status: 'confirmed'
+      })
+      existing.add(row.studentId!)
+      bookingByLesson.set(row.lessonId!, existing)
+      dailyBookingsByTutor.set(dailyKey, currentDaily + 1)
+    }
+
+    if (rebookRows.length > 0) {
+      await db.insert(lessonBookings).values(rebookRows)
+      await db.insert(tokenLedger).values(
+        rebookRows.map(row => ({
+          studentId: row.studentId!,
+          lessonId: row.lessonId!,
+          delta: -1,
+          reason: 'lesson_booking'
+        }))
+      )
+      createdBookings += rebookRows.length
+    }
   }
 
   const lessonsToConfirm = new Set<string>()

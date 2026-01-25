@@ -45,8 +45,14 @@ function loadLogoDataUri() {
 }
 
 function buildEmailHtml(title: string, message: string, action?: { label: string, url: string }) {
-  const actionHtml = action
-    ? `<a href="${action.url}" style="display:inline-block;margin-top:24px;padding:12px 20px;background:#0f172a;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">${action.label}</a>`
+  const homeUrl = env.SITE_URL ?? 'http://localhost:3000'
+  const actions: string[] = []
+  if (action) {
+    actions.push(`<a href="${action.url}" class="cta-button" style="display:inline-block;padding:12px 20px;background:#0f172a;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;text-align:center;">${action.label}</a>`)
+  }
+  actions.push(`<a href="${homeUrl}" class="cta-button" style="display:inline-block;padding:12px 20px;background:#1e293b;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;text-align:center;">Vai alla home</a>`)
+  const actionHtml = actions.length > 0
+    ? `<div style="margin-top:24px;display:flex;flex-direction:column;gap:12px;align-items:center;">${actions.join('')}</div>`
     : ''
   const logoDataUri = loadLogoDataUri()
   const logoHtml = logoDataUri
@@ -55,6 +61,15 @@ function buildEmailHtml(title: string, message: string, action?: { label: string
 
   return `
   <div style="margin:0;padding:24px;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
+    <style>
+      @media (max-width: 480px) {
+        .cta-button {
+          display: block !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
+        }
+      }
+    </style>
     <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;padding:32px;text-align:center;box-shadow:0 10px 30px rgba(15,23,42,0.08);">
       ${logoHtml}
       <div style="margin:0 0 16px;font-size:14px;letter-spacing:2px;text-transform:uppercase;color:#64748b;font-weight:700;">IEPF</div>
@@ -65,6 +80,38 @@ function buildEmailHtml(title: string, message: string, action?: { label: string
     <p style="margin:20px 0 0;text-align:center;font-size:12px;color:#94a3b8;">Se non hai richiesto questa email, puoi ignorarla.</p>
   </div>
   `.trim()
+}
+
+function formatLessonDate(date: Date) {
+  return date.toLocaleString('it-IT', {
+    year: 'numeric',
+    month: 'long',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+function buildStudentLabel(name: string, classLabel?: string | null) {
+  if (!classLabel) {
+    return name
+  }
+
+  const normalized = classLabel.trim()
+  const annoMatch = normalized.match(/anno\s*(\d+)/i)
+  if (annoMatch) {
+    const year = annoMatch[1]
+    const section = normalized
+      .replace(/anno\s*\d+/i, '')
+      .replace(/[-–—]/g, '')
+      .trim()
+      .replace(/\s+/g, '')
+    const compact = `${year}${section}`.trim()
+    return compact ? `${name} (${compact})` : name
+  }
+
+  const compact = normalized.replace(/\s+/g, '')
+  return `${name} (${compact})`
 }
 
 export function buildStudentRegistrationMessage(token: string) {
@@ -228,5 +275,222 @@ export function buildBookingCanceledByAdminMessage(recipientRole: 'student' | 't
     subject: 'Lezione annullata',
     text: message,
     html: buildEmailHtml(heading, message)
+  } satisfies EmailTemplate
+}
+
+export function buildLessonBookingConfirmedMessage(params: {
+  recipientRole: 'student' | 'tutor'
+  lessonStartAt: Date
+  subjectName: string
+  tutorName: string
+  studentName: string
+  studentClass?: string | null
+  bookedByAdmin?: boolean
+}) {
+  const dateLabel = formatLessonDate(params.lessonStartAt)
+  const adminLabel = params.bookedByAdmin ? ' Prenotazione effettuata da un amministratore.' : ''
+  if (params.recipientRole === 'student') {
+    return {
+      subject: 'Prenotazione confermata',
+      text: `La tua prenotazione è confermata per ${dateLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.${adminLabel}`,
+      html: buildEmailHtml(
+        'Prenotazione confermata',
+        `La tua prenotazione è confermata per <strong>${dateLabel}</strong>.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.${params.bookedByAdmin ? '<br />Prenotazione effettuata da un amministratore.' : ''}`
+      )
+    } satisfies EmailTemplate
+  }
+
+  const studentLabel = buildStudentLabel(params.studentName, params.studentClass)
+  return {
+    subject: 'Nuova prenotazione',
+    text: `Hai una nuova prenotazione per ${dateLabel}. Materia: ${params.subjectName}. Studente: ${studentLabel}.${adminLabel}`,
+    html: buildEmailHtml(
+      'Nuova prenotazione',
+      `Hai una nuova prenotazione per <strong>${dateLabel}</strong>.<br />Materia: <strong>${params.subjectName}</strong>.<br />Studente: <strong>${studentLabel}</strong>.${params.bookedByAdmin ? '<br />Prenotazione effettuata da un amministratore.' : ''}`
+    )
+  } satisfies EmailTemplate
+}
+
+export function buildLessonBookingCanceledMessage(params: {
+  recipientRole: 'student' | 'tutor'
+  canceledBy: 'student' | 'tutor' | 'admin'
+  lessonStartAt: Date
+  subjectName: string
+  tutorName: string
+  studentName: string
+  studentClass?: string | null
+}) {
+  const dateLabel = formatLessonDate(params.lessonStartAt)
+  const canceledByLabel = params.canceledBy === 'admin'
+    ? 'da un amministratore'
+    : params.canceledBy === 'tutor' ? 'dal tutor' : 'dallo studente'
+
+  if (params.recipientRole === 'student') {
+    return {
+      subject: 'Prenotazione annullata',
+      text: `La prenotazione per ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.`,
+      html: buildEmailHtml(
+        'Prenotazione annullata',
+        `La prenotazione per <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.`
+      )
+    } satisfies EmailTemplate
+  }
+
+  const studentLabel = buildStudentLabel(params.studentName, params.studentClass)
+  return {
+    subject: 'Prenotazione annullata',
+    text: `La prenotazione di ${studentLabel} per ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}.`,
+    html: buildEmailHtml(
+      'Prenotazione annullata',
+      `La prenotazione di <strong>${studentLabel}</strong> per <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.`
+    )
+  } satisfies EmailTemplate
+}
+
+export function buildLessonCanceledMessage(params: {
+  recipientRole: 'student' | 'tutor'
+  canceledBy: 'student' | 'tutor' | 'admin'
+  lessonStartAt: Date
+  subjectName: string
+  tutorName: string
+  students: Array<{ name: string, classLabel?: string | null }>
+}) {
+  const dateLabel = formatLessonDate(params.lessonStartAt)
+  const canceledByLabel = params.canceledBy === 'admin'
+    ? 'da un amministratore'
+    : params.canceledBy === 'tutor' ? 'dal tutor' : 'dallo studente'
+
+  if (params.recipientRole === 'student') {
+    return {
+      subject: 'Lezione annullata',
+      text: `La lezione del ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.`,
+      html: buildEmailHtml(
+        'Lezione annullata',
+        `La lezione del <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.`
+      )
+    } satisfies EmailTemplate
+  }
+
+  const studentItems = params.students.length > 0
+    ? `<ul style="margin:12px 0 0;padding-left:20px;text-align:left;">${params.students
+      .map(student => `<li>${buildStudentLabel(student.name, student.classLabel)}</li>`)
+      .join('')}</ul>`
+    : '<p style="margin:12px 0 0;">Nessuno studente prenotato.</p>'
+
+  return {
+    subject: 'Lezione annullata',
+    text: `La lezione del ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}. Studenti: ${params.students.map(student => buildStudentLabel(student.name, student.classLabel)).join(', ') || 'nessuno'}.`,
+    html: buildEmailHtml(
+      'Lezione annullata',
+      `La lezione del <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.<br />Studenti:${studentItems}`
+    )
+  } satisfies EmailTemplate
+}
+
+export function buildLessonRescheduledMessage(params: {
+  recipientRole: 'student' | 'tutor'
+  oldStartAt: Date
+  newStartAt: Date
+  oldSubjectName: string
+  newSubjectName: string
+  oldTutorName: string
+  newTutorName: string
+  students: Array<{ name: string, classLabel?: string | null }>
+}) {
+  const oldDate = formatLessonDate(params.oldStartAt)
+  const newDate = formatLessonDate(params.newStartAt)
+
+  if (params.recipientRole === 'student') {
+    return {
+      subject: 'Lezione riprogrammata',
+      text: `La lezione del ${oldDate} è stata riprogrammata al ${newDate}. Materia: ${params.newSubjectName}. Tutor: ${params.newTutorName}.`,
+      html: buildEmailHtml(
+        'Lezione riprogrammata',
+        `La lezione del <strong>${oldDate}</strong> è stata riprogrammata al <strong>${newDate}</strong>.<br />Materia: <strong>${params.newSubjectName}</strong>.<br />Tutor: <strong>${params.newTutorName}</strong>.`
+      )
+    } satisfies EmailTemplate
+  }
+
+  const studentItems = params.students.length > 0
+    ? `<ul style="margin:12px 0 0;padding-left:20px;text-align:left;">${params.students
+      .map(student => `<li>${buildStudentLabel(student.name, student.classLabel)}</li>`)
+      .join('')}</ul>`
+    : '<p style="margin:12px 0 0;">Nessuno studente prenotato.</p>'
+
+  return {
+    subject: 'Lezione riprogrammata',
+    text: `La lezione del ${oldDate} è stata riprogrammata al ${newDate}. Materia: ${params.newSubjectName}. Studenti: ${params.students.map(student => buildStudentLabel(student.name, student.classLabel)).join(', ') || 'nessuno'}.`,
+    html: buildEmailHtml(
+      'Lezione riprogrammata',
+      `La lezione del <strong>${oldDate}</strong> è stata riprogrammata al <strong>${newDate}</strong>.<br />Materia: <strong>${params.newSubjectName}</strong>.<br />Studenti:${studentItems}`
+    )
+  } satisfies EmailTemplate
+}
+
+export function buildPasswordChangedMessage() {
+  return {
+    subject: 'Password aggiornata',
+    text: 'La tua password è stata aggiornata. Se non sei stato tu, contatta il supporto.',
+    html: buildEmailHtml(
+      'Password aggiornata',
+      'La tua password è stata aggiornata. Se non sei stato tu, contatta il supporto.'
+    )
+  } satisfies EmailTemplate
+}
+
+export function buildLessonReminderStudentMessage(params: {
+  lessonStartAt: Date
+  subjectName: string
+  tutorName: string
+  studentName: string
+  studentClass?: string | null
+}) {
+  const dateLabel = formatLessonDate(params.lessonStartAt)
+  return {
+    subject: 'Promemoria lezione di domani',
+    text: `Promemoria: lezione il ${dateLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.`,
+    html: buildEmailHtml(
+      'Promemoria lezione di domani',
+      `Promemoria: lezione il <strong>${dateLabel}</strong>.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.`
+    )
+  } satisfies EmailTemplate
+}
+
+export function buildLessonReminderTutorMessage(params: {
+  tutorName: string
+  lessons: Array<{
+    startAt: Date
+    subjectName: string
+    students: Array<{ name: string, classLabel?: string | null }>
+  }>
+}) {
+  const itemsHtml = params.lessons.map((lesson) => {
+    const dateLabel = formatLessonDate(lesson.startAt)
+    const studentsList = lesson.students.length > 0
+      ? `<ul style="margin:8px 0 0;padding-left:20px;">${lesson.students
+        .map(student => `<li>${buildStudentLabel(student.name, student.classLabel)}</li>`)
+        .join('')}</ul>`
+      : '<p style="margin:8px 0 0;">Nessuno studente prenotato.</p>'
+    return `
+      <div style="margin-bottom:16px;">
+        <div><strong>${dateLabel}</strong> — ${lesson.subjectName}</div>
+        ${studentsList}
+      </div>
+    `.trim()
+  }).join('')
+
+  const itemsText = params.lessons.map((lesson) => {
+    const dateLabel = formatLessonDate(lesson.startAt)
+    const students = lesson.students.map(student => buildStudentLabel(student.name, student.classLabel)).join(', ') || 'nessuno'
+    return `- ${dateLabel} — ${lesson.subjectName} (Studenti: ${students})`
+  }).join('\n')
+
+  return {
+    subject: 'Promemoria lezioni di domani',
+    text: `Ecco le lezioni confermate di domani:\n${itemsText}`,
+    html: buildEmailHtml(
+      'Promemoria lezioni di domani',
+      `Ecco le lezioni confermate di domani:${itemsHtml}`
+    )
   } satisfies EmailTemplate
 }

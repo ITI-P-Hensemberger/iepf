@@ -9,26 +9,24 @@ import type { AppBindings, AppRouteHandler } from '@/lib/types'
 import db from '@/db'
 import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
-import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
-import { DEFAULT_LESSON_TOKENS, ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
-import { getStudentTokenBalances } from '@/lib/lesson-tokens'
+import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
 import {
   buildActivationChangedMessage,
-  buildProfileUpdatedMessage,
-  buildTutorCreatedMessage
+  buildPasswordChangedMessage,
+  buildProfileUpdatedMessage
 } from '@/lib/email-templates'
-import { issueEmailVerificationToken } from '@/lib/email-verification'
 import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { getStudentTokenBalances } from '@/lib/lesson-tokens'
 import { sendMail } from '@/lib/mailer'
 import { buildPagedResponse } from '@/lib/pagination'
 import { hashPassword } from '@/lib/password'
 import { revokeUserRefreshTokens } from '@/lib/refresh-tokens'
 
-import type { CreateRoute, GetOneRoute, ListRoute, PatchRoute, RemoveRoute } from './users.routes'
+import type { GetOneRoute, ListRoute, PatchRoute, RemoveRoute } from './users.routes'
 
 type HandlerContext = Context<AppBindings>
 type UserPublicRecord = Omit<typeof users.$inferSelect, 'passwordHash'>
@@ -387,165 +385,6 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
   return c.json(buildPagedResponse(paged, total, query.limit, query.offset), HttpStatusCodes.OK)
 }
 
-export const create: AppRouteHandler<CreateRoute> = async (c) => {
-  ensureAdmin(c)
-
-  const user = c.req.valid('json')
-  const email = user.email.trim().toLowerCase()
-  const profileUpdates = extractProfileUpdates(user)
-  const studentProfileUpdates = {
-    sectionId: profileUpdates.sectionId,
-    year: profileUpdates.year,
-    isActive: profileUpdates.isActive
-  }
-  const tutorProfileUpdates = {
-    sectionId: profileUpdates.sectionId,
-    year: profileUpdates.year,
-    isActive: profileUpdates.isActive
-  }
-
-  const passwordHash = await hashPassword(user.password)
-
-  const existing = await db.query.users.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.email, email)
-    },
-    columns: { id: true }
-  })
-
-  if (existing) {
-    return c.json(buildDuplicateEmailError(), HttpStatusCodes.CONFLICT)
-  }
-
-  if (user.role === 'student' && profileUpdates.year !== undefined
-    && (profileUpdates.year < 1 || profileUpdates.year > 3)) {
-    return c.json(
-      buildErrorResponse('L\'anno deve essere compreso tra 1 e 3', {
-        name: 'ZodError',
-        issues: [
-          {
-            code: ZOD_ERROR_CODES.INVALID_UPDATES,
-            path: ['year'],
-            message: 'L\'anno deve essere compreso tra 1 e 3'
-          }
-        ]
-      }),
-      HttpStatusCodes.UNPROCESSABLE_ENTITY
-    )
-  }
-
-  if (user.role === 'tutor' && profileUpdates.year !== undefined
-    && (profileUpdates.year < 4 || profileUpdates.year > 5)) {
-    return c.json(
-      buildErrorResponse('L\'anno deve essere compreso tra 4 e 5', {
-        name: 'ZodError',
-        issues: [
-          {
-            code: ZOD_ERROR_CODES.INVALID_UPDATES,
-            path: ['year'],
-            message: 'L\'anno deve essere compreso tra 4 e 5'
-          }
-        ]
-      }),
-      HttpStatusCodes.UNPROCESSABLE_ENTITY
-    )
-  }
-
-  if (profileUpdates.sectionId) {
-    const section = await db.query.classSections.findFirst({
-      where(fields, operators) {
-        return operators.eq(fields.id, profileUpdates.sectionId as string)
-      },
-      columns: { id: true }
-    })
-    if (!section) {
-      return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
-    }
-  }
-
-  try {
-    const [inserted] = await db
-      .insert(users)
-      .values({
-        email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        // Role is validated by the admin-only schema.
-        role: user.role,
-        passwordHash
-      })
-      .returning({
-        id: users.id,
-        email: users.email,
-        firstName: users.firstName,
-        lastName: users.lastName,
-        role: users.role,
-        emailVerifiedAt: users.emailVerifiedAt,
-        createdAt: users.createdAt,
-        updatedAt: users.updatedAt
-      })
-
-    if (inserted.role === 'student') {
-      await db.insert(studentProfiles).values({
-        userId: inserted.id,
-        sectionId: studentProfileUpdates.sectionId,
-        year: studentProfileUpdates.year,
-        isActive: studentProfileUpdates.isActive ?? false
-      })
-
-      await db.insert(tokenLedger).values({
-        studentId: inserted.id,
-        delta: DEFAULT_LESSON_TOKENS,
-        reason: 'initial_grant'
-      })
-    }
-
-    if (inserted.role === 'tutor') {
-      if (tutorProfileUpdates.sectionId === undefined || tutorProfileUpdates.year === undefined) {
-        return c.json(
-          buildErrorResponse('Sezione e anno sono obbligatori per i tutor', {
-            name: 'ZodError',
-            issues: [
-              {
-                code: ZOD_ERROR_CODES.INVALID_UPDATES,
-                path: ['sectionId', 'year'],
-                message: 'Sezione e anno sono obbligatori per i tutor'
-              }
-            ]
-          }),
-          HttpStatusCodes.UNPROCESSABLE_ENTITY
-        )
-      }
-      await db.insert(tutorProfiles).values({
-        userId: inserted.id,
-        sectionId: tutorProfileUpdates.sectionId,
-        year: tutorProfileUpdates.year
-      })
-
-      const verification = await issueEmailVerificationToken(inserted.id)
-      const tutorEmail = buildTutorCreatedMessage(verification.token)
-      sendMail({
-        to: inserted.email,
-        subject: tutorEmail.subject,
-        text: tutorEmail.text,
-        html: tutorEmail.html
-      }).catch(err => console.error('Failed to send email:', err))
-    }
-
-    const location = `/users/${inserted.id}`
-    c.header('Location', location)
-
-    const [withProfile] = await attachProfiles([inserted])
-    return c.json(withProfile, HttpStatusCodes.CREATED)
-  }
-  catch (error) {
-    if (isUniqueConstraintError(error)) {
-      return c.json(buildDuplicateEmailError(), HttpStatusCodes.CONFLICT)
-    }
-    throw error
-  }
-}
-
 export const getOne: AppRouteHandler<GetOneRoute> = async (c) => {
   const { id } = c.req.valid('param')
   const currentUser = c.get('currentUser')
@@ -566,6 +405,29 @@ export const getOne: AppRouteHandler<GetOneRoute> = async (c) => {
     return c.json(
       buildErrorResponse(HttpStatusPhrases.NOT_FOUND),
       HttpStatusCodes.NOT_FOUND
+    )
+  }
+
+  if (currentUser.role === 'tutor') {
+    if (currentUser.id === id) {
+      const [withProfile] = await attachProfiles([user])
+      return c.json(withProfile, HttpStatusCodes.OK)
+    }
+    if (user.role !== 'student') {
+      forbid()
+    }
+    const [withProfile] = await attachProfiles([user])
+    return c.json(
+      {
+        id: withProfile.id,
+        firstName: withProfile.firstName,
+        lastName: withProfile.lastName,
+        email: withProfile.email,
+        sectionId: withProfile.sectionId,
+        sectionName: withProfile.sectionName,
+        year: withProfile.year
+      },
+      HttpStatusCodes.OK
     )
   }
 
@@ -653,6 +515,8 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     userUpdates.passwordHash = await hashPassword(updates.password)
     passwordChanged = true
   }
+  const hasNonPasswordUserUpdates = Object.entries(userUpdates)
+    .some(([key, value]) => key !== 'passwordHash' && value !== undefined)
   const hasUserUpdates = Object.values(userUpdates).some(value => value !== undefined)
 
   if (typeof updates.email === 'string') {
@@ -973,19 +837,31 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       }
     }
 
-    if (user?.email && (hasUserUpdates || hasProfileUpdates)) {
-      const activationChanged = previousIsActive !== undefined
-        && profileUpdates.isActive !== undefined
-        && previousIsActive !== profileUpdates.isActive
-      const message = activationChanged
-        ? buildActivationChangedMessage(Boolean(profileUpdates.isActive))
-        : buildProfileUpdatedMessage()
-      sendMail({
-        to: user.email,
-        subject: message.subject,
-        text: message.text,
-        html: message.html
-      }).catch(err => console.error('Failed to send email:', err))
+    if (user?.email) {
+      if (passwordChanged) {
+        const passwordMessage = buildPasswordChangedMessage()
+        sendMail({
+          to: user.email,
+          subject: passwordMessage.subject,
+          text: passwordMessage.text,
+          html: passwordMessage.html
+        }).catch(err => console.error('Failed to send password change email:', err))
+      }
+
+      if (hasNonPasswordUserUpdates || hasProfileUpdates) {
+        const activationChanged = previousIsActive !== undefined
+          && profileUpdates.isActive !== undefined
+          && previousIsActive !== profileUpdates.isActive
+        const message = activationChanged
+          ? buildActivationChangedMessage(Boolean(profileUpdates.isActive))
+          : buildProfileUpdatedMessage()
+        sendMail({
+          to: user.email,
+          subject: message.subject,
+          text: message.text,
+          html: message.html
+        }).catch(err => console.error('Failed to send profile update email:', err))
+      }
     }
   }
   catch (error) {

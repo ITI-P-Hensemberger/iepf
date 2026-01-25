@@ -15,13 +15,13 @@ function unauthorized(c: Context<AppBindings>) {
 
 export function authenticate(): MiddlewareHandler<AppBindings> {
   return async (c, next) => {
-    const header = c.req.header('Authorization')
+    const header = c.req.header('authorization') ?? c.req.header('Authorization')
 
     if (!header) {
       return unauthorized(c)
     }
 
-    const [scheme, token] = header.split(' ')
+    const [scheme, token] = header.trim().split(/\s+/)
 
     if (!token || !scheme || scheme.toLowerCase() !== 'bearer') {
       return unauthorized(c)

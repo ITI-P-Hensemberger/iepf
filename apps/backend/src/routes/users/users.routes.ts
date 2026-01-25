@@ -1,7 +1,7 @@
 // Purpose: Users route schemas.
 import { createRoute, z } from '@hono/zod-openapi'
 
-import { adminCreateUserSchema, patchUsersSchema, selectUsersWithProfilesSchema } from '@/db/schemas/users.schema'
+import { patchUsersSchema, selectUsersWithProfilesSchema } from '@/db/schemas/users.schema'
 import { notFoundSchema } from '@/lib/constants'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
@@ -13,6 +13,16 @@ const tags = ['Users']
 const bearerAuth = [{
   bearerAuth: [] as string[]
 }]
+
+const tutorStudentDetailsSchema = z.object({
+  id: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
+  email: z.string(),
+  sectionId: z.string().nullable(),
+  sectionName: z.string().nullable(),
+  year: z.number().nullable()
+})
 
 const listQuerySchema = z.object({
   q: z.string().min(1).optional(),
@@ -51,55 +61,6 @@ export const list = createRoute({
   }
 })
 
-export const create = createRoute({
-  path: '/users',
-  method: 'post',
-  request: {
-    body: jsonContentRequired(
-      // Admin-only user creation supports assigning tutor roles.
-      adminCreateUserSchema,
-      'The user to create'
-    )
-  },
-  tags,
-  security: bearerAuth,
-  responses: {
-    [HttpStatusCodes.CREATED]: {
-      ...jsonContent(
-        selectUsersWithProfilesSchema,
-        'The created user'
-      ),
-      headers: {
-        Location: {
-          description: 'Relative URL of the created user resource',
-          schema: {
-            type: 'string',
-            format: 'uri-reference'
-          }
-        }
-      }
-    },
-    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
-      createErrorSchema(adminCreateUserSchema),
-      'The validation error(s)'
-    ),
-    [HttpStatusCodes.CONFLICT]: jsonContent(
-      createErrorSchema(z.object({
-        email: z.string().min(1)
-      })),
-      'Given email already exists'
-    ),
-    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
-      'Section not found'
-    ),
-    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
-      'Invalid credentials'
-    )
-  }
-})
-
 export const getOne = createRoute({
   path: '/users/{id}',
   method: 'get',
@@ -110,7 +71,7 @@ export const getOne = createRoute({
   security: bearerAuth,
   responses: {
     [HttpStatusCodes.OK]: jsonContent(
-      selectUsersWithProfilesSchema,
+      selectUsersWithProfilesSchema.or(tutorStudentDetailsSchema),
       'The requested user'
     ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
@@ -203,7 +164,6 @@ export const remove = createRoute({
 })
 
 export type ListRoute = typeof list
-export type CreateRoute = typeof create
 export type GetOneRoute = typeof getOne
 export type PatchRoute = typeof patch
 export type RemoveRoute = typeof remove

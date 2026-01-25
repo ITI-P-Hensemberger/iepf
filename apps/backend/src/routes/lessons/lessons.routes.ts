@@ -47,6 +47,7 @@ export const lessonSchema = z.object({
   durationMinutes: z.number().int(),
   lessonCapacity: z.number().int(),
   dailyCapacity: z.number().int(),
+  dailyOccupancy: z.number().int(),
   availableSeats: z.number().int(),
   countsForTutor: z.boolean(),
   status: z.string()
@@ -87,14 +88,16 @@ const bookingCountsSchema = z.object({
 })
 
 const presenceSchema = z.object({
-  present: z.boolean()
+  present: z.boolean().nullable()
 })
 
 const bookGeneratedLessonSchema = z.object({
-  topic: z.string().min(1).max(200)
+  topic: z.string().min(1).max(200),
+  studentId: z.uuid().optional()
 })
 
 const listLessonsQuerySchema = z.object({
+  q: z.string().min(1).optional(),
   tutorId: z.uuid().optional(),
   subjectId: z.uuid().optional(),
   status: z.string().optional(),
@@ -114,6 +117,7 @@ const lessonListItemSchema = z.object({
   durationMinutes: z.number().int(),
   lessonCapacity: z.number().int(),
   dailyCapacity: z.number().int(),
+  dailyOccupancy: z.number().int(),
   availableSeats: z.number().int(),
   countsForTutor: z.boolean(),
   status: z.string()
@@ -419,8 +423,8 @@ export const setBookingPresence = createRoute({
     [HttpStatusCodes.OK]: jsonContent(
       z.object({
         status: z.string(),
-        studentPresence: z.boolean(),
-        studentPresenceAt: z.string()
+        studentPresence: z.boolean().nullable(),
+        studentPresenceAt: z.string().nullable()
       }),
       'Student presence recorded'
     ),
