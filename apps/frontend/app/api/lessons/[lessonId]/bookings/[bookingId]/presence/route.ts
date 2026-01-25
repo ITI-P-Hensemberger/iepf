@@ -5,7 +5,7 @@ import { parseBackendPayload } from '@/lib/backend-response'
 import { AUTH_COOKIES } from '@/lib/auth'
 
 type PresenceBody = {
-  present: boolean
+  present: boolean | null
 }
 
 export async function PATCH(
@@ -29,8 +29,11 @@ export async function PATCH(
     return NextResponse.json({ message: 'Invalid body.' }, { status: 400 })
   }
 
-  if (typeof body.present !== 'boolean') {
-    return NextResponse.json({ message: 'Invalid presence value.' }, { status: 400 })
+  if (body.present !== null && typeof body.present !== 'boolean') {
+    return NextResponse.json(
+      { message: 'Invalid presence value.' },
+      { status: 400 }
+    )
   }
 
   const response = await fetch(

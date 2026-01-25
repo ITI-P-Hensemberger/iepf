@@ -3,9 +3,8 @@
 import { useState } from 'react'
 
 import { RegistrationForm } from '@/components/registration-form'
+import { BackButton } from '@/components/back-button'
 import Image from 'next/image'
-import { Button } from '@/components/ui/button'
-import Link from 'next/dist/client/link'
 
 export default function SignUpPage() {
   const [isSuccess, setIsSuccess] = useState(false)
@@ -13,6 +12,9 @@ export default function SignUpPage() {
   return (
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
+        <div className='mb-6 self-start'>
+          <BackButton />
+        </div>
         <Image
           src='/logo.png'
           alt='IEPF Logo'
@@ -22,11 +24,6 @@ export default function SignUpPage() {
           draggable={false}
           priority
         />
-        <div className='mt-6 flex space-x-4'>
-          <Button asChild variant='outline'>
-            <Link href='/'>Torna alla Home</Link>
-          </Button>
-        </div>
         <h1 className='mt-6 text-2xl'>Registrazione studente</h1>
         {!isSuccess && (
           <p className='mt-2 text-center max-w-md'>

@@ -4,6 +4,16 @@ import { NextResponse } from 'next/server'
 import { parseBackendPayload } from '@/lib/backend-response'
 import { AUTH_COOKIES } from '@/lib/auth'
 
+function normalizeLessonDailyFields(lesson: Record<string, unknown>) {
+  if (
+    lesson.dailyAvailability === undefined &&
+    lesson.dailyCapacity !== undefined
+  ) {
+    return { ...lesson, dailyAvailability: lesson.dailyCapacity }
+  }
+  return lesson
+}
+
 export async function GET(
   _request: Request,
   context: { params: Promise<{ lessonId: string }> }
@@ -40,6 +50,12 @@ export async function GET(
         error: parsed.errorPayload
       },
       { status: response.status }
+    )
+  }
+
+  if (parsed.data && typeof parsed.data === 'object') {
+    return NextResponse.json(
+      normalizeLessonDailyFields(parsed.data as Record<string, unknown>)
     )
   }
 

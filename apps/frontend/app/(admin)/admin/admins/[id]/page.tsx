@@ -8,6 +8,7 @@ import * as z from 'zod'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { BackButton } from '@/components/back-button'
 import {
   Accordion,
   AccordionContent,
@@ -255,6 +256,9 @@ export default function AdminAdminDetailPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10'>
         <div className='mx-auto max-w-3xl'>
+          <div className='mb-6'>
+            <BackButton />
+          </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <div>
               <h1 className='text-2xl'>Dettagli admin</h1>
@@ -262,9 +266,6 @@ export default function AdminAdminDetailPage() {
                 Gestisci i dati dell&apos;admin.
               </p>
             </div>
-            <Button variant='outline' onClick={() => router.push('/admin/admins')}>
-              Torna ai admin
-            </Button>
           </div>
           <Card className='mt-6'>
             <CardContent className='pt-6'>

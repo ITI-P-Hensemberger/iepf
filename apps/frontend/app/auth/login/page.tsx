@@ -11,6 +11,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
+import { BackButton } from '@/components/back-button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import {
   Field,
@@ -245,6 +246,9 @@ function LoginContent() {
   return (
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
+        <div className='mb-6 self-start'>
+          <BackButton />
+        </div>
         <Image
           src='/logo.png'
           alt='IEPF Logo'
@@ -254,11 +258,6 @@ function LoginContent() {
           draggable={false}
           priority
         />
-        <div className='mt-6 flex space-x-4'>
-          <Button asChild variant='outline'>
-            <Link href='/'>Torna alla Home</Link>
-          </Button>
-        </div>
         <h1 className='mt-6 text-2xl'>Accesso</h1>
         <p className='mt-2 text-center max-w-md'>
           Inserisci le tue credenziali per accedere al tuo account.

@@ -13,6 +13,7 @@ import { ExternalLink, MessageSquare, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { BackButton } from '@/components/back-button'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,7 +45,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatItalianDate } from '@/lib/format-date'
 
-const pageSize = 15
+const pageSize = 20
 
 type Tutor = {
   id: string
@@ -200,7 +201,7 @@ function DataTable<TData>({
             ) : table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => (
+                  {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
                       className={
@@ -863,6 +864,9 @@ export default function AdminTutorsPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
+          <div className='mb-6 self-start'>
+            <BackButton />
+          </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <h1 className='text-2xl'>Gestione tutor</h1>
             <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
@@ -871,9 +875,6 @@ export default function AdminTutorsPage() {
                 onClick={() => setShowInviteDialog(true)}
               >
                 Invita tutor
-              </Button>
-              <Button asChild variant='outline'>
-                <Link href='/admin'>Torna al pannello</Link>
               </Button>
             </div>
           </div>
@@ -996,16 +997,16 @@ export default function AdminTutorsPage() {
                   </div>
                 </div>
                 <div className='mt-6'>
-                <DataTable
-                  data={activeTutors}
-                  columns={columns}
-                  isLoading={activeLoading}
-                  emptyMessage='Nessun tutor attivo.'
-                  pageKey='activeTutorPage'
-                  page={currentActiveFilters.page}
-                  pageSize={pageSize}
-                  total={activeTotal}
-                />
+                  <DataTable
+                    data={activeTutors}
+                    columns={columns}
+                    isLoading={activeLoading}
+                    emptyMessage='Nessun tutor attivo.'
+                    pageKey='activeTutorPage'
+                    page={currentActiveFilters.page}
+                    pageSize={pageSize}
+                    total={activeTotal}
+                  />
                 </div>
               </TabsContent>
               <TabsContent value='inactive' className='mt-6'>
@@ -1114,16 +1115,16 @@ export default function AdminTutorsPage() {
                   </div>
                 </div>
                 <div className='mt-6'>
-                <DataTable
-                  data={inactiveTutors}
-                  columns={columns}
-                  isLoading={inactiveLoading}
-                  emptyMessage='Nessun tutor non attivo.'
-                  pageKey='inactiveTutorPage'
-                  page={currentInactiveFilters.page}
-                  pageSize={pageSize}
-                  total={inactiveTotal}
-                />
+                  <DataTable
+                    data={inactiveTutors}
+                    columns={columns}
+                    isLoading={inactiveLoading}
+                    emptyMessage='Nessun tutor non attivo.'
+                    pageKey='inactiveTutorPage'
+                    page={currentInactiveFilters.page}
+                    pageSize={pageSize}
+                    total={inactiveTotal}
+                  />
                 </div>
               </TabsContent>
               {showPendingTab && (
@@ -1234,16 +1235,16 @@ export default function AdminTutorsPage() {
                     </div>
                   </div>
                   <div className='mt-6'>
-                  <DataTable
-                    data={pendingInvites}
-                    columns={pendingColumns}
-                    isLoading={pendingLoading}
-                    emptyMessage='Nessun invito in attesa.'
-                    pageKey='pendingTutorPage'
-                    page={currentPendingFilters.page}
-                    pageSize={pageSize}
-                    total={pendingTotal}
-                  />
+                    <DataTable
+                      data={pendingInvites}
+                      columns={pendingColumns}
+                      isLoading={pendingLoading}
+                      emptyMessage='Nessun invito in attesa.'
+                      pageKey='pendingTutorPage'
+                      page={currentPendingFilters.page}
+                      pageSize={pageSize}
+                      total={pendingTotal}
+                    />
                   </div>
                 </TabsContent>
               )}
@@ -1288,7 +1289,6 @@ export default function AdminTutorsPage() {
               rows={6}
               className='font-mono text-sm'
             />
-
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel

@@ -18,9 +18,8 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Field, FieldLabel } from '@/components/ui/field'
-import { Label } from '@/components/ui/label'
+import { BackButton } from '@/components/back-button'
 import {
   Select,
   SelectContent,
@@ -45,8 +44,7 @@ import { type DateRange } from 'react-day-picker'
 
 import { extractPayloadArray } from '@/lib/backend-response'
 
-const pageSize = 15
-const AVAILABLE_TIMES = ['13:00', '14:00', '15:00', '16:00']
+const pageSize = 20
 
 type Lesson = {
   id: string
@@ -55,7 +53,8 @@ type Lesson = {
   startAt: string
   durationMinutes: number
   lessonCapacity: number
-  dailyCapacity: number
+  dailyAvailability?: number | null
+  dailyOccupancy?: number | null
   availableSeats: number
   countsForTutor?: boolean | null
   status: string
@@ -128,13 +127,6 @@ function parseDateParam(value: string | null) {
   return parsed
 }
 
-function combineDateAndTime(date: Date, time: string) {
-  const [hours, minutes] = time.split(':').map(Number)
-  const combined = new Date(date)
-  combined.setHours(hours || 0, minutes || 0, 0, 0)
-  return combined
-}
-
 function formatStatusLabel(status?: string | null) {
   if (!status) {
     return '-'
@@ -165,38 +157,11 @@ function statusVariant(
   return 'secondary'
 }
 
-function parseNumeric(value: unknown) {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null
-  }
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : null
-  }
-  return null
-}
-
 function lessonOccupiedSeats(lesson?: Lesson | null) {
-  if (!lesson) {
+  if (!lesson || typeof lesson.availableSeats !== 'number') {
     return 0
   }
-  const capacity = parseNumeric(lesson.lessonCapacity)
-  const available = parseNumeric(lesson.availableSeats)
-  if (capacity === null) {
-    return 0
-  }
-  if (available === null) {
-    return 0
-  }
-  return Math.max(0, capacity - available)
-}
-
-function lessonSeatsLabel(lesson: Lesson) {
-  const capacity = parseNumeric(lesson.lessonCapacity)
-  if (capacity === null) {
-    return '-'
-  }
-  return `${lessonOccupiedSeats(lesson)}/${capacity}`
+  return Math.max(0, lesson.lessonCapacity - lesson.availableSeats)
 }
 
 function tutorLabel(tutor?: Tutor) {
@@ -213,22 +178,6 @@ function tutorTableLabel(tutor?: Tutor) {
 
 function buildTutorOptionLabel(tutor: Tutor): string {
   return tutorLabel(tutor) ?? tutor.id
-}
-
-function extractErrorMessage(payload: unknown, fallback: string) {
-  if (payload && typeof payload === 'object') {
-    const record = payload as Record<string, unknown>
-    if (typeof record.message === 'string') {
-      return record.message
-    }
-    if (record.error && typeof record.error === 'object') {
-      const error = record.error as Record<string, unknown>
-      if (typeof error.message === 'string') {
-        return error.message
-      }
-    }
-  }
-  return fallback
 }
 
 export default function AdminLessonsPage() {
@@ -248,24 +197,6 @@ export default function AdminLessonsPage() {
   const [tutorsLoading, setTutorsLoading] = React.useState(true)
   const [isFilterDateDialogOpen, setIsFilterDateDialogOpen] =
     React.useState(false)
-  const [isRescheduleDateDialogOpen, setIsRescheduleDateDialogOpen] =
-    React.useState(false)
-
-  const [cancelTarget, setCancelTarget] = React.useState<Lesson | null>(null)
-  const [isCancelling, setIsCancelling] = React.useState(false)
-  const [cancelCountsForTutor, setCancelCountsForTutor] = React.useState(false)
-
-  const [rescheduleTarget, setRescheduleTarget] = React.useState<Lesson | null>(
-    null
-  )
-  const [isRescheduling, setIsRescheduling] = React.useState(false)
-  const [rescheduleForm, setRescheduleForm] = React.useState({
-    lessonId: '',
-    tutorId: '',
-    subjectId: '',
-    date: undefined as Date | undefined,
-    time: '15:00'
-  })
 
   const parsePage = React.useCallback(
     (key: string) => {
@@ -573,125 +504,17 @@ export default function AdminLessonsPage() {
     )
   }, [updateParams])
 
-  const handleCancelLesson = React.useCallback(async () => {
-    if (!cancelTarget) {
-      return
-    }
-
-    setIsCancelling(true)
-
-    try {
-      const response = await fetch(`/api/lessons/${cancelTarget.id}/cancel`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ countsForTutor: cancelCountsForTutor })
-      })
-      if (!response.ok) {
-        let message = 'Impossibile annullare la lezione.'
-        try {
-          const payload = await response.json()
-          message = extractErrorMessage(payload, message)
-        } catch {
-          // ignore
-        }
-        throw new Error(message)
-      }
-      toast.success('Lezione annullata.')
-      setCancelTarget(null)
-      await loadLessons()
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile annullare la lezione.'
-      )
-    } finally {
-      setIsCancelling(false)
-    }
-  }, [cancelCountsForTutor, cancelTarget, loadLessons])
-
-  const handleRescheduleLesson = React.useCallback(async () => {
-    if (!rescheduleTarget) {
-      return
-    }
-
-    const timeValue = AVAILABLE_TIMES.includes(rescheduleForm.time)
-      ? rescheduleForm.time
-      : '15:00'
-    const dateValue = rescheduleForm.date
-    const startAtIso = dateValue
-      ? combineDateAndTime(dateValue, timeValue).toISOString()
-      : ''
-
-    if (!rescheduleForm.tutorId.trim()) {
-      toast.error('Inserisci un tutor valido.')
-      return
-    }
-    if (!rescheduleForm.subjectId.trim()) {
-      toast.error('Inserisci una materia valida.')
-      return
-    }
-    if (!dateValue) {
-      toast.error('Inserisci una data valida.')
-      return
-    }
-    setIsRescheduling(true)
-
-    try {
-      const payload = {
-        tutorId: rescheduleForm.tutorId.trim(),
-        subjectId: rescheduleForm.subjectId.trim(),
-        startAt: startAtIso,
-        durationMinutes: 60
-      }
-
-      const response = await fetch(
-        `/api/lessons/${rescheduleTarget.id}/reschedule`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        }
-      )
-
-      if (!response.ok) {
-        let message = 'Impossibile riprogrammare la lezione.'
-        try {
-          const responsePayload = await response.json()
-          message = extractErrorMessage(responsePayload, message)
-        } catch {
-          // ignore
-        }
-        throw new Error(message)
-      }
-
-      toast.success('Lezione riprogrammata.')
-      setRescheduleTarget(null)
-      await loadLessons()
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile riprogrammare la lezione.'
-      )
-    } finally {
-      setIsRescheduling(false)
-    }
-  }, [loadLessons, rescheduleForm, rescheduleTarget])
-
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
+          <div className='mb-6 self-start'>
+            <BackButton />
+          </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <h1 className='text-2xl'>Gestione lezioni</h1>
-            <Button asChild variant='outline'>
-              <Link href='/admin'>Torna al pannello</Link>
-            </Button>
           </div>
 
           <div className='mt-6 rounded-lg border bg-card p-4 shadow-sm'>
@@ -857,7 +680,9 @@ export default function AdminLessonsPage() {
                   <TableHead>Data</TableHead>
                   <TableHead>Tutor</TableHead>
                   <TableHead>Materia</TableHead>
-                  <TableHead>Posti</TableHead>
+                  <TableHead className='whitespace-nowrap'>
+                    Posti occupati
+                  </TableHead>
                   <TableHead>Stato</TableHead>
                   <TableHead className='w-16'>
                     <span className='sr-only'>Azioni</span>
@@ -890,7 +715,9 @@ export default function AdminLessonsPage() {
                             ? 'Caricamento...'
                             : (subject?.name ?? '-')}
                         </TableCell>
-                        <TableCell>{lessonSeatsLabel(lesson)}</TableCell>
+                        <TableCell>
+                          {lessonOccupiedSeats(lesson)}/{lesson.lessonCapacity}
+                        </TableCell>
                         <TableCell>
                           <Badge variant={statusVariant(lesson.status)}>
                             {formatStatusLabel(lesson.status)}
@@ -971,244 +798,8 @@ export default function AdminLessonsPage() {
               </Button>
             </div>
           </div>
-
         </div>
       </div>
-
-      <AlertDialog
-        open={Boolean(cancelTarget)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setCancelTarget(null)
-          }
-        }}
-      >
-        <AlertDialogContent className='max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] overflow-y-auto sm:max-w-lg'>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Annulla lezione</AlertDialogTitle>
-            <AlertDialogDescription>
-              Confermi l&apos;annullamento della lezione selezionata?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {cancelTarget && (
-            <div className='rounded-md border p-3 text-sm text-muted-foreground space-y-1'>
-              <div>Data: {formatItalianDate(cancelTarget.startAt)}</div>
-              <div>
-                Tutor:{' '}
-                {tutorsLoading
-                  ? 'Caricamento...'
-                  : (tutorTableLabel(tutorMap.get(cancelTarget.tutorId)) ??
-                    '-')}
-              </div>
-              <div>
-                Materia:{' '}
-                {subjectsLoading
-                  ? 'Caricamento...'
-                  : (subjectMap.get(cancelTarget.subjectId)?.name ?? '-')}
-              </div>
-              <div>
-                Posti occupati: {lessonOccupiedSeats(cancelTarget)}/
-                {parseNumeric(cancelTarget.lessonCapacity) ?? '-'}
-              </div>
-            </div>
-          )}
-          <div className='flex items-center gap-3'>
-            <Checkbox
-              id='cancel-counts-tutor'
-              checked={cancelCountsForTutor}
-              onCheckedChange={(value) =>
-                setCancelCountsForTutor(Boolean(value))
-              }
-            />
-            <Label htmlFor='cancel-counts-tutor'>Conteggia per il tutor</Label>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Chiudi</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(event) => {
-                event.preventDefault()
-                void handleCancelLesson()
-              }}
-              disabled={isCancelling}
-            >
-              {isCancelling ? 'Annullamento...' : 'Conferma'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog
-        open={Boolean(rescheduleTarget)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setRescheduleTarget(null)
-          }
-        }}
-      >
-        <AlertDialogContent className='max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] overflow-y-auto sm:max-w-xl'>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Riprogramma lezione</AlertDialogTitle>
-            <AlertDialogDescription>
-              Modifica i dettagli della lezione selezionata.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className='space-y-4'>
-            <div className='grid gap-4 sm:grid-cols-2'>
-              <Field className='gap-2'>
-                <Label htmlFor='reschedule-tutor'>Tutor</Label>
-                <Select
-                  value={rescheduleForm.tutorId || '__none__'}
-                  onValueChange={(value) =>
-                    setRescheduleForm((prev) => ({
-                      ...prev,
-                      tutorId: value === '__none__' ? '' : value
-                    }))
-                  }
-                >
-                  <SelectTrigger id='reschedule-tutor' className='w-full'>
-                    <SelectValue
-                      placeholder={
-                        tutorsLoading ? 'Caricamento...' : 'Seleziona tutor'
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='__none__'>Seleziona tutor</SelectItem>
-                    {sortedTutors.map((tutor) => (
-                      <SelectItem key={tutor.id} value={tutor.id}>
-                        {buildTutorOptionLabel(tutor)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field className='gap-2'>
-                <Label htmlFor='reschedule-subject'>Materia</Label>
-                <Select
-                  value={rescheduleForm.subjectId || '__none__'}
-                  onValueChange={(value) =>
-                    setRescheduleForm((prev) => ({
-                      ...prev,
-                      subjectId: value === '__none__' ? '' : value
-                    }))
-                  }
-                >
-                  <SelectTrigger id='reschedule-subject' className='w-full'>
-                    <SelectValue
-                      placeholder={
-                        subjectsLoading ? 'Caricamento...' : 'Seleziona materia'
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='__none__'>Seleziona materia</SelectItem>
-                    {sortedSubjects.map((subject) => (
-                      <SelectItem key={subject.id} value={subject.id}>
-                        {subject.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field className='gap-2'>
-                <Label htmlFor='reschedule-date-time'>Data e ora</Label>
-                <Button
-                  variant='outline'
-                  id='reschedule-date-time'
-                  className='w-full justify-start px-2.5 font-normal'
-                  onClick={() => setIsRescheduleDateDialogOpen(true)}
-                >
-                  <CalendarIcon className='mr-2 h-4 w-4' />
-                  {rescheduleForm.date ? (
-                    <>
-                      {format(rescheduleForm.date, 'dd/MM/yyyy')}{' '}
-                      {rescheduleForm.time}
-                    </>
-                  ) : (
-                    <span>Seleziona data</span>
-                  )}
-                </Button>
-              </Field>
-            </div>
-          </div>
-          <AlertDialogFooter className='pt-2 sm:pt-0'>
-            <AlertDialogCancel>Chiudi</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(event) => {
-                event.preventDefault()
-                void handleRescheduleLesson()
-              }}
-              disabled={isRescheduling}
-            >
-              {isRescheduling ? 'Salvataggio...' : 'Salva modifiche'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog
-        open={isRescheduleDateDialogOpen}
-        onOpenChange={setIsRescheduleDateDialogOpen}
-      >
-        <AlertDialogContent className='max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] overflow-y-auto sm:max-w-md'>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Seleziona data e ora</AlertDialogTitle>
-            <AlertDialogDescription>
-              Scegli la nuova data e l&apos;orario della lezione.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className='space-y-4'>
-            <div className='flex justify-center'>
-              <Calendar
-                mode='single'
-                selected={rescheduleForm.date}
-                onSelect={(date) =>
-                  setRescheduleForm((prev) => ({
-                    ...prev,
-                    date: date ?? undefined
-                  }))
-                }
-                defaultMonth={rescheduleForm.date ?? new Date()}
-                initialFocus
-              />
-            </div>
-            <Field className='gap-2'>
-              <Label htmlFor='reschedule-time-dialog'>Orario</Label>
-              <Select
-                value={rescheduleForm.time}
-                onValueChange={(value) =>
-                  setRescheduleForm((prev) => ({
-                    ...prev,
-                    time: value
-                  }))
-                }
-              >
-                <SelectTrigger id='reschedule-time-dialog' className='w-full'>
-                  <SelectValue placeholder='Seleziona orario' />
-                </SelectTrigger>
-                <SelectContent>
-                  {AVAILABLE_TIMES.map((time) => (
-                    <SelectItem key={time} value={time}>
-                      {time}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-          <AlertDialogFooter className='pt-2 sm:pt-0'>
-            <AlertDialogCancel>Chiudi</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(event) => {
-                event.preventDefault()
-                setIsRescheduleDateDialogOpen(false)
-              }}
-            >
-              Applica
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <AlertDialog
         open={isFilterDateDialogOpen}

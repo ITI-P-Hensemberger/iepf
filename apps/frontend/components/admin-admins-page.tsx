@@ -14,6 +14,7 @@ import { ArrowUpDown, MoreHorizontal, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { BackButton } from '@/components/back-button'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -386,7 +387,7 @@ export default function AdminAdminsPage() {
   const [showInviteDialog, setShowInviteDialog] = React.useState(false)
   const [inviteEmails, setInviteEmails] = React.useState('')
   const [isInviting, setIsInviting] = React.useState(false)
-  const pageSize = 15
+  const pageSize = 20
 
   const parsePage = React.useCallback(
     (key: string) => {
@@ -810,6 +811,9 @@ export default function AdminAdminsPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
+          <div className='mb-6 self-start'>
+            <BackButton />
+          </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <h1 className='text-2xl'>Gestione admin</h1>
             <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
@@ -818,9 +822,6 @@ export default function AdminAdminsPage() {
                 onClick={() => setShowInviteDialog(true)}
               >
                 Invita admin
-              </Button>
-              <Button asChild variant='outline'>
-                <Link href='/admin'>Torna al pannello</Link>
               </Button>
             </div>
           </div>
@@ -925,7 +926,6 @@ export default function AdminAdminsPage() {
               rows={6}
               className='font-mono text-sm'
             />
-
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel

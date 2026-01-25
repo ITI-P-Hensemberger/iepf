@@ -34,7 +34,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from './ui/checkbox'
 import { logout } from '@/lib/auth-client'
 
-const pageSize = 15
+const pageSize = 20
 
 type User = {
   id: string
@@ -754,19 +754,19 @@ export default function ActivatorStudentsPage() {
                   </div>
                 </div>
                 <div className='mt-6'>
-                <DataTable
-                  data={activeStudents}
-                  columns={activeColumns}
-                  isLoading={activeLoading}
-                  emptyMessage='Nessuno studente attivo.'
-                  pageKey='activePage'
-                  page={currentActiveFilters.page}
-                  pageSize={pageSize}
-                  total={activeTotal}
-                  isSubmitting={isSubmitting}
-                  onActivateStudent={activateStudent}
-                  tab='active'
-                />
+                  <DataTable
+                    data={activeStudents}
+                    columns={activeColumns}
+                    isLoading={activeLoading}
+                    emptyMessage='Nessuno studente attivo.'
+                    pageKey='activePage'
+                    page={currentActiveFilters.page}
+                    pageSize={pageSize}
+                    total={activeTotal}
+                    isSubmitting={isSubmitting}
+                    onActivateStudent={activateStudent}
+                    tab='active'
+                  />
                 </div>
               </TabsContent>
               <TabsContent value='inactive' className='mt-6'>
@@ -876,19 +876,19 @@ export default function ActivatorStudentsPage() {
                   </div>
                 </div>
                 <div className='mt-6'>
-                <DataTable
-                  data={inactiveStudents}
-                  columns={inactiveColumns}
-                  isLoading={inactiveLoading}
-                  emptyMessage='Nessuno studente in attesa.'
-                  pageKey='inactivePage'
-                  page={currentInactiveFilters.page}
-                  pageSize={pageSize}
-                  total={inactiveTotal}
-                  isSubmitting={isSubmitting}
-                  onActivateStudent={activateStudent}
-                  tab='inactive'
-                />
+                  <DataTable
+                    data={inactiveStudents}
+                    columns={inactiveColumns}
+                    isLoading={inactiveLoading}
+                    emptyMessage='Nessuno studente in attesa.'
+                    pageKey='inactivePage'
+                    page={currentInactiveFilters.page}
+                    pageSize={pageSize}
+                    total={inactiveTotal}
+                    isSubmitting={isSubmitting}
+                    onActivateStudent={activateStudent}
+                    tab='inactive'
+                  />
                 </div>
               </TabsContent>
             </Tabs>

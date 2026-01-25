@@ -1,6 +1,5 @@
-import { Button } from '@/components/ui/button'
+import { BackButton } from '@/components/back-button'
 import Image from 'next/image'
-import Link from 'next/link'
 
 const SECTIONS = [
   {
@@ -141,6 +140,9 @@ export default function PrivacyPolicyPage() {
   return (
     <main className='flex-1'>
       <div className='container mx-auto px-8 py-10 flex flex-col items-center'>
+        <div className='mb-6 self-start'>
+          <BackButton />
+        </div>
         <Image
           src='/logo.png'
           alt='IEPF Logo'
@@ -150,11 +152,6 @@ export default function PrivacyPolicyPage() {
           draggable={false}
           priority
         />
-        <div className='mt-6 flex flex-col gap-2 sm:flex-row sm:space-x-4'>
-          <Button asChild variant='outline'>
-            <Link href='/'>Torna alla Home</Link>
-          </Button>
-        </div>
         <h1 className='mt-6 text-2xl font-bold'>Informativa sulla Privacy</h1>
         <p className='mt-2 text-center text-muted-foreground'>
           ai sensi dell&apos;art. 13 del Regolamento UE 2016/679 (GDPR)

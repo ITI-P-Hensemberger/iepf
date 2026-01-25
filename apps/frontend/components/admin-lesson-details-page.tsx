@@ -7,7 +7,9 @@ import {
   CalendarIcon,
   ExternalLink,
   MessageSquare,
-  MoreHorizontal
+  MoreHorizontal,
+  Save,
+  UserPlus
 } from 'lucide-react'
 
 import {
@@ -24,19 +26,14 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Calendar } from '@/components/ui/calendar'
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import { Field } from '@/components/ui/field'
+import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -59,6 +56,7 @@ import { format } from 'date-fns'
 import { toast } from 'sonner'
 
 import { formatItalianDate } from '@/lib/format-date'
+import { BackButton } from '@/components/back-button'
 
 const AVAILABLE_TIMES = ['13:00', '14:00', '15:00', '16:00']
 
@@ -69,7 +67,8 @@ type Lesson = {
   startAt: string
   durationMinutes: number
   lessonCapacity: number
-  dailyCapacity: number
+  dailyAvailability?: number | null
+  dailyOccupancy?: number | null
   availableSeats: number
   countsForTutor?: boolean | null
   status: string
@@ -96,6 +95,7 @@ type Student = {
   id: string
   firstName: string
   lastName: string
+  email?: string | null
   year?: number | null
   sectionName?: string | null
 }
@@ -246,11 +246,48 @@ function isCanceledBooking(status?: string | null) {
   return normalized === 'canceled' || normalized === 'cancelled'
 }
 
+type PresenceOption = 'none' | 'present' | 'absent'
+
+function presenceToOption(value: boolean | null | undefined): PresenceOption {
+  if (value === true) return 'present'
+  if (value === false) return 'absent'
+  return 'none'
+}
+
+function optionToPresence(option: PresenceOption): boolean | null {
+  if (option === 'present') return true
+  if (option === 'absent') return false
+  return null
+}
+
 function lessonOccupiedSeats(lesson?: Lesson | null) {
   if (!lesson || typeof lesson.availableSeats !== 'number') {
     return 0
   }
   return Math.max(0, lesson.lessonCapacity - lesson.availableSeats)
+}
+
+function parseNumeric(value: unknown) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+function lessonDailySeatsLabel(lesson?: Lesson | null) {
+  if (!lesson) {
+    return '-'
+  }
+  const occupancy = parseNumeric(lesson.dailyOccupancy)
+  const availability = parseNumeric(lesson.dailyAvailability)
+  if (occupancy === null || availability === null) {
+    return '-'
+  }
+  return `${Math.max(0, occupancy)}/${availability}`
 }
 
 function tutorLabel(tutor?: Tutor | null) {
@@ -324,11 +361,12 @@ export default function AdminLessonDetailsPage() {
   const [selectedBooking, setSelectedBooking] = React.useState<Booking | null>(
     null
   )
-  const [presenceTarget, setPresenceTarget] = React.useState<Booking | null>(
-    null
-  )
-  const [presenceValue, setPresenceValue] = React.useState<boolean | null>(null)
-  const [isUpdatingPresence, setIsUpdatingPresence] = React.useState(false)
+  const [presenceDrafts, setPresenceDrafts] = React.useState<
+    Record<string, boolean | null>
+  >({})
+  const [presenceSaving, setPresenceSaving] = React.useState<
+    Record<string, boolean>
+  >({})
 
   const [topicTarget, setTopicTarget] = React.useState<Booking | null>(null)
   const [topicValue, setTopicValue] = React.useState('')
@@ -370,6 +408,14 @@ export default function AdminLessonDetailsPage() {
     React.useState(false)
   const [rescheduleSubjectsLoading, setRescheduleSubjectsLoading] =
     React.useState(false)
+
+  const [bookStudentOpen, setBookStudentOpen] = React.useState(false)
+  const [studentsLoading, setStudentsLoading] = React.useState(false)
+  const [students, setStudents] = React.useState<Student[]>([])
+  const [studentSearch, setStudentSearch] = React.useState('')
+  const [selectedStudentId, setSelectedStudentId] = React.useState('')
+  const [bookingTopic, setBookingTopic] = React.useState('')
+  const [isCreatingBooking, setIsCreatingBooking] = React.useState(false)
 
   const loadLesson = React.useCallback(async () => {
     setLessonLoading(true)
@@ -486,6 +532,52 @@ export default function AdminLessonDetailsPage() {
     return [...rescheduleSubjects].sort((a, b) => a.name.localeCompare(b.name))
   }, [rescheduleSubjects])
 
+  const loadStudents = React.useCallback(async () => {
+    setStudentsLoading(true)
+    try {
+      const response = await fetch('/api/users?role=student&limit=200&offset=0')
+      if (!response.ok) {
+        throw new Error('Impossibile caricare gli studenti.')
+      }
+      const payload = await response.json()
+      const { items } = normalizePaged<Student>(payload)
+      setStudents(items)
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : 'Impossibile caricare gli studenti.'
+      )
+    } finally {
+      setStudentsLoading(false)
+    }
+  }, [])
+
+  const sortedStudents = React.useMemo(() => {
+    return [...students].sort((a, b) => {
+      const lastNameCompare = a.lastName.localeCompare(b.lastName)
+      if (lastNameCompare !== 0) {
+        return lastNameCompare
+      }
+      return a.firstName.localeCompare(b.firstName)
+    })
+  }, [students])
+
+  const filteredStudents = React.useMemo(() => {
+    const query = studentSearch.trim().toLowerCase()
+    if (!query) {
+      return sortedStudents
+    }
+    return sortedStudents.filter((student) => {
+      const label = studentLabel(student)?.toLowerCase() ?? ''
+      const klass = studentClassLabel(student)?.toLowerCase() ?? ''
+      const email = student.email?.toLowerCase() ?? ''
+      return (
+        label.includes(query) || klass.includes(query) || email.includes(query)
+      )
+    })
+  }, [sortedStudents, studentSearch])
+
   React.useEffect(() => {
     void loadLesson()
     void loadBookings()
@@ -557,26 +649,77 @@ export default function AdminLessonDetailsPage() {
     }
   }, [bookings, studentMap])
 
-  const handlePresence = React.useCallback(async () => {
-    if (!presenceTarget || presenceValue === null) {
+  React.useEffect(() => {
+    if (!bookStudentOpen || students.length > 0) {
       return
     }
+    void loadStudents()
+  }, [bookStudentOpen, loadStudents, students.length])
 
-    setIsUpdatingPresence(true)
+  const handlePresenceSave = React.useCallback(
+    async (booking: Booking, value: boolean | null) => {
+      setPresenceSaving((prev) => ({ ...prev, [booking.id]: true }))
 
-    try {
-      const response = await fetch(
-        `/api/lessons/${lessonId}/bookings/${presenceTarget.id}/presence`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ present: presenceValue })
+      try {
+        const response = await fetch(
+          `/api/lessons/${lessonId}/bookings/${booking.id}/presence`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ present: value })
+          }
+        )
+        if (!response.ok) {
+          let message = 'Impossibile aggiornare la presenza.'
+          try {
+            const payload = await response.json()
+            message = extractErrorMessage(payload, message)
+          } catch {
+            // ignore
+          }
+          throw new Error(message)
         }
-      )
+        toast.success('Presenza aggiornata.')
+        setPresenceDrafts((prev) => {
+          const next = { ...prev }
+          delete next[booking.id]
+          return next
+        })
+        await loadBookings()
+        await loadLesson()
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : 'Impossibile aggiornare la presenza.'
+        )
+      } finally {
+        setPresenceSaving((prev) => ({ ...prev, [booking.id]: false }))
+      }
+    },
+    [lessonId, loadBookings, loadLesson]
+  )
+
+  const handleCreateBooking = React.useCallback(async () => {
+    if (!selectedStudentId) {
+      return
+    }
+    setIsCreatingBooking(true)
+    try {
+      const response = await fetch(`/api/lessons/${lessonId}/book`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          studentId: selectedStudentId,
+          topic: bookingTopic.trim() ? bookingTopic.trim() : undefined
+        })
+      })
       if (!response.ok) {
-        let message = 'Impossibile aggiornare la presenza.'
+        let message = 'Impossibile creare la prenotazione.'
         try {
           const payload = await response.json()
           message = extractErrorMessage(payload, message)
@@ -585,21 +728,23 @@ export default function AdminLessonDetailsPage() {
         }
         throw new Error(message)
       }
-      toast.success('Presenza aggiornata.')
-      setPresenceTarget(null)
-      setPresenceValue(null)
+      toast.success('Prenotazione creata.')
+      setBookStudentOpen(false)
+      setSelectedStudentId('')
+      setBookingTopic('')
+      setStudentSearch('')
       await loadBookings()
       await loadLesson()
     } catch (err) {
       toast.error(
         err instanceof Error
           ? err.message
-          : 'Impossibile aggiornare la presenza.'
+          : 'Impossibile creare la prenotazione.'
       )
     } finally {
-      setIsUpdatingPresence(false)
+      setIsCreatingBooking(false)
     }
-  }, [lessonId, loadBookings, loadLesson, presenceTarget, presenceValue])
+  }, [bookingTopic, lessonId, loadBookings, loadLesson, selectedStudentId])
 
   const handleTopicUpdate = React.useCallback(async () => {
     if (!topicTarget) {
@@ -926,6 +1071,9 @@ export default function AdminLessonDetailsPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl space-y-6'>
+          <div className='mb-6 self-start'>
+            <BackButton />
+          </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <div>
               <h1 className='text-2xl'>Dettagli lezione</h1>
@@ -933,9 +1081,6 @@ export default function AdminLessonDetailsPage() {
                 Gestisci prenotazioni e presenze.
               </p>
             </div>
-            <Button asChild variant='outline'>
-              <Link href='/admin/lessons'>Torna alle lezioni</Link>
-            </Button>
           </div>
 
           <Card>
@@ -1036,9 +1181,7 @@ export default function AdminLessonDetailsPage() {
                     <p className='text-xs text-muted-foreground'>
                       Capienza giornaliera tutor
                     </p>
-                    <p className='text-sm'>
-                      {lessonOccupiedSeats(lesson)}/{lesson.dailyCapacity}
-                    </p>
+                    <p className='text-sm'>{lessonDailySeatsLabel(lesson)}</p>
                   </div>
                   <div>
                     <p className='text-xs text-muted-foreground'>
@@ -1070,12 +1213,30 @@ export default function AdminLessonDetailsPage() {
                       : `Totale ${bookings.length} prenotazioni`}
                   </span>
                 </div>
-                <Button asChild variant='outline' size='sm' disabled={!lesson}>
-                  <Link href={`/admin/feedback?feedbackLesson=${lesson?.id}`}>
-                    <MessageSquare className='mr-2 h-4 w-4' />
-                    Feedback
-                  </Link>
-                </Button>
+                <div className='flex flex-wrap gap-2'>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={() => setBookStudentOpen(true)}
+                    disabled={!lesson}
+                    className='w-full sm:w-auto'
+                  >
+                    <UserPlus className='mr-2 h-4 w-4' />
+                    Prenota per studente
+                  </Button>
+                  <Button
+                    asChild
+                    variant='outline'
+                    size='sm'
+                    disabled={!lesson}
+                    className='w-full sm:w-auto'
+                  >
+                    <Link href={`/admin/feedback?feedbackLesson=${lesson?.id}`}>
+                      <MessageSquare className='mr-2 h-4 w-4' />
+                      Feedback
+                    </Link>
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -1111,9 +1272,9 @@ export default function AdminLessonDetailsPage() {
                 <Table>
                   <TableHeader className='bg-muted/50'>
                     <TableRow>
-                      <TableHead>Studente</TableHead>
-                      <TableHead>Topic</TableHead>
-                      <TableHead>Presenza</TableHead>
+                      <TableHead className='w-[35%]'>Studente</TableHead>
+                      <TableHead className='w-[45%]'>Topic</TableHead>
+                      <TableHead className='w-40'>Presenza</TableHead>
                       <TableHead>Conteggio</TableHead>
                       <TableHead>Stato</TableHead>
                       <TableHead></TableHead>
@@ -1132,9 +1293,18 @@ export default function AdminLessonDetailsPage() {
                     ) : filteredBookings.length ? (
                       filteredBookings.map((booking) => {
                         const student = studentMap.get(booking.studentId)
+                        const draftValue = presenceDrafts[booking.id]
+                        const effectiveValue =
+                          draftValue !== undefined
+                            ? draftValue
+                            : booking.studentPresence
+                        const isDirty =
+                          draftValue !== undefined &&
+                          draftValue !== booking.studentPresence
+                        const isSaving = Boolean(presenceSaving[booking.id])
                         return (
                           <TableRow key={booking.id}>
-                            <TableCell>
+                            <TableCell className='w-[35%]'>
                               {student ? (
                                 <div className='flex flex-col'>
                                   <Link
@@ -1144,7 +1314,9 @@ export default function AdminLessonDetailsPage() {
                                     rel='noopener noreferrer'
                                     title='Apri il profilo studente in una nuova scheda'
                                   >
-                                    <span>{studentLabel(student)}</span>
+                                    <span className='whitespace-nowrap'>
+                                      {studentLabel(student)}
+                                    </span>
                                     <ExternalLink className='h-4 w-4 shrink-0' />
                                     <span className='sr-only'>
                                       Apri in nuova scheda
@@ -1160,13 +1332,66 @@ export default function AdminLessonDetailsPage() {
                                 'Caricamento...'
                               )}
                             </TableCell>
-                            <TableCell>{booking.topic}</TableCell>
-                            <TableCell>
-                              {booking.studentPresence === null
-                                ? '-'
-                                : booking.studentPresence
-                                  ? 'Presente'
-                                  : 'Assente'}
+                            <TableCell className='w-[45%] max-w-[24rem] truncate'>
+                              {booking.topic}
+                            </TableCell>
+                            <TableCell className='w-40'>
+                              <div className='flex items-center gap-2'>
+                                <Select
+                                  value={presenceToOption(effectiveValue)}
+                                  onValueChange={(value) => {
+                                    const nextValue = optionToPresence(
+                                      value as PresenceOption
+                                    )
+                                    setPresenceDrafts((prev) => {
+                                      const next = { ...prev }
+                                      if (nextValue === booking.studentPresence) {
+                                        delete next[booking.id]
+                                      } else {
+                                        next[booking.id] = nextValue
+                                      }
+                                      return next
+                                    })
+                                  }}
+                                  disabled={
+                                    isCanceledBooking(booking.status) ||
+                                    isCanceledStatus(lesson?.status)
+                                  }
+                                >
+                                  <SelectTrigger className='w-28'>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value='none'>-</SelectItem>
+                                    <SelectItem value='present'>
+                                      Presente
+                                    </SelectItem>
+                                    <SelectItem value='absent'>
+                                      Assente
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <Button
+                                  variant='outline'
+                                  size='icon'
+                                  className='h-8 w-8'
+                                  disabled={
+                                    isCanceledBooking(booking.status) ||
+                                    isCanceledStatus(lesson?.status) ||
+                                    isSaving ||
+                                    !isDirty
+                                  }
+                                  onClick={() =>
+                                    void handlePresenceSave(
+                                      booking,
+                                      effectiveValue
+                                    )
+                                  }
+                                >
+                                  <Save className='h-4 w-4' />
+                                  <span className='sr-only'>Salva</span>
+                                </Button>
+                              </div>
                             </TableCell>
                             <TableCell>
                               <Badge
@@ -1200,28 +1425,6 @@ export default function AdminLessonDetailsPage() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align='end'>
-                                  {!isCanceledBooking(booking.status) &&
-                                    !isCanceledStatus(lesson?.status) && (
-                                      <DropdownMenuItem
-                                        onSelect={() => {
-                                          setPresenceTarget(booking)
-                                          setPresenceValue(true)
-                                        }}
-                                      >
-                                        Segna presente
-                                      </DropdownMenuItem>
-                                    )}
-                                  {!isCanceledBooking(booking.status) &&
-                                    !isCanceledStatus(lesson?.status) && (
-                                      <DropdownMenuItem
-                                        onSelect={() => {
-                                          setPresenceTarget(booking)
-                                          setPresenceValue(false)
-                                        }}
-                                      >
-                                        Segna assente
-                                      </DropdownMenuItem>
-                                    )}
                                   <DropdownMenuItem
                                     onSelect={() =>
                                       handleOpenTopicDialog(booking)
@@ -1271,31 +1474,88 @@ export default function AdminLessonDetailsPage() {
       </div>
 
       <AlertDialog
-        open={presenceTarget !== null}
+        open={bookStudentOpen}
         onOpenChange={(open) => {
           if (!open) {
-            setPresenceTarget(null)
-            setPresenceValue(null)
+            setBookStudentOpen(false)
+            setSelectedStudentId('')
+            setBookingTopic('')
+            setStudentSearch('')
+          } else {
+            setBookStudentOpen(true)
           }
         }}
       >
-        <AlertDialogContent className='max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] overflow-y-auto sm:max-w-md'>
+        <AlertDialogContent className='max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] overflow-y-auto sm:max-w-lg'>
           <AlertDialogHeader>
-            <AlertDialogTitle>Conferma presenza</AlertDialogTitle>
+            <AlertDialogTitle>Prenota per conto studente</AlertDialogTitle>
             <AlertDialogDescription>
-              Vuoi impostare lo stato di presenza per lo studente?
+              Seleziona uno studente e inserisci il topic della lezione.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className='space-y-4'>
+            <div className='space-y-2'>
+              <FieldLabel htmlFor='student-search'>Cerca studente</FieldLabel>
+              <Input
+                id='student-search'
+                value={studentSearch}
+                onChange={(event) => setStudentSearch(event.target.value)}
+                placeholder='Nome, classe o email'
+              />
+            </div>
+            <div className='space-y-2'>
+              <FieldLabel htmlFor='student-select'>Studente</FieldLabel>
+              <Select
+                value={selectedStudentId}
+                onValueChange={setSelectedStudentId}
+              >
+                <SelectTrigger id='student-select' className='w-full'>
+                  <SelectValue
+                    placeholder={
+                      studentsLoading ? 'Caricamento studenti...' : 'Seleziona'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredStudents.length ? (
+                    filteredStudents.map((student) => {
+                      const label = studentLabel(student) ?? student.id
+                      const klass = studentClassLabel(student)
+                      const detail = klass ? ` • ${klass}` : ''
+                      return (
+                        <SelectItem key={student.id} value={student.id}>
+                          {`${label}${detail}`}
+                        </SelectItem>
+                      )
+                    })
+                  ) : (
+                    <SelectItem value='__empty' disabled>
+                      Nessuno studente trovato
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className='space-y-2'>
+              <FieldLabel htmlFor='booking-topic'>Topic</FieldLabel>
+              <Input
+                id='booking-topic'
+                value={bookingTopic}
+                onChange={(event) => setBookingTopic(event.target.value)}
+                placeholder='Inserisci il topic'
+              />
+            </div>
+          </div>
           <AlertDialogFooter className='pt-2 sm:pt-0'>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
-                void handlePresence()
+                void handleCreateBooking()
               }}
-              disabled={isUpdatingPresence}
+              disabled={isCreatingBooking || !selectedStudentId}
             >
-              {isUpdatingPresence ? 'Salvataggio...' : 'Conferma'}
+              {isCreatingBooking ? 'Salvataggio...' : 'Prenota'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

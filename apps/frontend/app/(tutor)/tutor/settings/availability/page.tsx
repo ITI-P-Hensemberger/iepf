@@ -1,14 +1,13 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
-import { ChevronLeft } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { BackButton } from '@/components/back-button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { WeekdayAvailabilitySelector } from '@/components/weekday-availability-selector'
@@ -34,7 +33,6 @@ const WEEKDAYS = [
 ] as const
 
 export default function TutorAvailabilitySettingsPage() {
-  const router = useRouter()
   const { profile } = useSession()
   const tutorId = profile?.id
 
@@ -134,7 +132,6 @@ export default function TutorAvailabilitySettingsPage() {
       isSubmitting={isSubmitting}
       setIsSubmitting={setIsSubmitting}
       setInitialWeekdays={setInitialWeekdays}
-      router={router}
     />
   )
 }
@@ -145,7 +142,6 @@ type AvailabilityFormProps = {
   isSubmitting: boolean
   setIsSubmitting: React.Dispatch<React.SetStateAction<boolean>>
   setInitialWeekdays: React.Dispatch<React.SetStateAction<number[] | null>>
-  router: ReturnType<typeof useRouter>
 }
 
 function AvailabilityForm({
@@ -153,8 +149,7 @@ function AvailabilityForm({
   initialWeekdays,
   isSubmitting,
   setIsSubmitting,
-  setInitialWeekdays,
-  router
+  setInitialWeekdays
 }: AvailabilityFormProps) {
   const form = useForm<AvailabilityFormValues>({
     resolver: zodResolver(availabilitySchema),
@@ -217,15 +212,7 @@ function AvailabilityForm({
   return (
     <div className='container mx-auto px-4 py-10'>
       <div className='mb-6'>
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={() => router.push('/tutor')}
-          className='gap-2'
-        >
-          <ChevronLeft className='h-4 w-4' />
-          Torna alla home
-        </Button>
+        <BackButton />
       </div>
 
       <Card>

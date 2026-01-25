@@ -13,6 +13,7 @@ import { ExternalLink, MessageSquare, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { BackButton } from '@/components/back-button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import {
@@ -33,7 +34,7 @@ import {
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-const pageSize = 15
+const pageSize = 20
 
 type User = {
   id: string
@@ -184,7 +185,7 @@ function DataTable<TData>({
             ) : table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => (
+                  {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
                       className={
@@ -556,11 +557,11 @@ export default function AdminStudentsPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
+          <div className='mb-6 self-start'>
+            <BackButton />
+          </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <h1 className='text-2xl'>Gestione studenti</h1>
-            <Button asChild variant='outline'>
-              <Link href='/admin'>Torna al pannello</Link>
-            </Button>
           </div>
           <div className='mt-8 space-y-6'>
             <Tabs defaultValue='active'>
@@ -679,16 +680,16 @@ export default function AdminStudentsPage() {
                   </div>
                 </div>
                 <div className='mt-6'>
-                <DataTable
-                  data={activeStudents}
-                  columns={activeColumns}
-                  isLoading={activeLoading}
-                  emptyMessage='Nessuno studente attivo.'
-                  pageKey='activePage'
-                  page={currentActiveFilters.page}
-                  pageSize={pageSize}
-                  total={activeTotal}
-                />
+                  <DataTable
+                    data={activeStudents}
+                    columns={activeColumns}
+                    isLoading={activeLoading}
+                    emptyMessage='Nessuno studente attivo.'
+                    pageKey='activePage'
+                    page={currentActiveFilters.page}
+                    pageSize={pageSize}
+                    total={activeTotal}
+                  />
                 </div>
               </TabsContent>
               <TabsContent value='inactive' className='mt-6'>
@@ -800,16 +801,16 @@ export default function AdminStudentsPage() {
                   </div>
                 </div>
                 <div className='mt-6'>
-                <DataTable
-                  data={inactiveStudents}
-                  columns={inactiveColumns}
-                  isLoading={inactiveLoading}
-                  emptyMessage='Nessuno studente in attesa.'
-                  pageKey='inactivePage'
-                  page={currentInactiveFilters.page}
-                  pageSize={pageSize}
-                  total={inactiveTotal}
-                />
+                  <DataTable
+                    data={inactiveStudents}
+                    columns={inactiveColumns}
+                    isLoading={inactiveLoading}
+                    emptyMessage='Nessuno studente in attesa.'
+                    pageKey='inactivePage'
+                    page={currentInactiveFilters.page}
+                    pageSize={pageSize}
+                    total={inactiveTotal}
+                  />
                 </div>
               </TabsContent>
             </Tabs>

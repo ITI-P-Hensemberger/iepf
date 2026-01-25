@@ -7,6 +7,7 @@ import * as z from 'zod'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { BackButton } from '@/components/back-button'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -432,6 +433,9 @@ export default function ProfilePage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
+          <div className='mb-6 self-start'>
+            <BackButton />
+          </div>
           <h1 className='text-2xl'>Profilo</h1>
           <p className='mt-2 text-muted-foreground'>
             Aggiorna i tuoi dati personali.

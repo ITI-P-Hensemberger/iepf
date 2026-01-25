@@ -1,14 +1,13 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
-import { ChevronLeft } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { BackButton } from '@/components/back-button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { SubjectSelector } from '@/components/subject-selector'
 import { extractPayloadArray } from '@/lib/backend-response'
@@ -26,7 +25,6 @@ type TutorSubject = {
 }
 
 export default function TutorSubjectsSettingsPage() {
-  const router = useRouter()
   const { profile } = useSession()
   const tutorId = profile?.id
 
@@ -167,15 +165,7 @@ export default function TutorSubjectsSettingsPage() {
   return (
     <div className='container mx-auto px-4 py-10'>
       <div className='mb-6'>
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={() => router.push('/tutor')}
-          className='gap-2'
-        >
-          <ChevronLeft className='h-4 w-4' />
-          Torna alla home
-        </Button>
+        <BackButton />
       </div>
 
       <Card>
