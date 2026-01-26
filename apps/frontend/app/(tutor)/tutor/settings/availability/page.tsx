@@ -69,17 +69,17 @@ export default function TutorAvailabilitySettingsPage() {
         if (isMounted) {
           setInitialWeekdays(availableWeekdays)
         }
-    } catch (err) {
-      console.error('Error fetching availability:', err)
-      if (isMounted) {
-        setInitialWeekdays([])
-      }
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile caricare la disponibilità.'
-      )
-    } finally {
+      } catch (err) {
+        console.error('Error fetching availability:', err)
+        if (isMounted) {
+          setInitialWeekdays([])
+        }
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : 'Impossibile caricare la disponibilità.'
+        )
+      } finally {
         if (isMounted) {
           setIsLoading(false)
         }
@@ -210,45 +210,51 @@ function AvailabilityForm({
   }
 
   return (
-    <div className='container mx-auto px-4 py-10'>
-      <div className='mb-6'>
-        <BackButton />
-      </div>
-
-      <Card>
-        <CardContent>
-          <form id='availability-form' onSubmit={form.handleSubmit(onSubmit)}>
-            <Controller
-              name='weekdays'
-              control={form.control}
-              render={({ field }) => (
-                <WeekdayAvailabilitySelector
-                  value={field.value}
-                  onChange={field.onChange}
-                  disabled={isSubmitting}
+    <main className='flex-1'>
+      <div className='container mx-auto px-4 py-10'>
+        <div className='max-w-6xl mx-auto'>
+          {' '}
+          <div className='mb-6'>
+            <BackButton />
+          </div>
+          <Card>
+            <CardContent>
+              <form
+                id='availability-form'
+                onSubmit={form.handleSubmit(onSubmit)}
+              >
+                <Controller
+                  name='weekdays'
+                  control={form.control}
+                  render={({ field }) => (
+                    <WeekdayAvailabilitySelector
+                      value={field.value}
+                      onChange={field.onChange}
+                      disabled={isSubmitting}
+                    />
+                  )}
                 />
-              )}
-            />
 
-            {form.formState.errors.weekdays && (
-              <p className='mt-2 text-sm text-destructive'>
-                {form.formState.errors.weekdays.message}
-              </p>
-            )}
-
-          </form>
-        </CardContent>
-        <CardFooter className='flex justify-end'>
-          <Button
-            type='submit'
-            form='availability-form'
-            className='w-full sm:w-auto'
-            disabled={isSubmitting || !form.formState.isDirty}
-          >
-            {isSubmitting ? 'Salvataggio...' : 'Salva modifiche'}
-          </Button>
-        </CardFooter>
-      </Card>
-    </div>
+                {form.formState.errors.weekdays && (
+                  <p className='mt-2 text-sm text-destructive'>
+                    {form.formState.errors.weekdays.message}
+                  </p>
+                )}
+              </form>
+            </CardContent>
+            <CardFooter className='flex justify-end'>
+              <Button
+                type='submit'
+                form='availability-form'
+                className='w-full sm:w-auto'
+                disabled={isSubmitting || !form.formState.isDirty}
+              >
+                {isSubmitting ? 'Salvataggio...' : 'Salva modifiche'}
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      </div>
+    </main>
   )
 }

@@ -79,7 +79,8 @@ export default function StudentGuard({ children }: StudentGuardProps) {
     return null
   }
 
-  const maintenanceActive = Boolean(settings?.maintenance.enabled)
+  const maintenanceActive =
+    Boolean(settings?.maintenance.enabled) && !isPendingPage
 
   return (
     <>

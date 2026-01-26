@@ -46,9 +46,11 @@ export default function TutorOnboardingPage() {
   }
 
   return (
-    <main className='min-h-screen'>
-      <div className='container mx-auto px-4 py-10 flex justify-center'>
-        <TutorOnboardingForm tutorId={profile.id} />
+    <main className='flex-1'>
+      <div className='container mx-auto px-4 py-10'>
+        <div className='max-w-6xl mx-auto'>
+          <TutorOnboardingForm tutorId={profile.id} />
+        </div>
       </div>
     </main>
   )

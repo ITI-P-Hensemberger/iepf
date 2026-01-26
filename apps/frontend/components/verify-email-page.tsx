@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
@@ -15,6 +14,7 @@ export default function VerifyEmailPage() {
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
   const [status, setStatus] = useState<VerifyStatus>('idle')
+  const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
     let isMounted = true
@@ -22,7 +22,7 @@ export default function VerifyEmailPage() {
     async function verifyEmail() {
       if (!token) {
         setStatus('error')
-        toast.error('Token non valido o scaduto.')
+        setMessage('Token non valido o scaduto.')
         return
       }
 
@@ -58,12 +58,12 @@ export default function VerifyEmailPage() {
 
         if (isMounted) {
           setStatus('success')
-          toast.success('Email verificata con successo.')
+          setMessage('Email verificata con successo.')
         }
       } catch {
         if (isMounted) {
           setStatus('error')
-          toast.error('Verifica non riuscita.')
+          setMessage('Verifica non riuscita.')
         }
       }
     }
@@ -95,6 +95,16 @@ export default function VerifyEmailPage() {
                 <p className='text-center text-sm text-muted-foreground'>
                   Verifica in corso...
                 </p>
+              )}
+              {status === 'success' && message && (
+                <div className='rounded-lg border border-emerald-200/70 bg-emerald-50 px-3 py-2 text-center text-sm text-emerald-700'>
+                  {message}
+                </div>
+              )}
+              {status === 'error' && message && (
+                <div className='rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-center text-sm text-destructive'>
+                  {message}
+                </div>
               )}
             </CardContent>
             <CardFooter className='justify-center'>

@@ -71,7 +71,9 @@ export default function TutorSubjectsSettingsPage() {
       } catch (err) {
         console.error('Error fetching subjects:', err)
         toast.error(
-          err instanceof Error ? err.message : 'Impossibile caricare le materie.'
+          err instanceof Error
+            ? err.message
+            : 'Impossibile caricare le materie.'
         )
       } finally {
         if (isMounted) {
@@ -163,45 +165,48 @@ export default function TutorSubjectsSettingsPage() {
   }
 
   return (
-    <div className='container mx-auto px-4 py-10'>
-      <div className='mb-6'>
-        <BackButton />
-      </div>
+    <main className='flex-1'>
+      <div className='container mx-auto px-4 py-10'>
+        <div className='max-w-6xl mx-auto'>
+          <div className='mb-6'>
+            <BackButton />
+          </div>
 
-      <Card>
-        <CardContent>
-          <form id='subjects-form' onSubmit={form.handleSubmit(onSubmit)}>
-            <Controller
-              name='subjectIds'
-              control={form.control}
-              render={({ field }) => (
-                <SubjectSelector
-                  value={field.value}
-                  onChange={field.onChange}
-                  disabled={isLoading || isSubmitting}
+          <Card>
+            <CardContent>
+              <form id='subjects-form' onSubmit={form.handleSubmit(onSubmit)}>
+                <Controller
+                  name='subjectIds'
+                  control={form.control}
+                  render={({ field }) => (
+                    <SubjectSelector
+                      value={field.value}
+                      onChange={field.onChange}
+                      disabled={isLoading || isSubmitting}
+                    />
+                  )}
                 />
-              )}
-            />
 
-            {form.formState.errors.subjectIds && (
-              <p className='mt-2 text-sm text-destructive'>
-                {form.formState.errors.subjectIds.message}
-              </p>
-            )}
-
-          </form>
-        </CardContent>
-        <CardFooter className='flex justify-end'>
-          <Button
-            type='submit'
-            form='subjects-form'
-            className='w-full sm:w-auto'
-            disabled={!isDirty || isSubmitting}
-          >
-            {isSubmitting ? 'Salvataggio...' : 'Salva modifiche'}
-          </Button>
-        </CardFooter>
-      </Card>
-    </div>
+                {form.formState.errors.subjectIds && (
+                  <p className='mt-2 text-sm text-destructive'>
+                    {form.formState.errors.subjectIds.message}
+                  </p>
+                )}
+              </form>
+            </CardContent>
+            <CardFooter className='flex justify-end'>
+              <Button
+                type='submit'
+                form='subjects-form'
+                className='w-full sm:w-auto'
+                disabled={!isDirty || isSubmitting}
+              >
+                {isSubmitting ? 'Salvataggio...' : 'Salva modifiche'}
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      </div>
+    </main>
   )
 }

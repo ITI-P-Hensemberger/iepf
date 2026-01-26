@@ -107,7 +107,7 @@ export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
   }
 
   return (
-    <Card className='w-full max-w-3xl'>
+    <Card className='w-full'>
       <CardHeader className='space-y-2'>
         <div className='flex items-center gap-2'>
           <GraduationCap className='h-6 w-6 text-primary' />

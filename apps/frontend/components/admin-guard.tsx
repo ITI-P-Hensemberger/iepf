@@ -70,7 +70,8 @@ export default function AdminGuard({ children }: AdminGuardProps) {
     return null
   }
 
-  const maintenanceActive = Boolean(settings?.maintenance.enabled)
+  const maintenanceActive =
+    Boolean(settings?.maintenance.enabled) && !isPendingPage
 
   return (
     <>

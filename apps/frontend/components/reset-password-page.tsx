@@ -7,7 +7,6 @@ import * as z from 'zod'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
@@ -46,6 +45,10 @@ export default function ResetPasswordPage() {
   const hasToken = Boolean(token)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [isSuccess, setIsSuccess] = React.useState(false)
+  const [message, setMessage] = React.useState<string | null>(null)
+  const [messageTone, setMessageTone] = React.useState<'success' | 'error' | null>(
+    null
+  )
 
   const form = useForm<ResetFormValues>({
     resolver: zodResolver(formSchema),
@@ -57,17 +60,21 @@ export default function ResetPasswordPage() {
 
   React.useEffect(() => {
     if (!hasToken) {
-      toast.error('Token mancante o non valido.')
+      setMessage('Token mancante o non valido.')
+      setMessageTone('error')
     }
   }, [hasToken])
 
   async function onSubmit(values: ResetFormValues) {
     if (!token) {
-      toast.error('Token mancante o non valido.')
+      setMessage('Token mancante o non valido.')
+      setMessageTone('error')
       return
     }
 
     setIsSubmitting(true)
+    setMessage(null)
+    setMessageTone(null)
 
     try {
       const response = await fetch('/api/auth/password/reset/confirm', {
@@ -90,13 +97,16 @@ export default function ResetPasswordPage() {
       }
 
       setIsSuccess(true)
+      setMessage('Password aggiornata con successo.')
+      setMessageTone('success')
       form.reset()
     } catch (err) {
-      toast.error(
+      setMessage(
         err instanceof Error
           ? err.message
           : 'Reset della password non riuscito.'
       )
+      setMessageTone('error')
     } finally {
       setIsSubmitting(false)
     }
@@ -118,20 +128,24 @@ export default function ResetPasswordPage() {
         <div className='w-full max-w-md mt-6'>
           <Card>
             <CardContent className='pt-6'>
+              {message && messageTone === 'success' && (
+                <div className='mb-4 rounded-lg border border-emerald-200/70 bg-emerald-50 px-3 py-2 text-center text-sm text-emerald-700'>
+                  {message}
+                </div>
+              )}
+              {message && messageTone === 'error' && (
+                <div className='mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-center text-sm text-destructive'>
+                  {message}
+                </div>
+              )}
               {isSuccess ? (
                 <div className='text-center space-y-2'>
-                  <p className='text-sm font-medium'>
-                    Password aggiornata con successo.
-                  </p>
                   <p className='text-sm text-muted-foreground'>
                     Ora puoi accedere con la nuova password.
                   </p>
                 </div>
               ) : !hasToken ? (
                 <div className='text-center space-y-2'>
-                  <p className='text-sm font-medium text-destructive'>
-                    Token non valido.
-                  </p>
                   <p className='text-sm text-muted-foreground'>
                     Richiedi un nuovo link di reset dalla pagina di login.
                   </p>

@@ -125,7 +125,8 @@ export default function TutorGuard({ children }: TutorGuardProps) {
     }
   }
 
-  const maintenanceActive = Boolean(settings?.maintenance.enabled)
+  const maintenanceActive =
+    Boolean(settings?.maintenance.enabled) && !isPendingPage
 
   return (
     <>
