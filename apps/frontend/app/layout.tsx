@@ -3,10 +3,11 @@ import { Roboto } from 'next/font/google'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import Footer from '@/components/footer'
+import { SettingsProvider } from '@/components/settings-provider'
 import './globals.css'
 
 const roboto = Roboto({
-  weight: '400',
+  weight: ['400', '600', '700'],
   subsets: ['latin']
 })
 
@@ -28,11 +29,13 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <div className='flex min-h-dvh flex-col'>
-            <div className='flex-1'>{children}</div>
-            <Footer />
-            <Toaster />
-          </div>
+          <SettingsProvider>
+            <div className='flex min-h-dvh flex-col'>
+              <div className='flex-1'>{children}</div>
+              <Footer />
+              <Toaster />
+            </div>
+          </SettingsProvider>
         </ThemeProvider>
       </body>
     </html>

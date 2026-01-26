@@ -1,16 +1,10 @@
-import Header from '@/components/header'
 import { type ReactNode } from 'react'
+import ProtectedShell from '@/components/protected-shell'
 
 type ProtectedLayoutProps = {
   children: ReactNode
 }
 
 export default function ProtectedLayout({ children }: ProtectedLayoutProps) {
-  return (
-    <>
-      {' '}
-      <Header />
-      {children}
-    </>
-  )
+  return <ProtectedShell>{children}</ProtectedShell>
 }

@@ -8,6 +8,7 @@ import { ChevronLeft } from 'lucide-react'
 
 type BackButtonProps = {
   label?: string
+  href?: string
   fallbackHref?: string
   variant?: React.ComponentProps<typeof Button>['variant']
   size?: React.ComponentProps<typeof Button>['size']
@@ -17,6 +18,7 @@ type BackButtonProps = {
 
 export function BackButton({
   label = 'Indietro',
+  href,
   fallbackHref = '/',
   variant = 'ghost',
   size = 'sm',
@@ -32,6 +34,10 @@ export function BackButton({
       size={size}
       className={[ 'gap-2', className ].filter(Boolean).join(' ')}
       onClick={() => {
+        if (href) {
+          router.replace(href)
+          return
+        }
         if (typeof window !== 'undefined' && window.history.length > 1) {
           router.back()
         } else {

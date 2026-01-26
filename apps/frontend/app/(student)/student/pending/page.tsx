@@ -41,8 +41,14 @@ export default function StudentPendingPage() {
               Riceverai una mail quando verrà attivato.
               <br />
               <span className='mt-2 block'>
-                Se pensi si tratti di un errore, contatta i referenti del
-                progetto.
+                Se pensi si tratti di un errore, contattaci a{' '}
+                <Link
+                  href='mailto:iepf@hensemberger.it'
+                  className='underline underline-offset-4'
+                >
+                  iepf@hensemberger.it
+                </Link>
+                .
               </span>
             </CardDescription>
           </CardHeader>
@@ -58,8 +64,17 @@ export default function StudentPendingPage() {
                     1
                   </span>
                   <p className='text-sm leading-relaxed text-muted-foreground'>
-                    Scarica il documento di liberatoria e regolamento inviato
-                    via circolare
+                    Scarica il documento di liberatoria e regolamento.
+                    <br />
+                    Lo trovi nella circolare di inizio progetto oppure al
+                    seguente link:{' '}
+                    <Link
+                      href='https://drive.google.com/file/d/1MRRcjxsehWFrk2eXFks0k3C-xPZYaaLO/view?usp=sharing'
+                      target='_blank'
+                      className='underline underline-offset-4'
+                    >
+                      Liberatoria e Regolamento
+                    </Link>
                   </p>
                 </li>
                 <li className='flex items-start gap-3'>

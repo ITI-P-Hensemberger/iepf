@@ -148,6 +148,16 @@ export default function Header() {
                   className='cursor-pointer'
                   onSelect={(event) => {
                     event.preventDefault()
+                    window.location.assign('/admin/admins')
+                  }}
+                >
+                  Gestione Admin
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className='cursor-pointer'
+                  onSelect={(event) => {
+                    event.preventDefault()
                     window.location.assign('/admin/lessons')
                   }}
                 >
@@ -157,10 +167,20 @@ export default function Header() {
                   className='cursor-pointer'
                   onSelect={(event) => {
                     event.preventDefault()
-                    window.location.assign('/admin/admins')
+                    window.location.assign('/admin/feedback')
                   }}
                 >
-                  Gestione Admin
+                  Gestione Feedback
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className='cursor-pointer'
+                  onSelect={(event) => {
+                    event.preventDefault()
+                    window.location.assign('/admin/settings')
+                  }}
+                >
+                  Impostazioni globali
                 </DropdownMenuItem>
               </DropdownMenuGroup>
             )}

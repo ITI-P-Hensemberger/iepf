@@ -18,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
-import { Card, CardContent, CardFooter } from '@/components/ui/card'
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import {
   Field,
   FieldError,
@@ -30,6 +30,7 @@ import { useSession } from '@/lib/use-session'
 import { logout } from '@/lib/auth-client'
 
 import { extractPayloadArray } from '@/lib/backend-response'
+import { Badge } from '@/components/ui/badge'
 function normalizeName(value: string) {
   const trimmed = value.trim()
   if (!trimmed) {
@@ -425,7 +426,9 @@ export default function ProfilePage() {
       await logout()
     } catch (err) {
       setResetStatus('error')
-      toast.error(parseErrorMessage(err, 'Impossibile inviare la mail di reset.'))
+      toast.error(
+        parseErrorMessage(err, 'Impossibile inviare la mail di reset.')
+      )
     }
   }
 
@@ -450,7 +453,16 @@ export default function ProfilePage() {
             </p>
           )}
           <Card className='mt-6'>
-            <CardContent className='pt-6'>
+            {profile?.role === 'student' && (
+              <CardHeader className='pb-0'>
+                <div className='flex items-center justify-end'>
+                  <Badge variant='secondary'>
+                    Lezioni rimanenti: {profile.lessonTokens ?? '-'}
+                  </Badge>
+                </div>
+              </CardHeader>
+            )}
+            <CardContent>
               {isLoading ? (
                 <p className='text-sm text-muted-foreground'>
                   Caricamento profilo...

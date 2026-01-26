@@ -9,6 +9,14 @@ export type AuthTokens = {
 }
 
 export type UserProfile = {
+  id?: string
+  email?: string
+  firstName?: string
+  lastName?: string
+  sectionId?: string | null
+  sectionName?: string | null
+  year?: number | null
+  lessonTokens?: number | null
   isActive?: boolean | null
   role?: string | null
 }

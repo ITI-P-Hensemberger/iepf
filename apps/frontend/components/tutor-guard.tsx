@@ -4,6 +4,9 @@ import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 
 import Header from '@/components/header'
+import { MaintenanceBlock } from '@/components/maintenance-block'
+import { ServiceMessageBanner } from '@/components/service-message-banner'
+import { useSettings } from '@/components/settings-provider'
 import { useSession } from '@/lib/use-session'
 import { useTutorOnboarding } from '@/lib/use-tutor-onboarding'
 
@@ -13,6 +16,7 @@ type TutorGuardProps = {
 
 export default function TutorGuard({ children }: TutorGuardProps) {
   const { profile, isLoading } = useSession()
+  const { settings, isLoading: isSettingsLoading } = useSettings()
   const router = useRouter()
   const pathname = usePathname()
   const isPendingPage = pathname === '/tutor/pending'
@@ -82,7 +86,7 @@ export default function TutorGuard({ children }: TutorGuardProps) {
     router
   ])
 
-  if (isLoading) {
+  if (isLoading || isSettingsLoading) {
     return (
       <div className='container mx-auto px-4 py-10 text-sm text-muted-foreground'>
         Caricamento...
@@ -121,10 +125,17 @@ export default function TutorGuard({ children }: TutorGuardProps) {
     }
   }
 
+  const maintenanceActive = Boolean(settings?.maintenance.enabled)
+
   return (
     <>
       <Header />
-      {children}
+      <ServiceMessageBanner />
+      {maintenanceActive ? (
+        <MaintenanceBlock message={settings?.maintenance.message} />
+      ) : (
+        children
+      )}
     </>
   )
 }

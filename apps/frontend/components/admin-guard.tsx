@@ -4,6 +4,9 @@ import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 
 import Header from '@/components/header'
+import { MaintenanceBlock } from '@/components/maintenance-block'
+import { ServiceMessageBanner } from '@/components/service-message-banner'
+import { useSettings } from '@/components/settings-provider'
 import { useSession } from '@/lib/use-session'
 
 type AdminGuardProps = {
@@ -12,6 +15,7 @@ type AdminGuardProps = {
 
 export default function AdminGuard({ children }: AdminGuardProps) {
   const { profile, isLoading } = useSession()
+  const { settings, isLoading: isSettingsLoading } = useSettings()
   const router = useRouter()
   const pathname = usePathname()
   const isPendingPage = pathname === '/admin/pending'
@@ -46,7 +50,7 @@ export default function AdminGuard({ children }: AdminGuardProps) {
     }
   }, [isLoading, isPendingPage, profile, router])
 
-  if (isLoading) {
+  if (isLoading || isSettingsLoading) {
     return (
       <div className='container mx-auto px-4 py-10 text-sm text-muted-foreground'>
         Caricamento...
@@ -66,10 +70,17 @@ export default function AdminGuard({ children }: AdminGuardProps) {
     return null
   }
 
+  const maintenanceActive = Boolean(settings?.maintenance.enabled)
+
   return (
     <>
       <Header />
-      {children}
+      <ServiceMessageBanner />
+      {maintenanceActive ? (
+        <MaintenanceBlock message={settings?.maintenance.message} />
+      ) : (
+        children
+      )}
     </>
   )
 }

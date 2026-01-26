@@ -3,14 +3,16 @@ import Image from 'next/image'
 
 const SECTIONS = [
   {
-    title: '1. Titolare del trattamento',
+    title:
+      '1. Titolare del trattamento e Resposabile della Protezione dei Dati (DPO)',
     body: [
       'Il Titolare del trattamento è:',
       'ITI P. Hensemberger',
       [
         'Via Giovanni Berchet, 2 - 20900 Monza (MB)',
         'Email istituzionale: mbtf410002@istruzione.it'
-      ]
+      ],
+      'Il Responsabile della Protezione dei Dati (DPO) è contattabile al seguente indirizzo email: dpo@hensemberger.it'
     ]
   },
   {
@@ -27,13 +29,15 @@ const SECTIONS = [
       [
         'prenotazioni delle lezioni',
         'storico delle ore utilizzate',
-        'informazioni organizzative connesse al Progetto'
+        'informazioni organizzative connesse al Progetto',
+        "stato del pagamento e copia della ricevuta PagoPA caricata per l'attivazione del servizio"
       ],
       'c) Dati tecnici di navigazione',
       [
         'indirizzo IP',
         'log di accesso',
-        'dati tecnici necessari al funzionamento del sito'
+        'dati tecnici necessari al funzionamento del sito',
+        'cookie tecnici necessari alla gestione della sessione di autenticazione'
       ],
       'Tali dati non vengono utilizzati per finalità di profilazione o marketing.'
     ]
@@ -44,6 +48,7 @@ const SECTIONS = [
       'I dati personali sono trattati esclusivamente per le seguenti finalità:',
       [
         "gestione dell'adesione al Progetto “Insieme È Più Facile”;",
+        'verifica della regolarità amministrativa (pagamento quota di iscrizione);',
         'organizzazione delle attività di supporto allo studio;',
         'gestione delle prenotazioni tramite piattaforma online;',
         'invio di comunicazioni di servizio;',
@@ -90,9 +95,8 @@ const SECTIONS = [
     body: [
       'I dati personali:',
       [
-        'non saranno diffusi;',
-        'potranno essere comunicati esclusivamente a personale interno autorizzato (docenti referenti, personale amministrativo);',
-        "potranno essere trattati da fornitori tecnici del servizio informatico, nominati Responsabili del trattamento ai sensi dell'art. 28 GDPR."
+        'non saranno diffusi (non saranno pubblicati online o esposti al pubblico indistinto);',
+        "Potranno essere comunicati o resi accessibili esclusivamente a: personale interno autorizzato (docenti referenti del Progetto e personale di segreteria per la gestione amministrativa), studenti Tutor (limitatamente al nome, cognome, classe e indirizzo email di istituto degli studenti assistiti per esclusive finalità organizzative - i tutor sono istruiti alla riservatezza), fornitori tecnici: soggetti che forniscono l'infrastruttura informatica o il servizio di hosting, nominati Responsabili del trattamento ai sensi dell'art. 28 del GDPR."
       ],
       'In nessun caso i dati saranno ceduti a soggetti terzi per finalità commerciali.'
     ]
@@ -100,7 +104,7 @@ const SECTIONS = [
   {
     title: '8. Trasferimento dei dati extra UE',
     body: [
-      'I dati personali non sono trasferiti verso Paesi extra Unione Europea.',
+      'I dati personali non sono trasferiti verso Paesi extra Unione Europea ad esclusione degli USA (Google), per i quali il trasferimento avviene secondo le garanzie di legge (Data Privacy Framework).',
       'Qualora ciò si rendesse necessario per esigenze tecniche, il trasferimento avverrà esclusivamente nel rispetto degli articoli 44-49 del GDPR.'
     ]
   },

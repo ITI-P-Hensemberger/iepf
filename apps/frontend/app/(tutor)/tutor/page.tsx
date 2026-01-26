@@ -288,7 +288,7 @@ export default function TutorPage() {
               <Table>
                 <TableHeader className='bg-muted/50'>
                   <TableRow>
-                    <TableHead>Data</TableHead>
+                    <TableHead className='whitespace-nowrap'>Data e ora</TableHead>
                     <TableHead>Materia</TableHead>
                     <TableHead>Posti</TableHead>
                     <TableHead>Stato</TableHead>

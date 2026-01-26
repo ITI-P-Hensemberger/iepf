@@ -10,6 +10,7 @@ export type SessionProfile = {
   role?: string | null
   sectionId?: string | null
   year?: number | null
+  lessonTokens?: number | null
   isActive?: boolean | null
 }
 

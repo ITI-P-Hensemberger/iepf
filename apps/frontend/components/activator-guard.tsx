@@ -4,6 +4,8 @@ import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 
 import { useSession } from '@/lib/use-session'
+import { useSettings } from '@/components/settings-provider'
+import { MaintenanceBlock } from '@/components/maintenance-block'
 
 type ActivatorGuardProps = {
   children: React.ReactNode
@@ -11,6 +13,7 @@ type ActivatorGuardProps = {
 
 export default function ActivatorGuard({ children }: ActivatorGuardProps) {
   const { profile, isLoading } = useSession()
+  const { settings, isLoading: isSettingsLoading } = useSettings()
   const router = useRouter()
   const pathname = usePathname()
   const isActivatorHome = pathname === '/activator'
@@ -47,7 +50,7 @@ export default function ActivatorGuard({ children }: ActivatorGuardProps) {
     }
   }, [isActivatorHome, isLoading, profile, router])
 
-  if (isLoading) {
+  if (isLoading || isSettingsLoading) {
     return (
       <div className='container mx-auto px-4 py-10 text-sm text-muted-foreground'>
         Caricamento...
@@ -61,6 +64,12 @@ export default function ActivatorGuard({ children }: ActivatorGuardProps) {
 
   if (!isActivatorHome) {
     return null
+  }
+
+  const maintenanceActive = Boolean(settings?.maintenance.enabled)
+
+  if (maintenanceActive) {
+    return <MaintenanceBlock message={settings?.maintenance.message} />
   }
 
   return <>{children}</>

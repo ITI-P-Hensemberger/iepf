@@ -80,14 +80,14 @@ function LoginContent() {
         })
       })
 
-        if (!response.ok) {
-          if (response.status === 403) {
-            setNeedsVerification(true)
-            toast.error(
-              "Email non verificata. Controlla la tua casella email o invia un'altra email di verifica."
-            )
-            return
-          }
+      if (!response.ok) {
+        if (response.status === 403) {
+          setNeedsVerification(true)
+          toast.error(
+            "Email non verificata. Controlla la tua casella email o invia un'altra email di verifica."
+          )
+          return
+        }
         let message = 'Accesso non riuscito.'
 
         try {
@@ -105,8 +105,7 @@ function LoginContent() {
         isActive?: boolean
       }
 
-      const nextPath =
-        nextParam && nextParam.startsWith('/') ? nextParam : null
+      const nextPath = nextParam && nextParam.startsWith('/') ? nextParam : null
 
       if (nextPath) {
         router.push(nextPath)
@@ -143,9 +142,7 @@ function LoginContent() {
 
       router.push(payload.isActive === true ? '/student' : '/student/pending')
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Accesso non riuscito.'
-      )
+      toast.error(err instanceof Error ? err.message : 'Accesso non riuscito.')
     } finally {
       setIsSubmitting(false)
     }
@@ -177,7 +174,8 @@ function LoginContent() {
             message?: string
             error?: { issues?: Array<{ message?: string }> }
           }
-          message = payload.message ?? payload.error?.issues?.[0]?.message ?? message
+          message =
+            payload.message ?? payload.error?.issues?.[0]?.message ?? message
         } catch {
           message = 'Impossibile inviare la verifica.'
         }
@@ -191,9 +189,7 @@ function LoginContent() {
     } catch (err) {
       setResendStatus('error')
       toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile inviare la verifica.'
+        err instanceof Error ? err.message : 'Impossibile inviare la verifica.'
       )
     }
   }
@@ -224,7 +220,8 @@ function LoginContent() {
             message?: string
             error?: { issues?: Array<{ message?: string }> }
           }
-          message = payload.message ?? payload.error?.issues?.[0]?.message ?? message
+          message =
+            payload.message ?? payload.error?.issues?.[0]?.message ?? message
         } catch {
           message = 'Impossibile inviare il reset della password.'
         }
@@ -232,7 +229,9 @@ function LoginContent() {
       }
 
       setResetStatus('success')
-      toast.success('Se l’account esiste, abbiamo inviato un link per il reset.')
+      toast.success(
+        'Se l’account esiste, abbiamo inviato un link per il reset.'
+      )
     } catch (err) {
       setResetStatus('error')
       toast.error(
@@ -247,7 +246,7 @@ function LoginContent() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='mb-6 self-start'>
-          <BackButton />
+          <BackButton href='/' />
         </div>
         <Image
           src='/logo.png'

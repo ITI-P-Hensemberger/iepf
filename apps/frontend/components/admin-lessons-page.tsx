@@ -677,7 +677,7 @@ export default function AdminLessonsPage() {
             <Table>
               <TableHeader className='bg-muted/50'>
                 <TableRow>
-                  <TableHead>Data</TableHead>
+                  <TableHead className='whitespace-nowrap'>Data e ora</TableHead>
                   <TableHead>Tutor</TableHead>
                   <TableHead>Materia</TableHead>
                   <TableHead className='whitespace-nowrap'>
