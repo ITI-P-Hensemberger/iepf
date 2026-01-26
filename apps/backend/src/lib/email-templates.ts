@@ -44,13 +44,20 @@ function loadLogoDataUri() {
   return cachedLogoDataUri
 }
 
-function buildEmailHtml(title: string, message: string, action?: { label: string, url: string }) {
+function buildEmailHtml(
+  title: string,
+  message: string,
+  action?: { label: string, url: string },
+  options?: { hideHomeButton?: boolean }
+) {
   const homeUrl = env.SITE_URL ?? 'http://localhost:3000'
   const actions: string[] = []
   if (action) {
     actions.push(`<a href="${action.url}" class="cta-button" style="display:inline-block;padding:12px 20px;background:#0f172a;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;text-align:center;">${action.label}</a>`)
   }
-  actions.push(`<a href="${homeUrl}" class="cta-button" style="display:inline-block;padding:12px 20px;background:#1e293b;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;text-align:center;">Vai alla home</a>`)
+  if (!options?.hideHomeButton) {
+    actions.push(`<a href="${homeUrl}" class="cta-button" style="display:inline-block;padding:12px 20px;background:#1e293b;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;text-align:center;">Vai alla home</a>`)
+  }
   const actionHtml = actions.length > 0
     ? `<div style="margin-top:24px;text-align:center;">${actions.map((link, index) => `
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto ${index === actions.length - 1 ? 0 : 12}px;">
@@ -133,7 +140,8 @@ export function buildStudentRegistrationMessage(token: string) {
     html: buildEmailHtml(
       'Verifica la tua email',
       'Benvenuto! Verifica la tua email per completare la registrazione.',
-      { label: 'Verifica email', url: link }
+      { label: 'Verifica email', url: link },
+      { hideHomeButton: true }
     )
   } satisfies EmailTemplate
 }
@@ -146,7 +154,8 @@ export function buildEmailVerificationMessage(token: string) {
     html: buildEmailHtml(
       'Verifica la tua email',
       'Per continuare, verifica la tua email.',
-      { label: 'Verifica email', url: link }
+      { label: 'Verifica email', url: link },
+      { hideHomeButton: true }
     )
   } satisfies EmailTemplate
 }
@@ -159,7 +168,8 @@ export function buildPasswordResetMessage(token: string) {
     html: buildEmailHtml(
       'Reimposta la tua password',
       'Clicca sul pulsante per reimpostare la tua password.',
-      { label: 'Reimposta password', url: link }
+      { label: 'Reimposta password', url: link },
+      { hideHomeButton: true }
     )
   } satisfies EmailTemplate
 }
@@ -172,7 +182,8 @@ export function buildTutorCreatedMessage(token: string) {
     html: buildEmailHtml(
       'Account tutor creato',
       'Un amministratore ha creato il tuo account tutor. Verifica la tua email per continuare.',
-      { label: 'Verifica email', url: link }
+      { label: 'Verifica email', url: link },
+      { hideHomeButton: true }
     )
   } satisfies EmailTemplate
 }
@@ -215,7 +226,8 @@ export function buildTutorInviteMessage(token: string) {
     html: buildEmailHtml(
       'Invito registrazione tutor',
       'Sei stato invitato a registrarti come tutor. Completa la registrazione con il pulsante qui sotto.',
-      { label: 'Registrati come tutor', url: link }
+      { label: 'Registrati come tutor', url: link },
+      { hideHomeButton: true }
     )
   } satisfies EmailTemplate
 }
@@ -232,7 +244,8 @@ export function buildAdminInviteMessage(token: string) {
     html: buildEmailHtml(
       'Invito registrazione admin',
       'Sei stato invitato a registrarti come admin. Completa la registrazione con il pulsante qui sotto.',
-      { label: 'Registrati come admin', url: link }
+      { label: 'Registrati come admin', url: link },
+      { hideHomeButton: true }
     )
   } satisfies EmailTemplate
 }
@@ -264,7 +277,8 @@ export function buildLessonFeedbackReminderMessage(role: 'student' | 'tutor', co
     html: buildEmailHtml(
       heading,
       message,
-      { label: 'Vai alle lezioni', url }
+      { label: 'Vai alle lezioni', url },
+      { hideHomeButton: true }
     )
   } satisfies EmailTemplate
 }

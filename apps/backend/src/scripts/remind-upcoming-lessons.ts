@@ -1,4 +1,4 @@
-// Purpose: Send reminder emails for confirmed lessons scheduled for tomorrow.
+// Purpose: Send reminder emails for confirmed lessons scheduled for today.
 import { and, eq, gte, inArray, lte } from 'drizzle-orm'
 
 import db from '@/db'
@@ -19,7 +19,7 @@ function buildClassLabel(sectionName: string | null, sectionId: string | null, y
 async function main() {
   const now = new Date()
   const start = new Date(now)
-  start.setDate(now.getDate() + 1)
+  start.setDate(now.getDate())
   start.setHours(0, 0, 0, 0)
   const end = new Date(start)
   end.setHours(23, 59, 59, 999)
@@ -39,7 +39,7 @@ async function main() {
     ))
 
   if (lessonsRows.length === 0) {
-    console.warn('No confirmed lessons found for tomorrow.')
+    console.warn('No confirmed lessons found for today.')
     return
   }
 
@@ -56,7 +56,7 @@ async function main() {
     ))
 
   if (bookings.length === 0) {
-    console.warn('No confirmed bookings found for tomorrow.')
+    console.warn('No confirmed bookings found for today.')
     return
   }
 
