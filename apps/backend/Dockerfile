@@ -19,6 +19,15 @@ RUN pnpm build
 FROM build AS migrate
 CMD ["pnpm", "db:migrate"]
 
+FROM build AS cron-generate-lessons
+CMD ["pnpm", "generate:lessons"]
+
+FROM build AS cron-remind-feedback
+CMD ["pnpm", "remind:feedback"]
+
+FROM build AS cron-remind-lessons
+CMD ["pnpm", "remind:lessons"]
+
 FROM deps AS prod-deps
 RUN pnpm prune --prod
 

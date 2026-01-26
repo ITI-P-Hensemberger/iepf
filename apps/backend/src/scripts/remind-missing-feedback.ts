@@ -141,12 +141,12 @@ async function remindMissingFeedback() {
     }
 
     const message = buildLessonFeedbackReminderMessage(pending.role, pending.count)
-    await sendMail({
+    void sendMail({
       to: recipient.email,
       subject: message.subject,
       text: message.text,
       html: message.html
-    })
+    }).catch(err => console.error('Failed to send feedback reminder email:', err))
   }
 
   console.warn(`Sent ${pendingByUser.size} feedback reminder(s).`)

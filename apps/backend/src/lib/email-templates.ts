@@ -52,7 +52,15 @@ function buildEmailHtml(title: string, message: string, action?: { label: string
   }
   actions.push(`<a href="${homeUrl}" class="cta-button" style="display:inline-block;padding:12px 20px;background:#1e293b;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;text-align:center;">Vai alla home</a>`)
   const actionHtml = actions.length > 0
-    ? `<div style="margin-top:24px;display:flex;flex-direction:column;gap:12px;align-items:center;">${actions.join('')}</div>`
+    ? `<div style="margin-top:24px;text-align:center;">${actions.map((link, index) => `
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto ${index === actions.length - 1 ? 0 : 12}px;">
+          <tr>
+            <td class="cta-cell" style="border-radius:8px;">
+              ${link}
+            </td>
+          </tr>
+        </table>
+      `.trim()).join('')}</div>`
     : ''
   const logoDataUri = loadLogoDataUri()
   const logoHtml = logoDataUri
@@ -67,6 +75,9 @@ function buildEmailHtml(title: string, message: string, action?: { label: string
           display: block !important;
           width: 100% !important;
           box-sizing: border-box !important;
+        }
+        .cta-cell {
+          width: 100% !important;
         }
       }
     </style>
@@ -269,7 +280,7 @@ export function buildBookingCanceledByAdminMessage(recipientRole: 'student' | 't
   const heading = recipientRole === 'tutor'
     ? 'Lezione annullata da un amministratore'
     : 'Lezione annullata da un amministratore'
-  const message = `La lezione prevista per ${formattedDate} è stata annullata da un amministratore.`
+  const message = `La lezione prevista per ${formattedDate} è stata annullata. Operazione effettuata da un amministratore.`
 
   return {
     subject: 'Lezione annullata',
@@ -324,14 +335,19 @@ export function buildLessonBookingCanceledMessage(params: {
   const canceledByLabel = params.canceledBy === 'admin'
     ? 'da un amministratore'
     : params.canceledBy === 'tutor' ? 'dal tutor' : 'dallo studente'
+  const adminSuffix = params.canceledBy === 'admin' ? ' Operazione effettuata da un amministratore.' : ''
 
   if (params.recipientRole === 'student') {
     return {
       subject: 'Prenotazione annullata',
-      text: `La prenotazione per ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.`,
+      text: params.canceledBy === 'admin'
+        ? `La prenotazione per ${dateLabel} è stata annullata. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.${adminSuffix}`
+        : `La prenotazione per ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.`,
       html: buildEmailHtml(
         'Prenotazione annullata',
-        `La prenotazione per <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.`
+        params.canceledBy === 'admin'
+          ? `La prenotazione per <strong>${dateLabel}</strong> è stata annullata.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.<br />Operazione effettuata da un amministratore.`
+          : `La prenotazione per <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.`
       )
     } satisfies EmailTemplate
   }
@@ -339,10 +355,14 @@ export function buildLessonBookingCanceledMessage(params: {
   const studentLabel = buildStudentLabel(params.studentName, params.studentClass)
   return {
     subject: 'Prenotazione annullata',
-    text: `La prenotazione di ${studentLabel} per ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}.`,
+    text: params.canceledBy === 'admin'
+      ? `La prenotazione di ${studentLabel} per ${dateLabel} è stata annullata. Materia: ${params.subjectName}.${adminSuffix}`
+      : `La prenotazione di ${studentLabel} per ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}.`,
     html: buildEmailHtml(
       'Prenotazione annullata',
-      `La prenotazione di <strong>${studentLabel}</strong> per <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.`
+      params.canceledBy === 'admin'
+        ? `La prenotazione di <strong>${studentLabel}</strong> per <strong>${dateLabel}</strong> è stata annullata.<br />Materia: <strong>${params.subjectName}</strong>.<br />Operazione effettuata da un amministratore.`
+        : `La prenotazione di <strong>${studentLabel}</strong> per <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.`
     )
   } satisfies EmailTemplate
 }
@@ -359,14 +379,19 @@ export function buildLessonCanceledMessage(params: {
   const canceledByLabel = params.canceledBy === 'admin'
     ? 'da un amministratore'
     : params.canceledBy === 'tutor' ? 'dal tutor' : 'dallo studente'
+  const adminSuffix = params.canceledBy === 'admin' ? ' Operazione effettuata da un amministratore.' : ''
 
   if (params.recipientRole === 'student') {
     return {
       subject: 'Lezione annullata',
-      text: `La lezione del ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.`,
+      text: params.canceledBy === 'admin'
+        ? `La lezione del ${dateLabel} è stata annullata. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.${adminSuffix}`
+        : `La lezione del ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.`,
       html: buildEmailHtml(
         'Lezione annullata',
-        `La lezione del <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.`
+        params.canceledBy === 'admin'
+          ? `La lezione del <strong>${dateLabel}</strong> è stata annullata.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.<br />Operazione effettuata da un amministratore.`
+          : `La lezione del <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.`
       )
     } satisfies EmailTemplate
   }
@@ -379,10 +404,14 @@ export function buildLessonCanceledMessage(params: {
 
   return {
     subject: 'Lezione annullata',
-    text: `La lezione del ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}. Studenti: ${params.students.map(student => buildStudentLabel(student.name, student.classLabel)).join(', ') || 'nessuno'}.`,
+    text: params.canceledBy === 'admin'
+      ? `La lezione del ${dateLabel} è stata annullata. Materia: ${params.subjectName}. Studenti: ${params.students.map(student => buildStudentLabel(student.name, student.classLabel)).join(', ') || 'nessuno'}.${adminSuffix}`
+      : `La lezione del ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}. Studenti: ${params.students.map(student => buildStudentLabel(student.name, student.classLabel)).join(', ') || 'nessuno'}.`,
     html: buildEmailHtml(
       'Lezione annullata',
-      `La lezione del <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.<br />Studenti:${studentItems}`
+      params.canceledBy === 'admin'
+        ? `La lezione del <strong>${dateLabel}</strong> è stata annullata.<br />Materia: <strong>${params.subjectName}</strong>.<br />Studenti:${studentItems}<br />Operazione effettuata da un amministratore.`
+        : `La lezione del <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.<br />Studenti:${studentItems}`
     )
   } satisfies EmailTemplate
 }
@@ -396,17 +425,19 @@ export function buildLessonRescheduledMessage(params: {
   oldTutorName: string
   newTutorName: string
   students: Array<{ name: string, classLabel?: string | null }>
+  rescheduledByAdmin?: boolean
 }) {
   const oldDate = formatLessonDate(params.oldStartAt)
   const newDate = formatLessonDate(params.newStartAt)
+  const adminSuffix = params.rescheduledByAdmin ? ' Operazione effettuata da un amministratore.' : ''
 
   if (params.recipientRole === 'student') {
     return {
       subject: 'Lezione riprogrammata',
-      text: `La lezione del ${oldDate} è stata riprogrammata al ${newDate}. Materia: ${params.newSubjectName}. Tutor: ${params.newTutorName}.`,
+      text: `La lezione del ${oldDate} è stata riprogrammata al ${newDate}. Materia: ${params.newSubjectName}. Tutor: ${params.newTutorName}.${adminSuffix}`,
       html: buildEmailHtml(
         'Lezione riprogrammata',
-        `La lezione del <strong>${oldDate}</strong> è stata riprogrammata al <strong>${newDate}</strong>.<br />Materia: <strong>${params.newSubjectName}</strong>.<br />Tutor: <strong>${params.newTutorName}</strong>.`
+        `La lezione del <strong>${oldDate}</strong> è stata riprogrammata al <strong>${newDate}</strong>.<br />Materia: <strong>${params.newSubjectName}</strong>.<br />Tutor: <strong>${params.newTutorName}</strong>.${params.rescheduledByAdmin ? '<br />Operazione effettuata da un amministratore.' : ''}`
       )
     } satisfies EmailTemplate
   }
@@ -419,10 +450,10 @@ export function buildLessonRescheduledMessage(params: {
 
   return {
     subject: 'Lezione riprogrammata',
-    text: `La lezione del ${oldDate} è stata riprogrammata al ${newDate}. Materia: ${params.newSubjectName}. Studenti: ${params.students.map(student => buildStudentLabel(student.name, student.classLabel)).join(', ') || 'nessuno'}.`,
+    text: `La lezione del ${oldDate} è stata riprogrammata al ${newDate}. Materia: ${params.newSubjectName}. Studenti: ${params.students.map(student => buildStudentLabel(student.name, student.classLabel)).join(', ') || 'nessuno'}.${adminSuffix}`,
     html: buildEmailHtml(
       'Lezione riprogrammata',
-      `La lezione del <strong>${oldDate}</strong> è stata riprogrammata al <strong>${newDate}</strong>.<br />Materia: <strong>${params.newSubjectName}</strong>.<br />Studenti:${studentItems}`
+      `La lezione del <strong>${oldDate}</strong> è stata riprogrammata al <strong>${newDate}</strong>.<br />Materia: <strong>${params.newSubjectName}</strong>.<br />Studenti:${studentItems}${params.rescheduledByAdmin ? '<br />Operazione effettuata da un amministratore.' : ''}`
     )
   } satisfies EmailTemplate
 }

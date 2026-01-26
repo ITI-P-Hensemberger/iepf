@@ -96,6 +96,27 @@ const bookGeneratedLessonSchema = z.object({
   studentId: z.uuid().optional()
 })
 
+const myLessonsQuerySchema = z.object({
+  from: z.iso.datetime().optional(),
+  to: z.iso.datetime().optional(),
+  lessonStatus: z.string().optional(),
+  bookingStatus: z.string().optional(),
+  sortBy: z.enum(['startAt']).default('startAt'),
+  sortDir: z.enum(['asc', 'desc']).default('asc'),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0)
+})
+
+const availableLessonsQuerySchema = z.object({
+  subjectId: z.uuid().optional(),
+  from: z.iso.datetime().optional(),
+  to: z.iso.datetime().optional(),
+  sortBy: z.enum(['startAt']).default('startAt'),
+  sortDir: z.enum(['asc', 'desc']).default('asc'),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0)
+})
+
 const listLessonsQuerySchema = z.object({
   q: z.string().min(1).optional(),
   tutorId: z.uuid().optional(),
@@ -123,6 +144,42 @@ const lessonListItemSchema = z.object({
   status: z.string()
 })
 
+const myLessonItemSchema = z.object({
+  id: z.string(),
+  tutorId: z.string(),
+  tutorFirstName: z.string(),
+  tutorLastName: z.string(),
+  tutorEmail: z.string().nullable(),
+  subjectId: z.string(),
+  subjectName: z.string(),
+  startAt: z.string(),
+  durationMinutes: z.number().int(),
+  lessonStatus: z.string(),
+  bookingId: z.string(),
+  bookingStatus: z.string(),
+  topic: z.string(),
+  countsForStudent: z.boolean(),
+  studentPresence: z.boolean().nullable(),
+  studentPresenceAt: z.string().nullable()
+})
+
+const availableLessonItemSchema = z.object({
+  id: z.string(),
+  tutorId: z.string(),
+  tutorFirstName: z.string(),
+  tutorLastName: z.string(),
+  subjectId: z.string(),
+  subjectName: z.string(),
+  startAt: z.string(),
+  durationMinutes: z.number().int(),
+  lessonCapacity: z.number().int(),
+  dailyCapacity: z.number().int(),
+  dailyOccupancy: z.number().int(),
+  availableSeats: z.number().int(),
+  status: z.string(),
+  canBook: z.boolean()
+})
+
 export const listLessons = createRoute({
   path: '/lessons',
   method: 'get',
@@ -142,6 +199,62 @@ export const listLessons = createRoute({
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
       createErrorSchema(listLessonsQuerySchema),
+      'Validation error(s)'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
+export const listMyLessons = createRoute({
+  path: '/lessons/me',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  request: {
+    query: myLessonsQuerySchema
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      createPagedListSchema(myLessonItemSchema),
+      'Lessons booked by the current student'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Student access required'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(myLessonsQuerySchema),
+      'Validation error(s)'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
+export const listAvailableLessons = createRoute({
+  path: '/lessons/available',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  request: {
+    query: availableLessonsQuerySchema
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      createPagedListSchema(availableLessonItemSchema),
+      'Lessons available for booking'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Student access required'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(availableLessonsQuerySchema),
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
@@ -525,6 +638,8 @@ export const updateBookingCounts = createRoute({
 
 export type ListLessonsRoute = typeof listLessons
 export type GetLessonRoute = typeof getLesson
+export type ListMyLessonsRoute = typeof listMyLessons
+export type ListAvailableLessonsRoute = typeof listAvailableLessons
 export type ListLessonBookingsRoute = typeof listLessonBookings
 export type BookGeneratedLessonRoute = typeof bookGeneratedLesson
 export type CancelBookingRoute = typeof cancelBooking
