@@ -33,5 +33,31 @@ docker buildx build \
   --push \
   "${CONTEXT}"
 
-echo "✔ Backend pushed"
+docker buildx build \
+  --platform "${PLATFORM}" \
+  --target cron-generate-lessons \
+  -t "${IMAGE}:cron-generate-lessons" \
+  -t "${IMAGE}:cron-generate-lessons-${VERSION}" \
+  -t "${IMAGE}:cron-generate-lessons-${GIT_SHA}" \
+  --push \
+  "${CONTEXT}"
 
+docker buildx build \
+  --platform "${PLATFORM}" \
+  --target cron-remind-feedback \
+  -t "${IMAGE}:cron-remind-feedback" \
+  -t "${IMAGE}:cron-remind-feedback-${VERSION}" \
+  -t "${IMAGE}:cron-remind-feedback-${GIT_SHA}" \
+  --push \
+  "${CONTEXT}"
+
+docker buildx build \
+  --platform "${PLATFORM}" \
+  --target cron-remind-lessons \
+  -t "${IMAGE}:cron-remind-lessons" \
+  -t "${IMAGE}:cron-remind-lessons-${VERSION}" \
+  -t "${IMAGE}:cron-remind-lessons-${GIT_SHA}" \
+  --push \
+  "${CONTEXT}"
+
+echo "✔ Backend pushed"
