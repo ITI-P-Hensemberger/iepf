@@ -134,7 +134,9 @@ export default function AdminAdminDetailPage() {
       } catch (err) {
         if (isMounted) {
           toast.error(
-            err instanceof Error ? err.message : "Impossibile recuperare l'admin."
+            err instanceof Error
+              ? err.message
+              : "Impossibile recuperare l'admin."
           )
         }
       } finally {
@@ -254,8 +256,8 @@ export default function AdminAdminDetailPage() {
 
   return (
     <main className='flex-1'>
-      <div className='container mx-auto px-4 py-10'>
-        <div className='mx-auto max-w-3xl'>
+      <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
+        <div className='w-full max-w-6xl'>
           <div className='mb-6'>
             <BackButton />
           </div>
@@ -272,7 +274,9 @@ export default function AdminAdminDetailPage() {
               {isLoading ? (
                 <p className='text-sm text-muted-foreground'>Caricamento...</p>
               ) : !admin ? (
-                <p className='text-sm text-muted-foreground'>Admin non trovato.</p>
+                <p className='text-sm text-muted-foreground'>
+                  Admin non trovato.
+                </p>
               ) : (
                 <form
                   id='admin-admin-form'
@@ -458,9 +462,9 @@ export default function AdminAdminDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Conferma modifica email</AlertDialogTitle>
             <AlertDialogDescription>
-              Se l&apos;email inserita e errata, il admin potrebbe perdere l&apos;accesso
-              all&apos;account. In caso di problemi, contatta l&apos;amministratore di
-              sistema.
+              Se l&apos;email inserita e errata, il admin potrebbe perdere
+              l&apos;accesso all&apos;account. In caso di problemi, contatta
+              l&apos;amministratore di sistema.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

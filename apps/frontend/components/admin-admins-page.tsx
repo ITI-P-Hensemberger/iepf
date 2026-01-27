@@ -10,7 +10,7 @@ import {
   getCoreRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { ArrowUpDown, MoreHorizontal, Search } from 'lucide-react'
+import { ArrowUpDown, ExternalLink, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -25,12 +25,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -383,7 +377,6 @@ export default function AdminAdminsPage() {
   const [activeLoading, setActiveLoading] = React.useState(true)
   const [inactiveLoading, setInactiveLoading] = React.useState(true)
   const [pendingLoading, setPendingLoading] = React.useState(true)
-  const [openMenuId, setOpenMenuId] = React.useState<string | null>(null)
   const [showInviteDialog, setShowInviteDialog] = React.useState(false)
   const [inviteEmails, setInviteEmails] = React.useState('')
   const [isInviting, setIsInviting] = React.useState(false)
@@ -683,36 +676,27 @@ export default function AdminAdminsPage() {
       },
       {
         id: 'actions',
-        header: '',
+        header: () => <span className='sr-only'>Azioni</span>,
         cell: ({ row }) => (
-          <DropdownMenu
-            open={openMenuId === row.original.id}
-            onOpenChange={(open) =>
-              setOpenMenuId(open ? row.original.id : null)
-            }
-          >
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant='ghost'
-                size='icon'
-                aria-label='Azioni'
-                className='h-6 w-6 p-0'
-              >
-                <MoreHorizontal className='h-4 w-4' />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end'>
-              <DropdownMenuItem asChild>
-                <Link href={`/admin/admins/${row.original.id}`}>Dettagli</Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className='flex items-center justify-end gap-1'>
+            <Button
+              asChild
+              variant='ghost'
+              size='icon'
+              aria-label='Apri profilo tutor'
+              className='h-6 w-6 p-0'
+            >
+              <Link href={`/admin/admins/${row.original.id}`}>
+                <ExternalLink className='h-4 w-4' />
+              </Link>
+            </Button>
+          </div>
         )
       }
     ]
 
     return columns
-  }, [openMenuId])
+  }, [])
 
   const activeColumns = React.useMemo(() => makeColumns(), [makeColumns])
 

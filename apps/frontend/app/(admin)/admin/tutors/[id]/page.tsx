@@ -26,7 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
-import { Card, CardContent, CardFooter } from '@/components/ui/card'
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Field,
@@ -45,6 +45,8 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
+import { SubjectSelector } from '@/components/subject-selector'
+import { WeekdayAvailabilitySelector } from '@/components/weekday-availability-selector'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
 
@@ -77,7 +79,17 @@ const formSchema = z.object({
   isActive: z.boolean()
 })
 
+const availabilitySchema = z.object({
+  weekdays: z.array(z.number().min(1).max(5))
+})
+
+const subjectsSchema = z.object({
+  subjectIds: z.array(z.string()).min(1, 'Seleziona almeno una materia')
+})
+
 type TutorFormValues = z.infer<typeof formSchema>
+type AvailabilityFormValues = z.infer<typeof availabilitySchema>
+type SubjectsFormValues = z.infer<typeof subjectsSchema>
 
 type Section = {
   id: string
@@ -98,6 +110,24 @@ type Tutor = {
   isActive?: boolean | null
 }
 
+type WeekdayAvailability = {
+  weekday: number
+  isAvailable: boolean
+}
+
+type TutorSubject = {
+  id: string
+  name: string
+}
+
+const WEEKDAYS = [
+  { value: 1, label: 'Lunedì' },
+  { value: 2, label: 'Martedì' },
+  { value: 3, label: 'Mercoledì' },
+  { value: 4, label: 'Giovedì' },
+  { value: 5, label: 'Venerdì' }
+] as const
+
 export default function AdminTutorDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -112,6 +142,15 @@ export default function AdminTutorDetailPage() {
     React.useState<TutorFormValues | null>(null)
   const [showDeleteAlert, setShowDeleteAlert] = React.useState(false)
   const [isDeleting, setIsDeleting] = React.useState(false)
+  const [availabilityWeekdays, setAvailabilityWeekdays] = React.useState<
+    number[] | null
+  >(null)
+  const [availabilityLoading, setAvailabilityLoading] = React.useState(true)
+  const [availabilitySubmitting, setAvailabilitySubmitting] =
+    React.useState(false)
+  const [originalSubjects, setOriginalSubjects] = React.useState<string[]>([])
+  const [subjectsLoading, setSubjectsLoading] = React.useState(true)
+  const [subjectsSubmitting, setSubjectsSubmitting] = React.useState(false)
 
   const form = useForm<TutorFormValues>({
     resolver: zodResolver(formSchema),
@@ -125,6 +164,18 @@ export default function AdminTutorDetailPage() {
     }
   })
 
+  const availabilityForm = useForm<AvailabilityFormValues>({
+    resolver: zodResolver(availabilitySchema),
+    defaultValues: { weekdays: [] },
+    mode: 'onBlur'
+  })
+
+  const subjectsForm = useForm<SubjectsFormValues>({
+    resolver: zodResolver(subjectsSchema),
+    defaultValues: { subjectIds: [] },
+    mode: 'onBlur'
+  })
+
   const watchedEmail = form.watch('email')
   const emailChanged = React.useMemo(() => {
     if (!tutor) {
@@ -134,6 +185,14 @@ export default function AdminTutorDetailPage() {
       normalizeEmail(watchedEmail ?? '') !== normalizeEmail(tutor.email ?? '')
     )
   }, [tutor, watchedEmail])
+
+  const currentSubjectIds = subjectsForm.watch('subjectIds')
+  const subjectsDirty = React.useMemo(() => {
+    const current = new Set(currentSubjectIds)
+    const original = new Set(originalSubjects)
+    if (current.size !== original.size) return true
+    return [...current].some((id) => !original.has(id))
+  }, [currentSubjectIds, originalSubjects])
 
   React.useEffect(() => {
     let isMounted = true
@@ -204,6 +263,96 @@ export default function AdminTutorDetailPage() {
       isMounted = false
     }
   }, [form, tutorId])
+
+  React.useEffect(() => {
+    if (!tutorId) return
+
+    let isMounted = true
+
+    async function fetchAvailability() {
+      setAvailabilityLoading(true)
+      try {
+        const response = await fetch(
+          `/api/tutors/${tutorId}/weekday-availability`
+        )
+        if (!response.ok) {
+          throw new Error('Impossibile caricare la disponibilità.')
+        }
+        const payload = (await response.json()) as {
+          weekdays?: WeekdayAvailability[]
+        }
+        const availableWeekdays = (payload.weekdays ?? [])
+          .filter((item) => item.isAvailable)
+          .map((item) => item.weekday)
+        if (isMounted) {
+          setAvailabilityWeekdays(availableWeekdays)
+        }
+      } catch (err) {
+        if (isMounted) {
+          setAvailabilityWeekdays([])
+        }
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : 'Impossibile caricare la disponibilità.'
+        )
+      } finally {
+        if (isMounted) {
+          setAvailabilityLoading(false)
+        }
+      }
+    }
+
+    void fetchAvailability()
+
+    return () => {
+      isMounted = false
+    }
+  }, [tutorId])
+
+  React.useEffect(() => {
+    if (!tutorId) return
+
+    let isMounted = true
+
+    async function fetchSubjects() {
+      setSubjectsLoading(true)
+      try {
+        const response = await fetch(`/api/tutors/${tutorId}/subjects`)
+        if (!response.ok) {
+          throw new Error('Impossibile caricare le materie.')
+        }
+        const payload = await response.json()
+        const subjects = extractPayloadArray<TutorSubject>(payload)
+        const subjectIds = subjects.map((subject) => subject.id)
+        if (isMounted) {
+          setOriginalSubjects(subjectIds)
+          subjectsForm.reset({ subjectIds })
+        }
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : 'Impossibile caricare le materie.'
+        )
+      } finally {
+        if (isMounted) {
+          setSubjectsLoading(false)
+        }
+      }
+    }
+
+    void fetchSubjects()
+
+    return () => {
+      isMounted = false
+    }
+  }, [subjectsForm, tutorId])
+
+  React.useEffect(() => {
+    if (availabilityWeekdays === null) return
+    availabilityForm.reset({ weekdays: availabilityWeekdays })
+  }, [availabilityForm, availabilityWeekdays])
 
   const groupedSections = React.useMemo(() => {
     const scient: Section[] = []
@@ -352,10 +501,128 @@ export default function AdminTutorDetailPage() {
     }
   }
 
+  async function submitAvailability(values: AvailabilityFormValues) {
+    if (!tutorId) return
+    setAvailabilitySubmitting(true)
+
+    try {
+      const weekdaysPayload = WEEKDAYS.map((day) => ({
+        weekday: day.value,
+        isAvailable: values.weekdays.includes(day.value)
+      }))
+
+      const response = await fetch(
+        `/api/tutors/${tutorId}/weekday-availability`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ weekdays: weekdaysPayload })
+        }
+      )
+
+      if (!response.ok) {
+        const payload = (await response.json()) as { message?: string }
+        throw new Error(
+          payload.message || 'Impossibile aggiornare la disponibilità.'
+        )
+      }
+
+      const refetchResponse = await fetch(
+        `/api/tutors/${tutorId}/weekday-availability`
+      )
+      const refetchPayload = (await refetchResponse.json()) as {
+        weekdays?: WeekdayAvailability[]
+      }
+      const availableWeekdays = (refetchPayload.weekdays ?? [])
+        .filter((item) => item.isAvailable)
+        .map((item) => item.weekday)
+
+      setAvailabilityWeekdays(availableWeekdays)
+      availabilityForm.reset({ weekdays: availableWeekdays })
+      toast.success('Disponibilità aggiornata con successo.')
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : 'Impossibile aggiornare la disponibilità. Riprova.'
+      )
+    } finally {
+      setAvailabilitySubmitting(false)
+    }
+  }
+
+  async function submitSubjects(values: SubjectsFormValues) {
+    if (!tutorId) return
+
+    setSubjectsSubmitting(true)
+
+    const toAdd = values.subjectIds.filter(
+      (id) => !originalSubjects.includes(id)
+    )
+    const toRemove = originalSubjects.filter(
+      (id) => !values.subjectIds.includes(id)
+    )
+    const errors: string[] = []
+
+    if (toRemove.length > 0) {
+      const deleteResults = await Promise.allSettled(
+        toRemove.map((id) =>
+          fetch(`/api/tutors/${tutorId}/subjects/${id}`, {
+            method: 'DELETE'
+          })
+        )
+      )
+      deleteResults.forEach((result) => {
+        if (result.status === 'rejected' || !result.value.ok) {
+          errors.push('Impossibile rimuovere una materia')
+        }
+      })
+    }
+
+    if (toAdd.length > 0) {
+      const addResults = await Promise.allSettled(
+        toAdd.map((id) =>
+          fetch(`/api/tutors/${tutorId}/subjects`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subjectId: id })
+          })
+        )
+      )
+      addResults.forEach((result) => {
+        if (result.status === 'rejected' || !result.value.ok) {
+          errors.push('Impossibile aggiungere una materia')
+        }
+      })
+    }
+
+    try {
+      const response = await fetch(`/api/tutors/${tutorId}/subjects`)
+      const payload = await response.json()
+      const subjects = extractPayloadArray<TutorSubject>(payload)
+      const subjectIds = subjects.map((subject) => subject.id)
+
+      setOriginalSubjects(subjectIds)
+      subjectsForm.reset({ subjectIds })
+
+      if (errors.length > 0) {
+        toast.error(
+          `Alcune operazioni non sono riuscite:\n${errors.join('\n')}`
+        )
+      } else {
+        toast.success('Materie aggiornate con successo.')
+      }
+    } catch {
+      toast.error('Impossibile aggiornare le materie. Riprova.')
+    } finally {
+      setSubjectsSubmitting(false)
+    }
+  }
+
   return (
     <main className='flex-1'>
-      <div className='container mx-auto px-4 py-10'>
-        <div className='mx-auto max-w-3xl'>
+      <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
+        <div className='w-full max-w-6xl'>
           <div className='mb-6'>
             <BackButton />
           </div>
@@ -705,6 +972,123 @@ export default function AdminTutorDetailPage() {
               </Button>
             </CardFooter>
           </Card>
+
+          {tutor && (
+            <>
+              <Card className='mt-6'>
+                <CardHeader>
+                  <div className='space-y-1'>
+                    <h2 className='text-lg font-semibold'>Disponibilità</h2>
+                    <p className='text-sm text-muted-foreground'>
+                      Modifica i giorni in cui il tutor è disponibile.
+                    </p>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {availabilityLoading ? (
+                    <p className='text-sm text-muted-foreground'>
+                      Caricamento...
+                    </p>
+                  ) : (
+                    <form
+                      id='admin-tutor-availability-form'
+                      onSubmit={availabilityForm.handleSubmit(
+                        submitAvailability
+                      )}
+                    >
+                      <Controller
+                        name='weekdays'
+                        control={availabilityForm.control}
+                        render={({ field }) => (
+                          <WeekdayAvailabilitySelector
+                            value={field.value}
+                            onChange={field.onChange}
+                            disabled={availabilitySubmitting}
+                          />
+                        )}
+                      />
+                      {availabilityForm.formState.errors.weekdays && (
+                        <p className='mt-2 text-sm text-destructive'>
+                          {availabilityForm.formState.errors.weekdays.message}
+                        </p>
+                      )}
+                    </form>
+                  )}
+                </CardContent>
+                <CardFooter className='flex justify-end'>
+                  <Button
+                    type='submit'
+                    form='admin-tutor-availability-form'
+                    className='w-full sm:w-auto'
+                    disabled={
+                      availabilityLoading ||
+                      availabilitySubmitting ||
+                      !availabilityForm.formState.isDirty
+                    }
+                  >
+                    {availabilitySubmitting
+                      ? 'Salvataggio...'
+                      : 'Salva modifiche'}
+                  </Button>
+                </CardFooter>
+              </Card>
+
+              <Card className='mt-6'>
+                <CardHeader>
+                  <div className='space-y-1'>
+                    <h2 className='text-lg font-semibold'>Materie</h2>
+                    <p className='text-sm text-muted-foreground'>
+                      Aggiorna le materie insegnate dal tutor.
+                    </p>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {subjectsLoading ? (
+                    <p className='text-sm text-muted-foreground'>
+                      Caricamento...
+                    </p>
+                  ) : (
+                    <form
+                      id='admin-tutor-subjects-form'
+                      onSubmit={subjectsForm.handleSubmit(submitSubjects)}
+                    >
+                      <Controller
+                        name='subjectIds'
+                        control={subjectsForm.control}
+                        render={({ field }) => (
+                          <SubjectSelector
+                            value={field.value}
+                            onChange={field.onChange}
+                            disabled={subjectsLoading || subjectsSubmitting}
+                          />
+                        )}
+                      />
+
+                      {subjectsForm.formState.errors.subjectIds && (
+                        <p className='mt-2 text-sm text-destructive'>
+                          {subjectsForm.formState.errors.subjectIds.message}
+                        </p>
+                      )}
+                    </form>
+                  )}
+                </CardContent>
+                <CardFooter className='flex justify-end'>
+                  <Button
+                    type='submit'
+                    form='admin-tutor-subjects-form'
+                    className='w-full sm:w-auto'
+                    disabled={
+                      subjectsLoading || subjectsSubmitting || !subjectsDirty
+                    }
+                  >
+                    {subjectsSubmitting
+                      ? 'Salvataggio...'
+                      : 'Salva modifiche'}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </>
+          )}
         </div>
       </div>
 
@@ -713,9 +1097,9 @@ export default function AdminTutorDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Conferma modifica email</AlertDialogTitle>
             <AlertDialogDescription>
-              Se l&apos;email inserita è errata, il tutor potrebbe perdere l&apos;accesso
-              all&apos;account. In caso di problemi, contatta l&apos;amministratore di
-              sistema.
+              Se l&apos;email inserita è errata, il tutor potrebbe perdere
+              l&apos;accesso all&apos;account. In caso di problemi, contatta
+              l&apos;amministratore di sistema.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
