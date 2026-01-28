@@ -15,9 +15,7 @@ if [[ ! -f "${ENV_BACKEND}" ]]; then
 fi
 
 echo "Pulling images"
-docker pull "${IMAGE_BACKEND}:latest"
-docker pull "${IMAGE_BACKEND}:migrate"
-docker pull "${IMAGE_FRONTEND}:latest"
+docker compose -f "${COMPOSE_FILE}" pull
 
 # Ensure the database is up before running migrations.
 docker compose -f "${COMPOSE_FILE}" up -d db

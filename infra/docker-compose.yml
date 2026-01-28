@@ -50,6 +50,39 @@ services:
     depends_on:
       - db
 
+  backend-cron-generate-lessons:
+    image: ghcr.io/jdncst-dev/iepf-backend:cron-generate-lessons
+    profiles: ['cron']
+    env_file:
+      - .env.backend
+    networks:
+      - iepf
+    depends_on:
+      - db
+    restart: 'no'
+
+  backend-cron-remind-feedback:
+    image: ghcr.io/jdncst-dev/iepf-backend:cron-remind-feedback
+    profiles: ['cron']
+    env_file:
+      - .env.backend
+    networks:
+      - iepf
+    depends_on:
+      - db
+    restart: 'no'
+
+  backend-cron-remind-lessons:
+    image: ghcr.io/jdncst-dev/iepf-backend:cron-remind-lessons
+    profiles: ['cron']
+    env_file:
+      - .env.backend
+    networks:
+      - iepf
+    depends_on:
+      - db
+    restart: 'no'
+
   db:
     image: postgres:16
     container_name: postgres
