@@ -32,8 +32,8 @@ export default function FAQ() {
         </AccordionTrigger>
         <AccordionContent>
           Le lezioni con i tutor sono disponibili dal lunedì al venerdì, dalle
-          15:00 alle 16:00. I giorni possono variare in base alla disponibilità
-          dei tutor.
+          14:00 alle 15:00 e dalle 15:00 alle 16:00. I giorni possono variare in
+          base alla disponibilità dei tutor.
         </AccordionContent>
       </AccordionItem>
       <AccordionItem value='item-4'>
@@ -42,14 +42,15 @@ export default function FAQ() {
         </AccordionTrigger>
         <AccordionContent>
           Sì, le lezioni sono disponibili per tutte le materie previste dal
-          piano di studi dell&apos;Istituto Hensemberger. Tuttavia, la disponibilità
-          può variare in base alla domanda e alle risorse dei tutor.
+          piano di studi dell&apos;Istituto Hensemberger. Tuttavia, la
+          disponibilità può variare in base alla domanda e alle risorse dei
+          tutor.
         </AccordionContent>
       </AccordionItem>
       <AccordionItem value='item-5'>
         <AccordionTrigger>
-          Cosa succede se esaurisco le 30 lezioni prima della fine dell&apos;anno
-          scolastico?
+          Cosa succede se esaurisco le 30 lezioni prima della fine
+          dell&apos;anno scolastico?
         </AccordionTrigger>
         <AccordionContent>
           In tal caso, sarà possibile acquistare pacchetti aggiuntivi di lezioni
@@ -58,8 +59,8 @@ export default function FAQ() {
       </AccordionItem>
       <AccordionItem value='item-6'>
         <AccordionTrigger>
-          Cosa succede se non esaurisco le 30 lezioni prima della fine dell&apos;anno
-          scolastico?
+          Cosa succede se non esaurisco le 30 lezioni prima della fine
+          dell&apos;anno scolastico?
         </AccordionTrigger>
         <AccordionContent>
           Le lezioni non utilizzate non sono rimborsabili e non possono essere

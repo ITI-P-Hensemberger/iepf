@@ -4,6 +4,13 @@ import * as React from 'react'
 import { Calendar, Check } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 
 const WEEKDAYS = [
   { value: 1, label: 'Lunedì' },
@@ -13,29 +20,73 @@ const WEEKDAYS = [
   { value: 5, label: 'Venerdì' }
 ] as const
 
+const START_TIMES = ['14:00', '15:00'] as const
+type StartTime = (typeof START_TIMES)[number]
+
+export type WeekdayAvailability = {
+  weekday: number
+  isAvailable: boolean
+  startTime: StartTime | null
+}
+
 type WeekdayAvailabilitySelectorProps = {
-  value: number[]
-  onChange: (value: number[]) => void
+  value: WeekdayAvailability[]
+  onChange: (value: WeekdayAvailability[]) => void
   disabled?: boolean
-  timeSlot?: string
 }
 
 export function WeekdayAvailabilitySelector({
   value,
   onChange,
-  disabled = false,
-  timeSlot = '15:00 - 16:00'
+  disabled = false
 }: WeekdayAvailabilitySelectorProps) {
-  const selectedCount = value.length
+  const selectedCount = value.filter((day) => day.isAvailable).length
 
-  const handleToggle = (dayValue: number) => {
+  const updateAvailability = (
+    weekday: number,
+    updates: Partial<WeekdayAvailability>
+  ) => {
+    const existing =
+      value.find((item) => item.weekday === weekday) ??
+      ({
+        weekday,
+        isAvailable: false,
+        startTime: null
+      } as WeekdayAvailability)
+
+    const next = { ...existing, ...updates }
+    const nextValue = WEEKDAYS.map((day) => {
+      if (day.value === weekday) return next
+      return (
+        value.find((item) => item.weekday === day.value) ?? {
+          weekday: day.value,
+          isAvailable: false,
+          startTime: null
+        }
+      )
+    })
+
+    onChange(nextValue)
+  }
+
+  const handleToggle = (dayValue: number, isChecked: boolean) => {
     if (disabled) return
 
-    if (value.includes(dayValue)) {
-      onChange(value.filter((v) => v !== dayValue))
-    } else {
-      onChange([...value, dayValue])
+    if (!isChecked) {
+      updateAvailability(dayValue, { isAvailable: false, startTime: null })
+      return
     }
+
+    const existing = value.find((item) => item.weekday === dayValue)
+    updateAvailability(dayValue, {
+      isAvailable: true,
+      startTime: existing?.startTime ?? '15:00'
+    })
+  }
+
+  const handleStartTimeChange = (dayValue: number, startTime: StartTime) => {
+    if (disabled) return
+    updateAvailability(dayValue, { isAvailable: true, startTime })
   }
 
   return (
@@ -54,40 +105,76 @@ export function WeekdayAvailabilitySelector({
       </div>
 
       <p className='text-sm text-muted-foreground'>
-        Seleziona i giorni in cui sei disponibile. <br />
-        L&apos;orario delle lezioni è sempre {timeSlot} (1h).
+        Seleziona i giorni e scegli l&apos;orario di inizio della lezione (1h).
       </p>
 
-      <div className='space-y-2'>
+      <div className='space-y-4 sm:space-y-2'>
         {WEEKDAYS.map((day) => {
-          const isSelected = value.includes(day.value)
+          const availability = value.find((item) => item.weekday === day.value)
+          const isSelected = availability?.isAvailable ?? false
+          const startTime = availability?.startTime ?? null
           return (
-            <button
+            <div
               key={day.value}
-              type='button'
-              onClick={() => handleToggle(day.value)}
-              disabled={disabled}
-              className={`
-                w-full flex items-center justify-between rounded-lg border p-4 text-left transition-all
-                ${
-                  isSelected
-                    ? 'border-primary bg-primary/5 shadow-sm'
-                    : 'border-border hover:border-primary/50 hover:bg-accent/50'
-                }
-                ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-              `}
+              className='flex flex-col gap-2 sm:flex-row sm:items-stretch sm:justify-between'
             >
-              <span
-                className={`font-medium ${isSelected ? 'text-primary' : ''}`}
+              <div
+                role='button'
+                tabIndex={disabled ? -1 : 0}
+                onClick={() => handleToggle(day.value, !isSelected)}
+                onKeyDown={(event) => {
+                  if (disabled) return
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    handleToggle(day.value, !isSelected)
+                  }
+                }}
+                aria-pressed={isSelected}
+                className={`
+                  w-full flex items-center justify-between rounded-lg border p-4 text-left transition-all
+                  ${
+                    isSelected
+                      ? 'border-primary bg-primary/5 shadow-sm'
+                      : 'border-border hover:border-primary/50 hover:bg-accent/50'
+                  }
+                  ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                `}
               >
-                {day.label}
-              </span>
+                <span
+                  className={`font-medium ${isSelected ? 'text-primary' : ''}`}
+                >
+                  {day.label}
+                </span>
+                {isSelected && (
+                  <div className='flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground'>
+                    <Check className='h-3 w-3' />
+                  </div>
+                )}
+              </div>
+
               {isSelected && (
-                <div className='flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground'>
-                  <Check className='h-3 w-3' />
+                <div className='w-full sm:w-40'>
+                  <Select
+                    value={startTime ?? undefined}
+                    onValueChange={(value) =>
+                      handleStartTimeChange(day.value, value as StartTime)
+                    }
+                    disabled={disabled}
+                  >
+                    <SelectTrigger className='w-full h-full min-h-16 justify-between'>
+                      <SelectValue placeholder='Ora inizio' />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {START_TIMES.map((slot) => (
+                        <SelectItem key={slot} value={slot}>
+                          {slot}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
-            </button>
+            </div>
           )
         })}
       </div>

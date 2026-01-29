@@ -174,7 +174,7 @@ function DataTable<TData>({
   React.useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       setDebouncedFilter(globalFilter)
-    }, 300)
+    }, 100)
     return () => window.clearTimeout(timeoutId)
   }, [globalFilter])
 

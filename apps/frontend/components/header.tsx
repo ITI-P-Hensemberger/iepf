@@ -182,6 +182,15 @@ export default function Header() {
                 >
                   Impostazioni globali
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  className='cursor-pointer'
+                  onSelect={(event) => {
+                    event.preventDefault()
+                    window.location.assign('/admin/stats')
+                  }}
+                >
+                  Statistiche
+                </DropdownMenuItem>
               </DropdownMenuGroup>
             )}
             <DropdownMenuSeparator />

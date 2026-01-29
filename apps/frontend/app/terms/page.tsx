@@ -5,7 +5,7 @@ const TERMS = [
   {
     title: '1. Oggetto del servizio',
     body: [
-      "Il sito web consente la gestione e l'organizzazione della partecipazione degli studenti al Progetto di supporto allo studio pomeridiano, che si svolge presso i locali dell'Istituto scolastico, nella fascia oraria 15:00 - 16:00.",
+      "Il sito web consente la gestione e l'organizzazione della partecipazione degli studenti al Progetto di supporto allo studio pomeridiano, che si svolge presso i locali dell'Istituto scolastico, nella fascia oraria 14:00 - 15:00 e 15:00 - 16:00.",
       'Tramite il sito è possibile, a titolo esemplificativo:',
       [
         'effettuare prenotazioni delle lezioni;',
@@ -125,16 +125,16 @@ export default function TermsPage() {
           Progetto “Insieme È Più Facile”
         </p>
         <p className='mt-6 max-w-3xl text-justify'>
-          I presenti Termini e Condizioni disciplinano l&apos;accesso e l&apos;utilizzo
-          del sito web dedicato al progetto di supporto allo studio pomeridiano
-          &quot;Insieme È Più Facile&quot; (di seguito, il &quot;Progetto&quot;), promosso dall&apos;ITI
-          P. Hensemberger.
+          I presenti Termini e Condizioni disciplinano l&apos;accesso e
+          l&apos;utilizzo del sito web dedicato al progetto di supporto allo
+          studio pomeridiano &quot;Insieme È Più Facile&quot; (di seguito, il
+          &quot;Progetto&quot;), promosso dall&apos;ITI P. Hensemberger.
         </p>
         <p className='mt-3 max-w-3xl text-justify'>
-          L&apos;utilizzo del sito e dei relativi servizi comporta l&apos;accettazione
-          integrale dei presenti Termini e Condizioni da parte del genitore o
-          del soggetto esercente la responsabilità genitoriale (di seguito,
-          l&apos;&quot;Utente&quot;).
+          L&apos;utilizzo del sito e dei relativi servizi comporta
+          l&apos;accettazione integrale dei presenti Termini e Condizioni da
+          parte del genitore o del soggetto esercente la responsabilità
+          genitoriale (di seguito, l&apos;&quot;Utente&quot;).
         </p>
         <div className='mt-8 w-full max-w-4xl space-y-6 text-justify'>
           {TERMS.map((section) => (

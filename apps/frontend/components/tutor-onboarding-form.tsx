@@ -21,9 +21,30 @@ const WEEKDAYS = [
   { value: 5, label: 'Venerdì' }
 ] as const
 
+const availabilityItemSchema = z
+  .object({
+    weekday: z.number().min(1).max(5),
+    isAvailable: z.boolean(),
+    startTime: z.enum(['14:00', '15:00']).nullable()
+  })
+  .superRefine((value, ctx) => {
+    if (value.isAvailable && !value.startTime) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Se selezionato, scegli l'orario di inizio."
+      })
+    }
+    if (!value.isAvailable && value.startTime !== null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Rimuovi orario quando non disponibile.'
+      })
+    }
+  })
+
 const onboardingSchema = z.object({
   subjectIds: z.array(z.string()).min(1, 'Seleziona almeno una materia'),
-  weekdays: z.array(z.number().min(1).max(5))
+  weekdays: z.array(availabilityItemSchema)
 })
 
 type OnboardingFormValues = z.infer<typeof onboardingSchema>
@@ -39,7 +60,11 @@ export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
     resolver: zodResolver(onboardingSchema),
     defaultValues: {
       subjectIds: [],
-      weekdays: []
+      weekdays: WEEKDAYS.map((day) => ({
+        weekday: day.value,
+        isAvailable: false,
+        startTime: null
+      }))
     },
     mode: 'onBlur'
   })
@@ -67,9 +92,10 @@ export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
       }
 
       // Update weekday availability
-      const weekdaysPayload = WEEKDAYS.map((day) => ({
-        weekday: day.value,
-        isAvailable: data.weekdays.includes(day.value)
+      const weekdaysPayload = data.weekdays.map((day) => ({
+        weekday: day.weekday,
+        isAvailable: day.isAvailable,
+        startTime: day.isAvailable ? day.startTime : null
       }))
 
       const availabilityResponse = await fetch(
@@ -155,7 +181,6 @@ export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
                   value={field.value}
                   onChange={field.onChange}
                   disabled={isSubmitting}
-                  timeSlot='15:00 - 16:00'
                 />
                 {fieldState.error && (
                   <p className='text-sm font-medium text-destructive'>

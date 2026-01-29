@@ -620,7 +620,13 @@ export default function AdminFeedbackPage() {
               <TabsTrigger value='tutor'>Tutor → Studenti</TabsTrigger>
             </TabsList>
             <TabsContent value='student' className='mt-6'>
-              <div className='rounded-lg border bg-card p-4 shadow-sm'>
+              <form
+                className='rounded-lg border bg-card p-4 shadow-sm'
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  updateParams(1, filters)
+                }}
+              >
                 <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
                   <Field className='gap-2'>
                     <FieldLabel>Studente</FieldLabel>
@@ -777,6 +783,7 @@ export default function AdminFeedbackPage() {
                   <div className='flex flex-col gap-2 pt-2 sm:pt-0 sm:flex-row sm:items-end'>
                     <Button
                       variant='outline'
+                      type='button'
                       onClick={() =>
                         updateParams(1, {
                           ...defaultFilters,
@@ -786,15 +793,19 @@ export default function AdminFeedbackPage() {
                     >
                       Reset filtri
                     </Button>
-                    <Button onClick={() => updateParams(1, filters)}>
-                      Applica filtri
-                    </Button>
+                    <Button type='submit'>Applica filtri</Button>
                   </div>
                 </div>
-              </div>
+              </form>
             </TabsContent>
             <TabsContent value='tutor' className='mt-6'>
-              <div className='rounded-lg border bg-card p-4 shadow-sm'>
+              <form
+                className='rounded-lg border bg-card p-4 shadow-sm'
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  updateParams(1, filters)
+                }}
+              >
                 <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
                   <Field className='gap-2'>
                     <FieldLabel>Tutor</FieldLabel>
@@ -951,6 +962,7 @@ export default function AdminFeedbackPage() {
                   <div className='flex flex-col gap-2 pt-2 sm:pt-0 sm:flex-row sm:items-end'>
                     <Button
                       variant='outline'
+                      type='button'
                       onClick={() =>
                         updateParams(1, {
                           ...defaultFilters,
@@ -960,12 +972,10 @@ export default function AdminFeedbackPage() {
                     >
                       Reset filtri
                     </Button>
-                    <Button onClick={() => updateParams(1, filters)}>
-                      Applica filtri
-                    </Button>
+                    <Button type='submit'>Applica filtri</Button>
                   </div>
                 </div>
-              </div>
+              </form>
             </TabsContent>
           </Tabs>
           <div className='mt-6 rounded-lg border'>

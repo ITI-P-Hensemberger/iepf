@@ -35,3 +35,39 @@ export async function GET() {
 
   return NextResponse.json(parsed.data ?? [])
 }
+
+export async function POST(request: Request) {
+  const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:9999'
+  const cookieStore = await cookies()
+  const accessToken = cookieStore.get(AUTH_COOKIES.access)?.value
+
+  if (!accessToken) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+  }
+
+  const bodyText = await request.text()
+
+  const response = await fetch(`${apiBaseUrl}/subjects`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: bodyText
+  })
+
+  const payload = await response.text()
+  const parsed = parseBackendPayload(payload)
+
+  if (!response.ok) {
+    return NextResponse.json(
+      {
+        message: parsed.errorMessage || 'Failed to create subject.',
+        error: parsed.errorPayload
+      },
+      { status: response.status }
+    )
+  }
+
+  return NextResponse.json(parsed.data ?? {})
+}

@@ -209,7 +209,7 @@ export default function TutorPage() {
           }
         }
       })()
-    }, 300)
+    }, 100)
 
     return () => {
       isMounted = false

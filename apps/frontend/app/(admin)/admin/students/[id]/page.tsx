@@ -113,6 +113,7 @@ export default function AdminStudentDetailPage() {
     React.useState<StudentFormValues | null>(null)
   const [showDeleteAlert, setShowDeleteAlert] = React.useState(false)
   const [isDeleting, setIsDeleting] = React.useState(false)
+  const [isImpersonating, setIsImpersonating] = React.useState(false)
 
   const form = useForm<StudentFormValues>({
     resolver: zodResolver(formSchema),
@@ -357,6 +358,42 @@ export default function AdminStudentDetailPage() {
     }
   }
 
+  async function handleImpersonate() {
+    if (!studentId) return
+    setIsImpersonating(true)
+    try {
+      const response = await fetch('/api/admin/impersonate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: studentId })
+      })
+      if (!response.ok) {
+        let message = 'Impossibile avviare l\'impersonazione.'
+        try {
+          const payload = (await response.json()) as { message?: string }
+          message = payload.message ?? message
+        } catch {
+          message = 'Impossibile avviare l\'impersonazione.'
+        }
+        throw new Error(message)
+      }
+      const payload = (await response.json()) as {
+        impersonatedUser?: { role?: string }
+      }
+      const role = payload.impersonatedUser?.role ?? 'student'
+      const redirect = role === 'tutor' ? '/tutor' : '/student'
+      window.location.href = redirect
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : 'Impossibile avviare l\'impersonazione.'
+      )
+    } finally {
+      setIsImpersonating(false)
+    }
+  }
+
   return (
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
@@ -372,6 +409,13 @@ export default function AdminStudentDetailPage() {
               </p>
             </div>
             <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+              <Button
+                variant='outline'
+                onClick={handleImpersonate}
+                disabled={isImpersonating}
+              >
+                {isImpersonating ? 'Accesso...' : 'Impersona studente'}
+              </Button>
               <Button asChild variant='outline'>
                 <Link
                   href={`/admin/feedback?feedbackAuthor=${studentId}&feedbackRole=student`}
@@ -390,11 +434,11 @@ export default function AdminStudentDetailPage() {
                   Studente non trovato.
                 </p>
               ) : (
-                <form
-                  id='admin-student-form'
-                  onSubmit={form.handleSubmit(onSubmit)}
-                  className='space-y-6'
-                >
+              <form
+                id='admin-student-form'
+                onSubmit={form.handleSubmit(onSubmit)}
+                className='space-y-6'
+              >
                   <FieldGroup>
                     <Controller
                       name='firstName'

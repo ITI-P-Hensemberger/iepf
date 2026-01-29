@@ -4,6 +4,7 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import Footer from '@/components/footer'
 import { SettingsProvider } from '@/components/settings-provider'
+import ImpersonationBanner from '@/components/impersonation-banner'
 import './globals.css'
 
 const roboto = Roboto({
@@ -31,6 +32,7 @@ export default function RootLayout({
         >
           <SettingsProvider>
             <div className='flex min-h-dvh flex-col'>
+              <ImpersonationBanner />
               <div className='flex-1'>{children}</div>
               <Footer />
               <Toaster />

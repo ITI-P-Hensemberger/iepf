@@ -504,7 +504,13 @@ export default function StudentBookPage() {
               )}
             </div>
 
-                <div className='rounded-lg border bg-card p-4 shadow-sm'>
+                <form
+                  className='rounded-lg border bg-card p-4 shadow-sm'
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    handleApplyFilters()
+                  }}
+                >
                   <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-3'>
                     <Field className='gap-2'>
                       <FieldLabel>Materia</FieldLabel>
@@ -538,12 +544,12 @@ export default function StudentBookPage() {
                     </Field>
                   </div>
                   <div className='mt-4 flex flex-col gap-2 pt-2 sm:pt-0 sm:flex-row sm:items-end sm:justify-end'>
-                    <Button variant='outline' onClick={handleClearFilters}>
+                    <Button variant='outline' type='button' onClick={handleClearFilters}>
                       Reset filtri
                     </Button>
-                    <Button onClick={handleApplyFilters}>Applica filtri</Button>
+                    <Button type='submit'>Applica filtri</Button>
                   </div>
-                </div>
+                </form>
               </div>
 
               <div className='mt-6 rounded-lg border'>

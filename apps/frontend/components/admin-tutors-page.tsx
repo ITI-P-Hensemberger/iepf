@@ -462,6 +462,147 @@ export default function AdminTutorsPage() {
     [pathname, router, searchParamsString]
   )
 
+  const resetActiveFilters = React.useCallback(() => {
+    setActiveFilters(defaultTutorFilters)
+    updateParams(
+      {
+        searchKey: 'activeTutorSearch',
+        sortKey: 'activeTutorSort',
+        pageKey: 'activeTutorPage'
+      },
+      defaultTutorFilters,
+      1
+    )
+  }, [updateParams])
+
+  const resetInactiveFilters = React.useCallback(() => {
+    setInactiveFilters(defaultTutorFilters)
+    updateParams(
+      {
+        searchKey: 'inactiveTutorSearch',
+        sortKey: 'inactiveTutorSort',
+        pageKey: 'inactiveTutorPage'
+      },
+      defaultTutorFilters,
+      1
+    )
+  }, [updateParams])
+
+  const resetPendingFilters = React.useCallback(() => {
+    setPendingFilters(defaultInviteFilters)
+    updateParams(
+      {
+        searchKey: 'pendingTutorSearch',
+        sortKey: 'pendingTutorSort',
+        pageKey: 'pendingTutorPage'
+      },
+      defaultInviteFilters,
+      1
+    )
+  }, [updateParams])
+
+  React.useEffect(() => {
+    if (activeFilters.search !== '') {
+      return
+    }
+    if (currentActiveFilters.page <= 1 && currentActiveFilters.search === '') {
+      return
+    }
+    const timeoutId = window.setTimeout(() => {
+      if (activeFilters.search === '') {
+        updateParams(
+          {
+            searchKey: 'activeTutorSearch',
+            sortKey: 'activeTutorSort',
+            pageKey: 'activeTutorPage'
+          },
+          {
+            search: '',
+            sortBy: activeFilters.sortBy,
+            sortDir: activeFilters.sortDir
+          },
+          1
+        )
+      }
+    }, 100)
+    return () => window.clearTimeout(timeoutId)
+  }, [
+    activeFilters.search,
+    activeFilters.sortBy,
+    activeFilters.sortDir,
+    currentActiveFilters.page,
+    currentActiveFilters.search,
+    updateParams
+  ])
+
+  React.useEffect(() => {
+    if (inactiveFilters.search !== '') {
+      return
+    }
+    if (currentInactiveFilters.page <= 1 && currentInactiveFilters.search === '') {
+      return
+    }
+    const timeoutId = window.setTimeout(() => {
+      if (inactiveFilters.search === '') {
+        updateParams(
+          {
+            searchKey: 'inactiveTutorSearch',
+            sortKey: 'inactiveTutorSort',
+            pageKey: 'inactiveTutorPage'
+          },
+          {
+            search: '',
+            sortBy: inactiveFilters.sortBy,
+            sortDir: inactiveFilters.sortDir
+          },
+          1
+        )
+      }
+    }, 100)
+    return () => window.clearTimeout(timeoutId)
+  }, [
+    inactiveFilters.search,
+    inactiveFilters.sortBy,
+    inactiveFilters.sortDir,
+    currentInactiveFilters.page,
+    currentInactiveFilters.search,
+    updateParams
+  ])
+
+  React.useEffect(() => {
+    if (pendingFilters.search !== '') {
+      return
+    }
+    if (currentPendingFilters.page <= 1 && currentPendingFilters.search === '') {
+      return
+    }
+    const timeoutId = window.setTimeout(() => {
+      if (pendingFilters.search === '') {
+        updateParams(
+          {
+            searchKey: 'pendingTutorSearch',
+            sortKey: 'pendingTutorSort',
+            pageKey: 'pendingTutorPage'
+          },
+          {
+            search: '',
+            sortBy: pendingFilters.sortBy,
+            sortDir: pendingFilters.sortDir
+          },
+          1
+        )
+      }
+    }, 100)
+    return () => window.clearTimeout(timeoutId)
+  }, [
+    pendingFilters.search,
+    pendingFilters.sortBy,
+    pendingFilters.sortDir,
+    currentPendingFilters.page,
+    currentPendingFilters.search,
+    updateParams
+  ])
+
   const loadTutors = React.useCallback(
     async (options: {
       isActive: boolean
@@ -892,7 +1033,21 @@ export default function AdminTutorsPage() {
                 )}
               </TabsList>
               <TabsContent value='active' className='mt-6'>
-                <div className='rounded-lg border bg-card p-4 shadow-sm'>
+                <form
+                  className='rounded-lg border bg-card p-4 shadow-sm'
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    updateParams(
+                      {
+                        searchKey: 'activeTutorSearch',
+                        sortKey: 'activeTutorSort',
+                        pageKey: 'activeTutorPage'
+                      },
+                      activeFilters,
+                      1
+                    )
+                  }}
+                >
                   <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
                     <Field className='gap-2 lg:col-span-2'>
                       <FieldLabel htmlFor='active-tutor-search'>
@@ -963,39 +1118,17 @@ export default function AdminTutorsPage() {
                     <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
                       <Button
                         variant='outline'
-                        onClick={() => {
-                          setActiveFilters(defaultTutorFilters)
-                          updateParams(
-                            {
-                              searchKey: 'activeTutorSearch',
-                              sortKey: 'activeTutorSort',
-                              pageKey: 'activeTutorPage'
-                            },
-                            defaultTutorFilters,
-                            1
-                          )
-                        }}
+                        type='button'
+                        onClick={resetActiveFilters}
                       >
                         Reset filtri
                       </Button>
-                      <Button
-                        onClick={() =>
-                          updateParams(
-                            {
-                              searchKey: 'activeTutorSearch',
-                              sortKey: 'activeTutorSort',
-                              pageKey: 'activeTutorPage'
-                            },
-                            activeFilters,
-                            1
-                          )
-                        }
-                      >
+                      <Button type='submit'>
                         Applica filtri
                       </Button>
                     </div>
                   </div>
-                </div>
+                </form>
                 <div className='mt-6'>
                   <DataTable
                     data={activeTutors}
@@ -1010,7 +1143,21 @@ export default function AdminTutorsPage() {
                 </div>
               </TabsContent>
               <TabsContent value='inactive' className='mt-6'>
-                <div className='rounded-lg border bg-card p-4 shadow-sm'>
+                <form
+                  className='rounded-lg border bg-card p-4 shadow-sm'
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    updateParams(
+                      {
+                        searchKey: 'inactiveTutorSearch',
+                        sortKey: 'inactiveTutorSort',
+                        pageKey: 'inactiveTutorPage'
+                      },
+                      inactiveFilters,
+                      1
+                    )
+                  }}
+                >
                   <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
                     <Field className='gap-2 lg:col-span-2'>
                       <FieldLabel htmlFor='inactive-tutor-search'>
@@ -1081,39 +1228,17 @@ export default function AdminTutorsPage() {
                     <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
                       <Button
                         variant='outline'
-                        onClick={() => {
-                          setInactiveFilters(defaultTutorFilters)
-                          updateParams(
-                            {
-                              searchKey: 'inactiveTutorSearch',
-                              sortKey: 'inactiveTutorSort',
-                              pageKey: 'inactiveTutorPage'
-                            },
-                            defaultTutorFilters,
-                            1
-                          )
-                        }}
+                        type='button'
+                        onClick={resetInactiveFilters}
                       >
                         Reset filtri
                       </Button>
-                      <Button
-                        onClick={() =>
-                          updateParams(
-                            {
-                              searchKey: 'inactiveTutorSearch',
-                              sortKey: 'inactiveTutorSort',
-                              pageKey: 'inactiveTutorPage'
-                            },
-                            inactiveFilters,
-                            1
-                          )
-                        }
-                      >
+                      <Button type='submit'>
                         Applica filtri
                       </Button>
                     </div>
                   </div>
-                </div>
+                </form>
                 <div className='mt-6'>
                   <DataTable
                     data={inactiveTutors}
@@ -1129,7 +1254,21 @@ export default function AdminTutorsPage() {
               </TabsContent>
               {showPendingTab && (
                 <TabsContent value='invites' className='mt-6'>
-                  <div className='rounded-lg border bg-card p-4 shadow-sm'>
+                  <form
+                    className='rounded-lg border bg-card p-4 shadow-sm'
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      updateParams(
+                        {
+                          searchKey: 'pendingTutorSearch',
+                          sortKey: 'pendingTutorSort',
+                          pageKey: 'pendingTutorPage'
+                        },
+                        pendingFilters,
+                        1
+                      )
+                    }}
+                  >
                     <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
                       <Field className='gap-2 lg:col-span-2'>
                         <FieldLabel htmlFor='pending-tutor-search'>
@@ -1201,39 +1340,17 @@ export default function AdminTutorsPage() {
                       <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
                         <Button
                           variant='outline'
-                          onClick={() => {
-                            setPendingFilters(defaultInviteFilters)
-                            updateParams(
-                              {
-                                searchKey: 'pendingTutorSearch',
-                                sortKey: 'pendingTutorSort',
-                                pageKey: 'pendingTutorPage'
-                              },
-                              defaultInviteFilters,
-                              1
-                            )
-                          }}
+                          type='button'
+                          onClick={resetPendingFilters}
                         >
                           Reset filtri
                         </Button>
-                        <Button
-                          onClick={() =>
-                            updateParams(
-                              {
-                                searchKey: 'pendingTutorSearch',
-                                sortKey: 'pendingTutorSort',
-                                pageKey: 'pendingTutorPage'
-                              },
-                              pendingFilters,
-                              1
-                            )
-                          }
-                        >
+                        <Button type='submit'>
                           Applica filtri
                         </Button>
                       </div>
                     </div>
-                  </div>
+                  </form>
                   <div className='mt-6'>
                     <DataTable
                       data={pendingInvites}

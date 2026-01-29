@@ -29,6 +29,18 @@ export const AUTH_COOKIES = {
   remember: 'iepf_remember'
 } as const
 
+export const IMPERSONATION_COOKIES = {
+  adminAccess: 'iepf_admin_access',
+  adminRefresh: 'iepf_admin_refresh',
+  adminAccessExpiresAt: 'iepf_admin_access_expires_at',
+  adminRefreshExpiresAt: 'iepf_admin_refresh_expires_at',
+  adminRemember: 'iepf_admin_remember',
+  active: 'iepf_impersonating',
+  impersonatedId: 'iepf_impersonated_id',
+  impersonatedRole: 'iepf_impersonated_role',
+  impersonatedEmail: 'iepf_impersonated_email'
+} as const
+
 type JwtPayload = {
   sub?: string
   userId?: string

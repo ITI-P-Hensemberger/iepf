@@ -44,7 +44,11 @@ export async function GET(
 }
 
 type WeekdayAvailabilityBody = {
-  weekdays?: Array<{ weekday: number; isAvailable: boolean }>
+  weekdays?: Array<{
+    weekday: number
+    isAvailable: boolean
+    startTime: '14:00' | '15:00' | null
+  }>
 }
 
 export async function PUT(

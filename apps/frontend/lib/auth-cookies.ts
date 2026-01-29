@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { AUTH_COOKIES, type AuthTokens } from '@/lib/auth'
+import { AUTH_COOKIES, IMPERSONATION_COOKIES, type AuthTokens } from '@/lib/auth'
 
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -57,6 +57,12 @@ export function setAuthCookies(
 
 export function clearAuthCookies(response: NextResponse) {
   Object.values(AUTH_COOKIES).forEach((name) => {
+    response.cookies.set(name, '', {
+      ...baseCookieOptions(),
+      maxAge: 0
+    })
+  })
+  Object.values(IMPERSONATION_COOKIES).forEach((name) => {
     response.cookies.set(name, '', {
       ...baseCookieOptions(),
       maxAge: 0

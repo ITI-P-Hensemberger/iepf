@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowDown } from 'lucide-react'
+import { AlertTriangle, ArrowDown } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -97,6 +97,23 @@ export default function StudentPendingPage() {
                     Nel frattempo riceverai l&apos;avviso di pagamento di €50,00
                     dalla Segreteria Scolastica. <br />
                     Effettua il pagamento e conserva la ricevuta.
+                    <span className='mt-2 flex items-start gap-2 text-sm font-medium text-amber-700'>
+                      <AlertTriangle
+                        className='mt-0.5 shrink-0'
+                        style={{ width: 18, height: 18 }}
+                      />
+                      <span>
+                        Attenzione: l&apos;invio dell&apos;avviso di pagamento
+                        da parte della segreteria non avviene immediatamente.
+                        Potresti dover attendere alcuni giorni prima di
+                        riceverlo.{' '}
+                        <span className='font-semibold'>
+                          Non effettuare il pagamento prima di aver ricevuto
+                          l&apos;avviso con dicitura &quot;InsiemeÈ+Facile&quot;
+                          o simili.
+                        </span>
+                      </span>
+                    </span>
                   </p>
                 </li>
                 <li className='flex items-start gap-3'>

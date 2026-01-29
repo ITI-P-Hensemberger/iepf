@@ -517,7 +517,13 @@ export default function AdminLessonsPage() {
             <h1 className='text-2xl'>Gestione lezioni</h1>
           </div>
 
-          <div className='mt-6 rounded-lg border bg-card p-4 shadow-sm'>
+          <form
+            className='mt-6 rounded-lg border bg-card p-4 shadow-sm'
+            onSubmit={(event) => {
+              event.preventDefault()
+              handleApplyFilters()
+            }}
+          >
             <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
               <Field className='gap-2'>
                 <FieldLabel>Tutor</FieldLabel>
@@ -665,13 +671,13 @@ export default function AdminLessonsPage() {
                 </Field>
               </div>
               <div className='flex flex-col gap-2 pt-2 sm:pt-0 sm:flex-row sm:items-end'>
-                <Button variant='outline' onClick={handleClearFilters}>
+                <Button variant='outline' type='button' onClick={handleClearFilters}>
                   Reset filtri
                 </Button>
-                <Button onClick={handleApplyFilters}>Applica filtri</Button>
+                <Button type='submit'>Applica filtri</Button>
               </div>
             </div>
-          </div>
+          </form>
 
           <div className='mt-6 rounded-lg border'>
             <Table>

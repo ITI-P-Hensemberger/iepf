@@ -10,19 +10,38 @@ import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/back-button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { WeekdayAvailabilitySelector } from '@/components/weekday-availability-selector'
+import {
+  WeekdayAvailability,
+  WeekdayAvailabilitySelector
+} from '@/components/weekday-availability-selector'
 import { useSession } from '@/lib/use-session'
 
+const availabilityItemSchema = z
+  .object({
+    weekday: z.number().min(1).max(5),
+    isAvailable: z.boolean(),
+    startTime: z.enum(['14:00', '15:00']).nullable()
+  })
+  .superRefine((value, ctx) => {
+    if (value.isAvailable && !value.startTime) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Se selezionato, scegli l'orario di inizio."
+      })
+    }
+    if (!value.isAvailable && value.startTime !== null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Rimuovi orario quando non disponibile.'
+      })
+    }
+  })
+
 const availabilitySchema = z.object({
-  weekdays: z.array(z.number().min(1).max(5))
+  weekdays: z.array(availabilityItemSchema)
 })
 
 type AvailabilityFormValues = z.infer<typeof availabilitySchema>
-
-type WeekdayAvailability = {
-  weekday: number
-  isAvailable: boolean
-}
 
 const WEEKDAYS = [
   { value: 1, label: 'Lunedì' },
@@ -36,9 +55,9 @@ export default function TutorAvailabilitySettingsPage() {
   const { profile } = useSession()
   const tutorId = profile?.id
 
-  const [initialWeekdays, setInitialWeekdays] = React.useState<number[] | null>(
-    null
-  )
+  const [initialWeekdays, setInitialWeekdays] = React.useState<
+    WeekdayAvailability[] | null
+  >(null)
   const [, setIsLoading] = React.useState(true)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
@@ -61,18 +80,30 @@ export default function TutorAvailabilitySettingsPage() {
           weekdays?: WeekdayAvailability[]
         }
 
-        // Extract only the weekday numbers where isAvailable is true
-        const availableWeekdays = (payload.weekdays ?? [])
-          .filter((item) => item.isAvailable)
-          .map((item) => item.weekday)
+        const normalizedWeekdays = WEEKDAYS.map((day) => {
+          const match = payload.weekdays?.find(
+            (item) => item.weekday === day.value
+          )
+          return {
+            weekday: day.value,
+            isAvailable: match?.isAvailable ?? false,
+            startTime: match?.isAvailable ? match?.startTime ?? null : null
+          }
+        })
 
         if (isMounted) {
-          setInitialWeekdays(availableWeekdays)
+          setInitialWeekdays(normalizedWeekdays)
         }
       } catch (err) {
         console.error('Error fetching availability:', err)
         if (isMounted) {
-          setInitialWeekdays([])
+          setInitialWeekdays(
+            WEEKDAYS.map((day) => ({
+              weekday: day.value,
+              isAvailable: false,
+              startTime: null
+            }))
+          )
         }
         toast.error(
           err instanceof Error
@@ -126,7 +157,7 @@ export default function TutorAvailabilitySettingsPage() {
 
   return (
     <AvailabilityForm
-      key={initialWeekdays.join(',')}
+      key={initialWeekdays.map((day) => day.weekday).join(',')}
       tutorId={tutorId}
       initialWeekdays={initialWeekdays}
       isSubmitting={isSubmitting}
@@ -138,10 +169,12 @@ export default function TutorAvailabilitySettingsPage() {
 
 type AvailabilityFormProps = {
   tutorId: string
-  initialWeekdays: number[]
+  initialWeekdays: WeekdayAvailability[]
   isSubmitting: boolean
   setIsSubmitting: React.Dispatch<React.SetStateAction<boolean>>
-  setInitialWeekdays: React.Dispatch<React.SetStateAction<number[] | null>>
+  setInitialWeekdays: React.Dispatch<
+    React.SetStateAction<WeekdayAvailability[] | null>
+  >
 }
 
 function AvailabilityForm({
@@ -162,9 +195,10 @@ function AvailabilityForm({
 
     try {
       // Transform to API format: all weekdays with isAvailable flag
-      const weekdaysPayload = WEEKDAYS.map((day) => ({
-        weekday: day.value,
-        isAvailable: values.weekdays.includes(day.value)
+      const weekdaysPayload = values.weekdays.map((day) => ({
+        weekday: day.weekday,
+        isAvailable: day.isAvailable,
+        startTime: day.isAvailable ? day.startTime : null
       }))
 
       const response = await fetch(
@@ -191,12 +225,19 @@ function AvailabilityForm({
         weekdays?: WeekdayAvailability[]
       }
 
-      const availableWeekdays = (refetchPayload.weekdays ?? [])
-        .filter((item) => item.isAvailable)
-        .map((item) => item.weekday)
+      const normalizedWeekdays = WEEKDAYS.map((day) => {
+        const match = refetchPayload.weekdays?.find(
+          (item) => item.weekday === day.value
+        )
+        return {
+          weekday: day.value,
+          isAvailable: match?.isAvailable ?? false,
+          startTime: match?.isAvailable ? match?.startTime ?? null : null
+        }
+      })
 
-      setInitialWeekdays(availableWeekdays)
-      form.reset({ weekdays: availableWeekdays })
+      setInitialWeekdays(normalizedWeekdays)
+      form.reset({ weekdays: normalizedWeekdays })
       toast.success('Disponibilità aggiornata con successo.')
     } catch (err) {
       toast.error(

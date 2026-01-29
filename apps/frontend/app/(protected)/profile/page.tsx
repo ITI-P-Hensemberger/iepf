@@ -468,11 +468,11 @@ export default function ProfilePage() {
                   Caricamento profilo...
                 </p>
               ) : profile ? (
-                <form
-                  id='profile-form'
-                  onSubmit={form.handleSubmit(onSubmit)}
-                  className='space-y-6'
-                >
+              <form
+                id='profile-form'
+                onSubmit={form.handleSubmit(onSubmit)}
+                className='space-y-6'
+              >
                   <FieldGroup>
                     <Controller
                       name='firstName'

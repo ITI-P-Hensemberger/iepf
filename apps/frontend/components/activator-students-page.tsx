@@ -405,6 +405,100 @@ export default function ActivatorStudentsPage() {
     [pathname, router, searchParamsString]
   )
 
+  const resetActiveFilters = React.useCallback(() => {
+    setActiveFilters(defaultFilters)
+    updateParams(
+      {
+        searchKey: 'activeSearch',
+        sortKey: 'activeSort',
+        pageKey: 'activePage'
+      },
+      defaultFilters,
+      1
+    )
+  }, [updateParams])
+
+  const resetInactiveFilters = React.useCallback(() => {
+    setInactiveFilters(defaultFilters)
+    updateParams(
+      {
+        searchKey: 'inactiveSearch',
+        sortKey: 'inactiveSort',
+        pageKey: 'inactivePage'
+      },
+      defaultFilters,
+      1
+    )
+  }, [updateParams])
+
+  React.useEffect(() => {
+    if (activeFilters.search !== '') {
+      return
+    }
+    if (currentActiveFilters.page <= 1 && currentActiveFilters.search === '') {
+      return
+    }
+    const timeoutId = window.setTimeout(() => {
+      if (activeFilters.search === '') {
+        updateParams(
+          {
+            searchKey: 'activeSearch',
+            sortKey: 'activeSort',
+            pageKey: 'activePage'
+          },
+          {
+            search: '',
+            sortBy: activeFilters.sortBy,
+            sortDir: activeFilters.sortDir
+          },
+          1
+        )
+      }
+    }, 100)
+    return () => window.clearTimeout(timeoutId)
+  }, [
+    activeFilters.search,
+    activeFilters.sortBy,
+    activeFilters.sortDir,
+    currentActiveFilters.page,
+    currentActiveFilters.search,
+    updateParams
+  ])
+
+  React.useEffect(() => {
+    if (inactiveFilters.search !== '') {
+      return
+    }
+    if (currentInactiveFilters.page <= 1 && currentInactiveFilters.search === '') {
+      return
+    }
+    const timeoutId = window.setTimeout(() => {
+      if (inactiveFilters.search === '') {
+        updateParams(
+          {
+            searchKey: 'inactiveSearch',
+            sortKey: 'inactiveSort',
+            pageKey: 'inactivePage'
+          },
+          {
+            search: '',
+            sortBy: inactiveFilters.sortBy,
+            sortDir: inactiveFilters.sortDir
+          },
+          1
+        )
+      }
+    }, 100)
+    return () => window.clearTimeout(timeoutId)
+  }, [
+    inactiveFilters.search,
+    inactiveFilters.sortBy,
+    inactiveFilters.sortDir,
+    currentInactiveFilters.page,
+    currentInactiveFilters.search,
+    updateParams
+  ])
+
   async function handleLogout() {
     await logout()
   }
@@ -648,7 +742,21 @@ export default function ActivatorStudentsPage() {
                 <TabsTrigger value='active'>Attivi ({activeTotal})</TabsTrigger>
               </TabsList>
               <TabsContent value='active' className='mt-6'>
-                <div className='rounded-lg border bg-card p-4 shadow-sm'>
+                <form
+                  className='rounded-lg border bg-card p-4 shadow-sm'
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    updateParams(
+                      {
+                        searchKey: 'activeSearch',
+                        sortKey: 'activeSort',
+                        pageKey: 'activePage'
+                      },
+                      activeFilters,
+                      1
+                    )
+                  }}
+                >
                   <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
                     <Field className='gap-2 lg:col-span-2'>
                       <FieldLabel htmlFor='active-student-search'>
@@ -720,39 +828,17 @@ export default function ActivatorStudentsPage() {
                     <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
                       <Button
                         variant='outline'
-                        onClick={() => {
-                          setActiveFilters(defaultFilters)
-                          updateParams(
-                            {
-                              searchKey: 'activeSearch',
-                              sortKey: 'activeSort',
-                              pageKey: 'activePage'
-                            },
-                            defaultFilters,
-                            1
-                          )
-                        }}
+                        type='button'
+                        onClick={resetActiveFilters}
                       >
                         Reset filtri
                       </Button>
-                      <Button
-                        onClick={() =>
-                          updateParams(
-                            {
-                              searchKey: 'activeSearch',
-                              sortKey: 'activeSort',
-                              pageKey: 'activePage'
-                            },
-                            activeFilters,
-                            1
-                          )
-                        }
-                      >
+                      <Button type='submit'>
                         Applica filtri
                       </Button>
                     </div>
                   </div>
-                </div>
+                </form>
                 <div className='mt-6'>
                   <DataTable
                     data={activeStudents}
@@ -770,7 +856,21 @@ export default function ActivatorStudentsPage() {
                 </div>
               </TabsContent>
               <TabsContent value='inactive' className='mt-6'>
-                <div className='rounded-lg border bg-card p-4 shadow-sm'>
+                <form
+                  className='rounded-lg border bg-card p-4 shadow-sm'
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    updateParams(
+                      {
+                        searchKey: 'inactiveSearch',
+                        sortKey: 'inactiveSort',
+                        pageKey: 'inactivePage'
+                      },
+                      inactiveFilters,
+                      1
+                    )
+                  }}
+                >
                   <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
                     <Field className='gap-2 lg:col-span-2'>
                       <FieldLabel htmlFor='inactive-student-search'>
@@ -842,39 +942,17 @@ export default function ActivatorStudentsPage() {
                     <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
                       <Button
                         variant='outline'
-                        onClick={() => {
-                          setInactiveFilters(defaultFilters)
-                          updateParams(
-                            {
-                              searchKey: 'inactiveSearch',
-                              sortKey: 'inactiveSort',
-                              pageKey: 'inactivePage'
-                            },
-                            defaultFilters,
-                            1
-                          )
-                        }}
+                        type='button'
+                        onClick={resetInactiveFilters}
                       >
                         Reset filtri
                       </Button>
-                      <Button
-                        onClick={() =>
-                          updateParams(
-                            {
-                              searchKey: 'inactiveSearch',
-                              sortKey: 'inactiveSort',
-                              pageKey: 'inactivePage'
-                            },
-                            inactiveFilters,
-                            1
-                          )
-                        }
-                      >
+                      <Button type='submit'>
                         Applica filtri
                       </Button>
                     </div>
                   </div>
-                </div>
+                </form>
                 <div className='mt-6'>
                   <DataTable
                     data={inactiveStudents}

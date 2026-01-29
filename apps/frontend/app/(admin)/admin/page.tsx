@@ -257,7 +257,7 @@ export default function AdminPage() {
           }
         }
       })()
-    }, 300)
+    }, 100)
 
     return () => {
       isMounted = false
