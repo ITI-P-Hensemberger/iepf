@@ -75,7 +75,7 @@ export default function ImpersonationBanner() {
     : 'Stai impersonando un utente.'
 
   return (
-    <div className='sticky top-0 z-50 border-b bg-amber-50 text-amber-900'>
+    <div className='sticky top-0 z-50 border-b border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100'>
       <div className='container mx-auto px-4 py-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
         <span className='text-sm font-medium'>{label}</span>
         <Button
