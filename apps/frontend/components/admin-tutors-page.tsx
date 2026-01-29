@@ -9,7 +9,7 @@ import {
   getCoreRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { ExternalLink, MessageSquare, Search } from 'lucide-react'
+import { ExternalLink, MessageSquare, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -60,6 +60,7 @@ type Tutor = {
 }
 
 type PendingInvite = {
+  id: string
   email: string
   createdAt: string
   expiresAt: string
@@ -292,6 +293,12 @@ export default function AdminTutorsPage() {
   const [activeLoading, setActiveLoading] = React.useState(true)
   const [inactiveLoading, setInactiveLoading] = React.useState(true)
   const [pendingLoading, setPendingLoading] = React.useState(true)
+  const [pendingDeletingId, setPendingDeletingId] = React.useState<
+    string | null
+  >(null)
+  const [inviteToDelete, setInviteToDelete] =
+    React.useState<PendingInvite | null>(null)
+  const [showDeleteDialog, setShowDeleteDialog] = React.useState(false)
   const [showInviteDialog, setShowInviteDialog] = React.useState(false)
   const [inviteEmails, setInviteEmails] = React.useState('')
   const [isInviting, setIsInviting] = React.useState(false)
@@ -500,108 +507,6 @@ export default function AdminTutorsPage() {
       1
     )
   }, [updateParams])
-
-  React.useEffect(() => {
-    if (activeFilters.search !== '') {
-      return
-    }
-    if (currentActiveFilters.page <= 1 && currentActiveFilters.search === '') {
-      return
-    }
-    const timeoutId = window.setTimeout(() => {
-      if (activeFilters.search === '') {
-        updateParams(
-          {
-            searchKey: 'activeTutorSearch',
-            sortKey: 'activeTutorSort',
-            pageKey: 'activeTutorPage'
-          },
-          {
-            search: '',
-            sortBy: activeFilters.sortBy,
-            sortDir: activeFilters.sortDir
-          },
-          1
-        )
-      }
-    }, 100)
-    return () => window.clearTimeout(timeoutId)
-  }, [
-    activeFilters.search,
-    activeFilters.sortBy,
-    activeFilters.sortDir,
-    currentActiveFilters.page,
-    currentActiveFilters.search,
-    updateParams
-  ])
-
-  React.useEffect(() => {
-    if (inactiveFilters.search !== '') {
-      return
-    }
-    if (currentInactiveFilters.page <= 1 && currentInactiveFilters.search === '') {
-      return
-    }
-    const timeoutId = window.setTimeout(() => {
-      if (inactiveFilters.search === '') {
-        updateParams(
-          {
-            searchKey: 'inactiveTutorSearch',
-            sortKey: 'inactiveTutorSort',
-            pageKey: 'inactiveTutorPage'
-          },
-          {
-            search: '',
-            sortBy: inactiveFilters.sortBy,
-            sortDir: inactiveFilters.sortDir
-          },
-          1
-        )
-      }
-    }, 100)
-    return () => window.clearTimeout(timeoutId)
-  }, [
-    inactiveFilters.search,
-    inactiveFilters.sortBy,
-    inactiveFilters.sortDir,
-    currentInactiveFilters.page,
-    currentInactiveFilters.search,
-    updateParams
-  ])
-
-  React.useEffect(() => {
-    if (pendingFilters.search !== '') {
-      return
-    }
-    if (currentPendingFilters.page <= 1 && currentPendingFilters.search === '') {
-      return
-    }
-    const timeoutId = window.setTimeout(() => {
-      if (pendingFilters.search === '') {
-        updateParams(
-          {
-            searchKey: 'pendingTutorSearch',
-            sortKey: 'pendingTutorSort',
-            pageKey: 'pendingTutorPage'
-          },
-          {
-            search: '',
-            sortBy: pendingFilters.sortBy,
-            sortDir: pendingFilters.sortDir
-          },
-          1
-        )
-      }
-    }, 100)
-    return () => window.clearTimeout(timeoutId)
-  }, [
-    pendingFilters.search,
-    pendingFilters.sortBy,
-    pendingFilters.sortDir,
-    currentPendingFilters.page,
-    currentPendingFilters.search,
-    updateParams
-  ])
 
   const loadTutors = React.useCallback(
     async (options: {
@@ -853,6 +758,57 @@ export default function AdminTutorsPage() {
     parseAndValidateEmails
   ])
 
+  const handleDeleteInvite = React.useCallback(
+    async () => {
+      if (!inviteToDelete) return
+      const invite = inviteToDelete
+      setPendingDeletingId(invite.id)
+      try {
+        const response = await fetch(`/api/auth/tutor-invite/${invite.id}`, {
+          method: 'DELETE'
+        })
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null)
+          throw new Error(
+            payload?.message || "Impossibile eliminare l'invito."
+          )
+        }
+        toast.success('Invito eliminato.')
+        void loadPendingInvites({
+          search: currentPendingFilters.search,
+          sort: {
+            sortBy: currentPendingFilters.sortBy,
+            sortDir: currentPendingFilters.sortDir
+          },
+          page: currentPendingFilters.page
+        })
+        setShowDeleteDialog(false)
+        setInviteToDelete(null)
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : "Impossibile eliminare l'invito."
+        )
+      } finally {
+        setPendingDeletingId(null)
+      }
+    },
+    [
+      currentPendingFilters.page,
+      currentPendingFilters.search,
+      currentPendingFilters.sortBy,
+      currentPendingFilters.sortDir,
+      inviteToDelete,
+      loadPendingInvites
+    ]
+  )
+
+  const openDeleteDialog = React.useCallback((invite: PendingInvite) => {
+    setInviteToDelete(invite)
+    setShowDeleteDialog(true)
+  }, [])
+
   React.useEffect(() => {
     void loadTutors({
       isActive: true,
@@ -990,9 +946,26 @@ export default function AdminTutorsPage() {
         accessorKey: 'expiresAt',
         header: 'Scade il',
         cell: ({ row }) => formatItalianDate(row.original.expiresAt)
+      },
+      {
+        id: 'actions',
+        header: () => <span className='sr-only'>Azioni</span>,
+        cell: ({ row }) => (
+          <div className='flex items-center justify-end gap-2'>
+            <Button
+              size='sm'
+              variant='ghost'
+              onClick={() => openDeleteDialog(row.original)}
+              disabled={Boolean(pendingDeletingId)}
+              aria-label='Elimina invito'
+            >
+              <Trash2 className='h-4 w-4 text-destructive' />
+            </Button>
+          </div>
+        )
       }
     ],
-    []
+    [openDeleteDialog, pendingDeletingId]
   )
 
   const showPendingTab =
@@ -1423,6 +1396,39 @@ export default function AdminTutorsPage() {
               disabled={isInviting || !inviteEmails.trim()}
             >
               {isInviting ? 'Invio...' : 'Invia inviti'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={showDeleteDialog}
+        onOpenChange={(open) => {
+          setShowDeleteDialog(open)
+          if (!open) {
+            setInviteToDelete(null)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Elimina invito</AlertDialogTitle>
+            <AlertDialogDescription>
+              {inviteToDelete
+                ? `L'invito per ${inviteToDelete.email} verrà eliminato in modo permanente.`
+                : "L'invito selezionato verrà eliminato in modo permanente."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(pendingDeletingId)}>
+              Annulla
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void handleDeleteInvite()}
+              disabled={Boolean(pendingDeletingId) || !inviteToDelete}
+              variant='destructive'
+            >
+              {pendingDeletingId ? 'Eliminazione...' : 'Elimina'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

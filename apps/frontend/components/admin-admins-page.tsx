@@ -10,7 +10,7 @@ import {
   getCoreRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { ArrowUpDown, ExternalLink, Search } from 'lucide-react'
+import { ArrowUpDown, ExternalLink, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -48,6 +48,7 @@ type Admin = {
 }
 
 type PendingInvite = {
+  id: string
   email: string
   createdAt: string
   expiresAt: string
@@ -377,6 +378,12 @@ export default function AdminAdminsPage() {
   const [activeLoading, setActiveLoading] = React.useState(true)
   const [inactiveLoading, setInactiveLoading] = React.useState(true)
   const [pendingLoading, setPendingLoading] = React.useState(true)
+  const [pendingDeletingId, setPendingDeletingId] = React.useState<
+    string | null
+  >(null)
+  const [inviteToDelete, setInviteToDelete] =
+    React.useState<PendingInvite | null>(null)
+  const [showDeleteDialog, setShowDeleteDialog] = React.useState(false)
   const [showInviteDialog, setShowInviteDialog] = React.useState(false)
   const [inviteEmails, setInviteEmails] = React.useState('')
   const [isInviting, setIsInviting] = React.useState(false)
@@ -646,6 +653,47 @@ export default function AdminAdminsPage() {
     }
   }
 
+  const handleDeleteInvite = React.useCallback(
+    async () => {
+      if (!inviteToDelete) return
+      const invite = inviteToDelete
+      setPendingDeletingId(invite.id)
+      try {
+        const response = await fetch(`/api/auth/admin-invite/${invite.id}`, {
+          method: 'DELETE'
+        })
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null)
+          throw new Error(
+            payload?.message || "Impossibile eliminare l'invito."
+          )
+        }
+        toast.success('Invito eliminato.')
+        void loadPendingInvites({
+          search: searchParams.get('pendingAdminSearch') ?? '',
+          sort: parseSortParam(searchParams.get('pendingAdminSort')),
+          page: parsePage('pendingAdminPage')
+        })
+        setShowDeleteDialog(false)
+        setInviteToDelete(null)
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : "Impossibile eliminare l'invito."
+        )
+      } finally {
+        setPendingDeletingId(null)
+      }
+    },
+    [inviteToDelete, loadPendingInvites, parsePage, parseSortParam, searchParams]
+  )
+
+  const openDeleteDialog = React.useCallback((invite: PendingInvite) => {
+    setInviteToDelete(invite)
+    setShowDeleteDialog(true)
+  }, [])
+
   const makeColumns = React.useCallback(() => {
     const columns: ColumnDef<Admin>[] = [
       {
@@ -732,9 +780,26 @@ export default function AdminAdminsPage() {
           </Button>
         ),
         cell: ({ row }) => formatItalianDate(row.original.expiresAt)
+      },
+      {
+        id: 'actions',
+        header: () => <span className='sr-only'>Azioni</span>,
+        cell: ({ row }) => (
+          <div className='flex items-center justify-end gap-2'>
+            <Button
+              size='sm'
+              variant='ghost'
+              onClick={() => openDeleteDialog(row.original)}
+              disabled={Boolean(pendingDeletingId)}
+              aria-label='Elimina invito'
+            >
+              <Trash2 className='h-4 w-4 text-destructive' />
+            </Button>
+          </div>
+        )
       }
     ],
-    []
+    [openDeleteDialog, pendingDeletingId]
   )
 
   const activeSearch = searchParams.get('activeAdminSearch') ?? ''
@@ -927,6 +992,39 @@ export default function AdminAdminsPage() {
               disabled={isInviting || !inviteEmails.trim()}
             >
               {isInviting ? 'Invio...' : 'Invia inviti'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={showDeleteDialog}
+        onOpenChange={(open) => {
+          setShowDeleteDialog(open)
+          if (!open) {
+            setInviteToDelete(null)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Elimina invito</AlertDialogTitle>
+            <AlertDialogDescription>
+              {inviteToDelete
+                ? `L'invito per ${inviteToDelete.email} verrà eliminato in modo permanente.`
+                : "L'invito selezionato verrà eliminato in modo permanente."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(pendingDeletingId)}>
+              Annulla
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void handleDeleteInvite()}
+              disabled={Boolean(pendingDeletingId) || !inviteToDelete}
+              variant='destructive'
+            >
+              {pendingDeletingId ? 'Eliminazione...' : 'Elimina'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -37,11 +37,6 @@ export async function PATCH(
   }
 
   const requestBody = { countsForTutor: body.countsForTutor }
-  console.log('[BFF] PATCH /lessons/{lessonId}/counts request', {
-    lessonId,
-    body: requestBody
-  })
-
   const response = await fetch(`${apiBaseUrl}/lessons/${lessonId}/counts`, {
     method: 'PATCH',
     headers: {
@@ -52,11 +47,6 @@ export async function PATCH(
   })
 
   const payloadText = await response.text()
-  console.log('[BFF] PATCH /lessons/{lessonId}/counts response', {
-    lessonId,
-    status: response.status,
-    body: payloadText
-  })
   const parsed = parseBackendPayload(payloadText)
 
   if (!response.ok) {

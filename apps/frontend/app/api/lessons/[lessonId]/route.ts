@@ -27,7 +27,6 @@ export async function GET(
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   }
 
-  console.log('[BFF] GET /lessons/{lessonId} request', { lessonId })
   const response = await fetch(`${apiBaseUrl}/lessons/${lessonId}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`
@@ -36,11 +35,6 @@ export async function GET(
   })
 
   const payload = await response.text()
-  console.log('[BFF] GET /lessons/{lessonId} response', {
-    lessonId,
-    status: response.status,
-    body: payload
-  })
   const parsed = parseBackendPayload(payload)
 
   if (!response.ok) {

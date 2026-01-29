@@ -46,7 +46,6 @@ export async function POST(request: Request) {
 
     return response
   } catch (err) {
-    console.log('Login err:', err)
     const status = (err as Error & { status?: number }).status
     if (status) {
       const message =

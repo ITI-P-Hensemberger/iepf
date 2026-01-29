@@ -75,9 +75,6 @@ export async function GET(request: NextRequest) {
   const targetUrl = new URL(`${apiBaseUrl}/lessons`)
   targetUrl.search = incomingUrl.searchParams.toString()
 
-  console.log('[BFF] GET /lessons request', {
-    query: targetUrl.searchParams.toString()
-  })
   const response = await fetch(targetUrl.toString(), {
     headers: {
       Authorization: `Bearer ${accessToken}`
@@ -86,10 +83,6 @@ export async function GET(request: NextRequest) {
   })
 
   const payload = await response.text()
-  console.log('[BFF] GET /lessons response', {
-    status: response.status,
-    body: payload
-  })
   const parsed = parseBackendPayload(payload)
 
   if (!response.ok) {

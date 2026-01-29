@@ -95,7 +95,6 @@ export default function TutorAvailabilitySettingsPage() {
           setInitialWeekdays(normalizedWeekdays)
         }
       } catch (err) {
-        console.error('Error fetching availability:', err)
         if (isMounted) {
           setInitialWeekdays(
             WEEKDAYS.map((day) => ({

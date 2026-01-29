@@ -69,7 +69,6 @@ export default function TutorSubjectsSettingsPage() {
           form.reset({ subjectIds })
         }
       } catch (err) {
-        console.error('Error fetching subjects:', err)
         toast.error(
           err instanceof Error
             ? err.message
