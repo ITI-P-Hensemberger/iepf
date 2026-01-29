@@ -41,6 +41,8 @@ import type {
   ConfirmEmailVerificationRoute,
   ConfirmPasswordResetRoute,
   ConfirmTutorInviteRoute,
+  DeleteAdminInviteRoute,
+  DeleteTutorInviteRoute,
   InviteAdminRoute,
   InviteTutorRoute,
   ListAdminInvitesRoute,
@@ -254,6 +256,7 @@ export const listTutorInvites: AppRouteHandler<ListTutorInvitesRoute> = async (c
   const rows = await db.query.tutorInviteTokens.findMany({
     where: whereClause,
     columns: {
+      id: true,
       email: true,
       expiresAt: true,
       createdAt: true
@@ -279,6 +282,7 @@ export const listTutorInvites: AppRouteHandler<ListTutorInvitesRoute> = async (c
   const [{ total }] = await totalQuery
 
   const data = rows.map(row => ({
+    id: row.id,
     email: row.email,
     expiresAt: row.expiresAt.toISOString(),
     createdAt: row.createdAt.toISOString()
@@ -311,6 +315,7 @@ export const listAdminInvites: AppRouteHandler<ListAdminInvitesRoute> = async (c
   const rows = await db.query.adminInviteTokens.findMany({
     where: whereClause,
     columns: {
+      id: true,
       email: true,
       expiresAt: true,
       createdAt: true
@@ -336,6 +341,7 @@ export const listAdminInvites: AppRouteHandler<ListAdminInvitesRoute> = async (c
   const [{ total }] = await totalQuery
 
   const data = rows.map(row => ({
+    id: row.id,
     email: row.email,
     expiresAt: row.expiresAt.toISOString(),
     createdAt: row.createdAt.toISOString()
@@ -345,6 +351,24 @@ export const listAdminInvites: AppRouteHandler<ListAdminInvitesRoute> = async (c
     buildPagedResponse(data, Number(total), query.limit, query.offset),
     HttpStatusCodes.OK
   )
+}
+
+export const deleteAdminInvite: AppRouteHandler<DeleteAdminInviteRoute> = async (c) => {
+  const currentUser = c.get('currentUser')
+  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
+  }
+
+  const payload = c.req.valid('param')
+  const [deleted] = await db.delete(adminInviteTokens)
+    .where(eq(adminInviteTokens.id, payload.id))
+    .returning({ id: adminInviteTokens.id })
+
+  if (!deleted) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
+  }
+
+  return c.body(null, HttpStatusCodes.NO_CONTENT)
 }
 
 export const inviteAdmin: AppRouteHandler<InviteAdminRoute> = async (c) => {
@@ -440,6 +464,24 @@ export const confirmAdminInvite: AppRouteHandler<ConfirmAdminInviteRoute> = asyn
     },
     HttpStatusCodes.CREATED
   )
+}
+
+export const deleteTutorInvite: AppRouteHandler<DeleteTutorInviteRoute> = async (c) => {
+  const currentUser = c.get('currentUser')
+  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
+  }
+
+  const payload = c.req.valid('param')
+  const [deleted] = await db.delete(tutorInviteTokens)
+    .where(eq(tutorInviteTokens.id, payload.id))
+    .returning({ id: tutorInviteTokens.id })
+
+  if (!deleted) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
+  }
+
+  return c.body(null, HttpStatusCodes.NO_CONTENT)
 }
 
 export const inviteTutor: AppRouteHandler<InviteTutorRoute> = async (c) => {

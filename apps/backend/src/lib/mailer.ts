@@ -17,6 +17,10 @@ const transport = env.SMTP_HOST
       host: env.SMTP_HOST,
       port: env.SMTP_PORT,
       secure: env.SMTP_PORT === 465,
+      pool: true,
+      maxConnections: 3,
+      rateLimit: 10,
+      rateDelta: 60_000,
       auth: env.SMTP_USER && env.SMTP_PASS
         ? {
             user: env.SMTP_USER,

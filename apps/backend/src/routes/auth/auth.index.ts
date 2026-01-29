@@ -49,7 +49,13 @@ router.use('/auth/logout', rateLimit({
   keyPrefix: 'auth:logout'
 }))
 router.use('/auth/tutor-invite', authenticate())
+router.use('/auth/tutor-invite/*', authenticate())
 router.use('/auth/tutor-invite', rateLimit({
+  windowMs: 60_000,
+  max: 5,
+  keyPrefix: 'auth:tutor-invite'
+}))
+router.use('/auth/tutor-invite/*', rateLimit({
   windowMs: 60_000,
   max: 5,
   keyPrefix: 'auth:tutor-invite'
@@ -61,7 +67,13 @@ router.use('/auth/tutor-invite/confirm', rateLimit({
 }))
 
 router.use('/auth/admin-invite', authenticate())
+router.use('/auth/admin-invite/*', authenticate())
 router.use('/auth/admin-invite', rateLimit({
+  windowMs: 60_000,
+  max: 5,
+  keyPrefix: 'auth:admin-invite'
+}))
+router.use('/auth/admin-invite/*', rateLimit({
   windowMs: 60_000,
   max: 5,
   keyPrefix: 'auth:admin-invite'
@@ -82,9 +94,11 @@ router
   .openapi(routes.requestEmailVerification, handlers.requestEmailVerification)
   .openapi(routes.confirmEmailVerification, handlers.confirmEmailVerification)
   .openapi(routes.listTutorInvites, handlers.listTutorInvites)
+  .openapi(routes.deleteTutorInvite, handlers.deleteTutorInvite)
   .openapi(routes.inviteTutor, handlers.inviteTutor)
   .openapi(routes.confirmTutorInvite, handlers.confirmTutorInvite)
   .openapi(routes.listAdminInvites, handlers.listAdminInvites)
+  .openapi(routes.deleteAdminInvite, handlers.deleteAdminInvite)
   .openapi(routes.inviteAdmin, handlers.inviteAdmin)
   .openapi(routes.confirmAdminInvite, handlers.confirmAdminInvite)
 

@@ -5,7 +5,7 @@ import { selectUsersWithProfilesSchema, studentRegisterSchema } from '@/db/schem
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
-import { createErrorMessageSchema, createErrorSchema, createMessageObjectSchema, createPagedListSchema } from '@/lib/openapi/schemas'
+import { createErrorMessageSchema, createErrorSchema, createMessageObjectSchema, createPagedListSchema, IdUUIDParamsSchema } from '@/lib/openapi/schemas'
 import { queryBoolean } from '@/lib/zod-utils'
 
 const tags = ['Auth']
@@ -19,12 +19,14 @@ export const adminInviteRequestSchema = z.object({
 })
 
 export const tutorInviteListItemSchema = z.object({
+  id: z.uuid(),
   email: z.string(),
   expiresAt: z.string(),
   createdAt: z.string()
 })
 
 export const adminInviteListItemSchema = z.object({
+  id: z.uuid(),
   email: z.string(),
   expiresAt: z.string(),
   createdAt: z.string()
@@ -326,6 +328,37 @@ export const listAdminInvites = createRoute({
   }
 })
 
+export const deleteAdminInvite = createRoute({
+  path: '/auth/admin-invite/{id}',
+  method: 'delete',
+  tags,
+  security: [{ bearerAuth: [] as string[] }],
+  request: {
+    params: IdUUIDParamsSchema
+  },
+  responses: {
+    [HttpStatusCodes.NO_CONTENT]: {
+      description: 'Admin invite deleted'
+    },
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
+      'Invite not found'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(IdUUIDParamsSchema),
+      'Invalid id error'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Admin access required'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
 export const inviteAdmin = createRoute({
   path: '/auth/admin-invite',
   method: 'post',
@@ -423,6 +456,37 @@ export const listTutorInvites = createRoute({
   }
 })
 
+export const deleteTutorInvite = createRoute({
+  path: '/auth/tutor-invite/{id}',
+  method: 'delete',
+  tags,
+  security: [{ bearerAuth: [] as string[] }],
+  request: {
+    params: IdUUIDParamsSchema
+  },
+  responses: {
+    [HttpStatusCodes.NO_CONTENT]: {
+      description: 'Tutor invite deleted'
+    },
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
+      'Invite not found'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(IdUUIDParamsSchema),
+      'Invalid id error'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Admin access required'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
 export const inviteTutor = createRoute({
   path: '/auth/tutor-invite',
   method: 'post',
@@ -507,6 +571,8 @@ export type ConfirmEmailVerificationRoute = typeof confirmEmailVerification
 export type InviteTutorRoute = typeof inviteTutor
 export type ConfirmTutorInviteRoute = typeof confirmTutorInvite
 export type ListTutorInvitesRoute = typeof listTutorInvites
+export type DeleteTutorInviteRoute = typeof deleteTutorInvite
 export type InviteAdminRoute = typeof inviteAdmin
 export type ConfirmAdminInviteRoute = typeof confirmAdminInvite
 export type ListAdminInvitesRoute = typeof listAdminInvites
+export type DeleteAdminInviteRoute = typeof deleteAdminInvite
