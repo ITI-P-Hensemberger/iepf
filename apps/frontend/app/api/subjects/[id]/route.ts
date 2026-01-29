@@ -36,7 +36,7 @@ export async function GET(
     )
   }
 
-  return new NextResponse(null, { status: 204 })
+  return NextResponse.json(parsed.data ?? {})
 }
 
 export async function PATCH(
