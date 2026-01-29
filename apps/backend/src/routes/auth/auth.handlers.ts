@@ -9,13 +9,14 @@ import db from '@/db'
 import { adminInviteTokens } from '@/db/schemas/admin-invite-tokens.schema'
 import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
+import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { users } from '@/db/schemas/users.schema'
 import { consumeAdminInviteToken, issueAdminInviteToken } from '@/lib/admin-invite'
 import { createAccessToken } from '@/lib/auth'
-import { DEFAULT_TUTOR_SETTINGS, ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
+import { DEFAULT_LESSON_TOKENS, DEFAULT_TUTOR_SETTINGS, ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
 import {
   buildAdminInviteMessage,
   buildEmailVerificationMessage,
@@ -212,6 +213,12 @@ export const register: AppRouteHandler<RegisterRoute> = async (c) => {
     sectionId: userData.sectionId,
     year: userData.year,
     isActive: false
+  })
+
+  await db.insert(tokenLedger).values({
+    studentId: inserted.id,
+    delta: DEFAULT_LESSON_TOKENS,
+    reason: 'initial_grant'
   })
 
   const verification = await issueEmailVerificationToken(inserted.id)
