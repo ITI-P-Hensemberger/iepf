@@ -15,6 +15,14 @@ export interface AppBindings {
   Variables: {
     logger: PinoLogger
     currentUser?: AuthenticatedUser
+    impersonation?: {
+      adminId: string
+      adminEmail: string
+      adminRole: string
+      userId: string
+      userEmail: string
+      userRole: string
+    }
   }
 };
 

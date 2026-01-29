@@ -72,17 +72,13 @@ export const getSettings: AppRouteHandler<GetSettingsRoute> = async (c) => {
     },
     columns: {
       tutorId: true,
-      defaultStartTime: true,
-      defaultDurationMinutes: true,
       dailyCapacity: true
     }
   })
 
   const settings = existing ?? {
     tutorId,
-    defaultStartTime: '15:00',
-    defaultDurationMinutes: 60,
-    dailyCapacity: 2
+    dailyCapacity: 1
   }
 
   return c.json(settings, HttpStatusCodes.OK)
@@ -120,8 +116,6 @@ export const updateSettings: AppRouteHandler<UpdateSettingsRoute> = async (c) =>
   return c.json(
     {
       tutorId,
-      defaultStartTime: payload.defaultStartTime,
-      defaultDurationMinutes: payload.defaultDurationMinutes,
       dailyCapacity: payload.dailyCapacity
     },
     HttpStatusCodes.OK

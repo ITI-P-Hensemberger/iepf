@@ -23,9 +23,28 @@ const TutorIdParamsSchema = z.object({
   })
 })
 
+const weekdayStartTimeSchema = z.enum(['14:00', '15:00'])
+
 export const weekdayAvailabilityItemSchema = z.object({
   weekday: z.number().int().min(1).max(5),
-  isAvailable: z.boolean()
+  isAvailable: z.boolean(),
+  startTime: weekdayStartTimeSchema.nullable()
+}).superRefine((value, ctx) => {
+  if (value.isAvailable && value.startTime === null) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'startTime is required when isAvailable is true',
+      path: ['startTime']
+    })
+  }
+
+  if (!value.isAvailable && value.startTime !== null) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'startTime must be null when isAvailable is false',
+      path: ['startTime']
+    })
+  }
 })
 
 export const weekdayAvailabilitySchema = z.object({

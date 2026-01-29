@@ -62,7 +62,7 @@ async function initializeWeekdaysIfNeeded(tutorId: string) {
     where(fields, operators) {
       return operators.eq(fields.tutorId, tutorId)
     },
-    columns: { weekday: true, isAvailable: true }
+    columns: { weekday: true, isAvailable: true, startTime: true }
   })
 
   if (existing.length === 5) {
@@ -77,7 +77,8 @@ async function initializeWeekdaysIfNeeded(tutorId: string) {
       missing.map(weekday => ({
         tutorId,
         weekday,
-        isAvailable: false
+        isAvailable: false,
+        startTime: null
       }))
     )
   }
@@ -86,7 +87,7 @@ async function initializeWeekdaysIfNeeded(tutorId: string) {
     where(fields, operators) {
       return operators.eq(fields.tutorId, tutorId)
     },
-    columns: { weekday: true, isAvailable: true }
+    columns: { weekday: true, isAvailable: true, startTime: true }
   })
 
   return all.sort((a, b) => a.weekday - b.weekday)
@@ -107,7 +108,8 @@ export const getWeekdayAvailability: AppRouteHandler<GetWeekdayAvailabilityRoute
     tutorId,
     weekdays: weekdays.map(w => ({
       weekday: w.weekday,
-      isAvailable: w.isAvailable
+      isAvailable: w.isAvailable,
+      startTime: w.startTime ?? null
     }))
   }, HttpStatusCodes.OK)
 }
@@ -126,7 +128,10 @@ export const updateWeekdayAvailability: AppRouteHandler<UpdateWeekdayAvailabilit
 
   for (const item of payload.weekdays) {
     await db.update(tutorWeekdayAvailability)
-      .set({ isAvailable: item.isAvailable })
+      .set({
+        isAvailable: item.isAvailable,
+        startTime: item.isAvailable ? item.startTime : null
+      })
       .where(
         and(
           eq(tutorWeekdayAvailability.tutorId, tutorId),
@@ -139,7 +144,7 @@ export const updateWeekdayAvailability: AppRouteHandler<UpdateWeekdayAvailabilit
     where(fields, operators) {
       return operators.eq(fields.tutorId, tutorId)
     },
-    columns: { weekday: true, isAvailable: true }
+    columns: { weekday: true, isAvailable: true, startTime: true }
   })
 
   return c.json({
@@ -148,7 +153,8 @@ export const updateWeekdayAvailability: AppRouteHandler<UpdateWeekdayAvailabilit
       .sort((a, b) => a.weekday - b.weekday)
       .map(w => ({
         weekday: w.weekday,
-        isAvailable: w.isAvailable
+        isAvailable: w.isAvailable,
+        startTime: w.startTime ?? null
       }))
   }, HttpStatusCodes.OK)
 }

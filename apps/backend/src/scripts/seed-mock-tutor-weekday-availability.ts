@@ -28,9 +28,14 @@ function buildWeekdays(tutorIndex: number) {
   const primary = tutorIndex % 2 === 0 ? [1, 3, 5] : [2, 4]
   return Array.from({ length: 5 }, (_, i) => {
     const weekday = i + 1
+    const isAvailable = primary.includes(weekday)
+    const startTime = isAvailable
+      ? (weekday % 2 === 0 ? '14:00' : '15:00') as '14:00' | '15:00'
+      : null
     return {
       weekday,
-      isAvailable: primary.includes(weekday)
+      isAvailable,
+      startTime
     }
   })
 }
@@ -48,7 +53,8 @@ async function main() {
     return weekdays.map(day => ({
       tutorId: tutor.id,
       weekday: day.weekday,
-      isAvailable: day.isAvailable
+      isAvailable: day.isAvailable,
+      startTime: day.startTime
     }))
   })
 
@@ -56,7 +62,10 @@ async function main() {
     .values(rows)
     .onConflictDoUpdate({
       target: [tutorWeekdayAvailability.tutorId, tutorWeekdayAvailability.weekday],
-      set: { isAvailable: tutorWeekdayAvailability.isAvailable }
+      set: {
+        isAvailable: tutorWeekdayAvailability.isAvailable,
+        startTime: tutorWeekdayAvailability.startTime
+      }
     })
 
   process.stdout.write(`Mock tutor weekday availability seeded. Upserted ${rows.length} rows.\n`)

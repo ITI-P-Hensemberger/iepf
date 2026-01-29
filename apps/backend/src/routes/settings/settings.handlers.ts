@@ -16,7 +16,7 @@ import type {
   UpdateAdminSettingsRoute
 } from './settings.routes'
 
-import { maintenanceSchema, serviceMessagesSchema } from './settings.routes'
+import { closureDatesSchema, maintenanceSchema, serviceMessagesSchema } from './settings.routes'
 
 type HandlerContext = Context<AppBindings>
 type Role = 'student' | 'tutor' | 'admin' | 'activator'
@@ -28,6 +28,7 @@ const defaultMaintenance = maintenanceSchema.parse({
 })
 
 const defaultServiceMessages = serviceMessagesSchema.parse({})
+const defaultClosureDates = closureDatesSchema.parse([])
 
 function forbid(): never {
   throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
@@ -76,15 +77,17 @@ async function writeSetting(key: string, value: unknown, updatedBy: string) {
 export const getAdminSettings: AppRouteHandler<GetAdminSettingsRoute> = async (c) => {
   ensureAdmin(c)
 
-  const [maintenance, serviceMessages] = await Promise.all([
+  const [maintenance, serviceMessages, closureDates] = await Promise.all([
     readSetting('maintenance', defaultMaintenance),
-    readSetting('serviceMessages', defaultServiceMessages)
+    readSetting('serviceMessages', defaultServiceMessages),
+    readSetting('closureDates', defaultClosureDates)
   ])
 
   return c.json(
     {
       maintenance,
-      serviceMessages
+      serviceMessages,
+      closureDates
     },
     HttpStatusCodes.OK
   )
@@ -101,17 +104,22 @@ export const updateAdminSettings: AppRouteHandler<UpdateAdminSettingsRoute> = as
   if (payload.serviceMessages) {
     updates.push(writeSetting('serviceMessages', payload.serviceMessages, admin.id))
   }
+  if (payload.closureDates) {
+    updates.push(writeSetting('closureDates', payload.closureDates, admin.id))
+  }
   await Promise.all(updates)
 
-  const [maintenance, serviceMessages] = await Promise.all([
+  const [maintenance, serviceMessages, closureDates] = await Promise.all([
     readSetting('maintenance', defaultMaintenance),
-    readSetting('serviceMessages', defaultServiceMessages)
+    readSetting('serviceMessages', defaultServiceMessages),
+    readSetting('closureDates', defaultClosureDates)
   ])
 
   return c.json(
     {
       maintenance,
-      serviceMessages
+      serviceMessages,
+      closureDates
     },
     HttpStatusCodes.OK
   )

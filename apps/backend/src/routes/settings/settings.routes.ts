@@ -12,6 +12,7 @@ const bearerAuth = [{
 }]
 
 const roleSchema = z.enum(['student', 'tutor', 'admin', 'activator'])
+const closureDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
 export const maintenanceSchema = z.object({
   enabled: z.boolean(),
@@ -41,16 +42,20 @@ export const serviceMessagesSchema = z.object({
   activator: serviceMessageSchema.nullable().optional()
 })
 
+export const closureDatesSchema = z.array(closureDateSchema)
+
 export const adminSettingsSchema = z.object({
   maintenance: maintenanceSchema,
-  serviceMessages: serviceMessagesSchema
+  serviceMessages: serviceMessagesSchema,
+  closureDates: closureDatesSchema
 })
 
 export const updateAdminSettingsSchema = z.object({
   maintenance: maintenanceSchema.optional(),
-  serviceMessages: serviceMessagesSchema.optional()
+  serviceMessages: serviceMessagesSchema.optional(),
+  closureDates: closureDatesSchema.optional()
 }).superRefine((value, ctx) => {
-  if (!value.maintenance && !value.serviceMessages) {
+  if (!value.maintenance && !value.serviceMessages && !value.closureDates) {
     ctx.addIssue({
       code: 'custom',
       path: [],

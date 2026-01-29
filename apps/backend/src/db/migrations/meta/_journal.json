@@ -50,6 +50,20 @@
       "when": 1769356578798,
       "tag": "0006_cloudy_rawhide_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1769623810155,
+      "tag": "0007_wakeful_iceman",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1769646245196,
+      "tag": "0008_right_lily_hollister",
+      "breakpoints": true
     }
   ]
 }

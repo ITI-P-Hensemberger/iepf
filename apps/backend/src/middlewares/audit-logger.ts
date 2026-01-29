@@ -18,17 +18,21 @@ export function auditLogger() {
 
     const durationMs = Date.now() - start
     const currentUser = c.get('currentUser')
+    const impersonation = c.get('impersonation')
     const requestId = c.get('requestId') ?? c.req.header('x-request-id')
 
     const action = `${c.req.method} ${c.req.path}`
     const metadata = {
-      queryKeys: Object.keys(c.req.query())
+      queryKeys: Object.keys(c.req.query()),
+      impersonatedUserId: impersonation?.userId,
+      impersonatedUserEmail: impersonation?.userEmail,
+      impersonatedUserRole: impersonation?.userRole
     }
 
     try {
       await db.insert(auditLogs).values({
-        actorId: currentUser?.id ?? null,
-        actorRole: currentUser?.role ?? null,
+        actorId: impersonation?.adminId ?? currentUser?.id ?? null,
+        actorRole: impersonation?.adminRole ?? currentUser?.role ?? null,
         action,
         method: c.req.method,
         path: c.req.path,

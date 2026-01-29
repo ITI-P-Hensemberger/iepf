@@ -50,6 +50,17 @@ export function authenticate(): MiddlewareHandler<AppBindings> {
         isActive = profile?.isActive ?? false
       }
 
+      if (payload.impersonatedById && payload.impersonatedByEmail && payload.impersonatedByRole) {
+        c.set('impersonation', {
+          adminId: payload.impersonatedById,
+          adminEmail: payload.impersonatedByEmail,
+          adminRole: payload.impersonatedByRole,
+          userId: payload.sub,
+          userEmail: payload.email,
+          userRole: payload.role
+        })
+      }
+
       c.set('currentUser', {
         id: payload.sub,
         email: payload.email,

@@ -21,6 +21,7 @@ const EnvSchema = z.object({
   PASSWORD_SALT: z.string(),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   ACCESS_TOKEN_TTL: z.coerce.number().int().positive().default(3600),
+  IMPERSONATION_TOKEN_TTL: z.coerce.number().int().positive().default(1800),
   REFRESH_TOKEN_TTL: z.coerce.number().int().positive().default(60 * 60 * 24 * 7),
   EMAIL_VERIFICATION_TTL: z.coerce.number().int().positive().default(60 * 60 * 24),
   PASSWORD_RESET_TTL: z.coerce.number().int().positive().default(60 * 15),

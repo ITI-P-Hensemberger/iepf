@@ -19,9 +19,7 @@ export const ZOD_ERROR_CODES = {
 }
 
 export const DEFAULT_TUTOR_SETTINGS = {
-  defaultStartTime: '15:00',
-  defaultDurationMinutes: 60,
-  dailyCapacity: 2
+  dailyCapacity: 1
 }
 
 export const DEFAULT_LESSON_TOKENS = 30

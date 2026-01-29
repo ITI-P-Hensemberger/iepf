@@ -7,10 +7,13 @@ import env from '@/env'
 import type { AuthenticatedUser } from './types'
 
 export interface AccessTokenPayload {
-  [key: string]: string | number
+  [key: string]: string | number | undefined
   sub: string
   email: string
   role: string
+  impersonatedById?: string
+  impersonatedByEmail?: string
+  impersonatedByRole?: string
   exp: number
   iss: string
   iat: number
@@ -25,6 +28,28 @@ export async function createAccessToken(user: AuthenticatedUser) {
     sub: user.id,
     email: user.email,
     role: user.role,
+    exp: Math.floor(Date.now() / 1000) + expiresIn,
+    iss: ISSUER,
+    iat: Math.floor(Date.now() / 1000),
+    jti: randomUUID()
+  }
+
+  const token = await sign(payload, env.JWT_SECRET)
+  return {
+    token,
+    expiresIn
+  }
+}
+
+export async function createImpersonationToken(admin: AuthenticatedUser, target: AuthenticatedUser) {
+  const expiresIn = env.IMPERSONATION_TOKEN_TTL
+  const payload: AccessTokenPayload = {
+    sub: target.id,
+    email: target.email,
+    role: target.role,
+    impersonatedById: admin.id,
+    impersonatedByEmail: admin.email,
+    impersonatedByRole: admin.role,
     exp: Math.floor(Date.now() / 1000) + expiresIn,
     iss: ISSUER,
     iat: Math.floor(Date.now() / 1000),

@@ -1,6 +1,8 @@
 // Purpose: App composition and route registration.
 import configureOpenAPI from '@/lib/configure-open-api'
 import createApp from '@/lib/create-app'
+import adminImpersonation from '@/routes/admin-impersonation/admin-impersonation.index'
+import adminStats from '@/routes/admin-stats/admin-stats.index'
 import audit from '@/routes/audit/audit.index'
 import auth from '@/routes/auth/auth.index'
 import classSections from '@/routes/class-sections/class-sections.index'
@@ -21,6 +23,8 @@ configureOpenAPI(app)
 
 // Route modules to register on the app.
 const routes = [
+  adminImpersonation,
+  adminStats,
   audit,
   auth,
   classSections,

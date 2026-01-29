@@ -25,14 +25,10 @@ const TutorIdParamsSchema = z.object({
 
 export const tutorSettingsSchema = z.object({
   tutorId: z.string(),
-  defaultStartTime: z.string(),
-  defaultDurationMinutes: z.number().int().positive(),
   dailyCapacity: z.number().int().positive()
 })
 
 export const updateTutorSettingsSchema = z.object({
-  defaultStartTime: z.string().regex(/^\d{2}:\d{2}$/),
-  defaultDurationMinutes: z.number().int().positive(),
   dailyCapacity: z.number().int().positive()
 })
 

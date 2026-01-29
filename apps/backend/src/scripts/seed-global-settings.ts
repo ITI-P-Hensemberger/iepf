@@ -9,6 +9,7 @@ const maintenanceDefault = {
 }
 
 const serviceMessagesDefault = {}
+const closureDatesDefault: string[] = []
 
 async function main() {
   const admin = await db.query.users.findFirst({
@@ -30,6 +31,11 @@ async function main() {
       {
         key: 'serviceMessages',
         value: serviceMessagesDefault,
+        updatedBy
+      },
+      {
+        key: 'closureDates',
+        value: closureDatesDefault,
         updatedBy
       }
     ])

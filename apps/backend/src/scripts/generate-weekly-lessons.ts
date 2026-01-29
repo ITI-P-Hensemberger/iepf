@@ -51,13 +51,29 @@ async function getTutorSettings(tutorId: string) {
       return operators.eq(fields.tutorId, tutorId)
     },
     columns: {
-      defaultStartTime: true,
-      defaultDurationMinutes: true,
       dailyCapacity: true
     }
   })
 
   return settings ?? DEFAULT_TUTOR_SETTINGS
+}
+
+function formatDateKey(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+async function getClosureDates() {
+  const row = await db.query.globalSettings.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.key, 'closureDates')
+    },
+    columns: { value: true }
+  })
+
+  return Array.isArray(row?.value) ? (row?.value as string[]) : []
 }
 
 async function getTutorAvailableWeekdays(tutorId: string) {
@@ -68,7 +84,7 @@ async function getTutorAvailableWeekdays(tutorId: string) {
         operators.eq(fields.isAvailable, true)
       )
     },
-    columns: { weekday: true }
+    columns: { weekday: true, startTime: true }
   })
 }
 
@@ -106,6 +122,8 @@ async function main() {
 
   let totalCreated = 0
   let totalSkipped = 0
+  const closureDates = await getClosureDates()
+  const closureDateSet = new Set(closureDates)
 
   for (const tutor of activeTutors) {
     const settings = await getTutorSettings(tutor.id)
@@ -121,8 +139,15 @@ async function main() {
     }
 
     for (const availability of availableWeekdays) {
+      if (!availability.startTime) {
+        continue
+      }
+
       const lessonDate = getWeekdayDate(nextMonday, availability.weekday)
-      const startAt = combineDateAndTime(lessonDate, settings.defaultStartTime)
+      if (closureDateSet.has(formatDateKey(lessonDate))) {
+        continue
+      }
+      const startAt = combineDateAndTime(lessonDate, availability.startTime)
 
       for (const subjectId of subjectIds) {
         const exists = await lessonExists(tutor.id, subjectId, startAt, nextMonday)
@@ -136,7 +161,7 @@ async function main() {
           tutorId: tutor.id,
           subjectId,
           startAt,
-          durationMinutes: settings.defaultDurationMinutes,
+          durationMinutes: 60,
           seats: settings.dailyCapacity,
           generatedByJob: true,
           generatedForWeek: nextMonday
