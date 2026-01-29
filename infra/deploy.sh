@@ -16,6 +16,7 @@ fi
 
 echo "Pulling images"
 docker compose -f "${COMPOSE_FILE}" pull
+docker pull ghcr.io/jdncst-dev/iepf-backend:migrate
 
 # Ensure the database is up before running migrations.
 docker compose -f "${COMPOSE_FILE}" up -d db
