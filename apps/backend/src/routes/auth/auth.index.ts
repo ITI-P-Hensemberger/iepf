@@ -49,7 +49,12 @@ router.use('/auth/logout', rateLimit({
   keyPrefix: 'auth:logout'
 }))
 router.use('/auth/tutor-invite', authenticate())
-router.use('/auth/tutor-invite/*', authenticate())
+router.use('/auth/tutor-invite/*', async (c, next) => {
+  if (c.req.path.endsWith('/confirm')) {
+    return next()
+  }
+  return authenticate()(c, next)
+})
 router.use('/auth/tutor-invite', rateLimit({
   windowMs: 60_000,
   max: 5,
@@ -67,7 +72,12 @@ router.use('/auth/tutor-invite/confirm', rateLimit({
 }))
 
 router.use('/auth/admin-invite', authenticate())
-router.use('/auth/admin-invite/*', authenticate())
+router.use('/auth/admin-invite/*', async (c, next) => {
+  if (c.req.path.endsWith('/confirm')) {
+    return next()
+  }
+  return authenticate()(c, next)
+})
 router.use('/auth/admin-invite', rateLimit({
   windowMs: 60_000,
   max: 5,
