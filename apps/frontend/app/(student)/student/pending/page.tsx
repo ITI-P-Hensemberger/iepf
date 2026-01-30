@@ -83,10 +83,10 @@ export default function StudentPendingPage() {
                   </span>
                   <p className='text-sm leading-relaxed text-muted-foreground'>
                     Fai compilare e firmare la liberatoria da un genitore o un
-                    tutore legale
+                    tutore legale.
                     <br />
                     Questo passaggio è obbligatorio per poter partecipare al
-                    progetto
+                    progetto.
                   </p>
                 </li>
                 <li className='flex items-start gap-3'>
@@ -97,20 +97,21 @@ export default function StudentPendingPage() {
                     Nel frattempo riceverai l&apos;avviso di pagamento di €50,00
                     dalla Segreteria Scolastica. <br />
                     Effettua il pagamento e conserva la ricevuta.
-                    <span className='mt-2 flex items-start gap-2 text-sm font-medium text-amber-700'>
+                    <span className='mt-2 flex items-start gap-2 text-sm font-medium uppercase text-yellow-600 bg-amber-100 p-2 rounded-lg'>
                       <AlertTriangle
                         className='mt-0.5 shrink-0'
                         style={{ width: 18, height: 18 }}
                       />
                       <span>
-                        Attenzione: l&apos;invio dell&apos;avviso di pagamento
-                        da parte della segreteria non avviene immediatamente.
-                        Potresti dover attendere alcuni giorni prima di
-                        riceverlo.{' '}
+                        <span className='font-semibold'>Attenzione:</span>{' '}
+                        l&apos;invio dell&apos;avviso di pagamento da parte
+                        della segreteria non avviene immediatamente. Potresti
+                        dover attendere alcuni giorni prima di riceverlo.{' '}
                         <span className='font-semibold'>
                           Non effettuare il pagamento prima di aver ricevuto
-                          l&apos;avviso con dicitura &quot;InsiemeÈ+Facile&quot;
-                          o simili.
+                          l&apos;avviso con dicitura &quot;
+                          <span className='capitalize'>InsiemeÈ+Facile</span>
+                          &quot; o simili!
                         </span>
                       </span>
                     </span>
@@ -130,6 +131,7 @@ export default function StudentPendingPage() {
                     >
                       Form di attivazione
                     </Link>
+                    .
                     <br />
                     <br />
                     Una volta inviato il form, la segreteria procederà ad
