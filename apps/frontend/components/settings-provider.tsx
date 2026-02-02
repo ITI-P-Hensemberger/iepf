@@ -2,6 +2,8 @@
 
 import * as React from 'react'
 
+import { AUTH_CHANGED_EVENT } from '@/lib/auth-events'
+
 type MessageLevel = 'info' | 'warning' | 'error' | 'success'
 
 export type MaintenanceSettings = {
@@ -71,6 +73,16 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     void refresh()
+  }, [refresh])
+
+  React.useEffect(() => {
+    const handleAuthChanged = () => {
+      void refresh()
+    }
+    window.addEventListener(AUTH_CHANGED_EVENT, handleAuthChanged)
+    return () => {
+      window.removeEventListener(AUTH_CHANGED_EVENT, handleAuthChanged)
+    }
   }, [refresh])
 
   const value = React.useMemo(

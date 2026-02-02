@@ -11,6 +11,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
+import { notifyAuthChanged } from '@/lib/auth-events'
 import { BackButton } from '@/components/back-button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import {
@@ -104,6 +105,8 @@ function LoginContent() {
         role?: string | null
         isActive?: boolean
       }
+
+      notifyAuthChanged()
 
       const nextPath = nextParam && nextParam.startsWith('/') ? nextParam : null
 
