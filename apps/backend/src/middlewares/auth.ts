@@ -8,9 +8,52 @@ import { verifyAccessToken } from '@/lib/auth'
 import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { maintenanceSchema } from '@/routes/settings/settings.routes'
+
+const defaultMaintenance = maintenanceSchema.parse({
+  enabled: false,
+  message: null,
+  roles: ['student', 'tutor']
+})
 
 function unauthorized(c: Context<AppBindings>) {
   return c.json(buildErrorResponse(HttpStatusPhrases.UNAUTHORIZED), HttpStatusCodes.UNAUTHORIZED)
+}
+
+function forbidden(c: Context<AppBindings>) {
+  return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
+}
+
+async function readMaintenanceSetting() {
+  const row = await db.query.globalSettings.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.key, 'maintenance')
+    },
+    columns: { value: true }
+  })
+  if (!row) {
+    return defaultMaintenance
+  }
+  const parsed = maintenanceSchema.safeParse(row.value)
+  return parsed.success ? parsed.data : defaultMaintenance
+}
+
+function isAllowedMaintenanceRequest(c: Context<AppBindings>, userId: string) {
+  const method = c.req.method.toUpperCase()
+  if (method === 'POST' && (c.req.path === '/auth/login' || c.req.path === '/auth/logout' || c.req.path === '/auth/refresh' || c.req.path === '/auth/password/reset/request')) {
+    return true
+  }
+  if (method === 'POST' && c.req.path === '/admin/impersonate/end') {
+    return true
+  }
+  if (c.req.method.toUpperCase() === 'GET' && (c.req.path === '/settings' || c.req.path === '/settings/me')) {
+    return true
+  }
+  const match = c.req.path.match(/^\/users\/([^/]+)$/)
+  if (!match || match[1] !== userId) {
+    return false
+  }
+  return method === 'GET' || method === 'PATCH'
 }
 
 export function authenticate(): MiddlewareHandler<AppBindings> {
@@ -70,6 +113,16 @@ export function authenticate(): MiddlewareHandler<AppBindings> {
     }
     catch {
       return unauthorized(c)
+    }
+
+    const currentUser = c.get('currentUser')
+    if (currentUser?.role === 'student' || currentUser?.role === 'tutor') {
+      const maintenance = await readMaintenanceSetting()
+      if (maintenance.enabled && maintenance.roles.includes(currentUser.role)) {
+        if (!isAllowedMaintenanceRequest(c, currentUser.id)) {
+          return forbidden(c)
+        }
+      }
     }
 
     await next()
