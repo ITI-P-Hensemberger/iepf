@@ -40,6 +40,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
@@ -56,6 +57,7 @@ import { format } from 'date-fns'
 import { toast } from 'sonner'
 
 import { formatItalianDate } from '@/lib/format-date'
+import { extractPayloadArray } from '@/lib/backend-response'
 import { BackButton } from '@/components/back-button'
 
 const AVAILABLE_TIMES = ['13:00', '14:00', '15:00', '16:00']
@@ -408,6 +410,10 @@ export default function AdminLessonDetailsPage() {
     React.useState(false)
   const [rescheduleSubjectsLoading, setRescheduleSubjectsLoading] =
     React.useState(false)
+  const [rescheduleTutorSubjectIds, setRescheduleTutorSubjectIds] =
+    React.useState<Set<string>>(new Set())
+  const [rescheduleTutorSubjectsLoading, setRescheduleTutorSubjectsLoading] =
+    React.useState(false)
 
   const [bookStudentOpen, setBookStudentOpen] = React.useState(false)
   const [studentsLoading, setStudentsLoading] = React.useState(false)
@@ -518,6 +524,69 @@ export default function AdminLessonDetailsPage() {
     }
   }, [])
 
+  React.useEffect(() => {
+    if (!isRescheduleOpen || !rescheduleForm.tutorId) {
+      setRescheduleTutorSubjectIds(new Set())
+      return
+    }
+
+    let isMounted = true
+
+    async function loadTutorSubjects() {
+      setRescheduleTutorSubjectsLoading(true)
+      try {
+        const response = await fetch(
+          `/api/tutors/${rescheduleForm.tutorId}/subjects`
+        )
+        if (!response.ok) {
+          throw new Error('Impossibile caricare le materie.')
+        }
+        const payload = await response.json()
+        const items = extractPayloadArray<Subject>(payload)
+        const resolvedItems =
+          items.length === 0 &&
+          payload &&
+          typeof payload === 'object' &&
+          'data' in payload
+            ? extractPayloadArray<Subject>(
+                (payload as { data?: unknown }).data
+              )
+            : items
+        if (isMounted) {
+          const ids = resolvedItems
+            .map((item) => {
+              const candidate = item as Subject & {
+                subjectId?: string
+                subject?: { id?: string } | null
+              }
+              return (
+                candidate.id ||
+                candidate.subjectId ||
+                candidate.subject?.id ||
+                ''
+              )
+            })
+            .filter((value) => value)
+          setRescheduleTutorSubjectIds(new Set(ids))
+        }
+      } catch {
+        if (isMounted) {
+          setRescheduleTutorSubjectIds(new Set())
+        }
+      } finally {
+        if (isMounted) {
+          setRescheduleTutorSubjectsLoading(false)
+        }
+      }
+    }
+
+    void loadTutorSubjects()
+
+    return () => {
+      isMounted = false
+    }
+  }, [isRescheduleOpen, rescheduleForm.tutorId])
+
   const sortedRescheduleTutors = React.useMemo(() => {
     return [...rescheduleTutors].sort((a, b) => {
       const lastNameCompare = a.lastName.localeCompare(b.lastName)
@@ -531,6 +600,25 @@ export default function AdminLessonDetailsPage() {
   const sortedRescheduleSubjects = React.useMemo(() => {
     return [...rescheduleSubjects].sort((a, b) => a.name.localeCompare(b.name))
   }, [rescheduleSubjects])
+
+  const rescheduleSubjectSplit = React.useMemo(() => {
+    if (!rescheduleTutorSubjectIds.size) {
+      return {
+        preferred: [] as Subject[],
+        others: sortedRescheduleSubjects
+      }
+    }
+    const preferred: Subject[] = []
+    const others: Subject[] = []
+    sortedRescheduleSubjects.forEach((subject) => {
+      if (rescheduleTutorSubjectIds.has(subject.id)) {
+        preferred.push(subject)
+      } else {
+        others.push(subject)
+      }
+    })
+    return { preferred, others }
+  }, [rescheduleTutorSubjectIds, sortedRescheduleSubjects])
 
   const loadStudents = React.useCallback(async () => {
     setStudentsLoading(true)
@@ -1847,7 +1935,7 @@ export default function AdminLessonDetailsPage() {
                   <SelectTrigger id='reschedule-subject' className='w-full'>
                     <SelectValue
                       placeholder={
-                        rescheduleSubjectsLoading
+                        rescheduleTutorSubjectsLoading || rescheduleSubjectsLoading
                           ? 'Caricamento...'
                           : 'Seleziona materia'
                       }
@@ -1855,7 +1943,27 @@ export default function AdminLessonDetailsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value='__none__'>Seleziona materia</SelectItem>
-                    {sortedRescheduleSubjects.map((subject) => (
+                    {rescheduleSubjectSplit.preferred.length > 0 ? (
+                      <SelectItem value='__preferred__' disabled>
+                        Materie del tutor
+                      </SelectItem>
+                    ) : null}
+                    {rescheduleSubjectSplit.preferred.map((subject) => (
+                      <SelectItem key={subject.id} value={subject.id}>
+                        {subject.name}
+                      </SelectItem>
+                    ))}
+                    {rescheduleSubjectSplit.preferred.length > 0 &&
+                    rescheduleSubjectSplit.others.length > 0 ? (
+                      <SelectSeparator />
+                    ) : null}
+                    {rescheduleSubjectSplit.preferred.length > 0 &&
+                    rescheduleSubjectSplit.others.length > 0 ? (
+                      <SelectItem value='__others__' disabled>
+                        Altre materie
+                      </SelectItem>
+                    ) : null}
+                    {rescheduleSubjectSplit.others.map((subject) => (
                       <SelectItem key={subject.id} value={subject.id}>
                         {subject.name}
                       </SelectItem>

@@ -25,6 +25,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
@@ -215,6 +216,10 @@ export default function AdminLessonsPage() {
     time: '15:00'
   })
   const [isCreating, setIsCreating] = React.useState(false)
+  const [createTutorSubjectIds, setCreateTutorSubjectIds] =
+    React.useState<Set<string>>(new Set())
+  const [createTutorSubjectsLoading, setCreateTutorSubjectsLoading] =
+    React.useState(false)
 
   const parsePage = React.useCallback(
     (key: string) => {
@@ -285,6 +290,22 @@ export default function AdminLessonsPage() {
   const sortedSubjects = React.useMemo(() => {
     return [...subjects].sort((a, b) => a.name.localeCompare(b.name))
   }, [subjects])
+
+  const createSubjectSplit = React.useMemo(() => {
+    if (!createTutorSubjectIds.size) {
+      return { preferred: [] as Subject[], others: sortedSubjects }
+    }
+    const preferred: Subject[] = []
+    const others: Subject[] = []
+    sortedSubjects.forEach((subject) => {
+      if (createTutorSubjectIds.has(subject.id)) {
+        preferred.push(subject)
+      } else {
+        others.push(subject)
+      }
+    })
+    return { preferred, others }
+  }, [createTutorSubjectIds, sortedSubjects])
 
   const loadLessons = React.useCallback(async () => {
     setIsLoading(true)
@@ -426,6 +447,69 @@ export default function AdminLessonsPage() {
   React.useEffect(() => {
     void loadLessons()
   }, [loadLessons])
+
+  React.useEffect(() => {
+    if (!isCreateOpen || !createForm.tutorId) {
+      setCreateTutorSubjectIds(new Set())
+      return
+    }
+
+    let isMounted = true
+
+    async function loadTutorSubjects() {
+      setCreateTutorSubjectsLoading(true)
+      try {
+        const response = await fetch(
+          `/api/tutors/${createForm.tutorId}/subjects`
+        )
+        if (!response.ok) {
+          throw new Error('Impossibile caricare le materie.')
+        }
+        const payload = await response.json()
+        const items = extractPayloadArray<Subject>(payload)
+        const resolvedItems =
+          items.length === 0 &&
+          payload &&
+          typeof payload === 'object' &&
+          'data' in payload
+            ? extractPayloadArray<Subject>(
+                (payload as { data?: unknown }).data
+              )
+            : items
+        if (isMounted) {
+          const ids = resolvedItems
+            .map((item) => {
+              const candidate = item as Subject & {
+                subjectId?: string
+                subject?: { id?: string } | null
+              }
+              return (
+                candidate.id ||
+                candidate.subjectId ||
+                candidate.subject?.id ||
+                ''
+              )
+            })
+            .filter((value) => value)
+          setCreateTutorSubjectIds(new Set(ids))
+        }
+      } catch {
+        if (isMounted) {
+          setCreateTutorSubjectIds(new Set())
+        }
+      } finally {
+        if (isMounted) {
+          setCreateTutorSubjectsLoading(false)
+        }
+      }
+    }
+
+    void loadTutorSubjects()
+
+    return () => {
+      isMounted = false
+    }
+  }, [createForm.tutorId, isCreateOpen])
 
   const appliedFilters = React.useMemo(
     () => ({
@@ -1008,13 +1092,35 @@ export default function AdminLessonsPage() {
                   <SelectTrigger id='create-subject' className='w-full'>
                     <SelectValue
                       placeholder={
-                        subjectsLoading ? 'Caricamento...' : 'Seleziona materia'
+                        createTutorSubjectsLoading || subjectsLoading
+                          ? 'Caricamento...'
+                          : 'Seleziona materia'
                       }
                     />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value='__none__'>Seleziona materia</SelectItem>
-                    {sortedSubjects.map((subject) => (
+                    {createSubjectSplit.preferred.length > 0 ? (
+                      <SelectItem value='__preferred__' disabled>
+                        Materie del tutor
+                      </SelectItem>
+                    ) : null}
+                    {createSubjectSplit.preferred.map((subject) => (
+                      <SelectItem key={subject.id} value={subject.id}>
+                        {subject.name}
+                      </SelectItem>
+                    ))}
+                    {createSubjectSplit.preferred.length > 0 &&
+                    createSubjectSplit.others.length > 0 ? (
+                      <SelectSeparator />
+                    ) : null}
+                    {createSubjectSplit.preferred.length > 0 &&
+                    createSubjectSplit.others.length > 0 ? (
+                      <SelectItem value='__others__' disabled>
+                        Altre materie
+                      </SelectItem>
+                    ) : null}
+                    {createSubjectSplit.others.map((subject) => (
                       <SelectItem key={subject.id} value={subject.id}>
                         {subject.name}
                       </SelectItem>

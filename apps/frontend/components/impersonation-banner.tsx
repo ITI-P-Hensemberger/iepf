@@ -26,6 +26,7 @@ function getCookieValue(name: string) {
 export default function ImpersonationBanner() {
   const [info, setInfo] = React.useState<ImpersonationInfo | null>(null)
   const [isEnding, setIsEnding] = React.useState(false)
+  const bannerRef = React.useRef<HTMLDivElement | null>(null)
 
   React.useEffect(() => {
     const isActive = getCookieValue('iepf_impersonating') === 'true'
@@ -38,6 +39,30 @@ export default function ImpersonationBanner() {
       email: getCookieValue('iepf_impersonated_email') ?? undefined
     })
   }, [])
+
+  React.useEffect(() => {
+    const root = document.documentElement
+    const banner = bannerRef.current
+    if (!banner) {
+      return
+    }
+
+    const applyHeight = () => {
+      root.style.setProperty(
+        '--impersonation-banner-height',
+        `${banner.offsetHeight}px`
+      )
+    }
+
+    applyHeight()
+    const observer = new ResizeObserver(() => applyHeight())
+    observer.observe(banner)
+
+    return () => {
+      observer.disconnect()
+      root.style.setProperty('--impersonation-banner-height', '0px')
+    }
+  }, [info])
 
   if (!info) {
     return null
@@ -75,7 +100,10 @@ export default function ImpersonationBanner() {
     : 'Stai impersonando un utente.'
 
   return (
-    <div className='sticky top-0 z-50 border-b border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100'>
+    <div
+      ref={bannerRef}
+      className='sticky top-0 z-50 border-b border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950 dark:text-amber-100'
+    >
       <div className='container mx-auto px-4 py-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
         <span className='text-sm font-medium'>{label}</span>
         <Button

@@ -48,7 +48,10 @@ export default function Header() {
   }
 
   return (
-    <header className='sticky top-0 z-40 border-b bg-background/95 backdrop-blur'>
+    <header
+      className='sticky z-40 border-b bg-background/95 backdrop-blur'
+      style={{ top: 'var(--impersonation-banner-height, 0px)' }}
+    >
       <div className='container mx-auto flex h-14 items-center justify-between px-4'>
         <Link href='/' className='flex items-center gap-3'>
           <Image

@@ -137,6 +137,29 @@ function buildWeekDates(baseDate: Date) {
   )
 }
 
+function extractTotal(payload: unknown, fallback: number) {
+  if (!payload || typeof payload !== 'object') {
+    return fallback
+  }
+  const candidate = payload as Record<string, unknown>
+  if (typeof candidate.total === 'number') {
+    return candidate.total
+  }
+  if (candidate.data && typeof candidate.data === 'object') {
+    const nested = candidate.data as Record<string, unknown>
+    if (typeof nested.total === 'number') {
+      return nested.total
+    }
+  }
+  if (candidate.meta && typeof candidate.meta === 'object') {
+    const meta = candidate.meta as Record<string, unknown>
+    if (typeof meta.total === 'number') {
+      return meta.total
+    }
+  }
+  return fallback
+}
+
 function getNextAvailableDayKey(
   weekDates: Map<string, Date>,
   todayStart: Date
@@ -303,9 +326,7 @@ export default function StudentBookPage() {
       }
       const payload = await response.json()
       const items = extractPayloadArray<LessonAvailable>(payload)
-      const data = payload && typeof payload === 'object' ? payload : null
-      const totalValue =
-        typeof data?.total === 'number' ? data.total : items.length
+      const totalValue = extractTotal(payload, items.length)
       const sorted = [...items].sort((a, b) => {
         if (a.canBook !== b.canBook) {
           return a.canBook ? -1 : 1
