@@ -48,6 +48,10 @@ const EnvSchema = z.object({
     value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
     z.string().min(1).optional()
   ),
+  PROFANITY_EXTRA_WORDS: z.preprocess(
+    value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().optional()
+  ),
   SMTP_DEBUG: z.preprocess((value) => {
     if (value === '' || value === undefined) {
       return undefined

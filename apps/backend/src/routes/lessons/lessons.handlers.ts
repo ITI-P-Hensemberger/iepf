@@ -28,6 +28,7 @@ import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { getStudentTokenBalance } from '@/lib/lesson-tokens'
 import { sendMail } from '@/lib/mailer'
 import { buildPagedResponse } from '@/lib/pagination'
+import { containsProfanity } from '@/lib/profanity'
 
 import type {
   BookGeneratedLessonRoute,
@@ -187,19 +188,6 @@ async function getTutorDailyCapacity(tutorId: string): Promise<number> {
     columns: { dailyCapacity: true }
   })
   return settings?.dailyCapacity ?? 1
-}
-
-async function isSubjectAllowed(tutorId: string, subjectId: string) {
-  const link = await db.query.tutorSubjects.findFirst({
-    where(fields, operators) {
-      return operators.and(
-        operators.eq(fields.tutorId, tutorId),
-        operators.eq(fields.subjectId, subjectId)
-      )
-    },
-    columns: { id: true }
-  })
-  return Boolean(link)
 }
 
 async function cancelConfirmedBookings(lessonId: string, adminId: string) {
@@ -511,7 +499,7 @@ export const listMyLessons: AppRouteHandler<ListMyLessonsRoute> = async (c) => {
   }))
 
   return c.json(
-    buildPagedResponse(items, total ?? 0, query.limit, query.offset),
+    buildPagedResponse(items, Number(total ?? 0), query.limit, query.offset),
     HttpStatusCodes.OK
   )
 }
@@ -551,7 +539,9 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
     .from(lessons)
     .where(listWhere)
 
-  const lessonRows = await db
+  const prioritizeCanBook = query.offset === 0
+
+  const lessonRowsQuery = db
     .select({
       id: lessons.id,
       tutorId: lessons.tutorId,
@@ -569,11 +559,13 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
     .innerJoin(subjects, eq(lessons.subjectId, subjects.id))
     .where(listWhere)
     .orderBy(direction)
-    .limit(query.limit)
-    .offset(query.offset)
+
+  const lessonRows = prioritizeCanBook
+    ? await lessonRowsQuery
+    : await lessonRowsQuery.limit(query.limit).offset(query.offset)
 
   if (lessonRows.length === 0) {
-    return c.json(buildPagedResponse([], total ?? 0, query.limit, query.offset), HttpStatusCodes.OK)
+    return c.json(buildPagedResponse([], Number(total ?? 0), query.limit, query.offset), HttpStatusCodes.OK)
   }
 
   const lessonIds = lessonRows.map(row => row.id)
@@ -637,22 +629,10 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
   }
 
   const tutorIds = [...new Set(lessonRows.map(row => row.tutorId))]
-  const subjectIds = [...new Set(lessonRows.map(row => row.subjectId))]
   const tutorCapacities = new Map<string, number>()
   for (const tutorId of tutorIds) {
     tutorCapacities.set(tutorId, await getTutorDailyCapacity(tutorId))
   }
-
-  const allowedPairs = await db.query.tutorSubjects.findMany({
-    where(fields, operators) {
-      return operators.and(
-        operators.inArray(fields.tutorId, tutorIds),
-        operators.inArray(fields.subjectId, subjectIds)
-      )
-    },
-    columns: { tutorId: true, subjectId: true }
-  })
-  const allowedSet = new Set(allowedPairs.map(pair => `${pair.tutorId}:${pair.subjectId}`))
 
   const tutorDayKeys = new Set<string>()
   for (const lesson of lessonRows) {
@@ -689,7 +669,6 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
       && !bookedDateKeys.has(dateKey)
       && dailyBookings < dailyCapacity
       && lessonBookings < lesson.seats
-      && allowedSet.has(`${lesson.tutorId}:${lesson.subjectId}`)
 
     return {
       id: lesson.id,
@@ -709,8 +688,15 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
     }
   })
 
+  const pagedItems = prioritizeCanBook
+    ? [
+        ...items.filter(item => item.canBook),
+        ...items.filter(item => !item.canBook)
+      ].slice(0, query.limit)
+    : items
+
   return c.json(
-    buildPagedResponse(items, total ?? 0, query.limit, query.offset),
+    buildPagedResponse(pagedItems, Number(total ?? 0), query.limit, query.offset),
     HttpStatusCodes.OK
   )
 }
@@ -871,13 +857,12 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
+  if (!isAdmin && containsProfanity(payload.topic)) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.PROFANITY_DETECTED), HttpStatusCodes.BAD_REQUEST)
+  }
+
   if (!isAdmin) {
     if (lesson.status === 'canceled' || lesson.status === 'completed') {
-      return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
-    }
-
-    const allowed = await isSubjectAllowed(lesson.tutorId, lesson.subjectId)
-    if (!allowed) {
       return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
     }
 

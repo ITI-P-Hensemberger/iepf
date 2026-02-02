@@ -350,7 +350,7 @@ export const bookGeneratedLesson = createRoute({
     ),
     [HttpStatusCodes.BAD_REQUEST]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
-      'Lesson not available for booking'
+      'Lesson not available for booking or topic invalid'
     ),
     [HttpStatusCodes.CONFLICT]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.CONFLICT),
@@ -428,6 +428,10 @@ export const cancelLesson = createRoute({
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
       'Admin access required'
+    ),
+    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
+      'Topic invalid'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
       createErrorSchema(LessonIdParamsSchema),
