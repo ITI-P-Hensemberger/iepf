@@ -18,6 +18,11 @@ function buildPasswordResetLink(token: string) {
   return url.toString()
 }
 
+function buildLessonDetailsLink(lessonId: string) {
+  const baseUrl = env.SITE_URL ?? 'http://localhost:3000'
+  return new URL(`/tutor/lessons/${lessonId}`, baseUrl).toString()
+}
+
 interface EmailTemplate {
   subject: string
   text: string
@@ -536,6 +541,26 @@ export function buildLessonReminderTutorMessage(params: {
     html: buildEmailHtml(
       'Promemoria lezioni di domani',
       `Ecco le lezioni confermate di domani:${itemsHtml}`
+    )
+  } satisfies EmailTemplate
+}
+
+export function buildLessonCreatedMessage(params: {
+  lessonId: string
+  lessonStartAt: Date
+  subjectName: string
+  tutorName: string
+}) {
+  const dateLabel = formatLessonDate(params.lessonStartAt)
+  const detailsUrl = buildLessonDetailsLink(params.lessonId)
+  return {
+    subject: 'Nuova lezione inserita',
+    text: `È stata inserita una nuova lezione il ${dateLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}. Dettagli: ${detailsUrl}`,
+    html: buildEmailHtml(
+      'Nuova lezione inserita',
+      `È stata inserita una nuova lezione il <strong>${dateLabel}</strong>.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.`,
+      { label: 'Vedi dettagli lezione', url: detailsUrl },
+      { hideHomeButton: true }
     )
   } satisfies EmailTemplate
 }

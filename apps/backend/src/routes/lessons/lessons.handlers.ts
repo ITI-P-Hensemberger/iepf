@@ -19,6 +19,7 @@ import {
   buildLessonBookingCanceledMessage,
   buildLessonBookingConfirmedMessage,
   buildLessonCanceledMessage,
+  buildLessonCreatedMessage,
   buildLessonRescheduledMessage
 } from '@/lib/email-templates'
 import { buildErrorResponse } from '@/lib/error-response'
@@ -32,6 +33,7 @@ import type {
   BookGeneratedLessonRoute,
   CancelBookingRoute,
   CancelLessonRoute,
+  CreateLessonRoute,
   GetLessonRoute,
   ListAvailableLessonsRoute,
   ListLessonBookingsRoute,
@@ -1584,11 +1586,6 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
     return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
-  const subjectAllowed = await isSubjectAllowed(payload.tutorId, payload.subjectId)
-  if (!subjectAllowed) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
-  }
-
   const newStartAt = new Date(payload.startAt)
 
   const dailyCapacity = await getTutorDailyCapacity(payload.tutorId)
@@ -1742,5 +1739,49 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
       lessonId: newLesson.id
     },
     HttpStatusCodes.OK
+  )
+}
+
+export const createLesson: AppRouteHandler<CreateLessonRoute> = async (c) => {
+  const payload = c.req.valid('json')
+  ensureAdmin(c)
+
+  const newStartAt = new Date(payload.startAt)
+  const dailyCapacity = await getTutorDailyCapacity(payload.tutorId)
+  const seats = dailyCapacity
+
+  const [newLesson] = await db.insert(lessons).values({
+    tutorId: payload.tutorId,
+    subjectId: payload.subjectId,
+    startAt: newStartAt,
+    durationMinutes: payload.durationMinutes,
+    seats,
+    status: 'scheduled'
+  }).returning({
+    id: lessons.id
+  })
+
+  const details = await fetchLessonEmailDetails(newLesson.id, payload.tutorId, payload.subjectId)
+  if (details?.tutorEmail) {
+    const message = buildLessonCreatedMessage({
+      lessonId: newLesson.id,
+      lessonStartAt: newStartAt,
+      subjectName: details.subjectName,
+      tutorName: details.tutorName
+    })
+    sendMail({
+      to: details.tutorEmail,
+      subject: message.subject,
+      text: message.text,
+      html: message.html
+    }).catch(err => console.error('Failed to send lesson created email:', err))
+  }
+
+  return c.json(
+    {
+      message: 'Lezione creata',
+      lessonId: newLesson.id
+    },
+    HttpStatusCodes.CREATED
   )
 }

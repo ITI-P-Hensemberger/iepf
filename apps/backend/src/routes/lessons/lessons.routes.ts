@@ -520,6 +520,44 @@ export const rescheduleLesson = createRoute({
   }
 })
 
+export const createLesson = createRoute({
+  path: '/lessons',
+  method: 'post',
+  tags,
+  security: bearerAuth,
+  request: {
+    body: jsonContentRequired(
+      rescheduleLessonSchema,
+      'Admin lesson payload'
+    )
+  },
+  responses: {
+    [HttpStatusCodes.CREATED]: jsonContent(
+      z.object({
+        message: z.string(),
+        lessonId: z.string()
+      }),
+      'Lezione creata'
+    ),
+    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
+      'Lesson details invalid'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Admin access required'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(rescheduleLessonSchema),
+      'Validation error(s)'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
 export const setBookingPresence = createRoute({
   path: '/lessons/{lessonId}/bookings/{bookingId}/presence',
   method: 'patch',
@@ -649,3 +687,4 @@ export type SetBookingPresenceRoute = typeof setBookingPresence
 export type UpdateBookingTopicRoute = typeof updateBookingTopic
 export type UpdateLessonCountsRoute = typeof updateLessonCounts
 export type UpdateBookingCountsRoute = typeof updateBookingCounts
+export type CreateLessonRoute = typeof createLesson

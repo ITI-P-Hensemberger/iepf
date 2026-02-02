@@ -17,6 +17,24 @@ function getNextWeekMonday(): Date {
   return monday
 }
 
+function getCurrentWeekMonday(): Date {
+  const now = new Date()
+  const dayOfWeek = now.getDay()
+  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+  const monday = new Date(now)
+  monday.setDate(monday.getDate() - daysSinceMonday)
+  monday.setHours(0, 0, 0, 0)
+  return monday
+}
+
+function getStartOfTomorrow(): Date {
+  const now = new Date()
+  const tomorrow = new Date(now)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  tomorrow.setHours(0, 0, 0, 0)
+  return tomorrow
+}
+
 function getWeekdayDate(monday: Date, weekday: number): Date {
   const date = new Date(monday)
   date.setDate(date.getDate() + (weekday - 1))
@@ -114,8 +132,15 @@ async function lessonExists(tutorId: string, subjectId: string, startAt: Date, g
 }
 
 async function main() {
-  const nextMonday = getNextWeekMonday()
-  process.stdout.write(`Generating lessons for week starting ${nextMonday.toISOString().split('T')[0]}\n`)
+  const args = new Set(process.argv.slice(2))
+  const useToday = args.has('today') || args.has('--today')
+  const targetMonday = useToday ? getCurrentWeekMonday() : getNextWeekMonday()
+  const minLessonDate = useToday ? getStartOfTomorrow() : null
+
+  process.stdout.write(`Generating lessons for week starting ${targetMonday.toISOString().split('T')[0]}\n`)
+  if (useToday) {
+    process.stdout.write(`Limiting to lessons from ${minLessonDate!.toISOString().split('T')[0]} through end of week\n`)
+  }
 
   const activeTutors = await getActiveTutors()
   process.stdout.write(`Found ${activeTutors.length} active tutors\n`)
@@ -143,14 +168,17 @@ async function main() {
         continue
       }
 
-      const lessonDate = getWeekdayDate(nextMonday, availability.weekday)
+      const lessonDate = getWeekdayDate(targetMonday, availability.weekday)
+      if (minLessonDate && lessonDate < minLessonDate) {
+        continue
+      }
       if (closureDateSet.has(formatDateKey(lessonDate))) {
         continue
       }
       const startAt = combineDateAndTime(lessonDate, availability.startTime)
 
       for (const subjectId of subjectIds) {
-        const exists = await lessonExists(tutor.id, subjectId, startAt, nextMonday)
+        const exists = await lessonExists(tutor.id, subjectId, startAt, targetMonday)
 
         if (exists) {
           totalSkipped += 1
@@ -164,7 +192,7 @@ async function main() {
           durationMinutes: 60,
           seats: settings.dailyCapacity,
           generatedByJob: true,
-          generatedForWeek: nextMonday
+          generatedForWeek: targetMonday
         })
 
         totalCreated += 1
