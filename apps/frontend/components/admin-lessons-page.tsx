@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Field, FieldLabel } from '@/components/ui/field'
+import { Label } from '@/components/ui/label'
 import { BackButton } from '@/components/back-button'
 import {
   Select,
@@ -45,6 +46,7 @@ import { type DateRange } from 'react-day-picker'
 import { extractPayloadArray } from '@/lib/backend-response'
 
 const pageSize = 20
+const AVAILABLE_TIMES = ['13:00', '14:00', '15:00', '16:00']
 
 type Lesson = {
   id: string
@@ -127,6 +129,13 @@ function parseDateParam(value: string | null) {
   return parsed
 }
 
+function combineDateAndTime(date: Date, time: string) {
+  const [hours, minutes] = time.split(':').map(Number)
+  const combined = new Date(date)
+  combined.setHours(hours || 0, minutes || 0, 0, 0)
+  return combined
+}
+
 function formatStatusLabel(status?: string | null) {
   if (!status) {
     return '-'
@@ -197,6 +206,15 @@ export default function AdminLessonsPage() {
   const [tutorsLoading, setTutorsLoading] = React.useState(true)
   const [isFilterDateDialogOpen, setIsFilterDateDialogOpen] =
     React.useState(false)
+  const [isCreateOpen, setIsCreateOpen] = React.useState(false)
+  const [isCreateDateOpen, setIsCreateDateOpen] = React.useState(false)
+  const [createForm, setCreateForm] = React.useState({
+    tutorId: '',
+    subjectId: '',
+    date: undefined as Date | undefined,
+    time: '15:00'
+  })
+  const [isCreating, setIsCreating] = React.useState(false)
 
   const parsePage = React.useCallback(
     (key: string) => {
@@ -504,6 +522,95 @@ export default function AdminLessonsPage() {
     )
   }, [updateParams])
 
+  const handleOpenCreate = React.useCallback(() => {
+    setCreateForm({
+      tutorId: '',
+      subjectId: '',
+      date: undefined,
+      time: '15:00'
+    })
+    setIsCreateOpen(true)
+  }, [])
+
+  const handleCreate = React.useCallback(async () => {
+    if (!createForm.tutorId.trim()) {
+      toast.error('Seleziona un tutor valido.')
+      return
+    }
+    if (!createForm.subjectId.trim()) {
+      toast.error('Seleziona una materia valida.')
+      return
+    }
+    if (!createForm.date) {
+      toast.error('Inserisci una data valida.')
+      return
+    }
+    const timeValue = AVAILABLE_TIMES.includes(createForm.time)
+      ? createForm.time
+      : '15:00'
+    const startAtIso = combineDateAndTime(
+      createForm.date,
+      timeValue
+    ).toISOString()
+
+    setIsCreating(true)
+
+    try {
+      const response = await fetch('/api/lessons', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          tutorId: createForm.tutorId,
+          subjectId: createForm.subjectId,
+          startAt: startAtIso,
+          durationMinutes: 60
+        })
+      })
+      if (!response.ok) {
+        let message = 'Impossibile creare la lezione.'
+        try {
+          const payload = await response.json()
+          if (payload && typeof payload === 'object' && 'message' in payload) {
+            message = String(payload.message || message)
+          }
+        } catch {
+          // ignore
+        }
+        throw new Error(message)
+      }
+      let createdLessonId: string | null = null
+      try {
+        const payload = await response.json()
+        if (payload && typeof payload === 'object') {
+          const candidate =
+            'lessonId' in payload
+              ? (payload.lessonId as string | undefined)
+              : 'id' in payload
+                ? (payload.id as string | undefined)
+                : null
+          createdLessonId = candidate && candidate.trim() ? candidate : null
+        }
+      } catch {
+        // ignore
+      }
+      toast.success('Lezione creata.')
+      setIsCreateOpen(false)
+      if (createdLessonId) {
+        router.push(`/admin/lessons/${createdLessonId}`)
+        return
+      }
+      await loadLessons()
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Impossibile creare la lezione.'
+      )
+    } finally {
+      setIsCreating(false)
+    }
+  }, [createForm, loadLessons, router])
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
@@ -515,6 +622,7 @@ export default function AdminLessonsPage() {
           </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <h1 className='text-2xl'>Gestione lezioni</h1>
+            <Button onClick={handleOpenCreate}>Crea lezione</Button>
           </div>
 
           <form
@@ -840,6 +948,168 @@ export default function AdminLessonsPage() {
               onClick={(event) => {
                 event.preventDefault()
                 setIsFilterDateDialogOpen(false)
+              }}
+            >
+              Applica
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <AlertDialogContent className='max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] overflow-y-auto sm:max-w-xl'>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Crea lezione</AlertDialogTitle>
+            <AlertDialogDescription>
+              Inserisci i dettagli della nuova lezione.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className='space-y-4'>
+            <div className='grid gap-4 sm:grid-cols-2'>
+              <Field className='gap-2'>
+                <Label htmlFor='create-tutor'>Tutor</Label>
+                <Select
+                  value={createForm.tutorId || '__none__'}
+                  onValueChange={(value) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      tutorId: value === '__none__' ? '' : value
+                    }))
+                  }
+                >
+                  <SelectTrigger id='create-tutor' className='w-full'>
+                    <SelectValue
+                      placeholder={
+                        tutorsLoading ? 'Caricamento...' : 'Seleziona tutor'
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='__none__'>Seleziona tutor</SelectItem>
+                    {sortedTutors.map((tutor) => (
+                      <SelectItem key={tutor.id} value={tutor.id}>
+                        {buildTutorOptionLabel(tutor)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field className='gap-2'>
+                <Label htmlFor='create-subject'>Materia</Label>
+                <Select
+                  value={createForm.subjectId || '__none__'}
+                  onValueChange={(value) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      subjectId: value === '__none__' ? '' : value
+                    }))
+                  }
+                >
+                  <SelectTrigger id='create-subject' className='w-full'>
+                    <SelectValue
+                      placeholder={
+                        subjectsLoading ? 'Caricamento...' : 'Seleziona materia'
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='__none__'>Seleziona materia</SelectItem>
+                    {sortedSubjects.map((subject) => (
+                      <SelectItem key={subject.id} value={subject.id}>
+                        {subject.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field className='gap-2'>
+                <Label htmlFor='create-date-time'>Data e ora</Label>
+                <Button
+                  variant='outline'
+                  id='create-date-time'
+                  className='w-full justify-start px-2.5 font-normal'
+                  onClick={() => setIsCreateDateOpen(true)}
+                >
+                  <CalendarIcon className='mr-2 h-4 w-4' />
+                  {createForm.date ? (
+                    <>
+                      {format(createForm.date, 'dd/MM/yyyy')} {createForm.time}
+                    </>
+                  ) : (
+                    <span>Seleziona data</span>
+                  )}
+                </Button>
+              </Field>
+            </div>
+          </div>
+          <AlertDialogFooter className='pt-2 sm:pt-0'>
+            <AlertDialogCancel>Chiudi</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault()
+                void handleCreate()
+              }}
+              disabled={isCreating}
+            >
+              {isCreating ? 'Salvataggio...' : 'Crea lezione'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={isCreateDateOpen}
+        onOpenChange={setIsCreateDateOpen}
+      >
+        <AlertDialogContent className='max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] overflow-y-auto sm:max-w-md'>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Seleziona data e ora</AlertDialogTitle>
+            <AlertDialogDescription>
+              Scegli data e orario per la nuova lezione.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className='space-y-4'>
+            <div className='flex justify-center'>
+              <Calendar
+                mode='single'
+                selected={createForm.date}
+                onSelect={(date) =>
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    date: date ?? undefined
+                  }))
+                }
+                defaultMonth={createForm.date ?? new Date()}
+                initialFocus
+              />
+            </div>
+            <Field className='gap-2'>
+              <Label htmlFor='create-time-dialog'>Orario</Label>
+              <Select
+                value={createForm.time}
+                onValueChange={(value) =>
+                  setCreateForm((prev) => ({ ...prev, time: value }))
+                }
+              >
+                <SelectTrigger id='create-time-dialog' className='w-full'>
+                  <SelectValue placeholder='Seleziona orario' />
+                </SelectTrigger>
+                <SelectContent>
+                  {AVAILABLE_TIMES.map((time) => (
+                    <SelectItem key={time} value={time}>
+                      {time}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+          <AlertDialogFooter className='pt-2 sm:pt-0'>
+            <AlertDialogCancel>Chiudi</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault()
+                setIsCreateDateOpen(false)
               }}
             >
               Applica

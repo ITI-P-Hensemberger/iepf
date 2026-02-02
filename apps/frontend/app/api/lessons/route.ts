@@ -97,3 +97,78 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json(normalizeLessonsPayload(parsed.data ?? {}))
 }
+
+type CreateLessonBody = {
+  tutorId: string
+  subjectId: string
+  startAt: string
+  durationMinutes: number
+}
+
+export async function POST(request: Request) {
+  const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:9999'
+  const cookieStore = await cookies()
+  const accessToken = cookieStore.get(AUTH_COOKIES.access)?.value
+
+  if (!accessToken) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+  }
+
+  let body: Partial<CreateLessonBody> | null = null
+
+  try {
+    body = (await request.json()) as Partial<CreateLessonBody>
+  } catch {
+    return NextResponse.json({ message: 'Invalid body.' }, { status: 400 })
+  }
+
+  const payload: Partial<CreateLessonBody> = {}
+
+  if (typeof body.tutorId === 'string') {
+    payload.tutorId = body.tutorId
+  }
+  if (typeof body.subjectId === 'string') {
+    payload.subjectId = body.subjectId
+  }
+  if (typeof body.startAt === 'string') {
+    payload.startAt = body.startAt
+  }
+  if (typeof body.durationMinutes === 'number') {
+    payload.durationMinutes = body.durationMinutes
+  }
+  if (
+    !payload.tutorId ||
+    !payload.subjectId ||
+    !payload.startAt ||
+    !payload.durationMinutes
+  ) {
+    return NextResponse.json(
+      { message: 'Missing required fields.' },
+      { status: 400 }
+    )
+  }
+
+  const response = await fetch(`${apiBaseUrl}/lessons`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  })
+
+  const responsePayload = await response.text()
+  const parsed = parseBackendPayload(responsePayload)
+
+  if (!response.ok) {
+    return NextResponse.json(
+      {
+        message: parsed.errorMessage || 'Failed to create lesson.',
+        error: parsed.errorPayload
+      },
+      { status: response.status }
+    )
+  }
+
+  return NextResponse.json(parsed.data ?? {})
+}
