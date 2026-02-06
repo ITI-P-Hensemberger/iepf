@@ -277,7 +277,7 @@ export function buildLessonFeedbackReminderMessage(role: 'student' | 'tutor', co
     : `Hai ${count} feedback da completare per le lezioni di oggi.`
 
   return {
-    subject: 'Promemoria feedback lezioni',
+    subject: 'Ricorda di lasciare il feedback',
     text: `${message} Accedi qui: ${url}`,
     html: buildEmailHtml(
       heading,
@@ -360,13 +360,13 @@ export function buildLessonBookingCanceledMessage(params: {
     return {
       subject: 'Prenotazione annullata',
       text: params.canceledBy === 'admin'
-        ? `La prenotazione per ${dateLabel} è stata annullata. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.${adminSuffix}`
-        : `La prenotazione per ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.`,
+        ? `La prenotazione del ${dateLabel} è stata annullata. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.${adminSuffix}`
+        : `La prenotazione del ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.`,
       html: buildEmailHtml(
         'Prenotazione annullata',
         params.canceledBy === 'admin'
-          ? `La prenotazione per <strong>${dateLabel}</strong> è stata annullata.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.<br />Operazione effettuata da un amministratore.`
-          : `La prenotazione per <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.`
+          ? `La prenotazione del <strong>${dateLabel}</strong> è stata annullata.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.<br />Operazione effettuata da un amministratore.`
+          : `La prenotazione del <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.`
       )
     } satisfies EmailTemplate
   }
@@ -375,13 +375,13 @@ export function buildLessonBookingCanceledMessage(params: {
   return {
     subject: 'Prenotazione annullata',
     text: params.canceledBy === 'admin'
-      ? `La prenotazione di ${studentLabel} per ${dateLabel} è stata annullata. Materia: ${params.subjectName}.${adminSuffix}`
-      : `La prenotazione di ${studentLabel} per ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}.`,
+      ? `La prenotazione di ${studentLabel} del ${dateLabel} è stata annullata. Materia: ${params.subjectName}.${adminSuffix}`
+      : `La prenotazione di ${studentLabel} del ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}.`,
     html: buildEmailHtml(
       'Prenotazione annullata',
       params.canceledBy === 'admin'
-        ? `La prenotazione di <strong>${studentLabel}</strong> per <strong>${dateLabel}</strong> è stata annullata.<br />Materia: <strong>${params.subjectName}</strong>.<br />Operazione effettuata da un amministratore.`
-        : `La prenotazione di <strong>${studentLabel}</strong> per <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.`
+        ? `La prenotazione di <strong>${studentLabel}</strong> del <strong>${dateLabel}</strong> è stata annullata.<br />Materia: <strong>${params.subjectName}</strong>.<br />Operazione effettuata da un amministratore.`
+        : `La prenotazione di <strong>${studentLabel}</strong> del <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.`
     )
   } satisfies EmailTemplate
 }
@@ -494,14 +494,19 @@ export function buildLessonReminderStudentMessage(params: {
   tutorName: string
   studentName: string
   studentClass?: string | null
+  topic?: string | null
+  today: boolean
 }) {
   const dateLabel = formatLessonDate(params.lessonStartAt)
+  const whenLabel = params.today ? 'oggi' : 'domani'
+  const topicText = params.topic ? ` Argomento: ${params.topic}.` : ''
+  const topicHtml = params.topic ? `<br />Argomento: <strong>${params.topic}</strong>.` : ''
   return {
-    subject: 'Promemoria lezione di domani',
-    text: `Promemoria: lezione il ${dateLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.`,
+    subject: `Promemoria lezioni di ${whenLabel}`,
+    text: `Promemoria: lezioni ${whenLabel} (${dateLabel}). Materia: ${params.subjectName}. Tutor: ${params.tutorName}.${topicText}`,
     html: buildEmailHtml(
-      'Promemoria lezione di domani',
-      `Promemoria: lezione il <strong>${dateLabel}</strong>.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.`
+      `Promemoria lezioni di ${whenLabel}`,
+      `Promemoria: lezioni ${whenLabel} (<strong>${dateLabel}</strong>).<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.${topicHtml}`
     )
   } satisfies EmailTemplate
 }
@@ -512,18 +517,27 @@ export function buildLessonReminderTutorMessage(params: {
     startAt: Date
     subjectName: string
     students: Array<{ name: string, classLabel?: string | null }>
+    topics?: string[]
   }>
+  today: boolean
 }) {
+  const whenLabel = params.today ? 'oggi' : 'domani'
   const itemsHtml = params.lessons.map((lesson) => {
     const dateLabel = formatLessonDate(lesson.startAt)
+    const topics = lesson.topics?.filter(Boolean) ?? []
+    const topicLine = topics.length > 0
+      ? `<div style="margin-top:6px;color:#475569;font-size:14px;">Argomenti: ${topics.join(', ')}</div>`
+      : ''
     const studentsList = lesson.students.length > 0
-      ? `<ul style="margin:8px 0 0;padding-left:20px;">${lesson.students
-        .map(student => `<li>${buildStudentLabel(student.name, student.classLabel)}</li>`)
-        .join('')}</ul>`
-      : '<p style="margin:8px 0 0;">Nessuno studente prenotato.</p>'
+      ? `<div style="margin-top:8px;color:#475569;font-size:14px;">Studenti: ${lesson.students
+        .map(student => buildStudentLabel(student.name, student.classLabel))
+        .join(', ')}</div>`
+      : '<div style="margin-top:8px;color:#64748b;font-size:14px;">Nessuno studente prenotato.</div>'
     return `
-      <div style="margin-bottom:16px;">
-        <div><strong>${dateLabel}</strong> — ${lesson.subjectName}</div>
+      <div style="margin:12px 0;padding:14px 16px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;text-align:left;">
+        <div style="font-weight:700;color:#0f172a;font-size:15px;">${lesson.subjectName}</div>
+        <div style="margin-top:4px;color:#475569;font-size:14px;">${dateLabel}</div>
+        ${topicLine}
         ${studentsList}
       </div>
     `.trim()
@@ -532,15 +546,17 @@ export function buildLessonReminderTutorMessage(params: {
   const itemsText = params.lessons.map((lesson) => {
     const dateLabel = formatLessonDate(lesson.startAt)
     const students = lesson.students.map(student => buildStudentLabel(student.name, student.classLabel)).join(', ') || 'nessuno'
-    return `- ${dateLabel} — ${lesson.subjectName} (Studenti: ${students})`
+    const topics = lesson.topics?.filter(Boolean) ?? []
+    const topicLabel = topics.length > 0 ? `; Argomenti: ${topics.join(', ')}` : ''
+    return `- ${dateLabel} — ${lesson.subjectName} (Studenti: ${students}${topicLabel})`
   }).join('\n')
 
   return {
-    subject: 'Promemoria lezioni di domani',
-    text: `Ecco le lezioni confermate di domani:\n${itemsText}`,
+    subject: `Promemoria lezioni di ${whenLabel}`,
+    text: `Ecco le lezioni confermate di ${whenLabel}:\n${itemsText}`,
     html: buildEmailHtml(
-      'Promemoria lezioni di domani',
-      `Ecco le lezioni confermate di domani:${itemsHtml}`
+      `Promemoria lezioni di ${whenLabel}`,
+      `Ecco le lezioni confermate di ${whenLabel}:<div style="margin-top:12px;">${itemsHtml}</div>`
     )
   } satisfies EmailTemplate
 }
@@ -554,12 +570,59 @@ export function buildLessonCreatedMessage(params: {
   const dateLabel = formatLessonDate(params.lessonStartAt)
   const detailsUrl = buildLessonDetailsLink(params.lessonId)
   return {
-    subject: 'Nuova lezione inserita',
-    text: `È stata inserita una nuova lezione il ${dateLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}. Dettagli: ${detailsUrl}`,
+    subject: 'Nuova lezione assegnata',
+    text: `Ti è stata assegnata una nuova lezione il ${dateLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}. Dettagli: ${detailsUrl}`,
     html: buildEmailHtml(
-      'Nuova lezione inserita',
-      `È stata inserita una nuova lezione il <strong>${dateLabel}</strong>.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.`,
+      'Nuova lezione assegnata',
+      `Ti è stata assegnata una nuova lezione il <strong>${dateLabel}</strong>.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.`,
       { label: 'Vedi dettagli lezione', url: detailsUrl },
+      { hideHomeButton: true }
+    )
+  } satisfies EmailTemplate
+}
+
+export function buildLessonPresenceUpdatedMessage(params: {
+  lessonStartAt: Date
+  subjectName: string
+  tutorName: string
+  present: boolean
+}) {
+  const dateLabel = formatLessonDate(params.lessonStartAt)
+  const statusLabel = params.present ? 'presente' : 'assente'
+  const heading = params.present ? 'Presenza confermata' : 'Assenza registrata'
+  const disclaimer = params.present ? '' : 'L\'ora di lezione non verrà rimborsata.'
+  const disclaimerHtml = params.present ? '' : '<br /><br /><strong>L\'ora di lezione non verrà rimborsata.</strong>'
+  return {
+    subject: `Lezione di oggi: ${statusLabel}`,
+    text: `Sei stato ${params.present ? 'confermato' : 'registrato'} ${statusLabel} alla lezione di ${params.subjectName} del ${dateLabel}. Tutor: ${params.tutorName}.${disclaimer ? ` ${disclaimer}` : ''}`,
+    html: buildEmailHtml(
+      heading,
+      `Sei stato ${params.present ? 'confermato' : 'registrato'} <strong>${statusLabel}</strong> alla lezione di <strong>${params.subjectName}</strong> del <strong>${dateLabel}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.${disclaimerHtml}`
+    )
+  } satisfies EmailTemplate
+}
+
+export function buildLessonsGeneratedMessage(params: {
+  tutorName: string
+  count: number
+  weekStart: Date
+}) {
+  const weekLabel = params.weekStart.toLocaleDateString('it-IT', {
+    year: 'numeric',
+    month: 'long',
+    day: '2-digit'
+  })
+  const message = params.count === 1
+    ? `ti è stata assegnata 1 lezione per la settimana che inizia il ${weekLabel}.`
+    : `ti sono state assegnate ${params.count} lezioni per la settimana che inizia il ${weekLabel}.`
+
+  return {
+    subject: 'Nuove lezioni assegnate',
+    text: `Ciao ${params.tutorName}, ${message}`,
+    html: buildEmailHtml(
+      'Nuove lezioni assegnate',
+      `Ciao ${params.tutorName}, ${message}`,
+      { label: 'Vai alle lezioni', url: new URL('/tutor/lessons', env.SITE_URL ?? 'http://localhost:3000').toString() },
       { hideHomeButton: true }
     )
   } satisfies EmailTemplate

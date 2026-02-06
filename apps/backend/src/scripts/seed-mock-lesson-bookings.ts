@@ -2,7 +2,7 @@
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 
-import db from '@/db'
+import db, { closeDb } from '@/db'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
 import { lessonFeedback } from '@/db/schemas/lesson-feedback.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
@@ -370,7 +370,11 @@ async function main() {
   process.stdout.write(`Seeded ${createdBookings} bookings, ${pastLessonRows.length} past lessons, ${feedbackRows.length} feedback entries.\n`)
 }
 
-main().catch((error) => {
-  console.error('Failed to seed mock lesson bookings.', error)
-  process.exit(1)
-})
+main()
+  .catch((error) => {
+    console.error('Failed to seed mock lesson bookings.', error)
+    process.exitCode = 1
+  })
+  .finally(async () => {
+    await closeDb()
+  })

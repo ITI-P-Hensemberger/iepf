@@ -1,7 +1,7 @@
 // Purpose: Seed mock tutor-to-subject associations for demo/testing.
 import { and, eq, ilike } from 'drizzle-orm'
 
-import db from '@/db'
+import db, { closeDb } from '@/db'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'
@@ -80,7 +80,11 @@ async function main() {
   process.stdout.write(`Mock tutor subjects seeded. Attempted ${rows.length} associations.\n`)
 }
 
-main().catch((error) => {
-  console.error('Failed to seed mock tutor subjects.', error)
-  process.exit(1)
-})
+main()
+  .catch((error) => {
+    console.error('Failed to seed mock tutor subjects.', error)
+    process.exitCode = 1
+  })
+  .finally(async () => {
+    await closeDb()
+  })

@@ -10,6 +10,7 @@ import feedback from '@/routes/feedback/feedback.index'
 import health from '@/routes/health.route'
 import lessons from '@/routes/lessons/lessons.index'
 import settings from '@/routes/settings/settings.index'
+import subjectRequests from '@/routes/subject-requests/subject-requests.index'
 import subjects from '@/routes/subjects/subjects.index'
 import tokens from '@/routes/tokens/tokens.index'
 import tutorSettings from '@/routes/tutor-settings/tutor-settings.index'
@@ -32,6 +33,7 @@ const routes = [
   health,
   lessons,
   settings,
+  subjectRequests,
   subjects,
   tokens,
   tutorSettings,

@@ -1,11 +1,13 @@
 // Purpose: Generate weekly lessons based on tutor weekday availability.
 import { and, eq } from 'drizzle-orm'
 
-import db from '@/db'
+import db, { closeDb } from '@/db'
 import { lessons } from '@/db/schemas/lessons.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
 import { DEFAULT_TUTOR_SETTINGS } from '@/lib/constants'
+import { buildLessonsGeneratedMessage } from '@/lib/email-templates'
+import { closeMailer, sendMail } from '@/lib/mailer'
 
 function getNextWeekMonday(): Date {
   const now = new Date()
@@ -51,7 +53,10 @@ function combineDateAndTime(date: Date, timeStr: string): Date {
 async function getActiveTutors() {
   return db
     .select({
-      id: users.id
+      id: users.id,
+      email: users.email,
+      firstName: users.firstName,
+      lastName: users.lastName
     })
     .from(users)
     .innerJoin(tutorProfiles, eq(tutorProfiles.userId, users.id))
@@ -149,8 +154,10 @@ async function main() {
   let totalSkipped = 0
   const closureDates = await getClosureDates()
   const closureDateSet = new Set(closureDates)
+  const sendTasks: Array<Promise<unknown>> = []
 
   for (const tutor of activeTutors) {
+    let createdForTutor = 0
     const settings = await getTutorSettings(tutor.id)
     const availableWeekdays = await getTutorAvailableWeekdays(tutor.id)
     const subjectIds = await getTutorSubjectIds(tutor.id)
@@ -196,14 +203,36 @@ async function main() {
         })
 
         totalCreated += 1
+        createdForTutor += 1
       }
+    }
+
+    if (createdForTutor > 0 && tutor.email) {
+      const tutorName = `${tutor.firstName} ${tutor.lastName}`.trim()
+      const message = buildLessonsGeneratedMessage({
+        tutorName: tutorName || 'Tutor',
+        count: createdForTutor,
+        weekStart: targetMonday
+      })
+      sendTasks.push(sendMail({
+        to: tutor.email,
+        subject: message.subject,
+        text: message.text,
+        html: message.html
+      }).catch(err => console.error('Failed to send lessons generated email:', err)))
     }
   }
 
+  await Promise.allSettled(sendTasks)
   process.stdout.write(`Complete: ${totalCreated} lessons created, ${totalSkipped} skipped (already exist)\n`)
 }
 
-main().catch((error) => {
-  console.error('Failed to generate weekly lessons.', error)
-  process.exit(1)
-})
+main()
+  .catch((error) => {
+    console.error('Failed to generate weekly lessons.', error)
+    process.exitCode = 1
+  })
+  .finally(async () => {
+    closeMailer()
+    await closeDb()
+  })

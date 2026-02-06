@@ -1,13 +1,13 @@
 // Purpose: Send reminder emails for missing lesson feedback on the current day.
 import { and, gte, inArray, lte } from 'drizzle-orm'
 
-import db from '@/db'
+import db, { closeDb } from '@/db'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
 import { lessonFeedback } from '@/db/schemas/lesson-feedback.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
 import { users } from '@/db/schemas/users.schema'
 import { buildLessonFeedbackReminderMessage } from '@/lib/email-templates'
-import { sendMail } from '@/lib/mailer'
+import { closeMailer, sendMail } from '@/lib/mailer'
 
 function getDayBounds(reference = new Date()) {
   const start = new Date(reference)
@@ -134,6 +134,8 @@ async function remindMissingFeedback() {
 
   const recipientById = new Map(recipients.map(recipient => [recipient.id, recipient]))
 
+  const sendTasks: Array<Promise<unknown>> = []
+
   for (const [userId, pending] of pendingByUser.entries()) {
     const recipient = recipientById.get(userId)
     if (!recipient?.email) {
@@ -141,14 +143,15 @@ async function remindMissingFeedback() {
     }
 
     const message = buildLessonFeedbackReminderMessage(pending.role, pending.count)
-    void sendMail({
+    sendTasks.push(sendMail({
       to: recipient.email,
       subject: message.subject,
       text: message.text,
       html: message.html
-    }).catch(err => console.error('Failed to send feedback reminder email:', err))
+    }).catch(err => console.error('Failed to send feedback reminder email:', err)))
   }
 
+  await Promise.allSettled(sendTasks)
   console.warn(`Sent ${pendingByUser.size} feedback reminder(s).`)
 }
 
@@ -156,4 +159,8 @@ remindMissingFeedback()
   .catch((error) => {
     console.error('Failed to send feedback reminders:', error)
     process.exitCode = 1
+  })
+  .finally(async () => {
+    closeMailer()
+    await closeDb()
   })

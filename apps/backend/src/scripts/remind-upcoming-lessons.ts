@@ -1,11 +1,11 @@
 // Purpose: Send reminder emails for confirmed lessons scheduled for today.
 import { and, eq, gte, inArray, lte } from 'drizzle-orm'
 
-import db from '@/db'
+import db, { closeDb } from '@/db'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
 import { buildLessonReminderStudentMessage, buildLessonReminderTutorMessage } from '@/lib/email-templates'
-import { sendMail } from '@/lib/mailer'
+import { closeMailer, sendMail } from '@/lib/mailer'
 
 function buildClassLabel(sectionName: string | null, sectionId: string | null, year: number | null) {
   const sectionLabel = sectionName ?? sectionId
@@ -16,10 +16,31 @@ function buildClassLabel(sectionName: string | null, sectionId: string | null, y
   return sectionLabel ?? yearLabel ?? null
 }
 
+function parseTodayFlag() {
+  const args = new Set(process.argv.slice(2))
+  const hasToday = args.has('today') || args.has('--today')
+  const hasTomorrow = args.has('tomorrow') || args.has('--tomorrow')
+
+  if (hasToday && hasTomorrow) {
+    throw new Error('Pass only one of --today or --tomorrow.')
+  }
+  if (!hasToday && !hasTomorrow) {
+    throw new Error('Missing required flag: --today or --tomorrow.')
+  }
+
+  return hasToday
+}
+
 async function main() {
+  const today = parseTodayFlag()
   const now = new Date()
   const start = new Date(now)
-  start.setDate(now.getDate())
+  if (!today) {
+    start.setDate(now.getDate() + 1)
+  }
+  else {
+    start.setDate(now.getDate())
+  }
   start.setHours(0, 0, 0, 0)
   const end = new Date(start)
   end.setHours(23, 59, 59, 999)
@@ -39,7 +60,7 @@ async function main() {
     ))
 
   if (lessonsRows.length === 0) {
-    console.warn('No confirmed lessons found for today.')
+    console.warn(`No confirmed lessons found for ${today ? 'today' : 'tomorrow'}.`)
     return
   }
 
@@ -47,7 +68,8 @@ async function main() {
   const bookings = await db
     .select({
       lessonId: lessonBookings.lessonId,
-      studentId: lessonBookings.studentId
+      studentId: lessonBookings.studentId,
+      topic: lessonBookings.topic
     })
     .from(lessonBookings)
     .where(and(
@@ -56,7 +78,7 @@ async function main() {
     ))
 
   if (bookings.length === 0) {
-    console.warn('No confirmed bookings found for today.')
+    console.warn(`No confirmed bookings found for ${today ? 'today' : 'tomorrow'}.`)
     return
   }
 
@@ -108,6 +130,8 @@ async function main() {
   const sectionNameMap = new Map(sections.map(section => [section.id, section.name]))
   const lessonMap = new Map(lessonsRows.map(lesson => [lesson.id, lesson]))
 
+  const sendTasks: Array<Promise<unknown>> = []
+
   for (const booking of bookings) {
     const lesson = lessonMap.get(booking.lessonId)
     const student = studentMap.get(booking.studentId)
@@ -129,18 +153,20 @@ async function main() {
       subjectName,
       tutorName: `${tutor.firstName} ${tutor.lastName}`,
       studentName: `${student.firstName} ${student.lastName}`,
-      studentClass: classLabel
+      studentClass: classLabel,
+      topic: booking.topic,
+      today
     })
 
-    void sendMail({
+    sendTasks.push(sendMail({
       to: student.email,
       subject: studentMessage.subject,
       text: studentMessage.text,
       html: studentMessage.html
-    }).catch(err => console.error('Failed to send student reminder email:', err))
+    }).catch(err => console.error('Failed to send student reminder email:', err)))
   }
 
-  const tutorLessonMap = new Map<string, Map<string, { startAt: Date, subjectName: string, students: Array<{ name: string, classLabel: string | null }> }>>()
+  const tutorLessonMap = new Map<string, Map<string, { startAt: Date, subjectName: string, students: Array<{ name: string, classLabel: string | null }>, topics: string[] }>>()
 
   for (const booking of bookings) {
     const lesson = lessonMap.get(booking.lessonId)
@@ -164,13 +190,15 @@ async function main() {
       lessonMapForTutor.set(lesson.id, {
         startAt: new Date(lesson.startAt),
         subjectName,
-        students: []
+        students: [],
+        topics: []
       })
     }
     lessonMapForTutor.get(lesson.id)!.students.push({
       name: `${student.firstName} ${student.lastName}`,
       classLabel
     })
+    lessonMapForTutor.get(lesson.id)!.topics.push(booking.topic)
   }
 
   for (const [tutorId, lessonsById] of tutorLessonMap) {
@@ -183,17 +211,22 @@ async function main() {
 
     const tutorMessage = buildLessonReminderTutorMessage({
       tutorName: `${tutor.firstName} ${tutor.lastName}`,
-      lessons: lessonsForTutor
+      lessons: lessonsForTutor.map(lesson => ({
+        ...lesson,
+        topics: Array.from(new Set(lesson.topics.map(topic => topic.trim()).filter(Boolean)))
+      })),
+      today
     })
 
-    void sendMail({
+    sendTasks.push(sendMail({
       to: tutor.email,
       subject: tutorMessage.subject,
       text: tutorMessage.text,
       html: tutorMessage.html
-    }).catch(err => console.error('Failed to send tutor reminder email:', err))
+    }).catch(err => console.error('Failed to send tutor reminder email:', err)))
   }
 
+  await Promise.allSettled(sendTasks)
   console.warn(`Sent reminders for ${bookings.length} booking(s).`)
 }
 
@@ -201,4 +234,8 @@ main()
   .catch((error) => {
     console.error('Failed to send lesson reminders:', error)
     process.exitCode = 1
+  })
+  .finally(async () => {
+    closeMailer()
+    await closeDb()
   })

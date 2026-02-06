@@ -20,6 +20,7 @@ import {
   buildLessonBookingConfirmedMessage,
   buildLessonCanceledMessage,
   buildLessonCreatedMessage,
+  buildLessonPresenceUpdatedMessage,
   buildLessonRescheduledMessage
 } from '@/lib/email-templates'
 import { buildErrorResponse } from '@/lib/error-response'
@@ -1090,6 +1091,15 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
+  if (currentUser.role === 'student') {
+    if (booking.studentPresence !== null) {
+      return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
+    }
+    if (new Date() >= new Date(lesson.startAt)) {
+      return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
+    }
+  }
+
   const now = new Date()
   const lessonStart = new Date(lesson.startAt)
   const cutoff = new Date(lessonStart)
@@ -1419,8 +1429,14 @@ export const setBookingPresence: AppRouteHandler<SetBookingPresenceRoute> = asyn
     forbid()
   }
 
-  if (isTutor && !withinLessonWeek(new Date(lesson.startAt))) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
+  if (isTutor) {
+    const lessonStartAt = new Date(lesson.startAt)
+    const tenMinutesAfterStart = new Date(lessonStartAt.getTime() + 10 * 60 * 1000)
+    const twoHoursAfterStart = new Date(lessonStartAt.getTime() + 2 * 60 * 60 * 1000)
+    const now = new Date()
+    if (now < tenMinutesAfterStart || now > twoHoursAfterStart) {
+      return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
+    }
   }
 
   const booking = await db.query.lessonBookings.findFirst({
@@ -1440,18 +1456,44 @@ export const setBookingPresence: AppRouteHandler<SetBookingPresenceRoute> = asyn
     return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
+  if (isTutor && payload.present === null) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
+  }
+
   const presenceAt = payload.present === null ? null : new Date()
+  const countsForStudent = payload.present === null ? booking.countsForStudent : true
   await db.update(lessonBookings)
     .set({
       studentPresence: payload.present ?? null,
-      studentPresenceAt: presenceAt
+      studentPresenceAt: presenceAt,
+      countsForStudent
     })
     .where(eq(lessonBookings.id, bookingId))
 
-  if (payload.present === true && (isTutor || isAdmin) && !lesson.countsForTutor) {
+  if (payload.present !== null && (isTutor || isAdmin) && !lesson.countsForTutor) {
     await db.update(lessons)
       .set({ countsForTutor: true })
       .where(eq(lessons.id, lesson.id))
+  }
+
+  if (payload.present !== null) {
+    const lessonDetails = await fetchLessonEmailDetails(lesson.id, lesson.tutorId, lesson.subjectId)
+    const studentsMap = await fetchStudentsDetails([booking.studentId])
+    const studentDetails = studentsMap.get(booking.studentId)
+    if (lessonDetails && studentDetails?.email) {
+      const message = buildLessonPresenceUpdatedMessage({
+        lessonStartAt: new Date(lesson.startAt),
+        subjectName: lessonDetails.subjectName,
+        tutorName: lessonDetails.tutorName,
+        present: payload.present
+      })
+      void sendMail({
+        to: studentDetails.email,
+        subject: message.subject,
+        text: message.text,
+        html: message.html
+      }).catch(err => console.error('Failed to send presence update email:', err))
+    }
   }
 
   return c.json(
@@ -1628,7 +1670,7 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
 
     await db.insert(lessonBookings).values(newBookingRows)
 
-    if (existingBookings.some(booking => booking.studentPresence === true)) {
+    if (existingBookings.some(booking => booking.studentPresence !== null)) {
       await db.update(lessons)
         .set({ countsForTutor: true })
         .where(eq(lessons.id, newLesson.id))

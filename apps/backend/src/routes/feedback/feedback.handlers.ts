@@ -105,6 +105,10 @@ export const createLessonFeedback: AppRouteHandler<CreateLessonFeedbackRoute> = 
     return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
+  if (currentUser.role === 'student' && booking.studentPresence !== true) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
+  }
+
   let authorRole: 'student' | 'tutor'
   let authorUserId: string
   let targetUserId: string

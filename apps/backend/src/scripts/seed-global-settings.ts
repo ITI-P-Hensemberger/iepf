@@ -1,5 +1,5 @@
 // Purpose: Seed initial global settings for maintenance and service messages.
-import db from '@/db'
+import db, { closeDb } from '@/db'
 import { globalSettings } from '@/db/schemas/global-settings.schema'
 
 const maintenanceDefault = {
@@ -44,7 +44,11 @@ async function main() {
   process.stdout.write('Seeded global settings.\n')
 }
 
-main().catch((error) => {
-  console.error('Failed to seed global settings.', error)
-  process.exit(1)
-})
+main()
+  .catch((error) => {
+    console.error('Failed to seed global settings.', error)
+    process.exitCode = 1
+  })
+  .finally(async () => {
+    await closeDb()
+  })

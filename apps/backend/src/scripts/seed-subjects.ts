@@ -1,5 +1,5 @@
 // Purpose: Seed baseline subjects for the app.
-import db from '@/db'
+import db, { closeDb } from '@/db'
 import { subjects } from '@/db/schemas/subjects.schema'
 
 const DEFAULT_SUBJECTS = [
@@ -57,4 +57,7 @@ try {
 catch (error) {
   console.error('Failed to seed subjects.', error)
   process.exit(1)
+}
+finally {
+  await closeDb()
 }

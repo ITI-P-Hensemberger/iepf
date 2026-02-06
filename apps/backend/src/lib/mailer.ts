@@ -63,3 +63,9 @@ export async function sendMail(payload: MailPayload) {
     }
   }
 }
+
+export function closeMailer() {
+  if ('close' in transport && typeof transport.close === 'function') {
+    transport.close()
+  }
+}

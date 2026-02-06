@@ -16,6 +16,7 @@ import { lessons } from './schemas/lessons.schema'
 import { passwordResetTokens } from './schemas/password-reset-tokens.schema'
 import { refreshTokens } from './schemas/refresh-tokens.schema'
 import { studentProfiles } from './schemas/student-profiles.schema'
+import { subjectRequests } from './schemas/subject-requests.schema'
 import { subjects } from './schemas/subjects.schema'
 import { tokenLedger } from './schemas/token-ledger.schema'
 import { tutorInviteTokens } from './schemas/tutor-invite-tokens.schema'
@@ -35,6 +36,7 @@ const schema = {
   studentProfiles,
   tutorProfiles,
   subjects,
+  subjectRequests,
   tutorSubjects,
   tutorSettings,
   tutorWeekdayAvailability,
@@ -56,5 +58,9 @@ const db = drizzle(pool, {
   casing: 'snake_case',
   schema
 })
+
+export function closeDb() {
+  return pool.end()
+}
 
 export default db

@@ -1,5 +1,5 @@
 // Purpose: Seed mock users for demos/testing.
-import db from '@/db'
+import db, { closeDb } from '@/db'
 import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
@@ -305,7 +305,11 @@ async function main() {
 `)
 }
 
-main().catch((error) => {
-  console.error('Failed to seed mock users.', error)
-  process.exit(1)
-})
+main()
+  .catch((error) => {
+    console.error('Failed to seed mock users.', error)
+    process.exitCode = 1
+  })
+  .finally(async () => {
+    await closeDb()
+  })

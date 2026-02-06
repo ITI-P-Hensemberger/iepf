@@ -1,5 +1,5 @@
 // Purpose: Activator seed script.
-import db from '@/db'
+import db, { closeDb } from '@/db'
 import { users } from '@/db/schemas/users.schema'
 import env from '@/env'
 import { hashPassword } from '@/lib/password'
@@ -49,4 +49,7 @@ main()
 
     console.error(error)
     process.exitCode = 1
+  })
+  .finally(async () => {
+    await closeDb()
   })

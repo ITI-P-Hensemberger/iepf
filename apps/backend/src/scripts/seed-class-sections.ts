@@ -1,5 +1,5 @@
 // Purpose: Seed baseline class sections for the app.
-import db from '@/db'
+import db, { closeDb } from '@/db'
 import { classSections } from '@/db/schemas/class-sections.schema'
 
 const DEFAULT_SECTIONS = [
@@ -31,4 +31,7 @@ try {
 catch (error) {
   console.error('Failed to seed class sections.', error)
   process.exit(1)
+}
+finally {
+  await closeDb()
 }

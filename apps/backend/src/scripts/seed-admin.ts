@@ -1,5 +1,5 @@
 // Purpose: Admin seed script.
-import db from '@/db'
+import db, { closeDb } from '@/db'
 import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
 import env from '@/env'
@@ -57,4 +57,7 @@ main()
 
     console.error(error)
     process.exitCode = 1
+  })
+  .finally(async () => {
+    await closeDb()
   })
