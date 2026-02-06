@@ -2,7 +2,13 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { BookOpen, Calendar, ChevronRight, ExternalLink } from 'lucide-react'
+import {
+  BookOpen,
+  Calendar,
+  Check,
+  ChevronRight,
+  ExternalLink
+} from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -336,11 +342,13 @@ export default function TutorPage() {
                 <Table>
                   <TableHeader className='bg-muted/50'>
                     <TableRow>
-                      <TableHead className='whitespace-nowrap'>Data e ora</TableHead>
+                      <TableHead className='whitespace-nowrap'>
+                        Data e ora
+                      </TableHead>
                       <TableHead>Materia</TableHead>
                       <TableHead>Posti</TableHead>
                       <TableHead>Stato</TableHead>
-                      <TableHead className='w-16'>
+                      <TableHead className='w-40'>
                         <span className='sr-only'>Azioni</span>
                       </TableHead>
                     </TableRow>
@@ -348,7 +356,10 @@ export default function TutorPage() {
                   <TableBody>
                     {isLessonsLoading ? (
                       <TableRow>
-                        <TableCell colSpan={5} className='text-muted-foreground'>
+                        <TableCell
+                          colSpan={5}
+                          className='text-muted-foreground'
+                        >
                           Caricamento...
                         </TableCell>
                       </TableRow>
@@ -367,17 +378,16 @@ export default function TutorPage() {
                                 {formatStatusLabel(lesson.status)}
                               </Badge>
                             </TableCell>
-                            <TableCell className='w-16 text-right'>
+                            <TableCell className='w-40 text-right'>
                               <div className='flex items-center justify-end gap-1'>
                                 <Button
                                   asChild
-                                  variant='ghost'
-                                  size='icon'
-                                  aria-label='Apri dettagli lezione'
-                                  className='h-6 w-6 p-0'
+                                  size='sm'
+                                  aria-label='Segna presenze'
                                 >
                                   <Link href={`/tutor/lessons/${lesson.id}`}>
-                                    <ExternalLink className='h-4 w-4' />
+                                    Segna presenze
+                                    <Check className='h-4 w-4' />
                                   </Link>
                                 </Button>
                               </div>
@@ -387,7 +397,10 @@ export default function TutorPage() {
                       })
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={5} className='text-muted-foreground'>
+                        <TableCell
+                          colSpan={5}
+                          className='text-muted-foreground'
+                        >
                           Nessuna lezione oggi.
                         </TableCell>
                       </TableRow>
@@ -431,7 +444,9 @@ export default function TutorPage() {
                 <Table>
                   <TableHeader className='bg-muted/50'>
                     <TableRow>
-                      <TableHead className='whitespace-nowrap'>Data e ora</TableHead>
+                      <TableHead className='whitespace-nowrap'>
+                        Data e ora
+                      </TableHead>
                       <TableHead>Materia</TableHead>
                       <TableHead>Posti</TableHead>
                       <TableHead>Stato</TableHead>
@@ -443,7 +458,10 @@ export default function TutorPage() {
                   <TableBody>
                     {isUpcomingLoading ? (
                       <TableRow>
-                        <TableCell colSpan={5} className='text-muted-foreground'>
+                        <TableCell
+                          colSpan={5}
+                          className='text-muted-foreground'
+                        >
                           Caricamento...
                         </TableCell>
                       </TableRow>
@@ -482,7 +500,10 @@ export default function TutorPage() {
                       })
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={5} className='text-muted-foreground'>
+                        <TableCell
+                          colSpan={5}
+                          className='text-muted-foreground'
+                        >
                           Nessuna lezione programmata.
                         </TableCell>
                       </TableRow>

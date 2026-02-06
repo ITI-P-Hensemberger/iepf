@@ -42,6 +42,12 @@ type SubjectTutorCount = {
   tutorCount: number
 }
 
+type SubjectRequestSummary = {
+  subjectName: string
+  canonicalName: string
+  requestCount: number
+}
+
 type LessonCountRow = {
   tutorId?: string
   studentId?: string
@@ -74,6 +80,11 @@ const subjectsSortOptions: SortOption[] = [
   { value: 'name', label: 'Nome' },
   { value: 'canonicalName', label: 'Nome canonico' },
   { value: 'tutorCount', label: 'Tutor' }
+]
+
+const subjectRequestsSortOptions: SortOption[] = [
+  { value: 'subjectName', label: 'Materia' },
+  { value: 'requestCount', label: 'Richieste' }
 ]
 
 const lessonsSortOptions: SortOption[] = [
@@ -285,7 +296,7 @@ export default function AdminStatsPage() {
   const searchParamsString = searchParams.toString()
 
   const availableTabs = React.useMemo(
-    () => ['overview', 'subjects', 'tutors', 'students'] as const,
+    () => ['overview', 'subjects', 'subject-requests', 'tutors', 'students'] as const,
     []
   )
 
@@ -298,8 +309,10 @@ export default function AdminStatsPage() {
   }, [availableTabs, searchParams])
 
   const defaultSubjectsSortBy = 'name'
+  const defaultSubjectRequestsSortBy = 'requestCount'
   const defaultLessonsSortBy = 'lastName'
   const defaultSortDir: 'asc' | 'desc' = 'asc'
+  const defaultSubjectRequestsSortDir: 'asc' | 'desc' = 'desc'
 
   const [totals, setTotals] = React.useState<Totals>({
     lessonsConfirmed: 0,
@@ -322,6 +335,21 @@ export default function AdminStatsPage() {
   })
   const [subjectsHasNext, setSubjectsHasNext] = React.useState(false)
   const [subjectsTotal, setSubjectsTotal] = React.useState(0)
+
+  const [subjectRequests, setSubjectRequests] = React.useState<
+    SubjectRequestSummary[]
+  >([])
+  const [subjectRequestsLoading, setSubjectRequestsLoading] =
+    React.useState(false)
+  const [subjectRequestsFilters, setSubjectRequestsFilters] =
+    React.useState<StatsFilters>({
+      search: '',
+      sortBy: defaultSubjectRequestsSortBy,
+      sortDir: defaultSubjectRequestsSortDir
+    })
+  const [subjectRequestsHasNext, setSubjectRequestsHasNext] =
+    React.useState(false)
+  const [subjectRequestsTotal, setSubjectRequestsTotal] = React.useState(0)
 
   const [tutors, setTutors] = React.useState<LessonCountRow[]>([])
   const [tutorsLoading, setTutorsLoading] = React.useState(false)
@@ -355,6 +383,26 @@ export default function AdminStatsPage() {
         header: () => <div className='text-right'>Tutor</div>,
         cell: ({ row }) => (
           <div className='text-right'>{row.original.tutorCount}</div>
+        )
+      }
+    ],
+    []
+  )
+
+  const subjectRequestsColumns = React.useMemo<
+    ColumnDef<SubjectRequestSummary>[]
+  >(
+    () => [
+      {
+        accessorKey: 'subjectName',
+        header: 'Materia',
+        cell: ({ row }) => row.original.subjectName
+      },
+      {
+        accessorKey: 'requestCount',
+        header: () => <div className='text-right'>Richieste</div>,
+        cell: ({ row }) => (
+          <div className='text-right'>{row.original.requestCount}</div>
         )
       }
     ],
@@ -456,6 +504,25 @@ export default function AdminStatsPage() {
     [buildFilters, defaultSubjectsSortBy, defaultSortDir]
   )
 
+  const currentSubjectRequestsFilters = React.useMemo(
+    () =>
+      buildFilters(
+        'subjectRequestsSearch',
+        'subjectRequestsSort',
+        'subjectRequestsPage',
+        {
+          search: '',
+          sortBy: defaultSubjectRequestsSortBy,
+          sortDir: defaultSubjectRequestsSortDir
+        }
+      ),
+    [
+      buildFilters,
+      defaultSubjectRequestsSortBy,
+      defaultSubjectRequestsSortDir
+    ]
+  )
+
   const currentTutorsFilters = React.useMemo(
     () =>
       buildFilters('tutorsSearch', 'tutorsSort', 'tutorsPage', {
@@ -493,6 +560,25 @@ export default function AdminStatsPage() {
     currentSubjectsFilters.search,
     currentSubjectsFilters.sortBy,
     currentSubjectsFilters.sortDir
+  ])
+
+  React.useEffect(() => {
+    setSubjectRequestsFilters((prev) => {
+      const next = {
+        search: currentSubjectRequestsFilters.search,
+        sortBy: currentSubjectRequestsFilters.sortBy,
+        sortDir: currentSubjectRequestsFilters.sortDir
+      }
+      return prev.search === next.search &&
+        prev.sortBy === next.sortBy &&
+        prev.sortDir === next.sortDir
+        ? prev
+        : next
+    })
+  }, [
+    currentSubjectRequestsFilters.search,
+    currentSubjectRequestsFilters.sortBy,
+    currentSubjectRequestsFilters.sortDir
   ])
 
   React.useEffect(() => {
@@ -580,6 +666,28 @@ export default function AdminStatsPage() {
       1
     )
   }, [defaultSortDir, defaultSubjectsSortBy, updateParams])
+
+  const resetSubjectRequestsFilters = React.useCallback(() => {
+    const reset = {
+      search: '',
+      sortBy: defaultSubjectRequestsSortBy,
+      sortDir: defaultSubjectRequestsSortDir
+    }
+    setSubjectRequestsFilters(reset)
+    updateParams(
+      {
+        searchKey: 'subjectRequestsSearch',
+        sortKey: 'subjectRequestsSort',
+        pageKey: 'subjectRequestsPage'
+      },
+      reset,
+      1
+    )
+  }, [
+    defaultSubjectRequestsSortBy,
+    defaultSubjectRequestsSortDir,
+    updateParams
+  ])
 
   const resetTutorsFilters = React.useCallback(() => {
     const reset = {
@@ -755,6 +863,61 @@ export default function AdminStatsPage() {
 
   React.useEffect(() => {
     let isMounted = true
+    async function loadSubjectRequests() {
+      setSubjectRequestsLoading(true)
+      try {
+        const params = new URLSearchParams()
+        if (currentSubjectRequestsFilters.search.trim()) {
+          params.set('q', currentSubjectRequestsFilters.search.trim())
+        }
+        params.set('mode', 'summary')
+        params.set('sortBy', currentSubjectRequestsFilters.sortBy)
+        params.set('sortDir', currentSubjectRequestsFilters.sortDir)
+        params.set('limit', String(pageSize))
+        params.set(
+          'offset',
+          String((currentSubjectRequestsFilters.page - 1) * pageSize)
+        )
+        const response = await fetch(
+          `/api/subject-requests?${params.toString()}`
+        )
+        if (!response.ok) {
+          throw new Error('Impossibile caricare le richieste materia.')
+        }
+        const payload = await response.json()
+        const { items, total } =
+          normalizePaged<SubjectRequestSummary>(payload)
+        if (isMounted) {
+          setSubjectRequests(items)
+          setSubjectRequestsTotal(total)
+          setSubjectRequestsHasNext(items.length === pageSize)
+        }
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : 'Impossibile caricare le richieste materia.'
+        )
+      } finally {
+        if (isMounted) {
+          setSubjectRequestsLoading(false)
+        }
+      }
+    }
+
+    void loadSubjectRequests()
+    return () => {
+      isMounted = false
+    }
+  }, [
+    currentSubjectRequestsFilters.page,
+    currentSubjectRequestsFilters.search,
+    currentSubjectRequestsFilters.sortBy,
+    currentSubjectRequestsFilters.sortDir
+  ])
+
+  React.useEffect(() => {
+    let isMounted = true
     async function loadTutors() {
       setTutorsLoading(true)
       try {
@@ -874,6 +1037,9 @@ export default function AdminStatsPage() {
             <TabsList>
               <TabsTrigger value='overview'>Panoramica</TabsTrigger>
               <TabsTrigger value='subjects'>Materie</TabsTrigger>
+              <TabsTrigger value='subject-requests'>
+                Richieste materie
+              </TabsTrigger>
               <TabsTrigger value='tutors'>Tutor</TabsTrigger>
               <TabsTrigger value='students'>Studenti</TabsTrigger>
             </TabsList>
@@ -1083,6 +1249,126 @@ export default function AdminStatsPage() {
                     pageSize={pageSize}
                     total={subjectsTotal}
                     hasNext={subjectsHasNext}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value='subject-requests' className='mt-6 space-y-6'>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Richieste materie</CardTitle>
+                </CardHeader>
+                <CardContent className='space-y-4'>
+                  <form
+                    className='rounded-lg border bg-card p-4 shadow-sm'
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      updateParams(
+                        {
+                          searchKey: 'subjectRequestsSearch',
+                          sortKey: 'subjectRequestsSort',
+                          pageKey: 'subjectRequestsPage'
+                        },
+                        subjectRequestsFilters,
+                        1
+                      )
+                    }}
+                  >
+                    <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
+                      <Field className='gap-2 lg:col-span-2'>
+                        <FieldLabel htmlFor='subject-requests-search'>
+                          Cerca
+                        </FieldLabel>
+                        <div className='relative'>
+                          <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+                          <Input
+                            id='subject-requests-search'
+                            type='search'
+                            placeholder='Nome materia'
+                            value={subjectRequestsFilters.search}
+                            onChange={(event) =>
+                              setSubjectRequestsFilters((prev) => ({
+                                ...prev,
+                                search: event.target.value
+                              }))
+                            }
+                            className='pl-9'
+                          />
+                        </div>
+                      </Field>
+                      <Field className='gap-2'>
+                        <FieldLabel>Ordina per</FieldLabel>
+                        <Select
+                          value={subjectRequestsFilters.sortBy}
+                          onValueChange={(value) =>
+                            setSubjectRequestsFilters((prev) => ({
+                              ...prev,
+                              sortBy: value
+                            }))
+                          }
+                        >
+                          <SelectTrigger className='w-full'>
+                            <SelectValue placeholder='Ordinamento' />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {subjectRequestsSortOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                      <Field className='gap-2'>
+                        <FieldLabel>Direzione</FieldLabel>
+                        <Select
+                          value={subjectRequestsFilters.sortDir}
+                          onValueChange={(value) =>
+                            setSubjectRequestsFilters((prev) => ({
+                              ...prev,
+                              sortDir: value === 'desc' ? 'desc' : 'asc'
+                            }))
+                          }
+                        >
+                          <SelectTrigger className='w-full'>
+                            <SelectValue placeholder='Direzione' />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {sortDirOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                    </div>
+                    <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between'>
+                      <div />
+                      <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
+                        <Button
+                          variant='outline'
+                          type='button'
+                          onClick={resetSubjectRequestsFilters}
+                        >
+                          Reset filtri
+                        </Button>
+                        <Button type='submit'>Applica filtri</Button>
+                      </div>
+                    </div>
+                  </form>
+
+                  <DataTable
+                    data={subjectRequests}
+                    columns={subjectRequestsColumns}
+                    isLoading={subjectRequestsLoading}
+                    emptyMessage='Nessuna richiesta trovata.'
+                    pageKey='subjectRequestsPage'
+                    page={currentSubjectRequestsFilters.page}
+                    pageSize={pageSize}
+                    total={subjectRequestsTotal}
+                    hasNext={subjectRequestsHasNext}
                   />
                 </CardContent>
               </Card>

@@ -841,7 +841,7 @@ export default function AdminLessonDetailsPage() {
 
     const nextTopic = topicValue.trim()
     if (!nextTopic) {
-      toast.error('Inserisci un topic valido.')
+      toast.error("Inserisci un argomento valido.")
       return
     }
 
@@ -859,7 +859,7 @@ export default function AdminLessonDetailsPage() {
         }
       )
       if (!response.ok) {
-        let message = 'Impossibile aggiornare il topic.'
+        let message = "Impossibile aggiornare l'argomento."
         try {
           const payload = await response.json()
           message = extractErrorMessage(payload, message)
@@ -868,14 +868,16 @@ export default function AdminLessonDetailsPage() {
         }
         throw new Error(message)
       }
-      toast.success('Topic aggiornato.')
+      toast.success('Argomento aggiornato.')
       setTopicTarget(null)
       setTopicValue('')
       await loadBookings()
       await loadLesson()
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : 'Impossibile aggiornare il topic.'
+        err instanceof Error
+          ? err.message
+          : "Impossibile aggiornare l'argomento."
       )
     } finally {
       setIsUpdatingTopic(false)
@@ -1361,7 +1363,7 @@ export default function AdminLessonDetailsPage() {
                   <TableHeader className='bg-muted/50'>
                     <TableRow>
                       <TableHead className='w-[35%]'>Studente</TableHead>
-                      <TableHead className='w-[45%]'>Topic</TableHead>
+                      <TableHead className='w-[45%]'>Argomento</TableHead>
                       <TableHead className='w-40'>Presenza</TableHead>
                       <TableHead>Conteggio</TableHead>
                       <TableHead>Stato</TableHead>
@@ -1518,7 +1520,7 @@ export default function AdminLessonDetailsPage() {
                                       handleOpenTopicDialog(booking)
                                     }
                                   >
-                                    Modifica topic
+                                    Modifica argomento
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onSelect={() =>
@@ -1578,7 +1580,7 @@ export default function AdminLessonDetailsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Prenota per conto studente</AlertDialogTitle>
             <AlertDialogDescription>
-              Seleziona uno studente e inserisci il topic della lezione.
+              Seleziona uno studente e inserisci l&apos;argomento della lezione.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className='space-y-4'>
@@ -1625,12 +1627,12 @@ export default function AdminLessonDetailsPage() {
               </Select>
             </div>
             <div className='space-y-2'>
-              <FieldLabel htmlFor='booking-topic'>Topic</FieldLabel>
+              <FieldLabel htmlFor='booking-topic'>Argomento</FieldLabel>
               <Input
                 id='booking-topic'
                 value={bookingTopic}
                 onChange={(event) => setBookingTopic(event.target.value)}
-                placeholder='Inserisci il topic'
+                placeholder="Inserisci l'argomento"
               />
             </div>
           </div>
@@ -1660,16 +1662,16 @@ export default function AdminLessonDetailsPage() {
       >
         <AlertDialogContent className='max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] overflow-y-auto sm:max-w-md'>
           <AlertDialogHeader>
-            <AlertDialogTitle>Modifica topic</AlertDialogTitle>
+            <AlertDialogTitle>Modifica argomento</AlertDialogTitle>
             <AlertDialogDescription>
-              Aggiorna il topic della prenotazione selezionata.
+              Aggiorna l&apos;argomento della prenotazione selezionata.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className='space-y-2'>
             <Input
               value={topicValue}
               onChange={(event) => setTopicValue(event.target.value)}
-              placeholder='Inserisci il topic'
+              placeholder="Inserisci l'argomento"
             />
           </div>
           <AlertDialogFooter className='pt-2 sm:pt-0'>
@@ -1716,7 +1718,7 @@ export default function AdminLessonDetailsPage() {
               </div>
               <div>Tutor: {tutorLabel(tutor) ?? '-'}</div>
               <div>Materia: {subject?.name ?? '-'}</div>
-              <div>Topic: {cancelTarget.topic || '-'}</div>
+              <div>Argomento: {cancelTarget.topic || '-'}</div>
               <div>Stato: {formatBookingStatus(cancelTarget.status)}</div>
             </div>
           )}

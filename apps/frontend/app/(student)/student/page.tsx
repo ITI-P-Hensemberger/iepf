@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ExternalLink,
   Mail,
+  MessageSquare,
   XCircle
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -27,6 +28,13 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -34,6 +42,7 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
 import { useSession } from '@/lib/use-session'
@@ -55,6 +64,14 @@ type LessonBooking = {
   countsForStudent: boolean
   studentPresence: boolean | null
   studentPresenceAt: string | null
+}
+
+type Feedback = {
+  id: string
+  lessonId: string
+  bookingId: string
+  rating: number
+  text?: string | null
 }
 
 const lessonsLimit = 50
@@ -102,6 +119,16 @@ export default function StudentPage() {
   const [topicDialogTutor, setTopicDialogTutor] = React.useState('')
   const [topicDialogDate, setTopicDialogDate] = React.useState('')
   const [topicDialogSubject, setTopicDialogSubject] = React.useState('')
+  const [feedbackOpen, setFeedbackOpen] = React.useState(false)
+  const [feedbackTarget, setFeedbackTarget] =
+    React.useState<LessonBooking | null>(null)
+  const [feedbackRating, setFeedbackRating] = React.useState<number>(5)
+  const [feedbackText, setFeedbackText] = React.useState('')
+  const [feedbackReadonly, setFeedbackReadonly] = React.useState(false)
+  const [feedbackByBooking, setFeedbackByBooking] = React.useState<
+    Map<string, Feedback>
+  >(new Map())
+  const [isSavingFeedback, setIsSavingFeedback] = React.useState(false)
 
   const loadTodayLessons = React.useCallback(async () => {
     setIsTodayLoading(true)
@@ -163,6 +190,33 @@ export default function StudentPage() {
     void loadUpcomingLessons()
   }, [loadTodayLessons, loadUpcomingLessons])
 
+  const loadFeedback = React.useCallback(async () => {
+    const params = new URLSearchParams()
+    params.set('from', startOfTodayIso())
+    params.set('to', endOfTodayIso())
+    params.set('limit', String(lessonsLimit))
+    params.set('offset', '0')
+
+    try {
+      const response = await fetch(`/api/feedback/me?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error('Impossibile caricare i feedback.')
+      }
+      const payload = await response.json()
+      const items = extractPayloadArray<Feedback>(payload)
+      setFeedbackByBooking(new Map(items.map((item) => [item.bookingId, item])))
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Impossibile caricare i feedback.'
+      )
+      setFeedbackByBooking(new Map())
+    }
+  }, [])
+
+  React.useEffect(() => {
+    void loadFeedback()
+  }, [loadFeedback])
+
   const handleCancelBooking = React.useCallback(async () => {
     if (!cancelTarget) return
     setIsCancelling(true)
@@ -195,6 +249,68 @@ export default function StudentPage() {
       setIsCancelling(false)
     }
   }, [cancelTarget, loadTodayLessons, loadUpcomingLessons])
+
+  const handleSaveFeedback = React.useCallback(async () => {
+    if (!feedbackTarget || feedbackReadonly) return
+    const trimmed = feedbackText.trim()
+    if (!trimmed) {
+      toast.error('Inserisci un feedback.')
+      return
+    }
+    if (trimmed.length > 1000) {
+      toast.error('Il feedback deve avere massimo 1000 caratteri.')
+      return
+    }
+    if (
+      !Number.isFinite(feedbackRating) ||
+      feedbackRating < 1 ||
+      feedbackRating > 5
+    ) {
+      toast.error('Seleziona un rating valido.')
+      return
+    }
+    setIsSavingFeedback(true)
+    try {
+      const response = await fetch(
+        `/api/lessons/${feedbackTarget.id}/feedback`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            bookingId: feedbackTarget.bookingId,
+            rating: feedbackRating,
+            text: trimmed
+          })
+        }
+      )
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.message || 'Impossibile salvare il feedback.')
+      }
+      const saved = (await response.json().catch(() => null)) as Feedback | null
+      if (saved?.bookingId) {
+        setFeedbackByBooking((prev) => {
+          const next = new Map(prev)
+          next.set(saved.bookingId, saved)
+          return next
+        })
+      }
+      toast.success('Feedback salvato.')
+      setFeedbackOpen(false)
+      setFeedbackTarget(null)
+      setFeedbackText('')
+      setFeedbackRating(5)
+      setFeedbackReadonly(false)
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Impossibile salvare il feedback.'
+      )
+    } finally {
+      setIsSavingFeedback(false)
+    }
+  }, [feedbackRating, feedbackReadonly, feedbackTarget, feedbackText])
 
   return (
     <main className='flex-1'>
@@ -257,21 +373,41 @@ export default function StudentPage() {
                 <Table>
                   <TableHeader className='bg-muted/50'>
                     <TableRow>
-                      <TableHead className='whitespace-nowrap'>Data e ora</TableHead>
+                      <TableHead className='whitespace-nowrap'>
+                        Data e ora
+                      </TableHead>
                       <TableHead>Materia</TableHead>
                       <TableHead>Tutor</TableHead>
-                      <TableHead>Topic</TableHead>
+                      <TableHead>Argomento</TableHead>
+                      <TableHead className='w-36'>
+                        <span className='sr-only'>Azioni</span>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {isTodayLoading ? (
                       <TableRow>
-                        <TableCell colSpan={4} className='text-muted-foreground'>
+                        <TableCell
+                          colSpan={5}
+                          className='text-muted-foreground'
+                        >
                           Caricamento...
                         </TableCell>
                       </TableRow>
                     ) : todayLessons.length ? (
                       todayLessons.map((lesson) => {
+                        const isDisabled =
+                          isCanceled(lesson.bookingStatus) ||
+                          isCanceled(lesson.lessonStatus)
+                        const startTime = Date.parse(lesson.startAt)
+                        const isPastStart =
+                          Number.isFinite(startTime) &&
+                          Date.now() > startTime
+                        const canCancel = !isPastStart && !isDisabled
+                        const canFeedback = lesson.studentPresence === true
+                        const existingFeedback = feedbackByBooking.get(
+                          lesson.bookingId
+                        )
                         const tutorEmail = lesson.tutorEmail?.trim() ?? ''
                         return (
                           <TableRow key={lesson.bookingId}>
@@ -280,20 +416,19 @@ export default function StudentPage() {
                             </TableCell>
                             <TableCell>{lesson.subjectName || '-'}</TableCell>
                             <TableCell>
-                              {tutorEmail ? (
-                                <a
-                                  href={`mailto:${tutorEmail}`}
-                                  className='inline-flex flex-wrap items-center gap-1 text-sm text-primary hover:underline'
-                                >
-                                  <span className='min-w-0'>
-                                    {lesson.tutorLastName}{' '}
-                                    {lesson.tutorFirstName}
-                                  </span>
-                                  <Mail className='h-4 w-4 shrink-0' />
-                                </a>
-                              ) : (
-                                `${lesson.tutorLastName} ${lesson.tutorFirstName}`
-                              )}
+                              <div className='flex flex-wrap items-center gap-2'>
+                                <span className='min-w-0 mr-2'>
+                                  {lesson.tutorLastName} {lesson.tutorFirstName}
+                                </span>
+                                {tutorEmail ? (
+                                  <Button asChild size='sm' variant='outline'>
+                                    <a href={`mailto:${tutorEmail}`}>
+                                      Contatta
+                                      <Mail className='h-4 w-4' />
+                                    </a>
+                                  </Button>
+                                ) : null}
+                              </div>
                             </TableCell>
                             <TableCell>
                               {lesson.topic ? (
@@ -315,8 +450,10 @@ export default function StudentPage() {
                                     setTopicDialogOpen(true)
                                   }}
                                 >
-                                  <span className='truncate'>
-                                    {lesson.topic}
+                                  <span>
+                                    {lesson.topic.length > 15
+                                      ? `${lesson.topic.slice(0, 15)}...`
+                                      : lesson.topic}
                                   </span>
                                   <ExternalLink className='h-4 w-4 shrink-0 text-muted-foreground' />
                                 </Button>
@@ -324,12 +461,63 @@ export default function StudentPage() {
                                 '-'
                               )}
                             </TableCell>
+                            <TableCell className='text-right'>
+                              <div className='flex flex-wrap justify-end gap-2'>
+                                {canCancel && (
+                                  <Button
+                                    variant='destructive'
+                                    size='sm'
+                                    disabled={isDisabled}
+                                    onClick={() => {
+                                      setCancelTarget(lesson)
+                                      setCancelConfirm(false)
+                                      setCancelOpen(true)
+                                    }}
+                                  >
+                                    <XCircle className='mr-2 h-4 w-4' />
+                                    Annulla
+                                  </Button>
+                                )}
+                                {canFeedback && (
+                                  <Button
+                                    variant='ghost'
+                                    size='sm'
+                                    className='h-7 gap-2 px-2'
+                                    aria-label='Lascia feedback'
+                                    onClick={() => {
+                                      setFeedbackTarget(lesson)
+                                      setFeedbackRating(
+                                        existingFeedback?.rating ?? 5
+                                      )
+                                      setFeedbackText(
+                                        existingFeedback?.text ?? ''
+                                      )
+                                      setFeedbackReadonly(
+                                        Boolean(existingFeedback)
+                                      )
+                                      setFeedbackOpen(true)
+                                    }}
+                                  >
+                                    <MessageSquare className='h-4 w-4' />
+                                    <span>
+                                      {existingFeedback
+                                        ? 'Vedi feedback'
+                                        : 'Lascia feedback'}
+                                    </span>
+                                  </Button>
+                                )}
+                                {!canCancel && !canFeedback ? null : null}
+                              </div>
+                            </TableCell>
                           </TableRow>
                         )
                       })
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={4} className='text-muted-foreground'>
+                        <TableCell
+                          colSpan={5}
+                          className='text-muted-foreground'
+                        >
                           Nessuna lezione oggi.
                         </TableCell>
                       </TableRow>
@@ -347,10 +535,12 @@ export default function StudentPage() {
                 <Table>
                   <TableHeader className='bg-muted/50'>
                     <TableRow>
-                      <TableHead className='whitespace-nowrap'>Data e ora</TableHead>
+                      <TableHead className='whitespace-nowrap'>
+                        Data e ora
+                      </TableHead>
                       <TableHead>Materia</TableHead>
                       <TableHead>Tutor</TableHead>
-                      <TableHead>Topic</TableHead>
+                      <TableHead>Argomento</TableHead>
                       <TableHead className='w-36'>
                         <span className='sr-only'>Azioni</span>
                       </TableHead>
@@ -359,7 +549,10 @@ export default function StudentPage() {
                   <TableBody>
                     {isUpcomingLoading ? (
                       <TableRow>
-                        <TableCell colSpan={5} className='text-muted-foreground'>
+                        <TableCell
+                          colSpan={5}
+                          className='text-muted-foreground'
+                        >
                           Caricamento...
                         </TableCell>
                       </TableRow>
@@ -371,23 +564,25 @@ export default function StudentPage() {
                         const tutorEmail = lesson.tutorEmail?.trim() ?? ''
                         return (
                           <TableRow key={lesson.bookingId}>
-                            <TableCell>{formatItalianDate(lesson.startAt)}</TableCell>
+                            <TableCell>
+                              {formatItalianDate(lesson.startAt)}
+                            </TableCell>
                             <TableCell>{lesson.subjectName || '-'}</TableCell>
-                          <TableCell>
-                            {tutorEmail ? (
-                              <a
-                                href={`mailto:${tutorEmail}`}
-                                className='inline-flex flex-wrap items-center gap-1 text-sm text-primary hover:underline'
-                              >
-                                <span className='min-w-0'>
+                            <TableCell>
+                              <div className='flex flex-wrap items-center gap-2'>
+                                <span className='min-w-0 mr-2'>
                                   {lesson.tutorLastName} {lesson.tutorFirstName}
                                 </span>
-                                <Mail className='h-4 w-4 shrink-0' />
-                              </a>
-                            ) : (
-                              `${lesson.tutorLastName} ${lesson.tutorFirstName}`
-                            )}
-                          </TableCell>
+                                {tutorEmail ? (
+                                  <Button asChild size='sm' variant='outline'>
+                                    <a href={`mailto:${tutorEmail}`}>
+                                      Contatta
+                                      <Mail className='h-4 w-4' />
+                                    </a>
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </TableCell>
                             <TableCell>
                               {lesson.topic ? (
                                 <Button
@@ -408,8 +603,10 @@ export default function StudentPage() {
                                     setTopicDialogOpen(true)
                                   }}
                                 >
-                                  <span className='truncate'>
-                                    {lesson.topic}
+                                  <span>
+                                    {lesson.topic.length > 15
+                                      ? `${lesson.topic.slice(0, 15)}...`
+                                      : lesson.topic}
                                   </span>
                                   <ExternalLink className='h-4 w-4 shrink-0 text-muted-foreground' />
                                 </Button>
@@ -417,29 +614,32 @@ export default function StudentPage() {
                                 '-'
                               )}
                             </TableCell>
-                          <TableCell className='text-right'>
-                            <div className='flex flex-wrap justify-end gap-2'>
-                              <Button
-                                variant='destructive'
-                                size='sm'
-                                disabled={isDisabled}
-                                onClick={() => {
-                                  setCancelTarget(lesson)
-                                  setCancelConfirm(false)
-                                  setCancelOpen(true)
-                                }}
-                              >
-                                <XCircle className='mr-2 h-4 w-4' />
-                                Annulla
-                              </Button>
-                            </div>
-                          </TableCell>
+                            <TableCell className='text-right'>
+                              <div className='flex flex-wrap justify-end gap-2'>
+                                <Button
+                                  variant='destructive'
+                                  size='sm'
+                                  disabled={isDisabled}
+                                  onClick={() => {
+                                    setCancelTarget(lesson)
+                                    setCancelConfirm(false)
+                                    setCancelOpen(true)
+                                  }}
+                                >
+                                  <XCircle className='mr-2 h-4 w-4' />
+                                  Annulla
+                                </Button>
+                              </div>
+                            </TableCell>
                           </TableRow>
                         )
                       })
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={5} className='text-muted-foreground'>
+                        <TableCell
+                          colSpan={5}
+                          className='text-muted-foreground'
+                        >
                           Nessuna lezione programmata.
                         </TableCell>
                       </TableRow>
@@ -455,7 +655,7 @@ export default function StudentPage() {
       <AlertDialog open={topicDialogOpen} onOpenChange={setTopicDialogOpen}>
         <AlertDialogContent className='max-w-[calc(100%-3rem)] sm:max-w-lg'>
           <AlertDialogHeader>
-            <AlertDialogTitle>Topic</AlertDialogTitle>
+            <AlertDialogTitle>Argomento</AlertDialogTitle>
           </AlertDialogHeader>
           <div className='space-y-3'>
             <div className='text-sm text-muted-foreground'>
@@ -469,6 +669,85 @@ export default function StudentPage() {
           </div>
           <AlertDialogFooter className='pt-2 sm:pt-0'>
             <AlertDialogCancel>Chiudi</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={feedbackOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFeedbackOpen(false)
+            setFeedbackTarget(null)
+            setFeedbackRating(5)
+            setFeedbackText('')
+            setFeedbackReadonly(false)
+            return
+          }
+          setFeedbackOpen(true)
+        }}
+      >
+        <AlertDialogContent className='max-w-[calc(100%-3rem)] sm:max-w-lg'>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Feedback</AlertDialogTitle>
+            <AlertDialogDescription>
+              {feedbackReadonly
+                ? 'Hai già inviato un feedback per questa lezione.'
+                : 'Inserisci il tuo feedback per la lezione selezionata.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className='space-y-4'>
+            <div className='space-y-2'>
+              <label className='text-sm font-medium text-muted-foreground'>
+                Rating
+              </label>
+              <Select
+                value={String(feedbackRating)}
+                onValueChange={(value) => {
+                  const parsed = Number(value)
+                  if (Number.isFinite(parsed)) {
+                    setFeedbackRating(parsed)
+                  }
+                }}
+                disabled={feedbackReadonly}
+              >
+                <SelectTrigger className='w-28'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='1'>1</SelectItem>
+                  <SelectItem value='2'>2</SelectItem>
+                  <SelectItem value='3'>3</SelectItem>
+                  <SelectItem value='4'>4</SelectItem>
+                  <SelectItem value='5'>5</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Textarea
+              value={feedbackText}
+              onChange={(event) => setFeedbackText(event.target.value)}
+              placeholder='Scrivi il feedback...'
+              maxLength={1000}
+              rows={5}
+              readOnly={feedbackReadonly}
+            />
+            <div className='text-xs text-muted-foreground'>
+              {feedbackText.length}/1000
+            </div>
+          </div>
+          <AlertDialogFooter className='pt-2 sm:pt-0'>
+            <AlertDialogCancel>Chiudi</AlertDialogCancel>
+            {!feedbackReadonly && (
+              <AlertDialogAction
+                onClick={(event) => {
+                  event.preventDefault()
+                  void handleSaveFeedback()
+                }}
+                disabled={isSavingFeedback}
+              >
+                {isSavingFeedback ? 'Salvataggio...' : 'Salva'}
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -498,9 +777,10 @@ export default function StudentPage() {
               <div>Data: {formatItalianDate(cancelTarget.startAt)}</div>
               <div>Materia: {cancelTarget.subjectName || '-'}</div>
               <div>
-                Tutor: {cancelTarget.tutorLastName} {cancelTarget.tutorFirstName}
+                Tutor: {cancelTarget.tutorLastName}{' '}
+                {cancelTarget.tutorFirstName}
               </div>
-              <div>Topic: {cancelTarget.topic || '-'}</div>
+              <div>Argomento: {cancelTarget.topic || '-'}</div>
             </div>
           )}
           <div className='flex items-start gap-2 pt-2'>

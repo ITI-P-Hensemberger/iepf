@@ -581,7 +581,7 @@ export default function TutorLessonDetailsPage() {
                   <TableHeader className='bg-muted/50'>
                     <TableRow>
                       <TableHead>Studente</TableHead>
-                      <TableHead className='w-[45%]'>Topic</TableHead>
+                      <TableHead className='w-[45%]'>Argomento</TableHead>
                       <TableHead className='w-40'>Presenza</TableHead>
                       <TableHead className='w-12'>
                         <span className='sr-only'>Feedback</span>
@@ -676,7 +676,9 @@ export default function TutorLessonDetailsPage() {
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value='none'>-</SelectItem>
+                                    {booking.studentPresence === null ? (
+                                      <SelectItem value='none'>-</SelectItem>
+                                    ) : null}
                                     <SelectItem value='present'>
                                       Presente
                                     </SelectItem>
@@ -745,7 +747,7 @@ export default function TutorLessonDetailsPage() {
       <AlertDialog open={topicDialogOpen} onOpenChange={setTopicDialogOpen}>
         <AlertDialogContent className='max-w-[calc(100%-3rem)] sm:max-w-lg'>
           <AlertDialogHeader>
-            <AlertDialogTitle>Topic</AlertDialogTitle>
+            <AlertDialogTitle>Argomento</AlertDialogTitle>
           </AlertDialogHeader>
           <div className='space-y-3'>
             <div className='text-sm text-muted-foreground'>

@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { CalendarIcon, MessageSquare } from 'lucide-react'
+import { CalendarIcon, ExternalLink, MessageSquare } from 'lucide-react'
 
 import {
   AlertDialog,
@@ -114,15 +114,6 @@ function parseDateParam(value: string | null) {
   return parsed
 }
 
-function isPastOrToday(value?: string | null) {
-  if (!value) return false
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return false
-  const endOfToday = new Date()
-  endOfToday.setHours(23, 59, 59, 999)
-  return parsed.getTime() <= endOfToday.getTime()
-}
-
 function formatStatusLabel(status?: string | null) {
   if (!status) {
     return '-'
@@ -180,6 +171,11 @@ export default function StudentLessonsPage() {
     Map<string, Feedback>
   >(new Map())
   const [isSavingFeedback, setIsSavingFeedback] = React.useState(false)
+  const [topicDialogOpen, setTopicDialogOpen] = React.useState(false)
+  const [topicDialogValue, setTopicDialogValue] = React.useState('')
+  const [topicDialogTutor, setTopicDialogTutor] = React.useState('')
+  const [topicDialogDate, setTopicDialogDate] = React.useState('')
+  const [topicDialogSubject, setTopicDialogSubject] = React.useState('')
 
   const parsePage = React.useCallback(
     (key: string) => {
@@ -608,6 +604,7 @@ export default function StudentLessonsPage() {
                 <TableRow>
                   <TableHead className='whitespace-nowrap'>Data e ora</TableHead>
                   <TableHead>Materia</TableHead>
+                  <TableHead>Argomento</TableHead>
                   <TableHead>Tutor</TableHead>
                   <TableHead>Stato</TableHead>
                   <TableHead className='w-12'>
@@ -618,7 +615,7 @@ export default function StudentLessonsPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className='text-muted-foreground'>
+                    <TableCell colSpan={6} className='text-muted-foreground'>
                       Caricamento...
                     </TableCell>
                   </TableRow>
@@ -627,7 +624,12 @@ export default function StudentLessonsPage() {
                     const subject = subjectMap.get(lesson.subjectId)
                     const statusValue =
                       lesson.bookingStatus || lesson.lessonStatus
-                    const canFeedback = isPastOrToday(lesson.startAt)
+                    const normalizedStatus = statusValue?.toLowerCase() ?? ''
+                    const isConfirmed = normalizedStatus === 'confirmed'
+                    const canFeedback =
+                      isConfirmed && lesson.studentPresence === true
+                    const tutorLabel = `${lesson.tutorLastName} ${lesson.tutorFirstName}`.trim()
+                    const topicValue = lesson.topic?.trim()
                     return (
                       <TableRow key={lesson.bookingId}>
                         <TableCell>
@@ -639,42 +641,90 @@ export default function StudentLessonsPage() {
                             : (subject?.name ?? lesson.subjectName ?? '-')}
                         </TableCell>
                         <TableCell>
-                          {lesson.tutorLastName} {lesson.tutorFirstName}
+                          {topicValue ? (
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              className='h-auto w-full justify-start gap-2 px-0 text-left text-sm font-normal'
+                              onClick={() => {
+                                setTopicDialogValue(topicValue)
+                                setTopicDialogTutor(tutorLabel || 'Tutor')
+                                setTopicDialogDate(
+                                  formatItalianDate(lesson.startAt)
+                                )
+                                setTopicDialogSubject(
+                                  subject?.name ?? lesson.subjectName ?? '-'
+                                )
+                                setTopicDialogOpen(true)
+                              }}
+                            >
+                              <span>
+                                {topicValue.length > 15
+                                  ? `${topicValue.slice(0, 15)}...`
+                                  : topicValue}
+                              </span>
+                              <ExternalLink className='h-4 w-4 shrink-0 text-muted-foreground' />
+                            </Button>
+                          ) : (
+                            '-'
+                          )}
                         </TableCell>
+                        <TableCell>{tutorLabel}</TableCell>
                         <TableCell>
-                          <Badge variant={statusVariant(statusValue)}>
-                            {formatStatusLabel(statusValue)}
-                          </Badge>
+                          {isConfirmed && lesson.studentPresence !== null ? (
+                            <Badge
+                              variant={
+                                lesson.studentPresence ? 'success' : 'destructive'
+                              }
+                            >
+                              {lesson.studentPresence ? 'Presente' : 'Assente'}
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant={
+                                normalizedStatus === 'canceled' ||
+                                normalizedStatus === 'cancelled'
+                                  ? 'warning'
+                                  : statusVariant(statusValue)
+                              }
+                            >
+                              {formatStatusLabel(statusValue)}
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className='text-right'>
-                          <Button
-                            variant='ghost'
-                            size='sm'
-                            className='h-7 gap-2 px-2'
-                            aria-label='Lascia feedback'
-                            disabled={!canFeedback}
-                            onClick={() => {
-                              if (!canFeedback) return
-                              const existing = feedbackByBooking.get(
-                                lesson.bookingId
-                              )
-                              setFeedbackTarget(lesson)
-                              setFeedbackRating(existing?.rating ?? 5)
-                              setFeedbackText(existing?.text ?? '')
-                              setFeedbackReadonly(Boolean(existing))
-                              setFeedbackOpen(true)
-                            }}
-                          >
-                            <MessageSquare className='h-4 w-4' />
-                            <span>Lascia feedback</span>
-                          </Button>
+                          {canFeedback ? (
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              className='h-7 gap-2 px-2'
+                              aria-label='Lascia feedback'
+                              onClick={() => {
+                                const existing = feedbackByBooking.get(
+                                  lesson.bookingId
+                                )
+                                setFeedbackTarget(lesson)
+                                setFeedbackRating(existing?.rating ?? 5)
+                                setFeedbackText(existing?.text ?? '')
+                                setFeedbackReadonly(Boolean(existing))
+                                setFeedbackOpen(true)
+                              }}
+                            >
+                              <MessageSquare className='h-4 w-4' />
+                              <span>
+                                {feedbackByBooking.has(lesson.bookingId)
+                                  ? 'Vedi feedback'
+                                  : 'Lascia feedback'}
+                              </span>
+                            </Button>
+                          ) : null}
                         </TableCell>
                       </TableRow>
                     )
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className='text-muted-foreground'>
+                    <TableCell colSpan={6} className='text-muted-foreground'>
                       Nessuna lezione trovata.
                     </TableCell>
                   </TableRow>
@@ -756,6 +806,40 @@ export default function StudentLessonsPage() {
             >
               Applica
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={topicDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTopicDialogOpen(false)
+            setTopicDialogValue('')
+            setTopicDialogTutor('')
+            setTopicDialogDate('')
+            setTopicDialogSubject('')
+            return
+          }
+          setTopicDialogOpen(true)
+        }}
+      >
+        <AlertDialogContent className='max-w-[calc(100%-3rem)] sm:max-w-lg'>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Argomento</AlertDialogTitle>
+          </AlertDialogHeader>
+          <div className='space-y-3'>
+            <div className='text-sm text-muted-foreground'>
+              <div>Tutor: {topicDialogTutor || '—'}</div>
+              <div>Data: {topicDialogDate || '—'}</div>
+              <div>Materia: {topicDialogSubject || '—'}</div>
+            </div>
+            <div className='rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap'>
+              {topicDialogValue || '-'}
+            </div>
+          </div>
+          <AlertDialogFooter className='pt-2 sm:pt-0'>
+            <AlertDialogCancel>Chiudi</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

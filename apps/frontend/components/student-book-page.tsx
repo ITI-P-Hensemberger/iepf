@@ -15,10 +15,16 @@ import {
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
 import { BackButton } from '@/components/back-button'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger
+} from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Info } from 'lucide-react'
 import { Field, FieldLabel } from '@/components/ui/field'
 import {
   Select,
@@ -199,12 +205,17 @@ export default function StudentBookPage() {
   const [isLoading, setIsLoading] = React.useState(true)
   const [subjects, setSubjects] = React.useState<Subject[]>([])
   const [subjectsLoading, setSubjectsLoading] = React.useState(true)
+  const [dayCounts, setDayCounts] = React.useState<Record<string, number>>({})
+  const [dayCountsLoading, setDayCountsLoading] = React.useState(false)
 
   const [bookingOpen, setBookingOpen] = React.useState(false)
   const [bookingTarget, setBookingTarget] =
     React.useState<LessonAvailable | null>(null)
   const [bookingTopic, setBookingTopic] = React.useState('')
   const [isBooking, setIsBooking] = React.useState(false)
+  const [subjectRequestId, setSubjectRequestId] = React.useState('')
+  const [isSubmittingSubjectRequest, setIsSubmittingSubjectRequest] =
+    React.useState(false)
 
   const updateParams = React.useCallback(
     (updates: Partial<LessonFilters>, base: LessonFilters = filters) => {
@@ -351,6 +362,62 @@ export default function StudentBookPage() {
     }
   }, [currentFilters, weekDates])
 
+  const loadDayCounts = React.useCallback(async () => {
+    if (!currentFilters.subjectId) {
+      setDayCounts({})
+      setDayCountsLoading(false)
+      return
+    }
+
+    setDayCountsLoading(true)
+    try {
+      const dayCountPageSize = 100
+      const results = await Promise.all(
+        dayTabs.map(async (day) => {
+          const dayDate = weekDates.get(day.key)
+          if (!dayDate) {
+            return [day.key, 0] as const
+          }
+          let offset = 0
+          let totalValue = 0
+          let canBookCount = 0
+
+          do {
+            const params = new URLSearchParams()
+            params.set('subjectId', currentFilters.subjectId)
+            params.set('from', startOfDayIso(dayDate))
+            params.set('to', endOfDayIso(dayDate))
+            params.set('limit', String(dayCountPageSize))
+            params.set('offset', String(offset))
+            const response = await fetch(
+              `/api/lessons/available?${params.toString()}`
+            )
+            if (!response.ok) {
+              throw new Error('Impossibile caricare i conteggi delle lezioni.')
+            }
+            const payload = await response.json()
+            const items = extractPayloadArray<LessonAvailable>(payload)
+            totalValue = extractTotal(payload, items.length)
+            canBookCount += items.filter((lesson) => lesson.canBook).length
+            offset += dayCountPageSize
+          } while (offset < totalValue)
+
+          return [day.key, canBookCount] as const
+        })
+      )
+
+      const nextCounts: Record<string, number> = {}
+      results.forEach(([key, value]) => {
+        nextCounts[key] = value
+      })
+      setDayCounts(nextCounts)
+    } catch {
+      setDayCounts({})
+    } finally {
+      setDayCountsLoading(false)
+    }
+  }, [currentFilters.subjectId, weekDates])
+
   React.useEffect(() => {
     let isMounted = true
 
@@ -394,6 +461,10 @@ export default function StudentBookPage() {
   }, [loadLessons])
 
   React.useEffect(() => {
+    void loadDayCounts()
+  }, [loadDayCounts])
+
+  React.useEffect(() => {
     if (!searchParams.has('day')) {
       const params = new URLSearchParams(searchParamsString)
       params.set('day', 'mon')
@@ -422,16 +493,17 @@ export default function StudentBookPage() {
   }, [filters, updateParams])
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const isSubjectFilterActive = Boolean(currentFilters.subjectId)
 
   const handleBooking = React.useCallback(async () => {
     if (!bookingTarget) return
     const trimmed = bookingTopic.trim()
     if (!trimmed) {
-      toast.error('Inserisci un topic.')
+      toast.error('Inserisci un argomento.')
       return
     }
     if (trimmed.length > 200) {
-      toast.error('Il topic deve avere massimo 200 caratteri.')
+      toast.error("L'argomento deve avere massimo 200 caratteri.")
       return
     }
     setIsBooking(true)
@@ -453,6 +525,9 @@ export default function StudentBookPage() {
       setBookingTopic('')
       await refresh()
       await loadLessons()
+      if (currentFilters.subjectId) {
+        await loadDayCounts()
+      }
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : 'Impossibile prenotare la lezione.'
@@ -460,7 +535,48 @@ export default function StudentBookPage() {
     } finally {
       setIsBooking(false)
     }
-  }, [bookingTarget, bookingTopic, loadLessons, refresh])
+  }, [
+    bookingTarget,
+    bookingTopic,
+    currentFilters.subjectId,
+    loadDayCounts,
+    loadLessons,
+    refresh
+  ])
+
+  const handleSubjectRequest = React.useCallback(async () => {
+    if (!subjectRequestId) {
+      toast.error('Seleziona una materia.')
+      return
+    }
+
+    setIsSubmittingSubjectRequest(true)
+    try {
+      const response = await fetch('/api/subject-requests', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ subjectId: subjectRequestId })
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(
+          payload?.message || 'Impossibile inviare la richiesta materia.'
+        )
+      }
+      toast.success('Richiesta materia inviata.')
+      setSubjectRequestId('')
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : 'Impossibile inviare la richiesta materia.'
+      )
+    } finally {
+      setIsSubmittingSubjectRequest(false)
+    }
+  }, [subjectRequestId])
 
   return (
     <main className='flex-1'>
@@ -488,42 +604,11 @@ export default function StudentBookPage() {
           ) : (
             <>
               <div className='mt-6 flex flex-col gap-4'>
-            <div className='flex flex-wrap items-center gap-3'>
-              <Tabs
-                value={filters.dayKey}
-                onValueChange={(value) => {
-                  setFilters((prev) => ({
-                    ...prev,
-                    dayKey: value,
-                    page: 1
-                  }))
-                  updateParams({ dayKey: value, page: 1 }, filters)
-                }}
-              >
-                <TabsList>
-                  {dayTabs.map((day) => {
-                    const tabDate = weekDates.get(day.key)
-                    const isPastOrToday =
-                      tabDate?.getTime() !== undefined &&
-                      tabDate.getTime() <= todayStart.getTime()
-                    return (
-                      <TabsTrigger
-                        key={day.key}
-                        value={day.key}
-                        disabled={isPastOrToday}
-                      >
-                        {day.label}
-                      </TabsTrigger>
-                    )
-                  })}
-                </TabsList>
-              </Tabs>
-              {profile?.role === 'student' && (
-                <Badge variant='secondary'>
-                  Lezioni rimanenti: {profile.lessonTokens ?? '-'}
-                </Badge>
-              )}
-            </div>
+                {profile?.role === 'student' && (
+                  <Badge variant='secondary'>
+                    Lezioni rimanenti: {profile.lessonTokens ?? '-'}
+                  </Badge>
+                )}
 
                 <form
                   className='rounded-lg border bg-card p-4 shadow-sm'
@@ -532,7 +617,7 @@ export default function StudentBookPage() {
                     handleApplyFilters()
                   }}
                 >
-                  <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-3'>
+                  <div className='grid gap-4'>
                     <Field className='gap-2'>
                       <FieldLabel>Materia</FieldLabel>
                       <Select
@@ -562,22 +647,166 @@ export default function StudentBookPage() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <div className='flex items-start gap-2 rounded-md border border-muted bg-muted/40 px-3 py-2 text-sm text-muted-foreground'>
+                        <Info className='mt-0.5 h-4 w-4 shrink-0' />
+                        <span>
+                          Seleziona una materia per vedere accanto ai giorni la
+                          disponibilità specifica.
+                          <br />
+                          <strong>
+                            Ricorda che puoi prenotare una sola lezione al
+                            giorno e solo fino alle 20:00 del giorno precedente.
+                          </strong>
+                        </span>
+                      </div>
                     </Field>
                   </div>
                   <div className='mt-4 flex flex-col gap-2 pt-2 sm:pt-0 sm:flex-row sm:items-end sm:justify-end'>
-                    <Button variant='outline' type='button' onClick={handleClearFilters}>
+                    <Button
+                      variant='outline'
+                      type='button'
+                      onClick={handleClearFilters}
+                    >
                       Reset filtri
                     </Button>
                     <Button type='submit'>Applica filtri</Button>
                   </div>
                 </form>
+
+                {profile?.role === 'student' && (
+                  <Accordion
+                    type='single'
+                    collapsible
+                    className='rounded-lg border bg-card px-4'
+                  >
+                    <AccordionItem value='subject-request'>
+                      <AccordionTrigger>
+                        Non trovi la lezione di cui hai bisogno?
+                      </AccordionTrigger>
+                      <AccordionContent className='space-y-4'>
+                        <p className='text-sm text-muted-foreground'>
+                          Seleziona una materia dall&apos;elenco per inviare una
+                          richiesta.
+                        </p>
+                        <div className='flex items-start gap-2 rounded-md border border-muted bg-muted/40 px-3 py-2 text-sm text-muted-foreground'>
+                          <Info className='mt-0.5 h-4 w-4 shrink-0' />
+                          <span>
+                            Non possiamo garantire che troveremo lezioni per
+                            tutte le richieste, ma ci impegneremo a migliorare
+                            la disponibilità.
+                          </span>
+                        </div>
+                        <form
+                          className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end'
+                          onSubmit={(event) => {
+                            event.preventDefault()
+                            void handleSubjectRequest()
+                          }}
+                        >
+                          <Field className='gap-2'>
+                            <FieldLabel htmlFor='subject-request'>
+                              Materia richiesta
+                            </FieldLabel>
+                            <Select
+                              value={subjectRequestId || 'none'}
+                              onValueChange={(value) =>
+                                setSubjectRequestId(
+                                  value === 'none' ? '' : value
+                                )
+                              }
+                            >
+                              <SelectTrigger
+                                id='subject-request'
+                                className='w-full'
+                              >
+                                <SelectValue
+                                  placeholder={
+                                    subjectsLoading
+                                      ? 'Caricamento...'
+                                      : 'Seleziona una materia'
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value='none'>
+                                  Seleziona una materia
+                                </SelectItem>
+                                {sortedSubjects.map((subject) => (
+                                  <SelectItem
+                                    key={subject.id}
+                                    value={subject.id}
+                                  >
+                                    {subject.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </Field>
+                          <Button
+                            type='submit'
+                            disabled={isSubmittingSubjectRequest}
+                          >
+                            {isSubmittingSubjectRequest
+                              ? 'Invio...'
+                              : 'Invia richiesta'}
+                          </Button>
+                        </form>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                )}
+
+                <div className='flex flex-wrap items-center gap-3 mt-6'>
+                  <Tabs
+                    className='w-full'
+                    value={filters.dayKey}
+                    onValueChange={(value) => {
+                      setFilters((prev) => ({
+                        ...prev,
+                        dayKey: value,
+                        page: 1
+                      }))
+                      updateParams({ dayKey: value, page: 1 }, filters)
+                    }}
+                  >
+                    <TabsList className='w-full h-auto items-stretch'>
+                      {dayTabs.map((day) => {
+                        const tabDate = weekDates.get(day.key)
+                        const isPastOrToday =
+                          tabDate?.getTime() !== undefined &&
+                          tabDate.getTime() <= todayStart.getTime()
+                        const dayCount = dayCounts[day.key]
+                        const countLabel = dayCountsLoading
+                          ? '...'
+                          : String(typeof dayCount === 'number' ? dayCount : 0)
+                        return (
+                          <TabsTrigger
+                            key={day.key}
+                            value={day.key}
+                            disabled={isPastOrToday}
+                            className='text-lg h-auto py-2 flex flex-col items-center gap-1 sm:flex-row sm:gap-2'
+                          >
+                            <span>{day.label}</span>
+                            {isSubjectFilterActive ? (
+                              <Badge className='rounded-full'>
+                                {countLabel}
+                              </Badge>
+                            ) : null}
+                          </TabsTrigger>
+                        )
+                      })}
+                    </TabsList>
+                  </Tabs>
+                </div>
               </div>
 
               <div className='mt-6 rounded-lg border'>
                 <Table>
                   <TableHeader className='bg-muted/50'>
                     <TableRow>
-                  <TableHead className='whitespace-nowrap'>Data e ora</TableHead>
+                      <TableHead className='whitespace-nowrap'>
+                        Data e ora
+                      </TableHead>
                       <TableHead>Materia</TableHead>
                       <TableHead>Tutor</TableHead>
                       <TableHead>Posti disponibili</TableHead>
@@ -725,7 +954,7 @@ export default function StudentBookPage() {
           )}
           <div className='space-y-4'>
             <label className='text-sm font-medium text-muted-foreground'>
-              Topic (obbligatorio)
+              Argomento (obbligatorio)
             </label>
             <p className='flex items-start gap-2 mt-1 text-xs font-semibold text-muted-foreground'>
               <AlertTriangle className='mt-0.5 h-4 w-4 shrink-0' />
@@ -738,7 +967,7 @@ export default function StudentBookPage() {
             <Textarea
               value={bookingTopic}
               onChange={(event) => setBookingTopic(event.target.value)}
-              placeholder='Inserisci il topic della lezione...'
+              placeholder="Inserisci l'argomento della lezione..."
               maxLength={200}
               rows={4}
             />
