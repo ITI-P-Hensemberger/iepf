@@ -296,7 +296,19 @@ export default function AdminStatsPage() {
   const searchParamsString = searchParams.toString()
 
   const availableTabs = React.useMemo(
-    () => ['overview', 'subjects', 'subject-requests', 'tutors', 'students'] as const,
+    () =>
+      ['overview', 'subjects', 'subject-requests', 'tutors', 'students'] as const,
+    []
+  )
+
+  const tabLabels = React.useMemo(
+    () => ({
+      overview: 'Panoramica',
+      subjects: 'Materie',
+      'subject-requests': 'Richieste materie',
+      tutors: 'Tutor',
+      students: 'Studenti'
+    }),
     []
   )
 
@@ -1034,7 +1046,21 @@ export default function AdminStatsPage() {
           </div>
 
           <Tabs value={activeTab} onValueChange={handleTabChange}>
-            <TabsList>
+            <div className='sm:hidden'>
+              <Select value={activeTab} onValueChange={handleTabChange}>
+                <SelectTrigger className='w-full'>
+                  <SelectValue placeholder='Seleziona sezione' />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableTabs.map((tab) => (
+                    <SelectItem key={tab} value={tab}>
+                      {tabLabels[tab]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <TabsList className='hidden sm:inline-flex'>
               <TabsTrigger value='overview'>Panoramica</TabsTrigger>
               <TabsTrigger value='subjects'>Materie</TabsTrigger>
               <TabsTrigger value='subject-requests'>

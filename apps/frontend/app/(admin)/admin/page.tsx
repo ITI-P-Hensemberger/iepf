@@ -5,7 +5,6 @@ import Link from 'next/link'
 
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/lib/use-session'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
@@ -64,6 +63,13 @@ function endOfTodayIso() {
   return now.toISOString()
 }
 
+function startOfTomorrowIso() {
+  const now = new Date()
+  now.setDate(now.getDate() + 1)
+  now.setHours(0, 0, 0, 0)
+  return now.toISOString()
+}
+
 function normalizeLessons(payload: unknown): Lesson[] {
   if (!payload || typeof payload !== 'object') return []
   const data = payload as Record<string, unknown>
@@ -83,36 +89,6 @@ function normalizeTotal(payload: unknown, fallback: number) {
     if (typeof nested.total === 'number') return nested.total
   }
   return fallback
-}
-
-function statusVariant(
-  status?: string | null
-): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (!status) {
-    return 'secondary'
-  }
-  const normalized = status.toLowerCase()
-  if (normalized === 'canceled' || normalized === 'cancelled') {
-    return 'destructive'
-  }
-  if (normalized === 'confirmed') {
-    return 'default'
-  }
-  return 'secondary'
-}
-
-function formatStatusLabel(status?: string | null) {
-  if (!status) {
-    return '-'
-  }
-  const normalized = status.toLowerCase()
-  const mapping: Record<string, string> = {
-    confirmed: 'Confermata',
-    canceled: 'Annullata',
-    cancelled: 'Annullata',
-    scheduled: 'Programmata'
-  }
-  return mapping[normalized] ?? 'Programmata'
 }
 
 function lessonSeatsLabel(lesson: Lesson) {
@@ -139,6 +115,11 @@ export default function AdminPage() {
   const [searchQuery, setSearchQuery] = React.useState('')
   const [page, setPage] = React.useState(1)
   const [total, setTotal] = React.useState(0)
+  const [scheduledLessons, setScheduledLessons] = React.useState<Lesson[]>([])
+  const [isScheduledLoading, setIsScheduledLoading] = React.useState(true)
+  const [scheduledSearchQuery, setScheduledSearchQuery] = React.useState('')
+  const [scheduledPage, setScheduledPage] = React.useState(1)
+  const [scheduledTotal, setScheduledTotal] = React.useState(0)
   const [tutors, setTutors] = React.useState<Tutor[]>([])
   const [subjects, setSubjects] = React.useState<Subject[]>([])
 
@@ -207,12 +188,22 @@ export default function AdminPage() {
   }, [])
 
   const totalPages = Math.max(1, Math.ceil(total / lessonsLimit))
+  const scheduledTotalPages = Math.max(
+    1,
+    Math.ceil(scheduledTotal / lessonsLimit)
+  )
 
   React.useEffect(() => {
     if (page > totalPages) {
       setPage(totalPages)
     }
   }, [page, totalPages])
+
+  React.useEffect(() => {
+    if (scheduledPage > scheduledTotalPages) {
+      setScheduledPage(scheduledTotalPages)
+    }
+  }, [scheduledPage, scheduledTotalPages])
 
   React.useEffect(() => {
     let isMounted = true
@@ -264,6 +255,56 @@ export default function AdminPage() {
       clearTimeout(timeout)
     }
   }, [page, searchQuery])
+
+  React.useEffect(() => {
+    let isMounted = true
+    const timeout = setTimeout(() => {
+      void (async () => {
+        setIsScheduledLoading(true)
+        try {
+          const params = new URLSearchParams()
+          params.set('from', startOfTomorrowIso())
+          params.set('status', 'confirmed')
+          params.set('sortBy', 'startAt')
+          params.set('sortDir', 'asc')
+          params.set('limit', String(lessonsLimit))
+          params.set('offset', String((scheduledPage - 1) * lessonsLimit))
+          if (scheduledSearchQuery.trim()) {
+            params.set('q', scheduledSearchQuery.trim())
+          }
+          const response = await fetch(`/api/lessons?${params.toString()}`)
+          if (!response.ok) {
+            throw new Error('Impossibile caricare le lezioni programmate.')
+          }
+          const payload = await response.json()
+          if (isMounted) {
+            const nextLessons = normalizeLessons(payload)
+            setScheduledLessons(nextLessons)
+            setScheduledTotal(normalizeTotal(payload, nextLessons.length))
+          }
+        } catch (err) {
+          toast.error(
+            err instanceof Error
+              ? err.message
+              : 'Impossibile caricare le lezioni programmate.'
+          )
+          if (isMounted) {
+            setScheduledLessons([])
+            setScheduledTotal(0)
+          }
+        } finally {
+          if (isMounted) {
+            setIsScheduledLoading(false)
+          }
+        }
+      })()
+    }, 100)
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeout)
+    }
+  }, [scheduledPage, scheduledSearchQuery])
 
   return (
     <main className='flex-1'>
@@ -371,7 +412,6 @@ export default function AdminPage() {
                     <TableHead>Tutor</TableHead>
                     <TableHead>Materia</TableHead>
                     <TableHead>Posti</TableHead>
-                    <TableHead>Stato</TableHead>
                     <TableHead className='w-16'>
                       <span className='sr-only'>Azioni</span>
                     </TableHead>
@@ -380,7 +420,7 @@ export default function AdminPage() {
                 <TableBody>
                   {isLessonsLoading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className='text-muted-foreground'>
+                      <TableCell colSpan={5} className='text-muted-foreground'>
                         Caricamento...
                       </TableCell>
                     </TableRow>
@@ -396,11 +436,6 @@ export default function AdminPage() {
                           <TableCell>{tutorTableLabel(tutor) ?? '-'}</TableCell>
                           <TableCell>{subject?.name ?? '-'}</TableCell>
                           <TableCell>{lessonSeatsLabel(lesson)}</TableCell>
-                          <TableCell>
-                            <Badge variant={statusVariant(lesson.status)}>
-                              {formatStatusLabel(lesson.status)}
-                            </Badge>
-                          </TableCell>
                           <TableCell className='w-16 text-right'>
                             <div className='flex items-center justify-end gap-1'>
                               <Button
@@ -434,7 +469,7 @@ export default function AdminPage() {
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className='text-muted-foreground'>
+                      <TableCell colSpan={5} className='text-muted-foreground'>
                         Nessuna lezione oggi.
                       </TableCell>
                     </TableRow>
@@ -463,6 +498,137 @@ export default function AdminPage() {
                     setPage((prev) => Math.min(totalPages, prev + 1))
                   }
                   disabled={page >= totalPages || isLessonsLoading}
+                >
+                  Successiva
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className='mt-12'>
+            <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+              <div>
+                <h2 className='text-xl font-semibold'>
+                  Lezioni programmate
+                </h2>
+              </div>
+              <div className='w-full sm:w-72'>
+                <Input
+                  placeholder='Cerca per tutor o materia'
+                  value={scheduledSearchQuery}
+                  onChange={(event) => {
+                    setScheduledSearchQuery(event.target.value)
+                    setScheduledPage(1)
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className='mt-4 rounded-lg border'>
+              <Table>
+                <TableHeader className='bg-muted/50'>
+                  <TableRow>
+                    <TableHead className='whitespace-nowrap'>
+                      Data e ora
+                    </TableHead>
+                    <TableHead>Tutor</TableHead>
+                    <TableHead>Materia</TableHead>
+                    <TableHead>Posti</TableHead>
+                    <TableHead className='w-16'>
+                      <span className='sr-only'>Azioni</span>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isScheduledLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className='text-muted-foreground'>
+                        Caricamento...
+                      </TableCell>
+                    </TableRow>
+                  ) : scheduledLessons.length ? (
+                    scheduledLessons.map((lesson) => {
+                      const subject = subjectMap.get(lesson.subjectId)
+                      const tutor = tutorMap.get(lesson.tutorId)
+                      return (
+                        <TableRow key={lesson.id}>
+                          <TableCell>
+                            {formatItalianDate(lesson.startAt)}
+                          </TableCell>
+                          <TableCell>{tutorTableLabel(tutor) ?? '-'}</TableCell>
+                          <TableCell>{subject?.name ?? '-'}</TableCell>
+                          <TableCell>{lessonSeatsLabel(lesson)}</TableCell>
+                          <TableCell className='w-16 text-right'>
+                            <div className='flex items-center justify-end gap-1'>
+                              <Button
+                                asChild
+                                variant='ghost'
+                                size='icon'
+                                aria-label='Apri dettagli lezione'
+                                className='h-6 w-6 p-0'
+                              >
+                                <Link href={`/admin/lessons/${lesson.id}`}>
+                                  <ExternalLink className='h-4 w-4' />
+                                </Link>
+                              </Button>
+                              <Button
+                                asChild
+                                variant='ghost'
+                                size='icon'
+                                aria-label='Gestione feedback lezione'
+                                className='h-6 w-6 p-0'
+                              >
+                                <Link
+                                  href={`/admin/feedback?feedbackLesson=${lesson.id}`}
+                                >
+                                  <MessageSquare className='h-4 w-4' />
+                                </Link>
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={5} className='text-muted-foreground'>
+                        Nessuna lezione programmata.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <div className='mt-4 flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between'>
+              <span>
+                Pagina {scheduledPage} di {scheduledTotalPages} · Totale{' '}
+                {scheduledTotal}
+                {scheduledSearchQuery.trim()
+                  ? ' risultati per la ricerca'
+                  : ''}
+              </span>
+              <div className='flex items-center gap-2'>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={() =>
+                    setScheduledPage((prev) => Math.max(1, prev - 1))
+                  }
+                  disabled={scheduledPage <= 1 || isScheduledLoading}
+                >
+                  Precedente
+                </Button>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={() =>
+                    setScheduledPage((prev) =>
+                      Math.min(scheduledTotalPages, prev + 1)
+                    )
+                  }
+                  disabled={
+                    scheduledPage >= scheduledTotalPages || isScheduledLoading
+                  }
                 >
                   Successiva
                 </Button>

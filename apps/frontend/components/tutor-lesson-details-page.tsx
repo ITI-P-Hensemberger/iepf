@@ -44,6 +44,9 @@ type Lesson = {
   startAt: string
   durationMinutes: number
   lessonCapacity: number
+  dailyCapacity?: number | null
+  dailyAvailability?: number | null
+  dailyOccupancy?: number | null
   availableSeats: number
   status: string
 }
@@ -142,6 +145,33 @@ function lessonSeatsLabel(lesson?: Lesson | null) {
   if (!Number.isFinite(capacity) || !Number.isFinite(available)) return '-'
   const occupied = Math.max(0, capacity - available)
   return `${occupied}/${capacity}`
+}
+
+function parseNumeric(value: unknown) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+function isLessonNonBookable(lesson?: Lesson | null) {
+  if (!lesson) return false
+  const status = lesson.status?.toLowerCase()
+  if (status !== 'scheduled') {
+    return false
+  }
+  const dailySeats = parseNumeric(
+    lesson.dailyAvailability ?? lesson.dailyCapacity
+  )
+  const occupancy = parseNumeric(lesson.dailyOccupancy)
+  if (dailySeats === null || occupancy === null) {
+    return false
+  }
+  return occupancy >= dailySeats
 }
 
 function studentLabel(student?: Student | null) {
@@ -561,6 +591,11 @@ export default function TutorLessonDetailsPage() {
                     <Badge variant={statusVariant(lesson.status)}>
                       {formatStatusLabel(lesson.status)}
                     </Badge>
+                    {isLessonNonBookable(lesson) ? (
+                      <div className='mt-2'>
+                        <Badge variant='outline'>Non prenotabile</Badge>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               ) : (

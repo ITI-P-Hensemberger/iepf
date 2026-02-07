@@ -54,6 +54,7 @@ type Lesson = {
   startAt: string
   durationMinutes: number
   lessonCapacity: number
+  dailyCapacity?: number | null
   dailyAvailability?: number | null
   dailyOccupancy?: number | null
   availableSeats: number
@@ -161,6 +162,21 @@ function lessonSeatsLabel(lesson: Lesson) {
     return '-'
   }
   return `${lessonOccupiedSeats(lesson)}/${capacity}`
+}
+
+function isLessonNonBookable(lesson: Lesson) {
+  const status = lesson.status?.toLowerCase()
+  if (status !== 'scheduled') {
+    return false
+  }
+  const dailySeats = parseNumeric(
+    lesson.dailyAvailability ?? lesson.dailyCapacity
+  )
+  const occupancy = parseNumeric(lesson.dailyOccupancy)
+  if (dailySeats === null || occupancy === null) {
+    return false
+  }
+  return occupancy >= dailySeats
 }
 
 export default function TutorLessonsPage() {
@@ -550,6 +566,11 @@ export default function TutorLessonsPage() {
                           <Badge variant={statusVariant(lesson.status)}>
                             {formatStatusLabel(lesson.status)}
                           </Badge>
+                          {isLessonNonBookable(lesson) ? (
+                            <div className='mt-2'>
+                              <Badge variant='outline'>Non prenotabile</Badge>
+                            </div>
+                          ) : null}
                         </TableCell>
                         <TableCell className='w-16 text-right'>
                           <div className='flex items-center justify-end gap-1'>
