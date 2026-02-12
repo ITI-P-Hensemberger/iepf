@@ -105,6 +105,24 @@ function buildEmailHtml(
   `.trim()
 }
 
+function buildInfoCard(title: string, lines: string[]) {
+  return `
+    <div style="margin:12px 0;padding:14px 16px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;text-align:left;">
+      <div style="font-weight:700;color:#0f172a;font-size:15px;">${title}</div>
+      ${lines.map(line => `<div style="margin-top:6px;color:#475569;font-size:14px;">${line}</div>`).join('')}
+    </div>
+  `.trim()
+}
+
+function buildLessonCardHtml(title: string, lines: string[]) {
+  return `
+    <div style="margin:12px 0;padding:14px 16px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;text-align:left;">
+      <div style="font-weight:700;color:#0f172a;font-size:15px;">${title}</div>
+      ${lines.map((line, index) => `<div style="margin-top:${index === 0 ? 4 : 6}px;color:#475569;font-size:14px;">${line}</div>`).join('')}
+    </div>
+  `.trim()
+}
+
 function formatLessonDate(date: Date) {
   return date.toLocaleString('it-IT', {
     year: 'numeric',
@@ -268,7 +286,7 @@ export function buildRegistrationConfirmedMessage() {
 
 export function buildLessonFeedbackReminderMessage(role: 'student' | 'tutor', count: number) {
   const baseUrl = env.SITE_URL ?? 'http://localhost:3000'
-  const url = new URL('/lessons', baseUrl).toString()
+  const url = new URL(`${role === 'student' ? '/student' : '/tutor'}/lessons`, baseUrl).toString()
   const heading = role === 'tutor'
     ? 'Ricorda di lasciare il feedback'
     : 'Ricorda di lasciare il feedback al tutor'
@@ -304,7 +322,14 @@ export function buildBookingCanceledByAdminMessage(recipientRole: 'student' | 't
   return {
     subject: 'Lezione annullata',
     text: message,
-    html: buildEmailHtml(heading, message)
+    html: buildEmailHtml(
+      heading,
+      `La lezione prevista per <strong>${formattedDate}</strong> è stata annullata.
+      <div style="margin-top:12px;">${buildInfoCard('Lezione annullata', [
+        `Data: <strong>${formattedDate}</strong>`,
+        'Annullata da un amministratore.'
+      ])}</div>`
+    )
   } satisfies EmailTemplate
 }
 
@@ -312,6 +337,7 @@ export function buildLessonBookingConfirmedMessage(params: {
   recipientRole: 'student' | 'tutor'
   lessonStartAt: Date
   subjectName: string
+  topic?: string | null
   tutorName: string
   studentName: string
   studentClass?: string | null
@@ -319,24 +345,42 @@ export function buildLessonBookingConfirmedMessage(params: {
 }) {
   const dateLabel = formatLessonDate(params.lessonStartAt)
   const adminLabel = params.bookedByAdmin ? ' Prenotazione effettuata da un amministratore.' : ''
+  const topicText = params.topic ? ` Argomento: ${params.topic}.` : ''
   if (params.recipientRole === 'student') {
+    const cardLines = [
+      dateLabel,
+      `Tutor: <strong>${params.tutorName}</strong>`,
+      ...(params.topic ? [`Argomento: <strong>${params.topic}</strong>`] : [])
+    ]
     return {
       subject: 'Prenotazione confermata',
-      text: `La tua prenotazione è confermata per ${dateLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.${adminLabel}`,
+      text: `Prenotazione confermata per ${dateLabel}. Materia: ${params.subjectName}.${topicText} Tutor: ${params.tutorName}. Dovrai farti trovare in atrio all'ora di inizio della lezione. In caso di grave ritardo, verrai segnato assente e la lezione non verrà rimborsata.${adminLabel}`,
       html: buildEmailHtml(
         'Prenotazione confermata',
-        `La tua prenotazione è confermata per <strong>${dateLabel}</strong>.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.${params.bookedByAdmin ? '<br />Prenotazione effettuata da un amministratore.' : ''}`
+        `Prenotazione confermata per <strong>${dateLabel}</strong>.
+        <div style="margin-top:12px;">${buildLessonCardHtml(params.subjectName, cardLines)}</div>
+        <div style="margin-top:12px;">Dovrai farti trovare in atrio all'ora di inizio della lezione.</div>
+        <div style="margin-top:8px;">In caso di grave ritardo, verrai segnato assente e la lezione non verrà rimborsata.</div>
+        ${params.bookedByAdmin ? '<div style="margin-top:12px;color:#64748b;font-size:13px;">Prenotazione effettuata da un amministratore.</div>' : ''}`
       )
     } satisfies EmailTemplate
   }
 
   const studentLabel = buildStudentLabel(params.studentName, params.studentClass)
+  const cardLines = [
+    dateLabel,
+    `Studente: <strong>${studentLabel}</strong>`,
+    ...(params.topic ? [`Argomento: <strong>${params.topic}</strong>`] : [])
+  ]
   return {
     subject: 'Nuova prenotazione',
-    text: `Hai una nuova prenotazione per ${dateLabel}. Materia: ${params.subjectName}. Studente: ${studentLabel}.${adminLabel}`,
+    text: `Hai una nuova prenotazione alla lezione del ${dateLabel}. Materia: ${params.subjectName}.${topicText} Studente: ${studentLabel}. Aspetta il tuo studente in atrio. Una volta arrivato, spostatevi in aula 213 o 215.${adminLabel}`,
     html: buildEmailHtml(
       'Nuova prenotazione',
-      `Hai una nuova prenotazione per <strong>${dateLabel}</strong>.<br />Materia: <strong>${params.subjectName}</strong>.<br />Studente: <strong>${studentLabel}</strong>.${params.bookedByAdmin ? '<br />Prenotazione effettuata da un amministratore.' : ''}`
+      `Hai una nuova prenotazione alla lezione del <strong>${dateLabel}</strong>.
+      <div style="margin-top:12px;">${buildLessonCardHtml(params.subjectName, cardLines)}</div>
+      <div style="margin-top:12px;">Aspetta il tuo studente in atrio. Una volta arrivato, spostatevi in aula 213 o 215.</div>
+      ${params.bookedByAdmin ? '<div style="margin-top:12px;color:#64748b;font-size:13px;">Prenotazione effettuata da un amministratore.</div>' : ''}`
     )
   } satisfies EmailTemplate
 }
@@ -346,6 +390,9 @@ export function buildLessonBookingCanceledMessage(params: {
   canceledBy: 'student' | 'tutor' | 'admin'
   lessonStartAt: Date
   subjectName: string
+  topic?: string | null
+  noRefundNotice?: boolean
+  tutorPartialNotice?: boolean
   tutorName: string
   studentName: string
   studentClass?: string | null
@@ -355,33 +402,58 @@ export function buildLessonBookingCanceledMessage(params: {
     ? 'da un amministratore'
     : params.canceledBy === 'tutor' ? 'dal tutor' : 'dallo studente'
   const adminSuffix = params.canceledBy === 'admin' ? ' Operazione effettuata da un amministratore.' : ''
+  const topicText = params.topic ? ` Argomento: ${params.topic}.` : ''
+  const noRefundText = params.noRefundNotice
+    ? ' La lezione non verrà rimborsata perché l\'annullamento è avvenuto dopo le 20 del giorno precedente la lezione.'
+    : ''
+  const tutorPartialText = params.tutorPartialNotice
+    ? ' Lo studente ha annullato dopo le 8 del giorno stesso della lezione: la lezione verrà conteggiata parzialmente.'
+    : ''
 
   if (params.recipientRole === 'student') {
+    const cardLines = [
+      dateLabel,
+      `Tutor: <strong>${params.tutorName}</strong>`,
+      ...(params.topic ? [`Argomento: <strong>${params.topic}</strong>`] : [])
+    ]
     return {
       subject: 'Prenotazione annullata',
       text: params.canceledBy === 'admin'
-        ? `La prenotazione del ${dateLabel} è stata annullata. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.${adminSuffix}`
-        : `La prenotazione del ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.`,
+        ? `La prenotazione del ${dateLabel} è stata annullata. Materia: ${params.subjectName}.${topicText} Tutor: ${params.tutorName}.${adminSuffix}`
+        : `La prenotazione del ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}.${topicText} Tutor: ${params.tutorName}.${noRefundText}`,
       html: buildEmailHtml(
         'Prenotazione annullata',
         params.canceledBy === 'admin'
-          ? `La prenotazione del <strong>${dateLabel}</strong> è stata annullata.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.<br />Operazione effettuata da un amministratore.`
-          : `La prenotazione del <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.`
+          ? `La prenotazione del <strong>${dateLabel}</strong> è stata annullata.
+          <div style="margin-top:12px;">${buildLessonCardHtml(params.subjectName, cardLines)}</div>
+          <div style="margin-top:12px;color:#64748b;font-size:13px;">Operazione effettuata da un amministratore.</div>`
+          : `La prenotazione del <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.
+          <div style="margin-top:12px;">${buildLessonCardHtml(params.subjectName, cardLines)}</div>
+          ${params.noRefundNotice ? '<div style="margin-top:12px;font-size:13px;color:#dc2626;">La lezione non verrà rimborsata perché l\'annullamento è avvenuto dopo le 20 del giorno precedente la lezione.</div>' : ''}`
       )
     } satisfies EmailTemplate
   }
 
   const studentLabel = buildStudentLabel(params.studentName, params.studentClass)
+  const cardLines = [
+    dateLabel,
+    `Studente: <strong>${studentLabel}</strong>`,
+    ...(params.topic ? [`Argomento: <strong>${params.topic}</strong>`] : [])
+  ]
   return {
     subject: 'Prenotazione annullata',
     text: params.canceledBy === 'admin'
-      ? `La prenotazione di ${studentLabel} del ${dateLabel} è stata annullata. Materia: ${params.subjectName}.${adminSuffix}`
-      : `La prenotazione di ${studentLabel} del ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}.`,
+      ? `La prenotazione di ${studentLabel} del ${dateLabel} è stata annullata. Materia: ${params.subjectName}.${topicText}${adminSuffix}`
+      : `La prenotazione di ${studentLabel} del ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}.${topicText}${tutorPartialText}`,
     html: buildEmailHtml(
       'Prenotazione annullata',
       params.canceledBy === 'admin'
-        ? `La prenotazione di <strong>${studentLabel}</strong> del <strong>${dateLabel}</strong> è stata annullata.<br />Materia: <strong>${params.subjectName}</strong>.<br />Operazione effettuata da un amministratore.`
-        : `La prenotazione di <strong>${studentLabel}</strong> del <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.`
+        ? `La prenotazione di <strong>${studentLabel}</strong> del <strong>${dateLabel}</strong> è stata annullata.
+        <div style="margin-top:12px;">${buildLessonCardHtml(params.subjectName, cardLines)}</div>
+        <div style="margin-top:12px;color:#64748b;font-size:13px;">Operazione effettuata da un amministratore.</div>`
+        : `La prenotazione di <strong>${studentLabel}</strong> del <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.
+        <div style="margin-top:12px;">${buildLessonCardHtml(params.subjectName, cardLines)}</div>
+        ${params.tutorPartialNotice ? '<div style="margin-top:12px;font-size:13px;color:#ea580c;">Lo studente ha annullato dopo le 8 del giorno stesso della lezione: la lezione verrà conteggiata parzialmente.</div>' : ''}`
     )
   } satisfies EmailTemplate
 }
@@ -391,6 +463,8 @@ export function buildLessonCanceledMessage(params: {
   canceledBy: 'student' | 'tutor' | 'admin'
   lessonStartAt: Date
   subjectName: string
+  topic?: string | null
+  topics?: string[]
   tutorName: string
   students: Array<{ name: string, classLabel?: string | null }>
 }) {
@@ -399,38 +473,55 @@ export function buildLessonCanceledMessage(params: {
     ? 'da un amministratore'
     : params.canceledBy === 'tutor' ? 'dal tutor' : 'dallo studente'
   const adminSuffix = params.canceledBy === 'admin' ? ' Operazione effettuata da un amministratore.' : ''
+  const topicText = params.topic ? ` Argomento: ${params.topic}.` : ''
 
   if (params.recipientRole === 'student') {
+    const cardLines = [
+      dateLabel,
+      `Tutor: <strong>${params.tutorName}</strong>`,
+      ...(params.topic ? [`Argomento: <strong>${params.topic}</strong>`] : [])
+    ]
     return {
       subject: 'Lezione annullata',
       text: params.canceledBy === 'admin'
-        ? `La lezione del ${dateLabel} è stata annullata. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.${adminSuffix}`
-        : `La lezione del ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}.`,
+        ? `La lezione del ${dateLabel} è stata annullata. Materia: ${params.subjectName}.${topicText} Tutor: ${params.tutorName}.${adminSuffix}`
+        : `La lezione del ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}.${topicText} Tutor: ${params.tutorName}.`,
       html: buildEmailHtml(
         'Lezione annullata',
         params.canceledBy === 'admin'
-          ? `La lezione del <strong>${dateLabel}</strong> è stata annullata.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.<br />Operazione effettuata da un amministratore.`
-          : `La lezione del <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.`
+          ? `La lezione del <strong>${dateLabel}</strong> è stata annullata.
+          <div style="margin-top:12px;">${buildLessonCardHtml(params.subjectName, cardLines)}</div>
+          <div style="margin-top:12px;color:#64748b;font-size:13px;">Operazione effettuata da un amministratore.</div>`
+          : `La lezione del <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.
+          <div style="margin-top:12px;">${buildLessonCardHtml(params.subjectName, cardLines)}</div>`
       )
     } satisfies EmailTemplate
   }
 
-  const studentItems = params.students.length > 0
-    ? `<ul style="margin:12px 0 0;padding-left:20px;text-align:left;">${params.students
-      .map(student => `<li>${buildStudentLabel(student.name, student.classLabel)}</li>`)
-      .join('')}</ul>`
-    : '<p style="margin:12px 0 0;">Nessuno studente prenotato.</p>'
+  const studentLabelList = params.students.length > 0
+    ? params.students.map(student => buildStudentLabel(student.name, student.classLabel)).join(', ')
+    : 'nessuno'
+  const topics = (params.topics ?? []).map(topic => topic.trim()).filter(Boolean)
+  const topicsLine = topics.length > 0 ? `Argomenti: ${topics.join(', ')}` : null
+  const cardLines = [
+    dateLabel,
+    `Studenti: <strong>${studentLabelList}</strong>`,
+    ...(topicsLine ? [topicsLine] : [])
+  ]
 
   return {
     subject: 'Lezione annullata',
     text: params.canceledBy === 'admin'
-      ? `La lezione del ${dateLabel} è stata annullata. Materia: ${params.subjectName}. Studenti: ${params.students.map(student => buildStudentLabel(student.name, student.classLabel)).join(', ') || 'nessuno'}.${adminSuffix}`
-      : `La lezione del ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}. Studenti: ${params.students.map(student => buildStudentLabel(student.name, student.classLabel)).join(', ') || 'nessuno'}.`,
+      ? `La lezione del ${dateLabel} è stata annullata. Materia: ${params.subjectName}.${topicsLine ? ` Argomenti: ${topics.join(', ')}.` : ''} Studenti: ${studentLabelList}.${adminSuffix}`
+      : `La lezione del ${dateLabel} è stata annullata ${canceledByLabel}. Materia: ${params.subjectName}.${topicsLine ? ` Argomenti: ${topics.join(', ')}.` : ''} Studenti: ${studentLabelList}.`,
     html: buildEmailHtml(
       'Lezione annullata',
       params.canceledBy === 'admin'
-        ? `La lezione del <strong>${dateLabel}</strong> è stata annullata.<br />Materia: <strong>${params.subjectName}</strong>.<br />Studenti:${studentItems}<br />Operazione effettuata da un amministratore.`
-        : `La lezione del <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.<br />Materia: <strong>${params.subjectName}</strong>.<br />Studenti:${studentItems}`
+        ? `La lezione del <strong>${dateLabel}</strong> è stata annullata.
+        <div style="margin-top:12px;">${buildLessonCardHtml(params.subjectName, cardLines)}</div>
+        <div style="margin-top:12px;color:#64748b;font-size:13px;">Operazione effettuata da un amministratore.</div>`
+        : `La lezione del <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.
+        <div style="margin-top:12px;">${buildLessonCardHtml(params.subjectName, cardLines)}</div>`
     )
   } satisfies EmailTemplate
 }
@@ -500,13 +591,20 @@ export function buildLessonReminderStudentMessage(params: {
   const dateLabel = formatLessonDate(params.lessonStartAt)
   const whenLabel = params.today ? 'oggi' : 'domani'
   const topicText = params.topic ? ` Argomento: ${params.topic}.` : ''
-  const topicHtml = params.topic ? `<br />Argomento: <strong>${params.topic}</strong>.` : ''
+  const cardLines = [
+    dateLabel,
+    `Tutor: <strong>${params.tutorName}</strong>`,
+    ...(params.topic ? [`Argomento: <strong>${params.topic}</strong>`] : [])
+  ]
   return {
     subject: `Promemoria lezioni di ${whenLabel}`,
-    text: `Promemoria: lezioni ${whenLabel} (${dateLabel}). Materia: ${params.subjectName}. Tutor: ${params.tutorName}.${topicText}`,
+    text: `Promemoria: lezioni ${whenLabel} (${dateLabel}). Materia: ${params.subjectName}. Tutor: ${params.tutorName}.${topicText}. Dovrai farti trovare in atrio all'ora di inizio della lezione. In caso di grave ritardo, verrai segnato assente e la lezione non verrà rimborsata.`,
     html: buildEmailHtml(
       `Promemoria lezioni di ${whenLabel}`,
-      `Promemoria: lezioni ${whenLabel} (<strong>${dateLabel}</strong>).<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.${topicHtml}`
+      `Promemoria: lezioni ${whenLabel} (<strong>${dateLabel}</strong>).
+      <div style="margin-top:12px;">${buildLessonCardHtml(params.subjectName, cardLines)}</div>
+      <div style="margin-top:12px;">Dovrai farti trovare in atrio all'ora di inizio della lezione.</div>
+      <div style="margin-top:8px;">In caso di grave ritardo, verrai segnato assente e la lezione non verrà rimborsata.</div>`
     )
   } satisfies EmailTemplate
 }
@@ -525,22 +623,20 @@ export function buildLessonReminderTutorMessage(params: {
   const itemsHtml = params.lessons.map((lesson) => {
     const dateLabel = formatLessonDate(lesson.startAt)
     const topics = lesson.topics?.filter(Boolean) ?? []
-    const topicLine = topics.length > 0
-      ? `<div style="margin-top:6px;color:#475569;font-size:14px;">Argomenti: ${topics.join(', ')}</div>`
-      : ''
-    const studentsList = lesson.students.length > 0
-      ? `<div style="margin-top:8px;color:#475569;font-size:14px;">Studenti: ${lesson.students
-        .map(student => buildStudentLabel(student.name, student.classLabel))
-        .join(', ')}</div>`
-      : '<div style="margin-top:8px;color:#64748b;font-size:14px;">Nessuno studente prenotato.</div>'
-    return `
-      <div style="margin:12px 0;padding:14px 16px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;text-align:left;">
-        <div style="font-weight:700;color:#0f172a;font-size:15px;">${lesson.subjectName}</div>
-        <div style="margin-top:4px;color:#475569;font-size:14px;">${dateLabel}</div>
-        ${topicLine}
-        ${studentsList}
-      </div>
-    `.trim()
+    const studentsValue = lesson.students.length > 0
+      ? lesson.students
+          .map(student => buildStudentLabel(student.name, student.classLabel))
+          .join(', ')
+      : null
+    const studentsLine = studentsValue
+      ? `Studenti: <strong>${studentsValue}</strong>`
+      : '<span style="color:#64748b;">Nessuno studente prenotato.</span>'
+    const lines = [
+      dateLabel,
+      ...(topics.length > 0 ? [`Argomenti: <strong>${topics.join(', ')}</strong>`] : []),
+      studentsLine
+    ]
+    return buildLessonCardHtml(lesson.subjectName, lines)
   }).join('')
 
   const itemsText = params.lessons.map((lesson) => {
@@ -556,7 +652,11 @@ export function buildLessonReminderTutorMessage(params: {
     text: `Ecco le lezioni confermate di ${whenLabel}:\n${itemsText}`,
     html: buildEmailHtml(
       `Promemoria lezioni di ${whenLabel}`,
-      `Ecco le lezioni confermate di ${whenLabel}:<div style="margin-top:12px;">${itemsHtml}</div>`
+      `Ecco le lezioni confermate di ${whenLabel}:<div style="margin-top:12px;">${itemsHtml}</div>
+      <br />
+      Aspetta il tuo studente in atrio. Una volta arrivato, spostatevi in aula 213 o 215.
+      <br />
+      Ricordati di segnare la presenza dello studente appena arriva.`
     )
   } satisfies EmailTemplate
 }

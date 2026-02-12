@@ -64,29 +64,6 @@ function ensureAdmin(c: HandlerContext) {
   return currentUser
 }
 
-function getWeekStart(date: Date) {
-  const day = date.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  const start = new Date(date)
-  start.setHours(0, 0, 0, 0)
-  start.setDate(start.getDate() + diff)
-  return start
-}
-
-function getWeekEnd(date: Date) {
-  const start = getWeekStart(date)
-  const end = new Date(start)
-  end.setDate(end.getDate() + 6)
-  end.setHours(23, 59, 59, 999)
-  return end
-}
-
-function withinLessonWeek(lessonStart: Date, now = new Date()) {
-  const start = getWeekStart(lessonStart)
-  const end = getWeekEnd(lessonStart)
-  return now >= start && now <= end
-}
-
 function buildClassLabel(sectionName: string | null, sectionId: string | null, year: number | null) {
   const sectionLabel = sectionName ?? sectionId
   const yearLabel = year ? `anno ${year}` : null
@@ -179,6 +156,12 @@ function sameDayOrAfter(a: Date, b: Date) {
   const bDay = new Date(b)
   bDay.setHours(0, 0, 0, 0)
   return aDay.getTime() >= bDay.getTime()
+}
+
+function sameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth()
+    && a.getDate() === b.getDate()
 }
 
 async function getTutorDailyCapacity(tutorId: string): Promise<number> {
@@ -979,6 +962,7 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
       recipientRole: 'student',
       lessonStartAt: new Date(lesson.startAt),
       subjectName: lessonDetails.subjectName,
+      topic: booking.topic,
       tutorName: lessonDetails.tutorName,
       studentName: studentDetails.name,
       studentClass: studentDetails.classLabel,
@@ -998,6 +982,7 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
         recipientRole: 'tutor',
         lessonStartAt: new Date(lesson.startAt),
         subjectName: lessonDetails.subjectName,
+        topic: booking.topic,
         tutorName: lessonDetails.tutorName,
         studentName: studentDetails.name,
         studentClass: studentDetails.classLabel,
@@ -1105,6 +1090,11 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
   const cutoff = new Date(lessonStart)
   cutoff.setDate(lessonStart.getDate() - 1)
   cutoff.setHours(20, 0, 0, 0)
+  const lessonDayCutoff = new Date(lessonStart)
+  lessonDayCutoff.setHours(8, 0, 0, 0)
+  const lateSameDayCancel = currentUser.role === 'student'
+    && sameDay(now, lessonStart)
+    && now >= lessonDayCutoff
 
   let countsForStudent = false
   if (currentUser.role === 'admin') {
@@ -1165,6 +1155,8 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
         canceledBy,
         lessonStartAt: new Date(lesson.startAt),
         subjectName: lessonDetails.subjectName,
+        topic: booking.topic,
+        noRefundNotice: currentUser.role === 'student' && countsForStudent,
         tutorName: lessonDetails.tutorName,
         studentName: studentDetails.name,
         studentClass: studentDetails.classLabel
@@ -1183,6 +1175,8 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
         canceledBy,
         lessonStartAt: new Date(lesson.startAt),
         subjectName: lessonDetails.subjectName,
+        topic: booking.topic,
+        tutorPartialNotice: lateSameDayCancel,
         tutorName: lessonDetails.tutorName,
         studentName: studentDetails.name,
         studentClass: studentDetails.classLabel
@@ -1273,6 +1267,8 @@ export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
     .where(eq(lessons.id, lessonId))
 
   let confirmedStudentIds: string[] = []
+  const topicsByStudentId = new Map<string, string | null>()
+  let confirmedTopics: string[] = []
   if (isAdmin) {
     const confirmedBookings = await db.query.lessonBookings.findMany({
       where(fields, operators) {
@@ -1281,9 +1277,15 @@ export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
           operators.eq(fields.status, 'confirmed')
         )
       },
-      columns: { studentId: true }
+      columns: { studentId: true, topic: true }
     })
     confirmedStudentIds = confirmedBookings.map(booking => booking.studentId)
+    confirmedTopics = confirmedBookings
+      .map(booking => booking.topic?.trim())
+      .filter((topic): topic is string => Boolean(topic))
+    for (const booking of confirmedBookings) {
+      topicsByStudentId.set(booking.studentId, booking.topic ?? null)
+    }
     await cancelConfirmedBookings(lessonId, currentUser.id)
   }
 
@@ -1301,6 +1303,7 @@ export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
           canceledBy: 'admin',
           lessonStartAt: new Date(lesson.startAt),
           subjectName: lessonDetails.subjectName,
+          topic: topicsByStudentId.get(studentId) ?? null,
           tutorName: lessonDetails.tutorName,
           students: [{ name: studentDetails.name, classLabel: studentDetails.classLabel }]
         })
@@ -1324,6 +1327,7 @@ export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
           canceledBy: 'admin',
           lessonStartAt: new Date(lesson.startAt),
           subjectName: lessonDetails.subjectName,
+          topics: Array.from(new Set(confirmedTopics)),
           tutorName: lessonDetails.tutorName,
           students: studentList
         })
@@ -1431,10 +1435,9 @@ export const setBookingPresence: AppRouteHandler<SetBookingPresenceRoute> = asyn
 
   if (isTutor) {
     const lessonStartAt = new Date(lesson.startAt)
-    const tenMinutesAfterStart = new Date(lessonStartAt.getTime() + 10 * 60 * 1000)
     const twoHoursAfterStart = new Date(lessonStartAt.getTime() + 2 * 60 * 60 * 1000)
     const now = new Date()
-    if (now < tenMinutesAfterStart || now > twoHoursAfterStart) {
+    if (now < lessonStartAt || now > twoHoursAfterStart) {
       return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
     }
   }

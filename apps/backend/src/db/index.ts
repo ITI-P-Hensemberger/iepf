@@ -54,6 +54,12 @@ const pool = new Pool({
   connectionString: env.DATABASE_URL
 })
 
+pool.on('error', (error) => {
+  // Prevent unhandled pool errors from crashing the process.
+  // eslint-disable-next-line no-console
+  console.error('Postgres pool error', error)
+})
+
 const db = drizzle(pool, {
   casing: 'snake_case',
   schema
