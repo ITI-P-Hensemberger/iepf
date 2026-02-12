@@ -660,6 +660,13 @@ export default function AdminSettingsPage() {
     () => ['info', 'maintenance', 'messages', 'closures', 'subjects'] as const,
     []
   )
+  const tabLabels: Record<(typeof availableTabs)[number], string> = {
+    info: 'Info',
+    maintenance: 'Manutenzione',
+    messages: 'Messaggi',
+    closures: 'Chiusure',
+    subjects: 'Materie'
+  }
 
   const activeTab = React.useMemo(() => {
     const tab = searchParams.get('tab')
@@ -697,12 +704,36 @@ export default function AdminSettingsPage() {
           </div>
 
           <Tabs value={activeTab} onValueChange={handleTabChange}>
-            <TabsList>
-              <TabsTrigger value='info'>Info</TabsTrigger>
-              <TabsTrigger value='maintenance'>Manutenzione</TabsTrigger>
-              <TabsTrigger value='messages'>Messaggi</TabsTrigger>
-              <TabsTrigger value='closures'>Chiusure</TabsTrigger>
-              <TabsTrigger value='subjects'>Materie</TabsTrigger>
+            <div className='sm:hidden'>
+              <Select value={activeTab} onValueChange={handleTabChange}>
+                <SelectTrigger className='w-full'>
+                  <SelectValue placeholder='Seleziona sezione' />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableTabs.map((tab) => (
+                    <SelectItem key={tab} value={tab}>
+                      {tabLabels[tab]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <TabsList className='hidden sm:grid w-full grid-cols-5'>
+              <TabsTrigger value='info' className='w-full'>
+                Info
+              </TabsTrigger>
+              <TabsTrigger value='maintenance' className='w-full'>
+                Manutenzione
+              </TabsTrigger>
+              <TabsTrigger value='messages' className='w-full'>
+                Messaggi
+              </TabsTrigger>
+              <TabsTrigger value='closures' className='w-full'>
+                Chiusure
+              </TabsTrigger>
+              <TabsTrigger value='subjects' className='w-full'>
+                Materie
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value='maintenance' className='mt-6 space-y-6'>

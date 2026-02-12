@@ -403,8 +403,12 @@ export default function StudentPage() {
                         const isPastStart =
                           Number.isFinite(startTime) &&
                           Date.now() > startTime
+                        const feedbackReady =
+                          Number.isFinite(startTime) &&
+                          Date.now() >= startTime + 60 * 60 * 1000
                         const canCancel = !isPastStart && !isDisabled
-                        const canFeedback = lesson.studentPresence === true
+                        const canFeedback =
+                          lesson.studentPresence === true && feedbackReady
                         const existingFeedback = feedbackByBooking.get(
                           lesson.bookingId
                         )

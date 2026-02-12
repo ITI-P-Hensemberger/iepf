@@ -626,8 +626,14 @@ export default function StudentLessonsPage() {
                       lesson.bookingStatus || lesson.lessonStatus
                     const normalizedStatus = statusValue?.toLowerCase() ?? ''
                     const isConfirmed = normalizedStatus === 'confirmed'
+                    const startTime = Date.parse(lesson.startAt)
+                    const feedbackReady =
+                      Number.isFinite(startTime) &&
+                      Date.now() >= startTime + 60 * 60 * 1000
                     const canFeedback =
-                      isConfirmed && lesson.studentPresence === true
+                      isConfirmed &&
+                      lesson.studentPresence === true &&
+                      feedbackReady
                     const tutorLabel = `${lesson.tutorLastName} ${lesson.tutorFirstName}`.trim()
                     const topicValue = lesson.topic?.trim()
                     return (

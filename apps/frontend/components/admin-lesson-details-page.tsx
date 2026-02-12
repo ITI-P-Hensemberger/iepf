@@ -1321,7 +1321,9 @@ export default function AdminLessonDetailsPage() {
                     disabled={!lesson}
                     className='w-full sm:w-auto'
                   >
-                    <Link href={`/admin/feedback?feedbackLesson=${lesson?.id}`}>
+                    <Link
+                      href={`/admin/feedback?feedbackLesson=${lesson?.id}&feedbackRole=tutor`}
+                    >
                       <MessageSquare className='mr-2 h-4 w-4' />
                       Feedback
                     </Link>

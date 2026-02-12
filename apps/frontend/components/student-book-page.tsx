@@ -24,7 +24,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { AlertTriangle, Info } from 'lucide-react'
+import { AlertTriangle, Info, X } from 'lucide-react'
 import { Field, FieldLabel } from '@/components/ui/field'
 import {
   Select,
@@ -72,12 +72,14 @@ type Subject = {
 type LessonFilters = {
   subjectId: string
   dayKey: string
+  timeKey: string
   page: number
 }
 
 const defaultFilters: LessonFilters = {
   subjectId: '',
   dayKey: 'mon',
+  timeKey: '14-15',
   page: 1
 }
 
@@ -89,6 +91,11 @@ const dayTabs = [
   { key: 'wed', label: 'Mer' },
   { key: 'thu', label: 'Gio' },
   { key: 'fri', label: 'Ven' }
+]
+
+const timeTabs = [
+  { key: '14-15', label: '14:00 - 15:00', startHour: 14, endHour: 15 },
+  { key: '15-16', label: '15:00 - 16:00', startHour: 15, endHour: 16 }
 ]
 
 function startOfDayIso(date: Date) {
@@ -112,6 +119,15 @@ function startOfWeekMonday(date: Date) {
   return next
 }
 
+function buildSlotRange(date: Date, startHour: number, endHour: number) {
+  const from = new Date(date)
+  from.setHours(startHour, 0, 0, 0)
+  const to = new Date(date)
+  to.setHours(endHour, 0, 0, 0)
+  to.setMilliseconds(to.getMilliseconds() - 1)
+  return { from, to }
+}
+
 function getDefaultWeekBaseDate() {
   const now = new Date()
   const weekday = now.getDay()
@@ -130,6 +146,13 @@ function getDayKeyFromDate(date: Date) {
     return dayTabs[weekday - 1].key
   }
   return 'mon'
+}
+
+function getTimeKey(value: string | null) {
+  if (!value) return timeTabs[0].key
+  return timeTabs.some((slot) => slot.key === value)
+    ? value
+    : timeTabs[0].key
 }
 
 function buildWeekDates(baseDate: Date) {
@@ -207,6 +230,8 @@ export default function StudentBookPage() {
   const [subjectsLoading, setSubjectsLoading] = React.useState(true)
   const [dayCounts, setDayCounts] = React.useState<Record<string, number>>({})
   const [dayCountsLoading, setDayCountsLoading] = React.useState(false)
+  const [timeCounts, setTimeCounts] = React.useState<Record<string, number>>({})
+  const [timeCountsLoading, setTimeCountsLoading] = React.useState(false)
 
   const [bookingOpen, setBookingOpen] = React.useState(false)
   const [bookingTarget, setBookingTarget] =
@@ -222,6 +247,7 @@ export default function StudentBookPage() {
       const params = new URLSearchParams(searchParamsString)
       const nextSubject = updates.subjectId ?? base.subjectId
       const nextDay = updates.dayKey ?? base.dayKey
+      const nextTime = updates.timeKey ?? base.timeKey
       const nextPage = updates.page ?? 1
 
       if (nextSubject) {
@@ -234,6 +260,12 @@ export default function StudentBookPage() {
         params.set('day', nextDay)
       } else {
         params.delete('day')
+      }
+
+      if (nextTime) {
+        params.set('time', nextTime)
+      } else {
+        params.delete('time')
       }
 
       if (nextPage > 1) {
@@ -265,6 +297,7 @@ export default function StudentBookPage() {
     return {
       subjectId: searchParams.get('lessonSubject') ?? '',
       dayKey: searchParams.get('day') ?? getDayKeyFromDate(baseDate),
+      timeKey: getTimeKey(searchParams.get('time')),
       page: parsePage('lessonPage')
     }
   }, [baseDate, parsePage, searchParams])
@@ -290,6 +323,7 @@ export default function StudentBookPage() {
     setFilters({
       subjectId: currentFilters.subjectId,
       dayKey: safeDayKey,
+      timeKey: currentFilters.timeKey,
       page: currentFilters.page
     })
   }, [
@@ -320,8 +354,21 @@ export default function StudentBookPage() {
     }
     const selectedDate = weekDates.get(currentFilters.dayKey)
     if (selectedDate) {
-      params.set('from', startOfDayIso(selectedDate))
-      params.set('to', endOfDayIso(selectedDate))
+      const timeSlot = timeTabs.find(
+        (slot) => slot.key === currentFilters.timeKey
+      )
+      if (timeSlot) {
+        const range = buildSlotRange(
+          selectedDate,
+          timeSlot.startHour,
+          timeSlot.endHour
+        )
+        params.set('from', range.from.toISOString())
+        params.set('to', range.to.toISOString())
+      } else {
+        params.set('from', startOfDayIso(selectedDate))
+        params.set('to', endOfDayIso(selectedDate))
+      }
     }
     params.set('sortBy', 'startAt')
     params.set('sortDir', 'asc')
@@ -373,22 +420,22 @@ export default function StudentBookPage() {
     try {
       const dayCountPageSize = 100
       const results = await Promise.all(
-        dayTabs.map(async (day) => {
-          const dayDate = weekDates.get(day.key)
-          if (!dayDate) {
-            return [day.key, 0] as const
-          }
-          let offset = 0
-          let totalValue = 0
-          let canBookCount = 0
+      dayTabs.map(async (day) => {
+        const dayDate = weekDates.get(day.key)
+        if (!dayDate) {
+          return [day.key, 0] as const
+        }
+        let offset = 0
+        let totalValue = 0
+        let canBookCount = 0
 
-          do {
-            const params = new URLSearchParams()
-            params.set('subjectId', currentFilters.subjectId)
-            params.set('from', startOfDayIso(dayDate))
-            params.set('to', endOfDayIso(dayDate))
-            params.set('limit', String(dayCountPageSize))
-            params.set('offset', String(offset))
+        do {
+          const params = new URLSearchParams()
+          params.set('subjectId', currentFilters.subjectId)
+          params.set('from', startOfDayIso(dayDate))
+          params.set('to', endOfDayIso(dayDate))
+          params.set('limit', String(dayCountPageSize))
+          params.set('offset', String(offset))
             const response = await fetch(
               `/api/lessons/available?${params.toString()}`
             )
@@ -417,6 +464,70 @@ export default function StudentBookPage() {
       setDayCountsLoading(false)
     }
   }, [currentFilters.subjectId, weekDates])
+
+  const loadTimeCounts = React.useCallback(async () => {
+    if (!currentFilters.subjectId) {
+      setTimeCounts({})
+      setTimeCountsLoading(false)
+      return
+    }
+
+    const selectedDate = weekDates.get(currentFilters.dayKey)
+    if (!selectedDate) {
+      setTimeCounts({})
+      setTimeCountsLoading(false)
+      return
+    }
+
+    setTimeCountsLoading(true)
+    try {
+      const timeCountPageSize = 100
+      const results = await Promise.all(
+        timeTabs.map(async (slot) => {
+          const range = buildSlotRange(
+            selectedDate,
+            slot.startHour,
+            slot.endHour
+          )
+          let offset = 0
+          let totalValue = 0
+          let canBookCount = 0
+
+          do {
+            const params = new URLSearchParams()
+            params.set('subjectId', currentFilters.subjectId)
+            params.set('from', range.from.toISOString())
+            params.set('to', range.to.toISOString())
+            params.set('limit', String(timeCountPageSize))
+            params.set('offset', String(offset))
+            const response = await fetch(
+              `/api/lessons/available?${params.toString()}`
+            )
+            if (!response.ok) {
+              throw new Error('Impossibile caricare i conteggi delle lezioni.')
+            }
+            const payload = await response.json()
+            const items = extractPayloadArray<LessonAvailable>(payload)
+            totalValue = extractTotal(payload, items.length)
+            canBookCount += items.filter((lesson) => lesson.canBook).length
+            offset += timeCountPageSize
+          } while (offset < totalValue)
+
+          return [slot.key, canBookCount] as const
+        })
+      )
+
+      const nextCounts: Record<string, number> = {}
+      results.forEach(([key, value]) => {
+        nextCounts[key] = value
+      })
+      setTimeCounts(nextCounts)
+    } catch {
+      setTimeCounts({})
+    } finally {
+      setTimeCountsLoading(false)
+    }
+  }, [currentFilters.dayKey, currentFilters.subjectId, weekDates])
 
   React.useEffect(() => {
     let isMounted = true
@@ -465,9 +576,18 @@ export default function StudentBookPage() {
   }, [loadDayCounts])
 
   React.useEffect(() => {
-    if (!searchParams.has('day')) {
+    void loadTimeCounts()
+  }, [loadTimeCounts])
+
+  React.useEffect(() => {
+    if (!searchParams.has('day') || !searchParams.has('time')) {
       const params = new URLSearchParams(searchParamsString)
-      params.set('day', 'mon')
+      if (!searchParams.has('day')) {
+        params.set('day', 'mon')
+      }
+      if (!searchParams.has('time')) {
+        params.set('time', timeTabs[0].key)
+      }
       const url = `${pathname}?${params.toString()}`
       router.replace(url, { scroll: false })
     }
@@ -481,6 +601,7 @@ export default function StudentBookPage() {
     setFilters({
       subjectId: '',
       dayKey: filters.dayKey,
+      timeKey: filters.timeKey,
       page: 1
     })
     updateParams(
@@ -527,6 +648,7 @@ export default function StudentBookPage() {
       await loadLessons()
       if (currentFilters.subjectId) {
         await loadDayCounts()
+        await loadTimeCounts()
       }
     } catch (err) {
       toast.error(
@@ -540,6 +662,7 @@ export default function StudentBookPage() {
     bookingTopic,
     currentFilters.subjectId,
     loadDayCounts,
+    loadTimeCounts,
     loadLessons,
     refresh
   ])
@@ -787,10 +910,57 @@ export default function StudentBookPage() {
                             className='text-lg h-auto py-2 flex flex-col items-center gap-1 sm:flex-row sm:gap-2'
                           >
                             <span>{day.label}</span>
-                            {isSubjectFilterActive ? (
+                          {isSubjectFilterActive ? (
+                            dayCountsLoading ? (
+                              <Badge className='rounded-full'>...</Badge>
+                            ) : dayCount > 0 ? (
                               <Badge className='rounded-full'>
                                 {countLabel}
                               </Badge>
+                            ) : (
+                              <X className='h-4 w-4 text-destructive' />
+                            )
+                          ) : null}
+                        </TabsTrigger>
+                      )
+                    })}
+                    </TabsList>
+                  </Tabs>
+                  <Tabs
+                    className='w-full'
+                    value={filters.timeKey}
+                    onValueChange={(value) => {
+                      setFilters((prev) => ({
+                        ...prev,
+                        timeKey: value,
+                        page: 1
+                      }))
+                      updateParams({ timeKey: value, page: 1 }, filters)
+                    }}
+                  >
+                    <TabsList className='w-full h-auto items-stretch'>
+                      {timeTabs.map((slot) => {
+                        const timeCount = timeCounts[slot.key]
+                        const timeLabel = String(
+                          typeof timeCount === 'number' ? timeCount : 0
+                        )
+                        return (
+                          <TabsTrigger
+                            key={slot.key}
+                            value={slot.key}
+                            className='text-sm h-auto py-2 flex items-center gap-2'
+                          >
+                            {slot.label}
+                            {isSubjectFilterActive ? (
+                              timeCountsLoading ? (
+                                <Badge className='rounded-full'>...</Badge>
+                              ) : timeCount > 0 ? (
+                                <Badge className='rounded-full'>
+                                  {timeLabel}
+                                </Badge>
+                              ) : (
+                                <X className='h-4 w-4 text-destructive' />
+                              )
                             ) : null}
                           </TabsTrigger>
                         )

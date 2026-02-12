@@ -1060,14 +1060,22 @@ export default function AdminStatsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <TabsList className='hidden sm:inline-flex'>
-              <TabsTrigger value='overview'>Panoramica</TabsTrigger>
-              <TabsTrigger value='subjects'>Materie</TabsTrigger>
-              <TabsTrigger value='subject-requests'>
+            <TabsList className='hidden sm:grid w-full grid-cols-5'>
+              <TabsTrigger value='overview' className='w-full'>
+                Panoramica
+              </TabsTrigger>
+              <TabsTrigger value='subjects' className='w-full'>
+                Materie
+              </TabsTrigger>
+              <TabsTrigger value='subject-requests' className='w-full'>
                 Richieste materie
               </TabsTrigger>
-              <TabsTrigger value='tutors'>Tutor</TabsTrigger>
-              <TabsTrigger value='students'>Studenti</TabsTrigger>
+              <TabsTrigger value='tutors' className='w-full'>
+                Tutor
+              </TabsTrigger>
+              <TabsTrigger value='students' className='w-full'>
+                Studenti
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value='overview' className='mt-6 space-y-6'>
