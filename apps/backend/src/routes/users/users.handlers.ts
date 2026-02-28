@@ -285,6 +285,9 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
   if (query.emailVerified !== undefined) {
     conditions.push(query.emailVerified ? isNotNull(users.emailVerifiedAt) : isNull(users.emailVerifiedAt))
   }
+  if (query.isActive === false && (currentUser.role === 'admin' || currentUser.role === 'activator')) {
+    conditions.push(isNotNull(users.emailVerifiedAt))
+  }
   const records = await db.query.users.findMany({
     where: conditions.length > 0 ? and(...conditions) : undefined,
     columns: {

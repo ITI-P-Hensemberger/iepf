@@ -56,7 +56,6 @@ const pool = new Pool({
 
 pool.on('error', (error) => {
   // Prevent unhandled pool errors from crashing the process.
-  // eslint-disable-next-line no-console
   console.error('Postgres pool error', error)
 })
 
