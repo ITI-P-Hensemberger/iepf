@@ -2,3 +2,4 @@ postgres-data
 postgres-test-data
 .env.*
 !.env.*.example
+.DS_Store
