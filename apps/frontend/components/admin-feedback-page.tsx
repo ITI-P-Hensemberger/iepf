@@ -1176,12 +1176,12 @@ export default function AdminFeedbackPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Modifica feedback</AlertDialogTitle>
             <AlertDialogDescription>
-              Aggiorna il rating o il testo del feedback selezionato.
+              Aggiorna la valutazione o il testo del feedback selezionato.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className='space-y-4'>
             <Field className='gap-2'>
-              <Label>Rating *</Label>
+              <Label>Valutazione *</Label>
               <Select
                 value={editForm.rating || 'all'}
                 onValueChange={(value) =>
@@ -1192,10 +1192,10 @@ export default function AdminFeedbackPage() {
                 }
               >
                 <SelectTrigger className='w-full'>
-                  <SelectValue placeholder='Seleziona rating' />
+                  <SelectValue placeholder='Seleziona valutazione' />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value='all'>Seleziona rating</SelectItem>
+                  <SelectItem value='all'>Seleziona valutazione</SelectItem>
                   <SelectItem value='1'>1</SelectItem>
                   <SelectItem value='2'>2</SelectItem>
                   <SelectItem value='3'>3</SelectItem>
@@ -1284,7 +1284,7 @@ export default function AdminFeedbackPage() {
                     : shortId(deleteTarget.targetUserId)
                 })()}
               </div>
-              <div>Rating: {deleteTarget.rating}</div>
+              <div>Valutazione: {deleteTarget.rating}</div>
             </div>
           )}
           <AlertDialogFooter className='pt-2 sm:pt-0'>

@@ -34,7 +34,7 @@ import {
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
 import { BackButton } from '@/components/back-button'
-import { ExternalLink, MessageSquare, Save } from 'lucide-react'
+import { ExternalLink, Mail, MessageSquare, Save } from 'lucide-react'
 import { toast } from 'sonner'
 
 type Lesson = {
@@ -64,6 +64,7 @@ type Student = {
   id: string
   firstName: string
   lastName: string
+  email?: string | null
   year?: number | null
   sectionName?: string | null
 }
@@ -122,6 +123,13 @@ function isCanceledBooking(status?: string | null) {
 function isConfirmedBooking(status?: string | null) {
   if (!status) return false
   return status.toLowerCase() === 'confirmed'
+}
+
+function hasLessonStarted(startAt?: string | null) {
+  if (!startAt) return false
+  const startTime = new Date(startAt).getTime()
+  if (Number.isNaN(startTime)) return false
+  return Date.now() >= startTime
 }
 
 type PresenceOption = 'none' | 'present' | 'absent'
@@ -636,9 +644,14 @@ export default function TutorLessonDetailsPage() {
                     ) : filteredBookings.length ? (
                       filteredBookings.map((booking) => {
                         const student = studentMap.get(booking.studentId)
+                        const studentEmail = student?.email?.trim() ?? ''
                         const disabled =
                           isCanceledBooking(booking.status) ||
                           isCanceledStatus(lesson?.status)
+                        const canGiveFeedback =
+                          hasLessonStarted(lesson?.startAt) &&
+                          isConfirmedBooking(booking.status) &&
+                          booking.studentPresence === true
                         const draftValue = presenceDrafts[booking.id]
                         const effectiveValue =
                           draftValue !== undefined
@@ -651,15 +664,30 @@ export default function TutorLessonDetailsPage() {
                         return (
                           <TableRow key={booking.id}>
                             <TableCell>
-                              <div className='flex flex-col'>
-                                <span className='whitespace-nowrap'>
-                                  {studentLabel(student)}
-                                </span>
-                                {studentClassLabel(student) && (
-                                  <span className='text-xs text-muted-foreground'>
-                                    {studentClassLabel(student)}
+                              <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3'>
+                                <div className='flex min-w-0 flex-col'>
+                                  <span className='whitespace-nowrap'>
+                                    {studentLabel(student)}
                                   </span>
-                                )}
+                                  {studentClassLabel(student) ? (
+                                    <span className='text-xs text-muted-foreground'>
+                                      {studentClassLabel(student)}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                {studentEmail ? (
+                                  <Button
+                                    asChild
+                                    size='sm'
+                                    variant='outline'
+                                    className='w-fit self-start sm:self-center'
+                                  >
+                                    <a href={`mailto:${studentEmail}`}>
+                                      Contatta
+                                      <Mail className='h-4 w-4' />
+                                    </a>
+                                  </Button>
+                                ) : null}
                               </div>
                             </TableCell>
                             <TableCell className='w-[45%] max-w-[24rem]'>
@@ -740,24 +768,26 @@ export default function TutorLessonDetailsPage() {
                               </div>
                             </TableCell>
                             <TableCell className='w-12 text-right'>
-                              <Button
-                                variant='ghost'
-                                size='icon'
-                                className='h-6 w-6 p-0'
-                                aria-label='Aggiungi feedback'
-                                onClick={() => {
-                                  const existing = feedbackByBooking.get(
-                                    booking.id
-                                  )
-                                  setFeedbackTarget(booking)
-                                  setFeedbackTargetId(existing?.id ?? null)
-                                  setFeedbackText(existing?.text ?? '')
-                                  setFeedbackRating(existing?.rating ?? 5)
-                                  setFeedbackOpen(true)
-                                }}
-                              >
-                                <MessageSquare className='h-4 w-4' />
-                              </Button>
+                              {canGiveFeedback ? (
+                                <Button
+                                  variant='ghost'
+                                  size='icon'
+                                  className='h-6 w-6 p-0'
+                                  aria-label='Aggiungi feedback'
+                                  onClick={() => {
+                                    const existing = feedbackByBooking.get(
+                                      booking.id
+                                    )
+                                    setFeedbackTarget(booking)
+                                    setFeedbackTargetId(existing?.id ?? null)
+                                    setFeedbackText(existing?.text ?? '')
+                                    setFeedbackRating(existing?.rating ?? 5)
+                                    setFeedbackOpen(true)
+                                  }}
+                                >
+                                  <MessageSquare className='h-4 w-4' />
+                                </Button>
+                              ) : null}
                             </TableCell>
                           </TableRow>
                         )
@@ -855,7 +885,7 @@ export default function TutorLessonDetailsPage() {
           <div className='space-y-4'>
             <div className='space-y-2'>
               <label className='text-sm font-medium text-muted-foreground'>
-                Rating
+                Valutazione
               </label>
               <Select
                 value={String(feedbackRating)}

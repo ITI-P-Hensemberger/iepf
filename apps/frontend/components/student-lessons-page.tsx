@@ -144,6 +144,13 @@ function statusVariant(
   return 'secondary'
 }
 
+function hasLessonStarted(startAt?: string | null) {
+  if (!startAt) return false
+  const startTime = new Date(startAt).getTime()
+  if (Number.isNaN(startTime)) return false
+  return Date.now() >= startTime
+}
+
 export default function StudentLessonsPage() {
   const router = useRouter()
   const pathname = usePathname()
@@ -626,14 +633,10 @@ export default function StudentLessonsPage() {
                       lesson.bookingStatus || lesson.lessonStatus
                     const normalizedStatus = statusValue?.toLowerCase() ?? ''
                     const isConfirmed = normalizedStatus === 'confirmed'
-                    const startTime = Date.parse(lesson.startAt)
-                    const feedbackReady =
-                      Number.isFinite(startTime) &&
-                      Date.now() >= startTime + 60 * 60 * 1000
                     const canFeedback =
                       isConfirmed &&
                       lesson.studentPresence === true &&
-                      feedbackReady
+                      hasLessonStarted(lesson.startAt)
                     const tutorLabel = `${lesson.tutorLastName} ${lesson.tutorFirstName}`.trim()
                     const topicValue = lesson.topic?.trim()
                     return (
@@ -876,7 +879,7 @@ export default function StudentLessonsPage() {
           <div className='space-y-4'>
             <div className='space-y-2'>
               <label className='text-sm font-medium text-muted-foreground'>
-                Rating
+                Valutazione
               </label>
               <Select
                 value={String(feedbackRating)}

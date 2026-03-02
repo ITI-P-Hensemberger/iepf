@@ -703,7 +703,7 @@ export default function StudentPage() {
           <div className='space-y-4'>
             <div className='space-y-2'>
               <label className='text-sm font-medium text-muted-foreground'>
-                Rating
+                Valutazione
               </label>
               <Select
                 value={String(feedbackRating)}
