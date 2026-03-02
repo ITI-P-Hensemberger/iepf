@@ -81,6 +81,7 @@ services:
 
   backend-cron-remind-lessons:
     image: ghcr.io/jdncst-dev/iepf-backend:cron-remind-lessons
+    entrypoint: ['pnpm', 'remind:lessons']
     profiles: ['cron']
     environment:
       - TZ=Europe/Rome
