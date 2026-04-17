@@ -12,7 +12,7 @@ export async function getStudentTokenBalance(studentId: string): Promise<number>
     .from(tokenLedger)
     .where(eq(tokenLedger.studentId, studentId))
 
-  return row?.balance ?? 0
+  return Number(row?.balance ?? 0)
 }
 
 export async function getStudentTokenBalances(studentIds: string[]): Promise<Map<string, number>> {
@@ -29,5 +29,5 @@ export async function getStudentTokenBalances(studentIds: string[]): Promise<Map
     .where(inArray(tokenLedger.studentId, studentIds))
     .groupBy(tokenLedger.studentId)
 
-  return new Map(rows.map(row => [row.studentId, row.balance]))
+  return new Map(rows.map(row => [row.studentId, Number(row.balance)]))
 }

@@ -24,7 +24,9 @@ const tutorLessonCountSchema = z.object({
   firstName: z.string(),
   lastName: z.string(),
   sectionName: z.string().nullable(),
-  countedLessons: z.number().int().min(0)
+  countedLessons: z.number().int().min(0),
+  lessonsConfirmed: z.number().int().min(0),
+  lessonsCancelled: z.number().int().min(0)
 })
 
 const studentLessonCountSchema = z.object({
@@ -33,7 +35,9 @@ const studentLessonCountSchema = z.object({
   firstName: z.string(),
   lastName: z.string(),
   sectionName: z.string().nullable(),
-  countedLessons: z.number().int().min(0)
+  countedLessons: z.number().int().min(0),
+  lessonsPresent: z.number().int().min(0),
+  lessonsAbsent: z.number().int().min(0)
 })
 
 const subjectCountsQuerySchema = z.object({

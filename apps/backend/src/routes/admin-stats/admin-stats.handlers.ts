@@ -100,6 +100,8 @@ export const listTutorLessonCounts: AppRouteHandler<ListTutorLessonCountsRoute> 
 
   const { q, sortBy, sortDir, limit, offset } = c.req.valid('query')
   const countedLessonsExpr = sql<number>`count(${lessons.id})`
+  const lessonsConfirmedExpr = sql<number>`count(case when ${lessons.status} = 'confirmed' then 1 end)`
+  const lessonsCancelledExpr = sql<number>`count(case when ${lessons.status} = 'canceled' then 1 end)`
   const tutorConditions = [eq(users.role, 'tutor')]
   if (q) {
     const searchCondition = or(
@@ -144,7 +146,9 @@ export const listTutorLessonCounts: AppRouteHandler<ListTutorLessonCountsRoute> 
       firstName: users.firstName,
       lastName: users.lastName,
       sectionName: classSections.name,
-      countedLessons: countedLessonsExpr
+      countedLessons: countedLessonsExpr,
+      lessonsConfirmed: lessonsConfirmedExpr,
+      lessonsCancelled: lessonsCancelledExpr
     })
     .from(users)
     .leftJoin(tutorProfiles, eq(tutorProfiles.userId, users.id))
@@ -178,6 +182,8 @@ export const listStudentLessonCounts: AppRouteHandler<ListStudentLessonCountsRou
 
   const { q, sortBy, sortDir, limit, offset } = c.req.valid('query')
   const countedLessonsExpr = sql<number>`count(${lessonBookings.id})`
+  const lessonsPresentExpr = sql<number>`count(case when ${lessonBookings.studentPresence} = true then 1 end)`
+  const lessonsAbsentExpr = sql<number>`count(case when ${lessonBookings.studentPresence} = false then 1 end)`
   const studentConditions = [eq(users.role, 'student')]
   if (q) {
     const searchCondition = or(
@@ -222,7 +228,9 @@ export const listStudentLessonCounts: AppRouteHandler<ListStudentLessonCountsRou
       firstName: users.firstName,
       lastName: users.lastName,
       sectionName: classSections.name,
-      countedLessons: countedLessonsExpr
+      countedLessons: countedLessonsExpr,
+      lessonsPresent: lessonsPresentExpr,
+      lessonsAbsent: lessonsAbsentExpr
     })
     .from(users)
     .leftJoin(studentProfiles, eq(studentProfiles.userId, users.id))
