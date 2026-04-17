@@ -60,6 +60,29 @@ type LessonCountRow = {
   invitesCount?: number
 }
 
+type UserExportRow = {
+  id?: string
+  firstName: string
+  lastName: string
+  email: string
+  sectionName?: string | null
+  year?: number | null
+  isActive?: boolean | null
+  lessonTokens?: number | null
+}
+
+type StudentExportStatsRow = {
+  studentId: string
+  lessonsPresent: number
+  lessonsAbsent: number
+}
+
+type TutorExportStatsRow = {
+  tutorId: string
+  lessonsConfirmed: number
+  lessonsCancelled: number
+}
+
 type Totals = {
   lessonsConfirmed: number
   bookingsConfirmed: number
@@ -152,6 +175,114 @@ function normalizePaged<T>(payload: unknown): { items: T[]; total: number } {
             ? candidate.data!.results!.length
             : 0
   return { items: items as T[], total }
+}
+
+function escapeCsvValue(value: string | number | boolean | null | undefined) {
+  const normalized = value == null ? '' : String(value)
+  const escaped = normalized.replaceAll('"', '""')
+  return `"${escaped}"`
+}
+
+function buildStudentsCsv(
+  rows: Array<
+    Pick<
+      UserExportRow,
+      'firstName' | 'lastName' | 'email' | 'sectionName' | 'year' | 'isActive' | 'lessonTokens'
+    > & Pick<StudentExportStatsRow, 'lessonsPresent' | 'lessonsAbsent'>
+  >
+) {
+  const headers = [
+    'firstName',
+    'lastName',
+    'email',
+    'sectionName',
+    'year',
+    'isActive',
+    'lessonTokens',
+    'lessonsPresent',
+    'lessonsAbsent'
+  ]
+
+  const lines = [
+    headers.map((header) => escapeCsvValue(header)).join(','),
+    ...rows.map((row) =>
+      [
+        row.firstName,
+        row.lastName,
+        row.email,
+        row.sectionName ?? '',
+        row.year ?? '',
+        row.isActive ?? '',
+        row.lessonTokens ?? '',
+        row.lessonsPresent,
+        row.lessonsAbsent
+      ]
+        .map((value) => escapeCsvValue(value))
+        .join(',')
+    )
+  ]
+
+  return lines.join('\n')
+}
+
+function buildTutorsCsv(
+  rows: Array<
+    Pick<
+      UserExportRow,
+      'firstName' | 'lastName' | 'email' | 'sectionName' | 'year' | 'isActive'
+    > & Pick<TutorExportStatsRow, 'lessonsConfirmed' | 'lessonsCancelled'>
+  >
+) {
+  const headers = [
+    'firstName',
+    'lastName',
+    'email',
+    'sectionName',
+    'year',
+    'isActive',
+    'lessonsConfirmed',
+    'lessonsCancelled'
+  ]
+
+  const lines = [
+    headers.map((header) => escapeCsvValue(header)).join(','),
+    ...rows.map((row) =>
+      [
+        row.firstName,
+        row.lastName,
+        row.email,
+        row.sectionName ?? '',
+        row.year ?? '',
+        row.isActive ?? '',
+        row.lessonsConfirmed,
+        row.lessonsCancelled
+      ]
+        .map((value) => escapeCsvValue(value))
+        .join(',')
+    )
+  ]
+
+  return lines.join('\n')
+}
+
+function downloadCsv(filename: string, content: string) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+function buildExportFilename(role: 'student' | 'tutor') {
+  const timestamp = new Date()
+    .toISOString()
+    .replaceAll(':', '-')
+    .replace(/\.\d{3}Z$/, '')
+  const roleLabel = `${role}s`
+
+  return `iepf-${roleLabel}-${timestamp}.csv`
 }
 
 type DataTableProps<TData> = {
@@ -372,6 +503,8 @@ export default function AdminStatsPage() {
   })
   const [tutorsHasNext, setTutorsHasNext] = React.useState(false)
   const [tutorsTotal, setTutorsTotal] = React.useState(0)
+  const [isDownloadingTutorsCsv, setIsDownloadingTutorsCsv] =
+    React.useState(false)
 
   const [students, setStudents] = React.useState<LessonCountRow[]>([])
   const [studentsLoading, setStudentsLoading] = React.useState(false)
@@ -382,6 +515,8 @@ export default function AdminStatsPage() {
   })
   const [studentsHasNext, setStudentsHasNext] = React.useState(false)
   const [studentsTotal, setStudentsTotal] = React.useState(0)
+  const [isDownloadingStudentsCsv, setIsDownloadingStudentsCsv] =
+    React.useState(false)
 
   const subjectsColumns = React.useMemo<ColumnDef<SubjectTutorCount>[]>(
     () => [
@@ -748,6 +883,105 @@ export default function AdminStatsPage() {
     [pathname, router, searchParamsString]
   )
 
+  const exportUsersCsv = React.useCallback(async (role: 'student' | 'tutor') => {
+    const setLoading =
+      role === 'student'
+        ? setIsDownloadingStudentsCsv
+        : setIsDownloadingTutorsCsv
+
+    setLoading(true)
+
+    try {
+      const allUsers: UserExportRow[] = []
+      const allStats: Array<StudentExportStatsRow | TutorExportStatsRow> = []
+      let offset = 0
+      const exportPageSize = 200
+
+      while (true) {
+        const userParams = new URLSearchParams({
+          role,
+          sortBy: 'lastName',
+          sortDir: 'asc',
+          limit: String(exportPageSize),
+          offset: String(offset)
+        })
+
+        const statsParams = new URLSearchParams({
+          sortBy: 'lastName',
+          sortDir: 'asc',
+          limit: String(exportPageSize),
+          offset: String(offset)
+        })
+
+        const [usersResponse, statsResponse] = await Promise.all([
+          fetch(`/api/users?${userParams.toString()}`),
+          fetch(
+            role === 'student'
+              ? `/api/admin/stats/lessons-counts/students?${statsParams.toString()}`
+              : `/api/admin/stats/lessons-counts/tutors?${statsParams.toString()}`
+          )
+        ])
+
+        if (!usersResponse.ok || !statsResponse.ok) {
+          throw new Error('Impossibile scaricare gli utenti.')
+        }
+
+        const usersPayload = await usersResponse.json()
+        const statsPayload = await statsResponse.json()
+        const { items, total } = normalizePaged<UserExportRow>(usersPayload)
+        const { items: statsItems } = normalizePaged<
+          StudentExportStatsRow | TutorExportStatsRow
+        >(statsPayload)
+
+        allUsers.push(...items)
+        allStats.push(...statsItems)
+        offset += items.length
+        if (items.length === 0 || allUsers.length >= total) {
+          break
+        }
+      }
+
+      const csv = role === 'student'
+        ? buildStudentsCsv(
+            allUsers.map((user) => {
+              const stats = allStats.find(
+                (row): row is StudentExportStatsRow =>
+                  'studentId' in row && row.studentId === user.id
+              )
+
+              return {
+                ...user,
+                lessonsPresent: stats?.lessonsPresent ?? 0,
+                lessonsAbsent: stats?.lessonsAbsent ?? 0
+              }
+            })
+          )
+        : buildTutorsCsv(
+            allUsers.map((user) => {
+              const stats = allStats.find(
+                (row): row is TutorExportStatsRow =>
+                  'tutorId' in row && row.tutorId === user.id
+              )
+
+              return {
+                ...user,
+                lessonsConfirmed: stats?.lessonsConfirmed ?? 0,
+                lessonsCancelled: stats?.lessonsCancelled ?? 0
+              }
+            })
+          )
+      downloadCsv(buildExportFilename(role), csv)
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : 'Impossibile scaricare gli utenti.'
+      )
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   React.useEffect(() => {
     let isMounted = true
     async function loadTotals() {
@@ -1105,7 +1339,20 @@ export default function AdminStatsPage() {
               <div className='grid gap-4 md:grid-cols-2'>
                 <Card>
                   <CardHeader>
-                    <CardTitle>Studenti</CardTitle>
+                    <div className='flex items-center justify-between gap-3'>
+                      <CardTitle>Studenti</CardTitle>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        onClick={() => void exportUsersCsv('student')}
+                        disabled={isDownloadingStudentsCsv}
+                      >
+                        {isDownloadingStudentsCsv
+                          ? 'Download...'
+                          : 'Download CSV'}
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className='space-y-2'>
                     <div className='flex items-center justify-between'>
@@ -1136,7 +1383,20 @@ export default function AdminStatsPage() {
                 </Card>
                 <Card>
                   <CardHeader>
-                    <CardTitle>Tutor</CardTitle>
+                    <div className='flex items-center justify-between gap-3'>
+                      <CardTitle>Tutor</CardTitle>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        onClick={() => void exportUsersCsv('tutor')}
+                        disabled={isDownloadingTutorsCsv}
+                      >
+                        {isDownloadingTutorsCsv
+                          ? 'Download...'
+                          : 'Download CSV'}
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className='space-y-2'>
                     <div className='flex items-center justify-between'>

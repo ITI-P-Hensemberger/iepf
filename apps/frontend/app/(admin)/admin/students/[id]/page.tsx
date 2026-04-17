@@ -99,6 +99,8 @@ type Student = {
   lessonTokens?: number | null
 }
 
+type TokenAdjustmentDirection = 'add' | 'remove'
+
 export default function AdminStudentDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -114,6 +116,9 @@ export default function AdminStudentDetailPage() {
   const [showDeleteAlert, setShowDeleteAlert] = React.useState(false)
   const [isDeleting, setIsDeleting] = React.useState(false)
   const [isImpersonating, setIsImpersonating] = React.useState(false)
+  const [tokenAmount, setTokenAmount] = React.useState('1')
+  const [tokenReason, setTokenReason] = React.useState('')
+  const [isAdjustingTokens, setIsAdjustingTokens] = React.useState(false)
 
   const form = useForm<StudentFormValues>({
     resolver: zodResolver(formSchema),
@@ -391,6 +396,78 @@ export default function AdminStudentDetailPage() {
       )
     } finally {
       setIsImpersonating(false)
+    }
+  }
+
+  async function handleAdjustTokens(direction: TokenAdjustmentDirection) {
+    const amount = Number.parseInt(tokenAmount, 10)
+    const reason = tokenReason.trim()
+
+    if (!studentId) {
+      return
+    }
+
+    if (!Number.isInteger(amount) || amount <= 0) {
+      toast.error('Inserisci un numero di crediti valido.')
+      return
+    }
+
+    if (!reason) {
+      toast.error('Inserisci una motivazione.')
+      return
+    }
+
+    setIsAdjustingTokens(true)
+
+    try {
+      const response = await fetch(`/api/users/${studentId}/tokens/adjust`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          delta: direction === 'add' ? amount : -amount,
+          reason
+        })
+      })
+
+      if (!response.ok) {
+        let message = 'Impossibile aggiornare i crediti lezione.'
+        try {
+          const payload = (await response.json()) as { message?: string }
+          message = payload.message ?? message
+        } catch {
+          message = 'Impossibile aggiornare i crediti lezione.'
+        }
+        throw new Error(message)
+      }
+
+      const payload = (await response.json()) as { lessonTokens?: number | null }
+      const nextTokens = payload.lessonTokens ?? 0
+
+      setStudent((prev) =>
+        prev
+          ? {
+              ...prev,
+              lessonTokens: nextTokens
+            }
+          : prev
+      )
+      setTokenAmount('1')
+      setTokenReason('')
+      toast.success(
+        direction === 'add'
+          ? 'Crediti aggiunti con successo.'
+          : 'Crediti rimossi con successo.'
+      )
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : 'Impossibile aggiornare i crediti lezione.'
+      )
+    } finally {
+      setIsAdjustingTokens(false)
     }
   }
 
@@ -767,6 +844,67 @@ export default function AdminStudentDetailPage() {
               </Button>
             </CardFooter>
           </Card>
+          {!isLoading && student ? (
+            <Card className='mt-6'>
+              <CardContent className='space-y-4 pt-6'>
+                <div>
+                  <h2 className='text-base font-medium'>
+                    Modifica crediti lezione
+                  </h2>
+                  <p className='text-sm text-muted-foreground'>
+                    Aggiungi o rimuovi un numero preciso di crediti.
+                  </p>
+                </div>
+                <div className='grid gap-4 md:grid-cols-[180px_minmax(0,1fr)]'>
+                  <Field>
+                    <FieldLabel htmlFor='student-token-amount'>
+                      Numero crediti
+                    </FieldLabel>
+                    <Input
+                      id='student-token-amount'
+                      type='number'
+                      min='1'
+                      step='1'
+                      inputMode='numeric'
+                      value={tokenAmount}
+                      onChange={(event) => setTokenAmount(event.target.value)}
+                      disabled={isAdjustingTokens}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor='student-token-reason'>
+                      Motivazione
+                    </FieldLabel>
+                    <Input
+                      id='student-token-reason'
+                      className='truncate'
+                      value={tokenReason}
+                      onChange={(event) => setTokenReason(event.target.value)}
+                      placeholder='Es. accredito manuale per recupero lezione'
+                      disabled={isAdjustingTokens}
+                    />
+                  </Field>
+                </div>
+                <div className='flex flex-col gap-2 sm:flex-row'>
+                  <Button
+                    type='button'
+                    onClick={() => void handleAdjustTokens('add')}
+                    disabled={isAdjustingTokens}
+                  >
+                    {isAdjustingTokens ? 'Aggiornamento...' : 'Aggiungi crediti'}
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    onClick={() => void handleAdjustTokens('remove')}
+                    disabled={isAdjustingTokens}
+                  >
+                    {isAdjustingTokens ? 'Aggiornamento...' : 'Rimuovi crediti'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
       </div>
 
