@@ -83,6 +83,31 @@ type TutorExportStatsRow = {
   lessonsCancelled: number
 }
 
+type FeedbackSummary = {
+  total: number
+  studentAuthored: number
+  tutorAuthored: number
+  averageRating: number
+  rating1: number
+  rating2: number
+  rating3: number
+  rating4: number
+  rating5: number
+}
+
+type FeedbackExportRow = {
+  id: string
+  lessonId: string
+  bookingId: string
+  authorUserId: string
+  targetUserId: string
+  authorRole: 'student' | 'tutor'
+  rating: number
+  text: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 type Totals = {
   lessonsConfirmed: number
   bookingsConfirmed: number
@@ -265,6 +290,62 @@ function buildTutorsCsv(
   return lines.join('\n')
 }
 
+function buildFeedbackCsv(
+  rows: Array<{
+    id: string
+    lessonId: string
+    bookingId: string
+    authorRole: string
+    authorName: string
+    authorEmail: string
+    targetName: string
+    targetEmail: string
+    rating: number
+    text: string | null
+    createdAt: string
+    updatedAt: string
+  }>
+) {
+  const headers = [
+    'id',
+    'lessonId',
+    'bookingId',
+    'authorRole',
+    'authorName',
+    'authorEmail',
+    'targetName',
+    'targetEmail',
+    'rating',
+    'text',
+    'createdAt',
+    'updatedAt'
+  ]
+
+  const lines = [
+    headers.map((header) => escapeCsvValue(header)).join(','),
+    ...rows.map((row) =>
+      [
+        row.id,
+        row.lessonId,
+        row.bookingId,
+        row.authorRole,
+        row.authorName,
+        row.authorEmail,
+        row.targetName,
+        row.targetEmail,
+        row.rating,
+        row.text ?? '',
+        row.createdAt,
+        row.updatedAt
+      ]
+        .map((value) => escapeCsvValue(value))
+        .join(',')
+    )
+  ]
+
+  return lines.join('\n')
+}
+
 function downloadCsv(filename: string, content: string) {
   const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
@@ -428,7 +509,7 @@ export default function AdminStatsPage() {
 
   const availableTabs = React.useMemo(
     () =>
-      ['overview', 'subjects', 'subject-requests', 'tutors', 'students'] as const,
+      ['overview', 'subjects', 'subject-requests', 'tutors', 'students', 'feedback'] as const,
     []
   )
 
@@ -438,7 +519,8 @@ export default function AdminStatsPage() {
       subjects: 'Materie',
       'subject-requests': 'Richieste materie',
       tutors: 'Tutor',
-      students: 'Studenti'
+      students: 'Studenti',
+      feedback: 'Feedback'
     }),
     []
   )
@@ -516,6 +598,21 @@ export default function AdminStatsPage() {
   const [studentsHasNext, setStudentsHasNext] = React.useState(false)
   const [studentsTotal, setStudentsTotal] = React.useState(0)
   const [isDownloadingStudentsCsv, setIsDownloadingStudentsCsv] =
+    React.useState(false)
+  const [feedbackSummary, setFeedbackSummary] = React.useState<FeedbackSummary>({
+    total: 0,
+    studentAuthored: 0,
+    tutorAuthored: 0,
+    averageRating: 0,
+    rating1: 0,
+    rating2: 0,
+    rating3: 0,
+    rating4: 0,
+    rating5: 0
+  })
+  const [feedbackSummaryLoading, setFeedbackSummaryLoading] =
+    React.useState(true)
+  const [isDownloadingFeedbackCsv, setIsDownloadingFeedbackCsv] =
     React.useState(false)
 
   const subjectsColumns = React.useMemo<ColumnDef<SubjectTutorCount>[]>(
@@ -883,6 +980,38 @@ export default function AdminStatsPage() {
     [pathname, router, searchParamsString]
   )
 
+  const fetchAllUsersByRole = React.useCallback(async (role: 'student' | 'tutor') => {
+    const allUsers: UserExportRow[] = []
+    let offset = 0
+    const exportPageSize = 200
+
+    while (true) {
+      const params = new URLSearchParams({
+        role,
+        sortBy: 'lastName',
+        sortDir: 'asc',
+        limit: String(exportPageSize),
+        offset: String(offset)
+      })
+
+      const response = await fetch(`/api/users?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error('Impossibile scaricare gli utenti.')
+      }
+
+      const payload = await response.json()
+      const { items, total } = normalizePaged<UserExportRow>(payload)
+      allUsers.push(...items)
+      offset += items.length
+
+      if (items.length === 0 || allUsers.length >= total) {
+        break
+      }
+    }
+
+    return allUsers
+  }, [])
+
   const exportUsersCsv = React.useCallback(async (role: 'student' | 'tutor') => {
     const setLoading =
       role === 'student'
@@ -982,6 +1111,86 @@ export default function AdminStatsPage() {
     }
   }, [])
 
+  const exportFeedbackCsv = React.useCallback(async () => {
+    setIsDownloadingFeedbackCsv(true)
+
+    try {
+      const [studentsList, tutorsList] = await Promise.all([
+        fetchAllUsersByRole('student'),
+        fetchAllUsersByRole('tutor')
+      ])
+
+      const userMap = new Map(
+        [...studentsList, ...tutorsList]
+          .filter((user): user is UserExportRow & { id: string } => Boolean(user.id))
+          .map((user) => [user.id, user])
+      )
+
+      const feedback: FeedbackExportRow[] = []
+      let offset = 0
+      const exportPageSize = 200
+
+      while (true) {
+        const params = new URLSearchParams({
+          sortBy: 'createdAt',
+          sortDir: 'desc',
+          limit: String(exportPageSize),
+          offset: String(offset)
+        })
+
+        const response = await fetch(`/api/feedback?${params.toString()}`)
+        if (!response.ok) {
+          throw new Error('Impossibile scaricare i feedback.')
+        }
+
+        const payload = await response.json()
+        const { items, total } = normalizePaged<FeedbackExportRow>(payload)
+        feedback.push(...items)
+        offset += items.length
+
+        if (items.length === 0 || feedback.length >= total) {
+          break
+        }
+      }
+
+      const csv = buildFeedbackCsv(
+        feedback.map((item) => {
+          const author = userMap.get(item.authorUserId)
+          const target = userMap.get(item.targetUserId)
+          const authorName =
+            `${author?.lastName ?? ''} ${author?.firstName ?? ''}`.trim() || item.authorUserId
+          const targetName =
+            `${target?.lastName ?? ''} ${target?.firstName ?? ''}`.trim() || item.targetUserId
+
+          return {
+            id: item.id,
+            lessonId: item.lessonId,
+            bookingId: item.bookingId,
+            authorRole: item.authorRole,
+            authorName,
+            authorEmail: author?.email ?? '',
+            targetName,
+            targetEmail: target?.email ?? '',
+            rating: item.rating,
+            text: item.text,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt
+          }
+        })
+      )
+
+      downloadCsv('iepf-feedback.csv', csv)
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : 'Impossibile scaricare i feedback.'
+      )
+    } finally {
+      setIsDownloadingFeedbackCsv(false)
+    }
+  }, [fetchAllUsersByRole])
+
   React.useEffect(() => {
     let isMounted = true
     async function loadTotals() {
@@ -1049,6 +1258,50 @@ export default function AdminStatsPage() {
     }
 
     void loadTotals()
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  React.useEffect(() => {
+    let isMounted = true
+
+    async function loadFeedbackSummary() {
+      setFeedbackSummaryLoading(true)
+      try {
+        const response = await fetch('/api/admin/stats/feedback/summary')
+        if (!response.ok) {
+          throw new Error('Impossibile caricare le statistiche feedback.')
+        }
+
+        const payload = (await response.json()) as Partial<FeedbackSummary>
+        if (isMounted) {
+          setFeedbackSummary({
+            total: payload.total ?? 0,
+            studentAuthored: payload.studentAuthored ?? 0,
+            tutorAuthored: payload.tutorAuthored ?? 0,
+            averageRating: payload.averageRating ?? 0,
+            rating1: payload.rating1 ?? 0,
+            rating2: payload.rating2 ?? 0,
+            rating3: payload.rating3 ?? 0,
+            rating4: payload.rating4 ?? 0,
+            rating5: payload.rating5 ?? 0
+          })
+        }
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : 'Impossibile caricare le statistiche feedback.'
+        )
+      } finally {
+        if (isMounted) {
+          setFeedbackSummaryLoading(false)
+        }
+      }
+    }
+
+    void loadFeedbackSummary()
     return () => {
       isMounted = false
     }
@@ -1294,7 +1547,7 @@ export default function AdminStatsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <TabsList className='hidden sm:grid w-full grid-cols-5'>
+            <TabsList className='hidden sm:grid w-full grid-cols-6'>
               <TabsTrigger value='overview' className='w-full'>
                 Panoramica
               </TabsTrigger>
@@ -1309,6 +1562,9 @@ export default function AdminStatsPage() {
               </TabsTrigger>
               <TabsTrigger value='students' className='w-full'>
                 Studenti
+              </TabsTrigger>
+              <TabsTrigger value='feedback' className='w-full'>
+                Feedback
               </TabsTrigger>
             </TabsList>
 
@@ -1904,6 +2160,128 @@ export default function AdminStatsPage() {
                     total={studentsTotal}
                     hasNext={studentsHasNext}
                   />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value='feedback' className='mt-6 space-y-6'>
+              <Card>
+                <CardHeader>
+                  <div className='flex items-center justify-between gap-3'>
+                    <CardTitle>Statistiche feedback</CardTitle>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='sm'
+                      onClick={() => void exportFeedbackCsv()}
+                      disabled={isDownloadingFeedbackCsv}
+                    >
+                      {isDownloadingFeedbackCsv ? 'Download...' : 'Download CSV'}
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className='space-y-6'>
+                  <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Feedback totali</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className='text-3xl font-semibold'>
+                          {feedbackSummaryLoading ? '-' : feedbackSummary.total}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Media valutazioni</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className='text-3xl font-semibold'>
+                          {feedbackSummaryLoading
+                            ? '-'
+                            : feedbackSummary.averageRating.toFixed(2)}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Scritti da studenti</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className='text-3xl font-semibold'>
+                          {feedbackSummaryLoading
+                            ? '-'
+                            : feedbackSummary.studentAuthored}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Scritti da tutor</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className='text-3xl font-semibold'>
+                          {feedbackSummaryLoading
+                            ? '-'
+                            : feedbackSummary.tutorAuthored}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-5'>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>1 stella</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className='text-2xl font-semibold'>
+                          {feedbackSummaryLoading ? '-' : feedbackSummary.rating1}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>2 stelle</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className='text-2xl font-semibold'>
+                          {feedbackSummaryLoading ? '-' : feedbackSummary.rating2}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>3 stelle</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className='text-2xl font-semibold'>
+                          {feedbackSummaryLoading ? '-' : feedbackSummary.rating3}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>4 stelle</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className='text-2xl font-semibold'>
+                          {feedbackSummaryLoading ? '-' : feedbackSummary.rating4}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>5 stelle</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className='text-2xl font-semibold'>
+                          {feedbackSummaryLoading ? '-' : feedbackSummary.rating5}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
