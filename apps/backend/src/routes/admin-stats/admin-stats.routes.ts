@@ -72,6 +72,18 @@ const tutorStatusCountsSchema = z.object({
   invites: z.number().int().min(0)
 })
 
+const feedbackSummarySchema = z.object({
+  total: z.number().int().min(0),
+  studentAuthored: z.number().int().min(0),
+  tutorAuthored: z.number().int().min(0),
+  averageRating: z.number().min(0),
+  rating1: z.number().int().min(0),
+  rating2: z.number().int().min(0),
+  rating3: z.number().int().min(0),
+  rating4: z.number().int().min(0),
+  rating5: z.number().int().min(0)
+})
+
 export const listSubjectTutorCounts = createRoute({
   path: '/admin/stats/subjects-tutor-counts',
   method: 'get',
@@ -228,6 +240,27 @@ export const getTutorStatusCounts = createRoute({
   }
 })
 
+export const getFeedbackSummary = createRoute({
+  path: '/admin/stats/feedback/summary',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      feedbackSummarySchema,
+      'Feedback summary'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Admin access required'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
 export type ListSubjectTutorCountsRoute = typeof listSubjectTutorCounts
 export type ListTutorLessonCountsRoute = typeof listTutorLessonCounts
 export type ListStudentLessonCountsRoute = typeof listStudentLessonCounts
@@ -235,3 +268,4 @@ export type GetConfirmedLessonsCountRoute = typeof getConfirmedLessonsCount
 export type GetConfirmedBookingsCountRoute = typeof getConfirmedBookingsCount
 export type GetStudentStatusCountsRoute = typeof getStudentStatusCounts
 export type GetTutorStatusCountsRoute = typeof getTutorStatusCounts
+export type GetFeedbackSummaryRoute = typeof getFeedbackSummary

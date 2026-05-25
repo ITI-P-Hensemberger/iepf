@@ -9,6 +9,7 @@ import type { AppBindings, AppRouteHandler } from '@/lib/types'
 import db from '@/db'
 import { classSections } from '@/db/schemas/class-sections.schema'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
+import { lessonFeedback } from '@/db/schemas/lesson-feedback.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { subjects } from '@/db/schemas/subjects.schema'
@@ -22,6 +23,7 @@ import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import type {
   GetConfirmedBookingsCountRoute,
   GetConfirmedLessonsCountRoute,
+  GetFeedbackSummaryRoute,
   GetStudentStatusCountsRoute,
   GetTutorStatusCountsRoute,
   ListStudentLessonCountsRoute,
@@ -339,6 +341,39 @@ export const getTutorStatusCounts: AppRouteHandler<GetTutorStatusCountsRoute> = 
       active: Number(activeRow?.[0]?.total ?? 0),
       inactive: Number(inactiveRow?.[0]?.total ?? 0),
       invites: Number(invitesRow?.[0]?.total ?? 0)
+    },
+    HttpStatusCodes.OK
+  )
+}
+
+export const getFeedbackSummary: AppRouteHandler<GetFeedbackSummaryRoute> = async (c) => {
+  ensureAdmin(c)
+
+  const [row] = await db
+    .select({
+      total: sql<number>`count(*)`,
+      studentAuthored: sql<number>`count(case when ${lessonFeedback.authorRole} = 'student' then 1 end)`,
+      tutorAuthored: sql<number>`count(case when ${lessonFeedback.authorRole} = 'tutor' then 1 end)`,
+      averageRating: sql<number>`coalesce(avg(${lessonFeedback.rating}), 0)`,
+      rating1: sql<number>`count(case when ${lessonFeedback.rating} = 1 then 1 end)`,
+      rating2: sql<number>`count(case when ${lessonFeedback.rating} = 2 then 1 end)`,
+      rating3: sql<number>`count(case when ${lessonFeedback.rating} = 3 then 1 end)`,
+      rating4: sql<number>`count(case when ${lessonFeedback.rating} = 4 then 1 end)`,
+      rating5: sql<number>`count(case when ${lessonFeedback.rating} = 5 then 1 end)`
+    })
+    .from(lessonFeedback)
+
+  return c.json(
+    {
+      total: Number(row?.total ?? 0),
+      studentAuthored: Number(row?.studentAuthored ?? 0),
+      tutorAuthored: Number(row?.tutorAuthored ?? 0),
+      averageRating: Number(row?.averageRating ?? 0),
+      rating1: Number(row?.rating1 ?? 0),
+      rating2: Number(row?.rating2 ?? 0),
+      rating3: Number(row?.rating3 ?? 0),
+      rating4: Number(row?.rating4 ?? 0),
+      rating5: Number(row?.rating5 ?? 0)
     },
     HttpStatusCodes.OK
   )
