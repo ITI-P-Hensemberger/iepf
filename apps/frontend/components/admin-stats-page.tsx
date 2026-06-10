@@ -73,14 +73,24 @@ type UserExportRow = {
 
 type StudentExportStatsRow = {
   studentId: string
-  lessonsPresent: number
-  lessonsAbsent: number
+  lessonsPresentCounted: number
+  lessonsPresentNotCounted: number
+  lessonsAbsentCounted: number
+  lessonsAbsentNotCounted: number
+  lessonsWithoutPresenceCounted: number
+  lessonsWithoutPresenceNotCounted: number
 }
 
 type TutorExportStatsRow = {
   tutorId: string
-  lessonsConfirmed: number
-  lessonsCancelled: number
+  lessonsScheduledCounted: number
+  lessonsScheduledNotCounted: number
+  lessonsConfirmedCounted: number
+  lessonsConfirmedNotCounted: number
+  lessonsCancelledCounted: number
+  lessonsCancelledNotCounted: number
+  lessonsCompletedCounted: number
+  lessonsCompletedNotCounted: number
 }
 
 type FeedbackSummary = {
@@ -93,6 +103,20 @@ type FeedbackSummary = {
   rating3: number
   rating4: number
   rating5: number
+  studentToTutorTotal: number
+  studentToTutorAverageRating: number
+  studentToTutorRating1: number
+  studentToTutorRating2: number
+  studentToTutorRating3: number
+  studentToTutorRating4: number
+  studentToTutorRating5: number
+  tutorToStudentTotal: number
+  tutorToStudentAverageRating: number
+  tutorToStudentRating1: number
+  tutorToStudentRating2: number
+  tutorToStudentRating3: number
+  tutorToStudentRating4: number
+  tutorToStudentRating5: number
 }
 
 type FeedbackExportRow = {
@@ -213,7 +237,15 @@ function buildStudentsCsv(
     Pick<
       UserExportRow,
       'firstName' | 'lastName' | 'email' | 'sectionName' | 'year' | 'isActive' | 'lessonTokens'
-    > & Pick<StudentExportStatsRow, 'lessonsPresent' | 'lessonsAbsent'>
+    > & Pick<
+      StudentExportStatsRow,
+      | 'lessonsPresentCounted'
+      | 'lessonsPresentNotCounted'
+      | 'lessonsAbsentCounted'
+      | 'lessonsAbsentNotCounted'
+      | 'lessonsWithoutPresenceCounted'
+      | 'lessonsWithoutPresenceNotCounted'
+    >
   >
 ) {
   const headers = [
@@ -224,8 +256,12 @@ function buildStudentsCsv(
     'year',
     'isActive',
     'lessonTokens',
-    'lessonsPresent',
-    'lessonsAbsent'
+    'lessonsPresentCounted',
+    'lessonsPresentNotCounted',
+    'lessonsAbsentCounted',
+    'lessonsAbsentNotCounted',
+    'lessonsWithoutPresenceCounted',
+    'lessonsWithoutPresenceNotCounted'
   ]
 
   const lines = [
@@ -239,8 +275,12 @@ function buildStudentsCsv(
         row.year ?? '',
         row.isActive ?? '',
         row.lessonTokens ?? '',
-        row.lessonsPresent,
-        row.lessonsAbsent
+        row.lessonsPresentCounted,
+        row.lessonsPresentNotCounted,
+        row.lessonsAbsentCounted,
+        row.lessonsAbsentNotCounted,
+        row.lessonsWithoutPresenceCounted,
+        row.lessonsWithoutPresenceNotCounted
       ]
         .map((value) => escapeCsvValue(value))
         .join(',')
@@ -255,7 +295,17 @@ function buildTutorsCsv(
     Pick<
       UserExportRow,
       'firstName' | 'lastName' | 'email' | 'sectionName' | 'year' | 'isActive'
-    > & Pick<TutorExportStatsRow, 'lessonsConfirmed' | 'lessonsCancelled'>
+    > & Pick<
+      TutorExportStatsRow,
+      | 'lessonsScheduledCounted'
+      | 'lessonsScheduledNotCounted'
+      | 'lessonsConfirmedCounted'
+      | 'lessonsConfirmedNotCounted'
+      | 'lessonsCancelledCounted'
+      | 'lessonsCancelledNotCounted'
+      | 'lessonsCompletedCounted'
+      | 'lessonsCompletedNotCounted'
+    >
   >
 ) {
   const headers = [
@@ -265,8 +315,14 @@ function buildTutorsCsv(
     'sectionName',
     'year',
     'isActive',
-    'lessonsConfirmed',
-    'lessonsCancelled'
+    'lessonsScheduledCounted',
+    'lessonsScheduledNotCounted',
+    'lessonsConfirmedCounted',
+    'lessonsConfirmedNotCounted',
+    'lessonsCancelledCounted',
+    'lessonsCancelledNotCounted',
+    'lessonsCompletedCounted',
+    'lessonsCompletedNotCounted'
   ]
 
   const lines = [
@@ -279,8 +335,14 @@ function buildTutorsCsv(
         row.sectionName ?? '',
         row.year ?? '',
         row.isActive ?? '',
-        row.lessonsConfirmed,
-        row.lessonsCancelled
+        row.lessonsScheduledCounted,
+        row.lessonsScheduledNotCounted,
+        row.lessonsConfirmedCounted,
+        row.lessonsConfirmedNotCounted,
+        row.lessonsCancelledCounted,
+        row.lessonsCancelledNotCounted,
+        row.lessonsCompletedCounted,
+        row.lessonsCompletedNotCounted
       ]
         .map((value) => escapeCsvValue(value))
         .join(',')
@@ -364,6 +426,15 @@ function buildExportFilename(role: 'student' | 'tutor') {
   const roleLabel = `${role}s`
 
   return `iepf-${roleLabel}-${timestamp}.csv`
+}
+
+function buildFeedbackExportFilename(role: 'student' | 'tutor') {
+  const timestamp = new Date()
+    .toISOString()
+    .replaceAll(':', '-')
+    .replace(/\.\d{3}Z$/, '')
+
+  return `iepf-feedback-${role}-${timestamp}.csv`
 }
 
 type DataTableProps<TData> = {
@@ -608,7 +679,21 @@ export default function AdminStatsPage() {
     rating2: 0,
     rating3: 0,
     rating4: 0,
-    rating5: 0
+    rating5: 0,
+    studentToTutorTotal: 0,
+    studentToTutorAverageRating: 0,
+    studentToTutorRating1: 0,
+    studentToTutorRating2: 0,
+    studentToTutorRating3: 0,
+    studentToTutorRating4: 0,
+    studentToTutorRating5: 0,
+    tutorToStudentTotal: 0,
+    tutorToStudentAverageRating: 0,
+    tutorToStudentRating1: 0,
+    tutorToStudentRating2: 0,
+    tutorToStudentRating3: 0,
+    tutorToStudentRating4: 0,
+    tutorToStudentRating5: 0
   })
   const [feedbackSummaryLoading, setFeedbackSummaryLoading] =
     React.useState(true)
@@ -1080,8 +1165,12 @@ export default function AdminStatsPage() {
 
               return {
                 ...user,
-                lessonsPresent: stats?.lessonsPresent ?? 0,
-                lessonsAbsent: stats?.lessonsAbsent ?? 0
+                lessonsPresentCounted: stats?.lessonsPresentCounted ?? 0,
+                lessonsPresentNotCounted: stats?.lessonsPresentNotCounted ?? 0,
+                lessonsAbsentCounted: stats?.lessonsAbsentCounted ?? 0,
+                lessonsAbsentNotCounted: stats?.lessonsAbsentNotCounted ?? 0,
+                lessonsWithoutPresenceCounted: stats?.lessonsWithoutPresenceCounted ?? 0,
+                lessonsWithoutPresenceNotCounted: stats?.lessonsWithoutPresenceNotCounted ?? 0
               }
             })
           )
@@ -1094,8 +1183,14 @@ export default function AdminStatsPage() {
 
               return {
                 ...user,
-                lessonsConfirmed: stats?.lessonsConfirmed ?? 0,
-                lessonsCancelled: stats?.lessonsCancelled ?? 0
+                lessonsScheduledCounted: stats?.lessonsScheduledCounted ?? 0,
+                lessonsScheduledNotCounted: stats?.lessonsScheduledNotCounted ?? 0,
+                lessonsConfirmedCounted: stats?.lessonsConfirmedCounted ?? 0,
+                lessonsConfirmedNotCounted: stats?.lessonsConfirmedNotCounted ?? 0,
+                lessonsCancelledCounted: stats?.lessonsCancelledCounted ?? 0,
+                lessonsCancelledNotCounted: stats?.lessonsCancelledNotCounted ?? 0,
+                lessonsCompletedCounted: stats?.lessonsCompletedCounted ?? 0,
+                lessonsCompletedNotCounted: stats?.lessonsCompletedNotCounted ?? 0
               }
             })
           )
@@ -1111,7 +1206,7 @@ export default function AdminStatsPage() {
     }
   }, [])
 
-  const exportFeedbackCsv = React.useCallback(async () => {
+  const exportFeedbackCsv = React.useCallback(async (role: 'student' | 'tutor') => {
     setIsDownloadingFeedbackCsv(true)
 
     try {
@@ -1154,7 +1249,9 @@ export default function AdminStatsPage() {
       }
 
       const csv = buildFeedbackCsv(
-        feedback.map((item) => {
+        feedback
+          .filter((item) => item.authorRole === role)
+          .map((item) => {
           const author = userMap.get(item.authorUserId)
           const target = userMap.get(item.targetUserId)
           const authorName =
@@ -1179,7 +1276,7 @@ export default function AdminStatsPage() {
         })
       )
 
-      downloadCsv('iepf-feedback.csv', csv)
+      downloadCsv(buildFeedbackExportFilename(role), csv)
     } catch (err) {
       toast.error(
         err instanceof Error
@@ -1285,7 +1382,21 @@ export default function AdminStatsPage() {
             rating2: payload.rating2 ?? 0,
             rating3: payload.rating3 ?? 0,
             rating4: payload.rating4 ?? 0,
-            rating5: payload.rating5 ?? 0
+            rating5: payload.rating5 ?? 0,
+            studentToTutorTotal: payload.studentToTutorTotal ?? 0,
+            studentToTutorAverageRating: payload.studentToTutorAverageRating ?? 0,
+            studentToTutorRating1: payload.studentToTutorRating1 ?? 0,
+            studentToTutorRating2: payload.studentToTutorRating2 ?? 0,
+            studentToTutorRating3: payload.studentToTutorRating3 ?? 0,
+            studentToTutorRating4: payload.studentToTutorRating4 ?? 0,
+            studentToTutorRating5: payload.studentToTutorRating5 ?? 0,
+            tutorToStudentTotal: payload.tutorToStudentTotal ?? 0,
+            tutorToStudentAverageRating: payload.tutorToStudentAverageRating ?? 0,
+            tutorToStudentRating1: payload.tutorToStudentRating1 ?? 0,
+            tutorToStudentRating2: payload.tutorToStudentRating2 ?? 0,
+            tutorToStudentRating3: payload.tutorToStudentRating3 ?? 0,
+            tutorToStudentRating4: payload.tutorToStudentRating4 ?? 0,
+            tutorToStudentRating5: payload.tutorToStudentRating5 ?? 0
           })
         }
       } catch (err) {
@@ -1927,7 +2038,7 @@ export default function AdminStatsPage() {
             <TabsContent value='tutors' className='mt-6 space-y-6'>
               <Card>
                 <CardHeader>
-                  <CardTitle>Lezioni confermate per tutor</CardTitle>
+                  <CardTitle>Lezioni conteggiate per tutor</CardTitle>
                 </CardHeader>
                 <CardContent className='space-y-4'>
                   <form
@@ -2047,7 +2158,7 @@ export default function AdminStatsPage() {
             <TabsContent value='students' className='mt-6 space-y-6'>
               <Card>
                 <CardHeader>
-                  <CardTitle>Lezioni confermate per studente</CardTitle>
+                  <CardTitle>Lezioni conteggiate per studente</CardTitle>
                 </CardHeader>
                 <CardContent className='space-y-4'>
                   <form
@@ -2169,15 +2280,30 @@ export default function AdminStatsPage() {
                 <CardHeader>
                   <div className='flex items-center justify-between gap-3'>
                     <CardTitle>Statistiche feedback</CardTitle>
-                    <Button
-                      type='button'
-                      variant='outline'
-                      size='sm'
-                      onClick={() => void exportFeedbackCsv()}
-                      disabled={isDownloadingFeedbackCsv}
-                    >
-                      {isDownloadingFeedbackCsv ? 'Download...' : 'Download CSV'}
-                    </Button>
+                    <div className='flex flex-col gap-2 sm:flex-row'>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        onClick={() => void exportFeedbackCsv('student')}
+                        disabled={isDownloadingFeedbackCsv}
+                      >
+                        {isDownloadingFeedbackCsv
+                          ? 'Download...'
+                          : 'Download CSV studenti'}
+                      </Button>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        onClick={() => void exportFeedbackCsv('tutor')}
+                        disabled={isDownloadingFeedbackCsv}
+                      >
+                        {isDownloadingFeedbackCsv
+                          ? 'Download...'
+                          : 'Download CSV tutor'}
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className='space-y-6'>
@@ -2206,81 +2332,74 @@ export default function AdminStatsPage() {
                     </Card>
                     <Card>
                       <CardHeader>
-                        <CardTitle>Scritti da studenti</CardTitle>
+                        <CardTitle>Studenti verso tutor</CardTitle>
                       </CardHeader>
                       <CardContent>
                         <div className='text-3xl font-semibold'>
                           {feedbackSummaryLoading
                             ? '-'
-                            : feedbackSummary.studentAuthored}
+                            : feedbackSummary.studentToTutorTotal}
                         </div>
                       </CardContent>
                     </Card>
                     <Card>
                       <CardHeader>
-                        <CardTitle>Scritti da tutor</CardTitle>
+                        <CardTitle>Tutor verso studenti</CardTitle>
                       </CardHeader>
                       <CardContent>
                         <div className='text-3xl font-semibold'>
                           {feedbackSummaryLoading
                             ? '-'
-                            : feedbackSummary.tutorAuthored}
+                            : feedbackSummary.tutorToStudentTotal}
                         </div>
                       </CardContent>
                     </Card>
                   </div>
 
-                  <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-5'>
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>1 stella</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className='text-2xl font-semibold'>
-                          {feedbackSummaryLoading ? '-' : feedbackSummary.rating1}
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>2 stelle</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className='text-2xl font-semibold'>
-                          {feedbackSummaryLoading ? '-' : feedbackSummary.rating2}
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>3 stelle</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className='text-2xl font-semibold'>
-                          {feedbackSummaryLoading ? '-' : feedbackSummary.rating3}
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>4 stelle</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className='text-2xl font-semibold'>
-                          {feedbackSummaryLoading ? '-' : feedbackSummary.rating4}
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>5 stelle</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className='text-2xl font-semibold'>
-                          {feedbackSummaryLoading ? '-' : feedbackSummary.rating5}
-                        </div>
-                      </CardContent>
-                    </Card>
+                  <div className='space-y-4'>
+                    <h3 className='text-base font-medium'>Studente verso tutor</h3>
+                    <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-6'>
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Media</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className='text-2xl font-semibold'>
+                            {feedbackSummaryLoading
+                              ? '-'
+                              : feedbackSummary.studentToTutorAverageRating.toFixed(2)}
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card><CardHeader><CardTitle>1 stella</CardTitle></CardHeader><CardContent><div className='text-2xl font-semibold'>{feedbackSummaryLoading ? '-' : feedbackSummary.studentToTutorRating1}</div></CardContent></Card>
+                      <Card><CardHeader><CardTitle>2 stelle</CardTitle></CardHeader><CardContent><div className='text-2xl font-semibold'>{feedbackSummaryLoading ? '-' : feedbackSummary.studentToTutorRating2}</div></CardContent></Card>
+                      <Card><CardHeader><CardTitle>3 stelle</CardTitle></CardHeader><CardContent><div className='text-2xl font-semibold'>{feedbackSummaryLoading ? '-' : feedbackSummary.studentToTutorRating3}</div></CardContent></Card>
+                      <Card><CardHeader><CardTitle>4 stelle</CardTitle></CardHeader><CardContent><div className='text-2xl font-semibold'>{feedbackSummaryLoading ? '-' : feedbackSummary.studentToTutorRating4}</div></CardContent></Card>
+                      <Card><CardHeader><CardTitle>5 stelle</CardTitle></CardHeader><CardContent><div className='text-2xl font-semibold'>{feedbackSummaryLoading ? '-' : feedbackSummary.studentToTutorRating5}</div></CardContent></Card>
+                    </div>
+                  </div>
+
+                  <div className='space-y-4'>
+                    <h3 className='text-base font-medium'>Tutor verso studente</h3>
+                    <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-6'>
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Media</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className='text-2xl font-semibold'>
+                            {feedbackSummaryLoading
+                              ? '-'
+                              : feedbackSummary.tutorToStudentAverageRating.toFixed(2)}
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card><CardHeader><CardTitle>1 stella</CardTitle></CardHeader><CardContent><div className='text-2xl font-semibold'>{feedbackSummaryLoading ? '-' : feedbackSummary.tutorToStudentRating1}</div></CardContent></Card>
+                      <Card><CardHeader><CardTitle>2 stelle</CardTitle></CardHeader><CardContent><div className='text-2xl font-semibold'>{feedbackSummaryLoading ? '-' : feedbackSummary.tutorToStudentRating2}</div></CardContent></Card>
+                      <Card><CardHeader><CardTitle>3 stelle</CardTitle></CardHeader><CardContent><div className='text-2xl font-semibold'>{feedbackSummaryLoading ? '-' : feedbackSummary.tutorToStudentRating3}</div></CardContent></Card>
+                      <Card><CardHeader><CardTitle>4 stelle</CardTitle></CardHeader><CardContent><div className='text-2xl font-semibold'>{feedbackSummaryLoading ? '-' : feedbackSummary.tutorToStudentRating4}</div></CardContent></Card>
+                      <Card><CardHeader><CardTitle>5 stelle</CardTitle></CardHeader><CardContent><div className='text-2xl font-semibold'>{feedbackSummaryLoading ? '-' : feedbackSummary.tutorToStudentRating5}</div></CardContent></Card>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
