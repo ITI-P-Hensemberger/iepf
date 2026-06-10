@@ -101,9 +101,15 @@ export const listTutorLessonCounts: AppRouteHandler<ListTutorLessonCountsRoute> 
   ensureAdmin(c)
 
   const { q, sortBy, sortDir, limit, offset } = c.req.valid('query')
-  const countedLessonsExpr = sql<number>`count(${lessons.id})`
-  const lessonsConfirmedExpr = sql<number>`count(case when ${lessons.status} = 'confirmed' then 1 end)`
-  const lessonsCancelledExpr = sql<number>`count(case when ${lessons.status} = 'canceled' then 1 end)`
+  const countedLessonsExpr = sql<number>`count(case when ${lessons.countsForTutor} = true then 1 end)`
+  const lessonsScheduledCountedExpr = sql<number>`count(case when ${lessons.status} = 'scheduled' and ${lessons.countsForTutor} = true then 1 end)`
+  const lessonsScheduledNotCountedExpr = sql<number>`count(case when ${lessons.status} = 'scheduled' and ${lessons.countsForTutor} = false then 1 end)`
+  const lessonsConfirmedCountedExpr = sql<number>`count(case when ${lessons.status} = 'confirmed' and ${lessons.countsForTutor} = true then 1 end)`
+  const lessonsConfirmedNotCountedExpr = sql<number>`count(case when ${lessons.status} = 'confirmed' and ${lessons.countsForTutor} = false then 1 end)`
+  const lessonsCancelledCountedExpr = sql<number>`count(case when ${lessons.status} = 'canceled' and ${lessons.countsForTutor} = true then 1 end)`
+  const lessonsCancelledNotCountedExpr = sql<number>`count(case when ${lessons.status} = 'canceled' and ${lessons.countsForTutor} = false then 1 end)`
+  const lessonsCompletedCountedExpr = sql<number>`count(case when ${lessons.status} = 'completed' and ${lessons.countsForTutor} = true then 1 end)`
+  const lessonsCompletedNotCountedExpr = sql<number>`count(case when ${lessons.status} = 'completed' and ${lessons.countsForTutor} = false then 1 end)`
   const tutorConditions = [eq(users.role, 'tutor')]
   if (q) {
     const searchCondition = or(
@@ -149,18 +155,21 @@ export const listTutorLessonCounts: AppRouteHandler<ListTutorLessonCountsRoute> 
       lastName: users.lastName,
       sectionName: classSections.name,
       countedLessons: countedLessonsExpr,
-      lessonsConfirmed: lessonsConfirmedExpr,
-      lessonsCancelled: lessonsCancelledExpr
+      lessonsScheduledCounted: lessonsScheduledCountedExpr,
+      lessonsScheduledNotCounted: lessonsScheduledNotCountedExpr,
+      lessonsConfirmedCounted: lessonsConfirmedCountedExpr,
+      lessonsConfirmedNotCounted: lessonsConfirmedNotCountedExpr,
+      lessonsCancelledCounted: lessonsCancelledCountedExpr,
+      lessonsCancelledNotCounted: lessonsCancelledNotCountedExpr,
+      lessonsCompletedCounted: lessonsCompletedCountedExpr,
+      lessonsCompletedNotCounted: lessonsCompletedNotCountedExpr
     })
     .from(users)
     .leftJoin(tutorProfiles, eq(tutorProfiles.userId, users.id))
     .leftJoin(classSections, eq(classSections.id, tutorProfiles.sectionId))
     .leftJoin(
       lessons,
-      and(
-        eq(lessons.tutorId, users.id),
-        eq(lessons.countsForTutor, true)
-      )
+      eq(lessons.tutorId, users.id)
     )
     .where(tutorFilter)
     .groupBy(users.id, classSections.name)
@@ -183,9 +192,13 @@ export const listStudentLessonCounts: AppRouteHandler<ListStudentLessonCountsRou
   ensureAdmin(c)
 
   const { q, sortBy, sortDir, limit, offset } = c.req.valid('query')
-  const countedLessonsExpr = sql<number>`count(${lessonBookings.id})`
-  const lessonsPresentExpr = sql<number>`count(case when ${lessonBookings.studentPresence} = true then 1 end)`
-  const lessonsAbsentExpr = sql<number>`count(case when ${lessonBookings.studentPresence} = false then 1 end)`
+  const countedLessonsExpr = sql<number>`count(case when ${lessonBookings.countsForStudent} = true then 1 end)`
+  const lessonsPresentCountedExpr = sql<number>`count(case when ${lessonBookings.studentPresence} = true and ${lessonBookings.countsForStudent} = true then 1 end)`
+  const lessonsPresentNotCountedExpr = sql<number>`count(case when ${lessonBookings.studentPresence} = true and ${lessonBookings.countsForStudent} = false then 1 end)`
+  const lessonsAbsentCountedExpr = sql<number>`count(case when ${lessonBookings.studentPresence} = false and ${lessonBookings.countsForStudent} = true then 1 end)`
+  const lessonsAbsentNotCountedExpr = sql<number>`count(case when ${lessonBookings.studentPresence} = false and ${lessonBookings.countsForStudent} = false then 1 end)`
+  const lessonsWithoutPresenceCountedExpr = sql<number>`count(case when ${lessonBookings.studentPresence} is null and ${lessonBookings.countsForStudent} = true then 1 end)`
+  const lessonsWithoutPresenceNotCountedExpr = sql<number>`count(case when ${lessonBookings.studentPresence} is null and ${lessonBookings.countsForStudent} = false then 1 end)`
   const studentConditions = [eq(users.role, 'student')]
   if (q) {
     const searchCondition = or(
@@ -231,18 +244,19 @@ export const listStudentLessonCounts: AppRouteHandler<ListStudentLessonCountsRou
       lastName: users.lastName,
       sectionName: classSections.name,
       countedLessons: countedLessonsExpr,
-      lessonsPresent: lessonsPresentExpr,
-      lessonsAbsent: lessonsAbsentExpr
+      lessonsPresentCounted: lessonsPresentCountedExpr,
+      lessonsPresentNotCounted: lessonsPresentNotCountedExpr,
+      lessonsAbsentCounted: lessonsAbsentCountedExpr,
+      lessonsAbsentNotCounted: lessonsAbsentNotCountedExpr,
+      lessonsWithoutPresenceCounted: lessonsWithoutPresenceCountedExpr,
+      lessonsWithoutPresenceNotCounted: lessonsWithoutPresenceNotCountedExpr
     })
     .from(users)
     .leftJoin(studentProfiles, eq(studentProfiles.userId, users.id))
     .leftJoin(classSections, eq(classSections.id, studentProfiles.sectionId))
     .leftJoin(
       lessonBookings,
-      and(
-        eq(lessonBookings.studentId, users.id),
-        eq(lessonBookings.countsForStudent, true)
-      )
+      eq(lessonBookings.studentId, users.id)
     )
     .where(studentFilter)
     .groupBy(users.id, classSections.name)
@@ -359,7 +373,21 @@ export const getFeedbackSummary: AppRouteHandler<GetFeedbackSummaryRoute> = asyn
       rating2: sql<number>`count(case when ${lessonFeedback.rating} = 2 then 1 end)`,
       rating3: sql<number>`count(case when ${lessonFeedback.rating} = 3 then 1 end)`,
       rating4: sql<number>`count(case when ${lessonFeedback.rating} = 4 then 1 end)`,
-      rating5: sql<number>`count(case when ${lessonFeedback.rating} = 5 then 1 end)`
+      rating5: sql<number>`count(case when ${lessonFeedback.rating} = 5 then 1 end)`,
+      studentToTutorTotal: sql<number>`count(case when ${lessonFeedback.authorRole} = 'student' then 1 end)`,
+      studentToTutorAverageRating: sql<number>`coalesce(avg(case when ${lessonFeedback.authorRole} = 'student' then ${lessonFeedback.rating} end), 0)`,
+      studentToTutorRating1: sql<number>`count(case when ${lessonFeedback.authorRole} = 'student' and ${lessonFeedback.rating} = 1 then 1 end)`,
+      studentToTutorRating2: sql<number>`count(case when ${lessonFeedback.authorRole} = 'student' and ${lessonFeedback.rating} = 2 then 1 end)`,
+      studentToTutorRating3: sql<number>`count(case when ${lessonFeedback.authorRole} = 'student' and ${lessonFeedback.rating} = 3 then 1 end)`,
+      studentToTutorRating4: sql<number>`count(case when ${lessonFeedback.authorRole} = 'student' and ${lessonFeedback.rating} = 4 then 1 end)`,
+      studentToTutorRating5: sql<number>`count(case when ${lessonFeedback.authorRole} = 'student' and ${lessonFeedback.rating} = 5 then 1 end)`,
+      tutorToStudentTotal: sql<number>`count(case when ${lessonFeedback.authorRole} = 'tutor' then 1 end)`,
+      tutorToStudentAverageRating: sql<number>`coalesce(avg(case when ${lessonFeedback.authorRole} = 'tutor' then ${lessonFeedback.rating} end), 0)`,
+      tutorToStudentRating1: sql<number>`count(case when ${lessonFeedback.authorRole} = 'tutor' and ${lessonFeedback.rating} = 1 then 1 end)`,
+      tutorToStudentRating2: sql<number>`count(case when ${lessonFeedback.authorRole} = 'tutor' and ${lessonFeedback.rating} = 2 then 1 end)`,
+      tutorToStudentRating3: sql<number>`count(case when ${lessonFeedback.authorRole} = 'tutor' and ${lessonFeedback.rating} = 3 then 1 end)`,
+      tutorToStudentRating4: sql<number>`count(case when ${lessonFeedback.authorRole} = 'tutor' and ${lessonFeedback.rating} = 4 then 1 end)`,
+      tutorToStudentRating5: sql<number>`count(case when ${lessonFeedback.authorRole} = 'tutor' and ${lessonFeedback.rating} = 5 then 1 end)`
     })
     .from(lessonFeedback)
 
@@ -373,7 +401,21 @@ export const getFeedbackSummary: AppRouteHandler<GetFeedbackSummaryRoute> = asyn
       rating2: Number(row?.rating2 ?? 0),
       rating3: Number(row?.rating3 ?? 0),
       rating4: Number(row?.rating4 ?? 0),
-      rating5: Number(row?.rating5 ?? 0)
+      rating5: Number(row?.rating5 ?? 0),
+      studentToTutorTotal: Number(row?.studentToTutorTotal ?? 0),
+      studentToTutorAverageRating: Number(row?.studentToTutorAverageRating ?? 0),
+      studentToTutorRating1: Number(row?.studentToTutorRating1 ?? 0),
+      studentToTutorRating2: Number(row?.studentToTutorRating2 ?? 0),
+      studentToTutorRating3: Number(row?.studentToTutorRating3 ?? 0),
+      studentToTutorRating4: Number(row?.studentToTutorRating4 ?? 0),
+      studentToTutorRating5: Number(row?.studentToTutorRating5 ?? 0),
+      tutorToStudentTotal: Number(row?.tutorToStudentTotal ?? 0),
+      tutorToStudentAverageRating: Number(row?.tutorToStudentAverageRating ?? 0),
+      tutorToStudentRating1: Number(row?.tutorToStudentRating1 ?? 0),
+      tutorToStudentRating2: Number(row?.tutorToStudentRating2 ?? 0),
+      tutorToStudentRating3: Number(row?.tutorToStudentRating3 ?? 0),
+      tutorToStudentRating4: Number(row?.tutorToStudentRating4 ?? 0),
+      tutorToStudentRating5: Number(row?.tutorToStudentRating5 ?? 0)
     },
     HttpStatusCodes.OK
   )

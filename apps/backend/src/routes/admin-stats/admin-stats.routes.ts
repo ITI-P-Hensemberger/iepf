@@ -25,8 +25,14 @@ const tutorLessonCountSchema = z.object({
   lastName: z.string(),
   sectionName: z.string().nullable(),
   countedLessons: z.number().int().min(0),
-  lessonsConfirmed: z.number().int().min(0),
-  lessonsCancelled: z.number().int().min(0)
+  lessonsScheduledCounted: z.number().int().min(0),
+  lessonsScheduledNotCounted: z.number().int().min(0),
+  lessonsConfirmedCounted: z.number().int().min(0),
+  lessonsConfirmedNotCounted: z.number().int().min(0),
+  lessonsCancelledCounted: z.number().int().min(0),
+  lessonsCancelledNotCounted: z.number().int().min(0),
+  lessonsCompletedCounted: z.number().int().min(0),
+  lessonsCompletedNotCounted: z.number().int().min(0)
 })
 
 const studentLessonCountSchema = z.object({
@@ -36,8 +42,12 @@ const studentLessonCountSchema = z.object({
   lastName: z.string(),
   sectionName: z.string().nullable(),
   countedLessons: z.number().int().min(0),
-  lessonsPresent: z.number().int().min(0),
-  lessonsAbsent: z.number().int().min(0)
+  lessonsPresentCounted: z.number().int().min(0),
+  lessonsPresentNotCounted: z.number().int().min(0),
+  lessonsAbsentCounted: z.number().int().min(0),
+  lessonsAbsentNotCounted: z.number().int().min(0),
+  lessonsWithoutPresenceCounted: z.number().int().min(0),
+  lessonsWithoutPresenceNotCounted: z.number().int().min(0)
 })
 
 const subjectCountsQuerySchema = z.object({
@@ -81,7 +91,21 @@ const feedbackSummarySchema = z.object({
   rating2: z.number().int().min(0),
   rating3: z.number().int().min(0),
   rating4: z.number().int().min(0),
-  rating5: z.number().int().min(0)
+  rating5: z.number().int().min(0),
+  studentToTutorTotal: z.number().int().min(0),
+  studentToTutorAverageRating: z.number().min(0),
+  studentToTutorRating1: z.number().int().min(0),
+  studentToTutorRating2: z.number().int().min(0),
+  studentToTutorRating3: z.number().int().min(0),
+  studentToTutorRating4: z.number().int().min(0),
+  studentToTutorRating5: z.number().int().min(0),
+  tutorToStudentTotal: z.number().int().min(0),
+  tutorToStudentAverageRating: z.number().min(0),
+  tutorToStudentRating1: z.number().int().min(0),
+  tutorToStudentRating2: z.number().int().min(0),
+  tutorToStudentRating3: z.number().int().min(0),
+  tutorToStudentRating4: z.number().int().min(0),
+  tutorToStudentRating5: z.number().int().min(0)
 })
 
 export const listSubjectTutorCounts = createRoute({
