@@ -2,6 +2,7 @@ services:
   traefik:
     image: traefik:latest
     container_name: traefik
+    restart: unless-stopped
     command:
       - '--api.dashboard=true'
       - '--providers.docker=true'
@@ -28,6 +29,7 @@ services:
 
   frontend:
     image: ghcr.io/jdncst-dev/iepf-frontend:latest
+    restart: unless-stopped
     environment:
       - API_BASE_URL=http://backend:9999
       - TZ=Europe/Rome
@@ -44,6 +46,7 @@ services:
 
   backend:
     image: ghcr.io/jdncst-dev/iepf-backend:latest
+    restart: unless-stopped
     environment:
       - TZ=Europe/Rome
     env_file:
