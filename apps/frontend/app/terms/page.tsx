@@ -66,7 +66,7 @@ const TERMS = [
     title: '7. Canale ufficiale di comunicazione',
     body: [
       "L'Utente accetta che tutte le comunicazioni ufficiali relative al Progetto (prenotazioni, conferme, promemoria, annullamenti, avvisi) vengano inviate esclusivamente all'indirizzo di posta elettronica istituzionale dello studente:",
-      'nome.cognome@itismonza.it',
+      'cognome.nome@hensemberger.it',
       "L'Utente si assume la responsabilità di monitorare tale canale o di verificare che lo studente lo consulti regolarmente."
     ]
   },

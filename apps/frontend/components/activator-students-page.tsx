@@ -627,7 +627,7 @@ export default function ActivatorStudentsPage() {
       },
       {
         accessorKey: 'email',
-        header: 'Email @itismonza.it',
+        header: 'Email @hensemberger.it',
         cell: ({ row }) => <span>{row.original.email.split('@')[0]}</span>
       },
       {

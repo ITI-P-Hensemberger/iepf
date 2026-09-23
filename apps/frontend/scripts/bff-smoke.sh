@@ -2,7 +2,7 @@
 set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost:3000}"
-TEST_EMAIL="${TEST_EMAIL:-test@itismonza.it}"
+TEST_EMAIL="${TEST_EMAIL:-user.test@hensemberger.it}"
 TEST_PASSWORD="${TEST_PASSWORD:-password123}"
 
 say() {

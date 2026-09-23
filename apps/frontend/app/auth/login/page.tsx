@@ -279,7 +279,7 @@ function LoginContent() {
                       id='login-email'
                       type='email'
                       autoComplete='email'
-                      placeholder='nome.cognome@itismonza.it'
+                      placeholder='cognome.nome@hensemberger.it'
                       {...form.register('email')}
                     />
                     {form.formState.errors.email && (

@@ -628,10 +628,10 @@ export default function AdminTutorsPage() {
         }
 
         // Domain validation
-        if (!trimmed.endsWith('@itismonza.it')) {
+        if (!trimmed.endsWith('@hensemberger.it')) {
           invalid.push({
             email: trimmed,
-            reason: 'Deve essere una mail @itismonza.it'
+            reason: 'Deve essere una mail @hensemberger.it'
           })
           continue
         }
@@ -1371,7 +1371,7 @@ export default function AdminTutorsPage() {
             )}
 
             <Textarea
-              placeholder='tutor1@itismonza.it'
+              placeholder='rossi.mario@hensemberger.it'
               value={inviteEmails}
               onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) =>
                 setInviteEmails(event.target.value)

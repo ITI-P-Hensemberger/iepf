@@ -64,11 +64,11 @@ const formSchema = z
     })
   })
   .superRefine(({ email }, ctx) => {
-    if (!email.toLowerCase().endsWith('@itismonza.it')) {
+    if (!email.toLowerCase().endsWith('@hensemberger.it')) {
       ctx.addIssue({
         code: 'custom',
         path: ['email'],
-        message: 'Utilizza la tua mail @itismonza.it'
+        message: 'Utilizza la tua mail @hensemberger.it'
       })
     }
   })
@@ -488,13 +488,13 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
                   <FieldLabel htmlFor='registration-form-email'>
-                    Email @itismonza.it
+                    Email @hensemberger.it
                   </FieldLabel>
                   <Input
                     {...field}
                     id='registration-form-email'
                     aria-invalid={fieldState.invalid}
-                    placeholder='mario.rossi@itismonza.it'
+                    placeholder='rossi.mario@hensemberger.it'
                     autoComplete='off'
                     onBlur={(event) => {
                       field.onBlur()
