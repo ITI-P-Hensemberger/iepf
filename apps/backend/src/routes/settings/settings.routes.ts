@@ -72,6 +72,15 @@ export const mySettingsSchema = z.object({
   serviceMessage: serviceMessageSchema.nullable()
 })
 
+export const resetSchoolYearSchema = z.object({
+  confirmation: z.literal('RESET')
+})
+
+export const resetSchoolYearResultSchema = z.object({
+  deletedStudents: z.number().int().min(0),
+  deletedTutors: z.number().int().min(0)
+})
+
 export const getAdminSettings = createRoute({
   path: '/settings',
   method: 'get',
@@ -138,6 +147,19 @@ export const getMySettings = createRoute({
   }
 })
 
+export const resetSchoolYear = createRoute({
+  path: '/settings/school-year/reset',
+  method: 'post',
+  tags,
+  security: bearerAuth,
+  request: { body: jsonContentRequired(resetSchoolYearSchema, 'Reset confirmation') },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(resetSchoolYearResultSchema, 'School year reset'),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(createErrorSchema(resetSchoolYearSchema), 'Invalid confirmation')
+  }
+})
+
 export type GetAdminSettingsRoute = typeof getAdminSettings
 export type UpdateAdminSettingsRoute = typeof updateAdminSettings
 export type GetMySettingsRoute = typeof getMySettings
+export type ResetSchoolYearRoute = typeof resetSchoolYear

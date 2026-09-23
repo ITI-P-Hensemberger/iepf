@@ -1,7 +1,7 @@
 // Purpose: Auth route schemas.
 import { createRoute, z } from '@hono/zod-openapi'
 
-import { selectUsersWithProfilesSchema, studentRegisterSchema } from '@/db/schemas/users.schema'
+import { schoolEmailSchema, selectUsersWithProfilesSchema, studentRegisterSchema } from '@/db/schemas/users.schema'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
@@ -11,11 +11,11 @@ import { queryBoolean } from '@/lib/zod-utils'
 const tags = ['Auth']
 
 export const tutorInviteRequestSchema = z.object({
-  email: z.email()
+  email: schoolEmailSchema
 })
 
 export const adminInviteRequestSchema = z.object({
-  email: z.email()
+  email: schoolEmailSchema
 })
 
 export const tutorInviteListItemSchema = z.object({

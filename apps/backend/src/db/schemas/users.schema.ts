@@ -24,6 +24,14 @@ export const users = pgTable('users', {
     .$onUpdate(() => new Date())
 })
 
+export const SCHOOL_EMAIL_DOMAIN = '@hensemberger.it'
+
+export const schoolEmailSchema = z
+  .intersection(z.email(), z.string().max(100))
+  .refine(email => email.toLowerCase().endsWith(SCHOOL_EMAIL_DOMAIN), {
+    message: `Utilizza una mail ${SCHOOL_EMAIL_DOMAIN}`
+  })
+
 export const selectUsersSchema = toZodV4SchemaTyped(createSelectSchema(users)
   .omit({
     passwordHash: true
@@ -34,7 +42,7 @@ export const insertUsersSchema = toZodV4SchemaTyped(createInsertSchema(
   {
     firstName: field => field.min(1).max(100),
     lastName: field => field.min(1).max(100),
-    email: () => z.intersection(z.email(), z.string().max(100))
+    email: () => schoolEmailSchema
   }
 ).omit({
   id: true,
@@ -48,7 +56,7 @@ export const insertUsersSchema = toZodV4SchemaTyped(createInsertSchema(
 }).strict())
 
 const baseUserInputSchema = z.object({
-  email: z.intersection(z.email(), z.string().max(100)),
+  email: schoolEmailSchema,
   firstName: z.string().min(1).max(100),
   lastName: z.string().min(1).max(100),
   password: z.string().min(8).max(200)
@@ -79,7 +87,7 @@ export const selectUsersWithProfilesSchema = toZodV4SchemaTyped(
 )
 
 export const patchUsersSchema = toZodV4SchemaTyped(z.object({
-  email: z.intersection(z.email(), z.string().max(100)).optional(),
+  email: schoolEmailSchema.optional(),
   firstName: z.string().min(1).max(100).optional(),
   lastName: z.string().min(1).max(100).optional(),
   password: z.string().min(8).max(200).optional(),

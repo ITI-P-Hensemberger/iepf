@@ -12,7 +12,7 @@ import { hashPassword } from '@/lib/password'
 import { issueTutorInviteToken } from '@/lib/tutor-invite'
 
 const EMAIL_PREFIX = 'jordan.castiglioni+'
-const EMAIL_DOMAIN = '@itismonza.it'
+const EMAIL_DOMAIN = '@hensemberger.it'
 const DEFAULT_PASSWORD = 'Password123!'
 
 function buildEmail(alias: string) {

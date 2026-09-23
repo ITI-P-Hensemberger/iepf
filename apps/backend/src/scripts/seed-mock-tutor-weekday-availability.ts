@@ -7,7 +7,7 @@ import { tutorWeekdayAvailability } from '@/db/schemas/tutor-weekday-availabilit
 import { users } from '@/db/schemas/users.schema'
 
 const EMAIL_PREFIX = 'jordan.castiglioni+'
-const EMAIL_DOMAIN = '@itismonza.it'
+const EMAIL_DOMAIN = '@hensemberger.it'
 
 async function getMockTutors() {
   const emailPattern = `${EMAIL_PREFIX}tutor-%${EMAIL_DOMAIN}`

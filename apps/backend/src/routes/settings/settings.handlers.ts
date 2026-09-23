@@ -1,18 +1,22 @@
 // Purpose: Global settings handlers for admins and role-specific consumers.
 import type { Context } from 'hono'
 
+import { eq, inArray } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
 import { globalSettings } from '@/db/schemas/global-settings.schema'
+import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
+import { users } from '@/db/schemas/users.schema'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 
 import type {
   GetAdminSettingsRoute,
   GetMySettingsRoute,
+  ResetSchoolYearRoute,
   UpdateAdminSettingsRoute
 } from './settings.routes'
 
@@ -123,6 +127,24 @@ export const updateAdminSettings: AppRouteHandler<UpdateAdminSettingsRoute> = as
     },
     HttpStatusCodes.OK
   )
+}
+
+export const resetSchoolYear: AppRouteHandler<ResetSchoolYearRoute> = async (c) => {
+  ensureAdmin(c)
+  c.req.valid('json')
+
+  const [studentRows, tutorRows] = await Promise.all([
+    db.select({ id: users.id }).from(users).where(eq(users.role, 'student')),
+    db.select({ id: users.id }).from(users).where(eq(users.role, 'tutor'))
+  ])
+
+  await db.transaction(async (tx) => {
+    await tx.delete(tutorInviteTokens)
+    await tx.delete(users).where(inArray(users.id, studentRows.map(user => user.id)))
+    await tx.delete(users).where(inArray(users.id, tutorRows.map(user => user.id)))
+  })
+
+  return c.json({ deletedStudents: studentRows.length, deletedTutors: tutorRows.length }, HttpStatusCodes.OK)
 }
 
 export const getMySettings: AppRouteHandler<GetMySettingsRoute> = async (c) => {

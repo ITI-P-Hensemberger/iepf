@@ -7,7 +7,7 @@ import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'
 
 const EMAIL_PREFIX = 'jordan.castiglioni+'
-const EMAIL_DOMAIN = '@itismonza.it'
+const EMAIL_DOMAIN = '@hensemberger.it'
 
 async function getMockActiveTutors() {
   const emailPattern = `${EMAIL_PREFIX}tutor-%${EMAIL_DOMAIN}`
