@@ -69,7 +69,7 @@ export default function StudentPendingPage() {
                     Lo trovi nella circolare di inizio progetto oppure al
                     seguente link:{' '}
                     <Link
-                      href='https://drive.google.com/file/d/1MRRcjxsehWFrk2eXFks0k3C-xPZYaaLO/view?usp=sharing'
+                      href='https://hensembergermonza-my.sharepoint.com/:b:/g/personal/iepf_hensemberger_it/IQA_QdT0Y57qRL3nYwkCsEw1ATbNluKV0Ba-nMZE4gSaHW8?e=6vwbjX'
                       target='_blank'
                       className='underline underline-offset-4'
                     >
@@ -125,7 +125,7 @@ export default function StudentPendingPage() {
                     Compila e allega la ricevuta di pagamento e la liberatoria
                     firmata al seguente form: <br />
                     <Link
-                      href='https://forms.gle/QMBZ2HXbSryjnVuv8'
+                      href='https://forms.cloud.microsoft/e/BzQUy21yt7'
                       target='_blank'
                       className='underline underline-offset-4'
                     >
