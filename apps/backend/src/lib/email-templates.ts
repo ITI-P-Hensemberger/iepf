@@ -374,12 +374,12 @@ export function buildLessonBookingConfirmedMessage(params: {
   ]
   return {
     subject: 'Nuova prenotazione',
-    text: `Hai una nuova prenotazione alla lezione del ${dateLabel}. Materia: ${params.subjectName}.${topicText} Studente: ${studentLabel}. Aspetta il tuo studente in atrio. Una volta arrivato, spostatevi in aula 213 o 215.${adminLabel}`,
+    text: `Hai una nuova prenotazione alla lezione del ${dateLabel}. Materia: ${params.subjectName}.${topicText} Studente: ${studentLabel}. Aspetta il tuo studente in atrio. Una volta arrivato, nell'atrio del primo piano.${adminLabel}`,
     html: buildEmailHtml(
       'Nuova prenotazione',
       `Hai una nuova prenotazione alla lezione del <strong>${dateLabel}</strong>.
       <div style="margin-top:12px;">${buildLessonCardHtml(params.subjectName, cardLines)}</div>
-      <div style="margin-top:12px;">Aspetta il tuo studente in atrio. Una volta arrivato, spostatevi in aula 213 o 215.</div>
+      <div style="margin-top:12px;">Aspetta il tuo studente in atrio. Una volta arrivato, nell'atrio del primo piano.</div>
       ${params.bookedByAdmin ? '<div style="margin-top:12px;color:#64748b;font-size:13px;">Prenotazione effettuata da un amministratore.</div>' : ''}`
     )
   } satisfies EmailTemplate
@@ -654,7 +654,7 @@ export function buildLessonReminderTutorMessage(params: {
       `Promemoria lezioni di ${whenLabel}`,
       `Ecco le lezioni confermate di ${whenLabel}:<div style="margin-top:12px;">${itemsHtml}</div>
       <br />
-      Aspetta il tuo studente in atrio. Una volta arrivato, spostatevi in aula 213 o 215.
+      Aspetta il tuo studente in atrio. Una volta arrivato, nell'atrio del primo piano.
       <br />
       Ricordati di segnare la presenza dello studente appena arriva.`
     )
