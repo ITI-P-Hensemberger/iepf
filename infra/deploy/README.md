@@ -87,12 +87,35 @@ Diagnostica: `systemctl list-timers 'iepf-*'`,
 Gli script di build e il vecchio Compose nella radice rimangono per consultazione;
 il percorso operativo automatico è `deploy/`.
 
-Il probe backend interroga `/doc`, pubblico anche nelle immagini precedenti:
-l'attuale `/health` è intercettato dai middleware di autenticazione. Il probe
+Il probe backend interroga `/health`, pubblico e con verifica del database. Le
+immagini precedenti rispondono 401 su quella rotta: solo in quel caso il probe
+ricade su `/doc`, così deploy e rollback non dipendono dall'ordine di rilascio. Il probe
 frontend usa l'hostname del container per supportare anche il binding delle
 vecchie immagini standalone. La disponibilità PostgreSQL viene controllata
 separatamente con `pg_isready`. Il probe HTTP non sostituisce un test funzionale
 completo delle operazioni applicative.
+
+## Reset dell'anno scolastico
+
+Il reset dalle impostazioni admin elimina studenti, tutor, lezioni, prenotazioni,
+feedback, movimenti token e inviti tutor. Richiede la password dell'admin e non è
+consentito in impersonazione. Non esiste annullamento: si può recuperare solo da
+un backup, quindi prima di confermarlo eseguire sulla VPS:
+
+```bash
+bash /opt/iepf/current/backup.sh
+ls -lt /opt/iepf/shared/backups | head -3
+```
+
+Ripristino, con applicazioni ferme e dopo aver verificato il file scelto. Sostituisce
+il contenuto del database, quindi va provato prima su una copia:
+
+```bash
+docker compose --env-file /opt/iepf/shared/host.env --env-file /opt/iepf/current/images.env -f /opt/iepf/current/compose.yaml stop frontend backend
+docker exec postgres sh -ec 'psql -U "$POSTGRES_USER" -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE \"$POSTGRES_DB\" WITH (FORCE)" -c "CREATE DATABASE \"$POSTGRES_DB\""'
+gunzip -c FILE.sql.gz | docker exec -i postgres sh -ec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'
+docker compose --env-file /opt/iepf/shared/host.env --env-file /opt/iepf/current/images.env -f /opt/iepf/current/compose.yaml up -d --wait frontend backend
+```
 
 Le modifiche alla sola documentazione non attivano un deploy; vengono comunque
 eseguiti i controlli infrastrutturali. La configurazione dei timer installata in

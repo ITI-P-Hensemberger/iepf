@@ -93,7 +93,7 @@ Per ripartire da zero: `make db-reset CONFIRM=yes`, poi `make seed-full`.
 ```bash
 make doctor       # verifica runtime, Docker e configurazione
 make check        # typecheck, lint e build di entrambe le applicazioni
-make test         # DB test effimero + migrazioni SQL + test integrazione backend
+make test         # DB test effimero + migrazioni SQL + test backend e frontend
 ```
 
 `make test` usa `iepf_test`, in un container separato con tmpfs e profilo `test`:

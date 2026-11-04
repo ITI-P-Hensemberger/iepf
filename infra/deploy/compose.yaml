@@ -52,7 +52,8 @@ services:
 
   backend:
     healthcheck:
-      test: [CMD, node, -e, "fetch('http://127.0.0.1:9999/doc').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      # Older images answer 401 on /health, so they fall back to /doc until replaced.
+      test: [CMD, node, -e, "const u='http://127.0.0.1:9999';fetch(u+'/health').then(r=>r.status===401?fetch(u+'/doc'):r).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 12

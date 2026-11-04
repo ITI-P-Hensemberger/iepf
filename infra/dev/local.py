@@ -221,7 +221,7 @@ def main():
     parser.add_argument('--confirm', action='store_true')
     args = parser.parse_args()
     if args.command == 'help':
-        print('make setup  Install pinned dependencies and create local env files\nmake dev    Start infra, migrate, run both apps\nmake stop   Stop both apps and local infra, keep data\nmake up / down / logs / doctor\nmake db-migrate / db-generate / seed / seed-full\nmake db-reset CONFIRM=yes  Delete ONLY managed dev data and seed it again\nmake db-clear CONFIRM=yes  Empty the managed local DB, keep schema, no seed\nmake test   Fresh isolated DB, migrations, backend integration tests\nmake check  Typecheck, lint and build both apps')
+        print('make setup  Install pinned dependencies and create local env files\nmake dev    Start infra, migrate, run both apps\nmake stop   Stop both apps and local infra, keep data\nmake up / down / logs / doctor\nmake db-migrate / db-generate / seed / seed-full\nmake db-reset CONFIRM=yes  Delete ONLY managed dev data and seed it again\nmake db-clear CONFIRM=yes  Empty the managed local DB, keep schema, no seed\nmake test   Fresh isolated DB, migrations, backend and frontend tests\nmake check  Typecheck, lint and build both apps')
         return
     cfg = prepare()
     command = args.command
@@ -276,6 +276,7 @@ def main():
                 start_infra(test=True)
                 pnpm('db:migrate', test=True)
                 pnpm('test', test=True)
+                run([*PNPM, 'run', 'test'], cwd=FRONTEND, env=node_environment())
             finally:
                 compose('rm', '--stop', '--force', 'db-test')
     elif command == 'check':
