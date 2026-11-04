@@ -79,6 +79,21 @@ class LocalTests(unittest.TestCase):
                 local.main()
                 self.assertEqual([call.args for call in pnpm.call_args_list], [('db:migrate',), ('seed:all-mock-data',)])
 
+    def test_clear_requires_explicit_confirmation(self):
+        with patch('sys.argv', ['local.py', 'db-clear']), patch.object(local, 'compose') as compose:
+            with self.assertRaisesRegex(RuntimeError, 'make db-clear CONFIRM=yes'):
+                local.main()
+            compose.assert_not_called()
+
+    def test_clear_migrates_empty_database_without_reseeding(self):
+        with patch('sys.argv', ['local.py', 'db-clear', '--confirm']):
+            with patch.object(local, 'stop_apps'), patch.object(local, 'local_database', return_value={}), patch.object(local, 'start_infra'):
+                with patch.object(local, 'compose') as compose, patch.object(local, 'pnpm') as pnpm:
+                    local.main()
+                    self.assertIn('DROP DATABASE iepf_dev WITH (FORCE)', compose.call_args.args)
+                    self.assertIn('CREATE DATABASE iepf_dev OWNER iepf', compose.call_args.args)
+                    self.assertEqual([call.args for call in pnpm.call_args_list], [('db:migrate',)])
+
     def test_rejects_ambiguous_port_configuration(self):
         with patch.dict(os.environ, DEV_DB_PORT='3000', FRONTEND_PORT='3000'):
             with self.assertRaisesRegex(RuntimeError, 'distinct'):

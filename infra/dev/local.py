@@ -217,11 +217,11 @@ def dev():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['help','setup','dev','up','stop','down','logs','doctor','db-migrate','db-generate','seed','seed-full','db-reset','test','check'])
+    parser.add_argument('command', choices=['help','setup','dev','up','stop','down','logs','doctor','db-migrate','db-generate','seed','seed-full','db-reset','db-clear','test','check'])
     parser.add_argument('--confirm', action='store_true')
     args = parser.parse_args()
     if args.command == 'help':
-        print('make setup  Install pinned dependencies and create local env files\nmake dev    Start infra, migrate, run both apps\nmake stop   Stop both apps and local infra, keep data\nmake up / down / logs / doctor\nmake db-migrate / db-generate / seed / seed-full\nmake db-reset CONFIRM=yes  Delete ONLY managed dev data and seed it again\nmake test   Fresh isolated DB, migrations, backend integration tests\nmake check  Typecheck, lint and build both apps')
+        print('make setup  Install pinned dependencies and create local env files\nmake dev    Start infra, migrate, run both apps\nmake stop   Stop both apps and local infra, keep data\nmake up / down / logs / doctor\nmake db-migrate / db-generate / seed / seed-full\nmake db-reset CONFIRM=yes  Delete ONLY managed dev data and seed it again\nmake db-clear CONFIRM=yes  Empty the managed local DB, keep schema, no seed\nmake test   Fresh isolated DB, migrations, backend integration tests\nmake check  Typecheck, lint and build both apps')
         return
     cfg = prepare()
     command = args.command
@@ -252,16 +252,17 @@ def main():
         if command in ('seed','seed-full'):
             pnpm('db:migrate')
         pnpm({'db-migrate':'db:migrate','db-generate':'db:generate','seed':'seed:dev','seed-full':'seed:all-mock-data'}[command])
-    elif command == 'db-reset':
+    elif command in ('db-reset', 'db-clear'):
         if not args.confirm:
-            raise RuntimeError('No data deleted. To reset the managed local DB: make db-reset CONFIRM=yes')
+            raise RuntimeError(f'No data deleted. To reset the managed local DB: make {command} CONFIRM=yes')
         stop_apps()
         local_database()
         start_infra()
         # Fixed database name and credentials in this Compose project; never read a repo .env.
         compose('exec', '-T', 'db-dev', 'psql', '-U', 'iepf', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-c', 'DROP DATABASE iepf_dev WITH (FORCE)', '-c', 'CREATE DATABASE iepf_dev OWNER iepf')
         pnpm('db:migrate')
-        pnpm('seed:dev')
+        if command == 'db-reset':
+            pnpm('seed:dev')
     elif command == 'test':
         local_database(test=True)
         # Refuse dev/production DBs, then recreate only the ephemeral test service.

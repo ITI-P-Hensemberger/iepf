@@ -46,6 +46,7 @@ make seed-full                # intera catena mock esistente, con email su Mailp
 make db-generate              # genera i file SQL dopo una modifica agli schemi
 make db-migrate               # applica le migrazioni versionate
 make db-reset CONFIRM=yes      # ricrea SOLO iepf_dev e ricarica i dati demo
+make db-clear CONFIRM=yes      # ricrea SOLO iepf_dev vuoto, senza seed
 ```
 
 Account demo: `admin@example.test`, `activator@example.test`,
@@ -55,6 +56,12 @@ disponibilità tutor, due lezioni, una prenotazione e relativi movimenti token.
 È ripetibile e non reimposta password, nomi o profili già modificati.
 Le date delle lezioni vengono fissate alla prima creazione: per ricreare il
 campione con nuove date utilizzare il reset esplicito.
+
+`make db-clear CONFIRM=yes` arresta le app locali, ricrea il database e applica
+le migrazioni senza alcun seed: utenti, lezioni, prenotazioni, feedback e
+impostazioni restano vuoti. Si conserva solo il journal tecnico delle migrazioni.
+Senza CONFIRM=yes il comando si ferma senza cancellare dati. Vale solo per
+iepf_dev del progetto locale gestito: non elimina dati della VPS né altri volumi.
 
 Il nuovo database dev è `iepf_dev` in un volume Docker dedicato al progetto
 `iepf-dev`. I precedenti bind mount `postgres-data` e `postgres-test-data` non
