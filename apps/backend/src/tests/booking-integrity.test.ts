@@ -5,8 +5,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import app from '@/app'
 import db, { closeDb } from '@/db'
 import { auditLogs } from '@/db/schemas/audit-logs.schema'
+import { emailVerificationTokens } from '@/db/schemas/email-verification-tokens.schema'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
+import { passwordResetTokens } from '@/db/schemas/password-reset-tokens.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { subjects } from '@/db/schemas/subjects.schema'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
@@ -60,7 +62,7 @@ async function createStudent(tokens: number) {
   if (tokens !== 0) {
     await db.insert(tokenLedger).values({ studentId: student.id, delta: tokens, reason: 'initial_grant' })
   }
-  return { id: student.id, token: await login(email, 'Integrity123!') }
+  return { id: student.id, email, token: await login(email, 'Integrity123!') }
 }
 
 // Every lesson gets its own future day so daily limits only apply where a test asks for them.
@@ -318,6 +320,30 @@ describe('rate limits', () => {
 })
 
 describe('public and protected routes', () => {
+  it('normalizes invited addresses so the account can log in', async () => {
+    const response = await request('/auth/tutor-invite', { token: adminToken, body: { email: ' Mario.Rossi@HENSEMBERGER.it ' } })
+    expect(response.status).toBeLessThan(300)
+    const invite = await db.query.tutorInviteTokens.findFirst({
+      where: (fields, ops) => ops.ilike(fields.email, 'mario.rossi@hensemberger.it')
+    })
+    expect(invite?.email).toBe('mario.rossi@hensemberger.it')
+  })
+
+  it('finds the account whatever the case when requesting a password reset', async () => {
+    const { id, email } = await createStudent(0)
+    const response = await request('/auth/password/reset/request', { body: { email: email.toUpperCase() } })
+    expect(response.status).toBe(200)
+    expect(await db.select().from(passwordResetTokens).where(eq(passwordResetTokens.userId, id))).toHaveLength(1)
+  })
+
+  it('finds the account whatever the case when requesting email verification', async () => {
+    const { id, email } = await createStudent(0)
+    await db.update(users).set({ emailVerifiedAt: null }).where(eq(users.id, id))
+    const response = await request('/auth/verify-email/request', { body: { email: email.toUpperCase() } })
+    expect(response.status).toBe(200)
+    expect(await db.select().from(emailVerificationTokens).where(eq(emailVerificationTokens.userId, id))).toHaveLength(1)
+  })
+
   it('serves /health without authentication or audit rows', async () => {
     const before = await db.select({ total: sql<number>`count(*)::int` }).from(auditLogs).where(eq(auditLogs.path, '/health'))
     const response = await request('/health', { method: 'GET' })
