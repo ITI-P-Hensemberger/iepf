@@ -36,7 +36,7 @@ immagine. Cambiano:
    (`JWT_SECRET`, `PASSWORD_SALT`, `SMTP_PASS`, `ADMIN_PASSWORD`, `POSTGRES_PASSWORD`).
    Questi tre file sono stati esclusi dalla storia importata, tutto il resto è conservato.
    Restano però nel repo originale, anche da archiviato, e coincidono ancora con la copia
-   locale `iepf-infra/.env.backend`. **Verificare sulla VPS se sono gli stessi in uso** e, in
+   locale `iepf-legacy/iepf-infra/.env.backend`. **Verificare sulla VPS se sono gli stessi in uso** e, in
    quel caso, ruotarli a parte. Attenzione: cambiare `PASSWORD_SALT` può invalidare le password
    esistenti, va valutato separatamente.
 
@@ -52,7 +52,7 @@ immagine. Cambiano:
 1. Bloccare i merge sui tre repo originali. Se arrivano altri commit, portarli nella monorepo:
 
    ```bash
-   git -C ../iepf-backend format-patch --stdout d98ae08..main | git am --directory=apps/backend
+   git -C ../iepf-legacy/iepf-backend format-patch --stdout d98ae08..main | git am --directory=apps/backend
    ```
 
 2. Creare il repo e collegare il remote, **senza** impostare `DEPLOY_ENABLED`:
@@ -251,10 +251,10 @@ Dopo un ritorno ai vecchi repo, disattivare il deploy della monorepo con
 
 ## Sviluppo locale dopo il cutover
 
-Prima `make stop` da `iepf-infra`, poi copiare gli env locali:
+Prima fermare lo stack da `../iepf-legacy/iepf-infra`, poi copiare gli env locali:
 
 ```bash
-cp -a ../iepf-infra/.local .local
+cp -a ../iepf-legacy/iepf-infra/.local .local
 ```
 
 Il database dev conserva utenti e password solo con il vecchio `PASSWORD_SALT`, contenuto in
