@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-OWNER="jdncst-dev"
+OWNER="iti-p-hensemberger"
 PLATFORM="linux/amd64"
 
 IMAGE="ghcr.io/${OWNER}/iepf-backend"
