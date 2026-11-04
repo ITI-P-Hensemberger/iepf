@@ -1,0 +1,106 @@
+services:
+  traefik:
+    image: ${TRAEFIK_IMAGE:?Set TRAEFIK_IMAGE in shared/host.env}
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - '--api.dashboard=true'
+      - '--providers.docker=true'
+      - '--providers.docker.exposedbydefault=false'
+
+      - '--entrypoints.web.address=:80'
+      - '--entrypoints.websecure.address=:443'
+
+      - '--certificatesresolvers.le.acme.email=iepf@hensemberger.it'
+      - '--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json'
+      - '--certificatesresolvers.le.acme.tlschallenge=true'
+
+      # (opzionale ma consigliato) redirect 80 -> 443
+      - '--entrypoints.web.http.redirections.entrypoint.to=websecure'
+      - '--entrypoints.web.http.redirections.entrypoint.scheme=https'
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${ACME_DIR:?Set ACME_DIR}:/letsencrypt
+    networks:
+      - iepf
+
+  frontend:
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/auth/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    image: ${FRONTEND_IMAGE:?Missing FRONTEND_IMAGE}
+    restart: unless-stopped
+    environment:
+      - API_BASE_URL=http://backend:9999
+      - TZ=Europe/Rome
+    labels:
+      - 'traefik.enable=true'
+      # https://iepf.hensemberger.it -> frontend
+      - 'traefik.http.routers.iepf-frontend.rule=Host(`iepf.hensemberger.it`)'
+      - 'traefik.http.routers.iepf-frontend.entrypoints=websecure'
+      - 'traefik.http.routers.iepf-frontend.tls=true'
+      - 'traefik.http.routers.iepf-frontend.tls.certresolver=le'
+      - 'traefik.http.services.iepf-frontend.loadbalancer.server.port=3000'
+    networks:
+      - iepf
+
+  backend:
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:9999/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    image: ${BACKEND_IMAGE:?Missing BACKEND_IMAGE}
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Rome
+    env_file:
+      - ${DEPLOY_ROOT:?Set DEPLOY_ROOT}/shared/backend.env
+    networks:
+      - iepf
+    depends_on:
+      db:
+        condition: service_healthy
+
+  maintenance:
+    image: ${TOOLS_IMAGE:?Missing TOOLS_IMAGE}
+    profiles: [maintenance]
+    environment:
+      TZ: Europe/Rome
+      NODE_ENV: production
+    env_file:
+      - ${DEPLOY_ROOT:?Set DEPLOY_ROOT}/shared/backend.env
+    networks: [iepf]
+    restart: 'no'
+
+  db:
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 24
+    image: ${POSTGRES_IMAGE:?Set POSTGRES_IMAGE}
+    container_name: postgres
+    command: ['postgres', '-c', 'timezone=Europe/Rome']
+    restart: always
+    shm_size: 128mb
+    env_file:
+      - ${DEPLOY_ROOT:?Set DEPLOY_ROOT}/shared/postgres.env
+    environment:
+      - TZ=Europe/Rome
+    volumes:
+      - ${POSTGRES_DATA_DIR:?Set POSTGRES_DATA_DIR}:/var/lib/postgresql/data
+    networks:
+      - iepf
+
+networks:
+  iepf:
+    driver: bridge
+    name: iepf

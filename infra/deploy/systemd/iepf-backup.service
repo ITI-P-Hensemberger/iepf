@@ -1,0 +1,9 @@
+[Unit]
+Description=IEPF PostgreSQL offsite backup
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/iepf/current/backup.sh
+TimeoutStartSec=45min

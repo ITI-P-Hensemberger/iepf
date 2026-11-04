@@ -1,0 +1,9 @@
+[Unit]
+Description=IEPF scheduled task %i
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/iepf/current/job.sh %i
+TimeoutStartSec=45min

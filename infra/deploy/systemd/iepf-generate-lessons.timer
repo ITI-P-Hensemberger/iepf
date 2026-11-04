@@ -1,0 +1,11 @@
+[Unit]
+Description=IEPF generate-lessons schedule
+
+[Timer]
+OnCalendar=Sat *-*-* 12:00:00 Europe/Rome
+Unit=iepf-job@generate-lessons.service
+# Avoid duplicate email batches after downtime. Preserve existing cron behavior.
+Persistent=false
+
+[Install]
+WantedBy=timers.target

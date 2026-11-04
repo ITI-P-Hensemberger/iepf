@@ -28,7 +28,7 @@ services:
       - iepf
 
   frontend:
-    image: ghcr.io/jdncst-dev/iepf-frontend:latest
+    image: ghcr.io/iti-p-hensemberger/iepf-frontend:latest
     restart: unless-stopped
     environment:
       - API_BASE_URL=http://backend:9999
@@ -45,7 +45,7 @@ services:
       - iepf
 
   backend:
-    image: ghcr.io/jdncst-dev/iepf-backend:latest
+    image: ghcr.io/iti-p-hensemberger/iepf-backend:latest
     restart: unless-stopped
     environment:
       - TZ=Europe/Rome
@@ -57,7 +57,7 @@ services:
       - db
 
   backend-cron-generate-lessons:
-    image: ghcr.io/jdncst-dev/iepf-backend:cron-generate-lessons
+    image: ghcr.io/iti-p-hensemberger/iepf-backend:cron-generate-lessons
     profiles: ['cron']
     environment:
       - TZ=Europe/Rome
@@ -70,7 +70,7 @@ services:
     restart: 'no'
 
   backend-cron-remind-feedback:
-    image: ghcr.io/jdncst-dev/iepf-backend:cron-remind-feedback
+    image: ghcr.io/iti-p-hensemberger/iepf-backend:cron-remind-feedback
     profiles: ['cron']
     environment:
       - TZ=Europe/Rome
@@ -83,7 +83,7 @@ services:
     restart: 'no'
 
   backend-cron-remind-lessons:
-    image: ghcr.io/jdncst-dev/iepf-backend:cron-remind-lessons
+    image: ghcr.io/iti-p-hensemberger/iepf-backend:cron-remind-lessons
     entrypoint: ['pnpm', 'remind:lessons']
     profiles: ['cron']
     environment:
