@@ -1,7 +1,15 @@
 # Cutover alla monorepo
 
-Stato: **da approvare**. Nessun passo di questo piano è stato eseguito: la monorepo
-esiste solo in locale, non è stato fatto alcun push e i tre repo originali sono intatti.
+Stato: **attivazione eseguita il 4 novembre 2026**. La produzione gira con le immagini della
+monorepo, i quattro vecchi workflow sono spenti e `DEPLOY_ENABLED` è attiva. Resta la chiusura
+(passi 13-14), con i vecchi repo in `../iepf-legacy` e sulla loro `main` fino ad allora.
+
+| Punto di ripristino | Release |
+| --- | --- |
+| `PRE`, ultima della vecchia pipeline, con i fix | `41870446270-1` |
+| Prima attivazione infra dalla monorepo | `41873450833-13` |
+| Frontend dalla monorepo | `41873692250-12` |
+| Backend dalla monorepo | `41873995566-11` |
 
 ## Cosa cambia in produzione
 
