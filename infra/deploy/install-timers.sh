@@ -16,6 +16,8 @@ old_jobs=('backup-postgres.sh','backend-cron-generate-lessons','backend-cron-rem
 kept=[s for s in lines if s.lstrip().startswith('#') or not ('/opt/infra/iepf' in s and any(j in s for j in old_jobs))]
 Path(sys.argv[2]).write_text('\n'.join(kept)+'\n')
 PY
+# Outside the release: a rollback to one without this script must still be able to alert.
+install -m 755 "$RELEASE/alert.sh" "$ROOT/shared/alert.sh"
 for unit in "$RELEASE/systemd/"*; do install -m 644 "$unit" /etc/systemd/system/; done
 systemctl daemon-reload
 # Removing cron first avoids two independent schedulers sending the same emails.

@@ -5,7 +5,7 @@ import nodemailer from 'nodemailer'
 
 import env from '@/env'
 
-interface MailPayload {
+export interface MailPayload {
   to: string
   subject: string
   text?: string

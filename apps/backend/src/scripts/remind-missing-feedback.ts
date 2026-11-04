@@ -7,7 +7,8 @@ import { lessonFeedback } from '@/db/schemas/lesson-feedback.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
 import { users } from '@/db/schemas/users.schema'
 import { buildLessonFeedbackReminderMessage } from '@/lib/email-templates'
-import { closeMailer, sendMail } from '@/lib/mailer'
+import { createMailBatch } from '@/lib/mail-batch'
+import { closeMailer } from '@/lib/mailer'
 
 function getDayBounds(reference = new Date()) {
   const start = new Date(reference)
@@ -134,7 +135,7 @@ async function remindMissingFeedback() {
 
   const recipientById = new Map(recipients.map(recipient => [recipient.id, recipient]))
 
-  const sendTasks: Array<Promise<unknown>> = []
+  const mailBatch = createMailBatch()
 
   for (const [userId, pending] of pendingByUser.entries()) {
     const recipient = recipientById.get(userId)
@@ -143,15 +144,15 @@ async function remindMissingFeedback() {
     }
 
     const message = buildLessonFeedbackReminderMessage(pending.role, pending.count)
-    sendTasks.push(sendMail({
+    mailBatch.send({
       to: recipient.email,
       subject: message.subject,
       text: message.text,
       html: message.html
-    }).catch(err => console.error('Failed to send feedback reminder email:', err)))
+    })
   }
 
-  await Promise.allSettled(sendTasks)
+  await mailBatch.finish()
   console.warn(`Sent ${pendingByUser.size} feedback reminder(s).`)
 }
 

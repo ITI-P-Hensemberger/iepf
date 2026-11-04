@@ -30,7 +30,7 @@ Il workflow unico `.github/workflows/ci-release.yml` decide cosa fare con
 | `apps/backend/**` | backend | backend |
 | `apps/frontend/**` | frontend | frontend |
 | `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `.nvmrc`, `.dockerignore` | entrambe le app | entrambe le app |
-| file del bundle in `infra/deploy/` (`compose.yaml`, `apply.sh`, `job.sh`, `backup.sh`, `systemd/`) | infra | infra |
+| file del bundle in `infra/deploy/` (`compose.yaml`, `apply.sh`, `job.sh`, `backup.sh`, `alert.sh`, `systemd/`) | infra | infra |
 | `.github/workflows/**`, `infra/ci/**` | tutti | infra |
 | resto di `infra/`, `.github/`, `Makefile` | infra | nessuno |
 | file `.md` | quelli dell'app | nessuno |
@@ -107,6 +107,15 @@ ripristinati i digest e la configurazione di quella release; non si eseguono
 migrazioni inverse. Verificare la compatibilità con lo schema attuale prima di
 scegliere una release precedente. Le release vengono conservate finché utili
 per recupero e diagnosi; non è previsto cleanup automatico delle immagini Docker.
+
+Monitoraggio: un timer fallito attiva `iepf-alert@.service`, che manda un POST di testo
+a `ALERT_WEBHOOK_URL`; dopo ogni backup riuscito `backup.sh` chiama
+`BACKUP_HEARTBEAT_URL`, così un backup mai partito si nota dal ping mancante. Entrambe
+stanno in `/opt/iepf/shared/host.env` e sono facoltative: senza URL l'errore resta solo
+nel journal. La disponibilità del sito va controllata da un servizio esterno su
+`https://iepf.hensemberger.it/auth/login`, perché il backend non è esposto. Per provare
+l'avviso: `systemctl start iepf-alert@prova.service`. `install-timers.sh` copia lo script in
+`/opt/iepf/shared/alert.sh`, così funziona anche dopo un rollback: rieseguirlo se lo script cambia.
 
 Diagnostica: `systemctl list-timers 'iepf-*'`,
 `journalctl -u iepf-job@remind-lessons-today`,

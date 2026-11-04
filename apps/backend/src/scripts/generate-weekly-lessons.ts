@@ -7,7 +7,8 @@ import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
 import { DEFAULT_TUTOR_SETTINGS } from '@/lib/constants'
 import { buildLessonsGeneratedMessage } from '@/lib/email-templates'
-import { closeMailer, sendMail } from '@/lib/mailer'
+import { createMailBatch } from '@/lib/mail-batch'
+import { closeMailer } from '@/lib/mailer'
 import { assertMockEnvironment, MOCK_TUTOR_PATTERN } from '@/lib/mock-data'
 
 function getNextWeekMonday(): Date {
@@ -160,7 +161,7 @@ async function main() {
   let totalSkipped = 0
   const closureDates = await getClosureDates()
   const closureDateSet = new Set(closureDates)
-  const sendTasks: Array<Promise<unknown>> = []
+  const mailBatch = createMailBatch()
 
   for (const tutor of activeTutors) {
     let createdForTutor = 0
@@ -225,16 +226,16 @@ async function main() {
         count: createdForTutor,
         weekStart: targetMonday
       })
-      sendTasks.push(sendMail({
+      mailBatch.send({
         to: tutor.email,
         subject: message.subject,
         text: message.text,
         html: message.html
-      }).catch(err => console.error('Failed to send lessons generated email:', err)))
+      })
     }
   }
 
-  await Promise.allSettled(sendTasks)
+  await mailBatch.finish()
   process.stdout.write(`Complete: ${totalCreated} lessons created, ${totalSkipped} skipped (already exist)\n`)
 }
 
