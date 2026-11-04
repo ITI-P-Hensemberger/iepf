@@ -109,4 +109,10 @@ IEPF Frontend is a Next.js 16 App Router project for an Italian educational plat
 - Docker excludes all local `.env.*` files; `API_BASE_URL` is supplied at runtime.
 
 - CI and Docker pin pnpm 10.28.2 and install with `--frozen-lockfile`, honoring `pnpm-workspace.yaml` overrides.
-- `pnpm-lock.yaml` is authoritative for frontend deployment; the legacy npm lockfile is not used by CI or Docker.
+- `pnpm-lock.yaml` is authoritative for frontend development and deployment.
+
+## Local development
+- The infra repo provides `make setup`, `make dev`, `make stop`, `make seed`, `make test`, and `make check` for the sibling repo layout.
+- Managed env files live in `iepf-infra/.local/`; the launcher exports frontend variables directly, preserving existing frontend `.env` files.
+- Node 22 and pnpm 10.28.2 are shared across both application repositories. `pnpm-lock.yaml` is authoritative; npm lockfiles have been removed.
+- Mailpit captures local email; the infra README documents demo accounts, separate dev/test databases and configurable ports.
