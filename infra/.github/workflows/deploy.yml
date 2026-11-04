@@ -1,0 +1,85 @@
+name: Production deploy
+on:
+  repository_dispatch:
+    types: [release]
+  push:
+    branches: [main]
+    paths:
+      - deploy/compose.yaml
+      - deploy/apply.sh
+      - deploy/job.sh
+      - deploy/backup.sh
+      - deploy/systemd/**
+      - .github/workflows/**
+  workflow_dispatch:
+    inputs:
+      component:
+        type: choice
+        options: [infra, frontend, backend, rollback]
+        default: infra
+      image:
+        description: Application image including @sha256 digest
+        type: string
+      tools_image:
+        description: Matching backend maintenance image including @sha256 digest
+        type: string
+      release:
+        description: Existing release ID for rollback (run_id-attempt)
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: production
+  queue: max
+jobs:
+  validate:
+    uses: ./.github/workflows/checks.yml
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare release bundle
+        env:
+          EVENT: ${{ toJSON(github.event) }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          event=json.loads(os.environ['EVENT'])
+          name=os.environ['EVENT_NAME']
+          request=event.get('client_payload',{}) if name=='repository_dispatch' else event.get('inputs',{}) if name=='workflow_dispatch' else {'component':'infra'}
+          with open('deploy/request.json','w') as f: json.dump(request,f)
+          PY
+          printf '%s-%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" > deploy/release-id
+          tar -czf release.tar.gz -C deploy compose.yaml apply.sh job.sh backup.sh systemd request.json release-id
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER }}
+        run: |
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS" && test -n "$VPS_HOST" && test -n "$VPS_USER"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Transfer and apply release
+        env:
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          VPS_PORT: ${{ vars.VPS_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          [[ "$VPS_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$VPS_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          [[ "$VPS_PORT" =~ ^[0-9]+$ ]]
+          remote="${VPS_USER}@${VPS_HOST}"
+          bundle="/tmp/iepf-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh -o BatchMode=yes -p "$VPS_PORT" "$remote" "umask 077; mkdir '$bundle'"
+          trap 'ssh -o BatchMode=yes -p "$VPS_PORT" "$remote" "rm -rf -- '\''$bundle'\''" || true' EXIT
+          scp -o BatchMode=yes -P "$VPS_PORT" release.tar.gz "$remote:$bundle/release.tar.gz"
+          ssh -o BatchMode=yes -p "$VPS_PORT" "$remote" "tar -xzf '$bundle/release.tar.gz' -C '$bundle' && bash '$bundle/apply.sh'"
+          echo "Production deployment completed; release ${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} (or requested rollback)." >> "$GITHUB_STEP_SUMMARY"

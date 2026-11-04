@@ -1,0 +1,50 @@
+name: ${COMPOSE_PROJECT_NAME:-iepf-dev}
+services:
+  db-dev:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: iepf_dev
+      POSTGRES_USER: iepf
+      POSTGRES_PASSWORD: iepf_local_password
+      TZ: Europe/Rome
+    command: [postgres, -c, timezone=Europe/Rome]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    ports:
+      - '127.0.0.1:${DEV_DB_PORT:-5432}:5432'
+    volumes:
+      - dev-data:/var/lib/postgresql/data
+  db-test:
+    image: postgres:16
+    profiles: [test]
+    environment:
+      POSTGRES_DB: iepf_test
+      POSTGRES_USER: iepf
+      POSTGRES_PASSWORD: iepf_local_password
+      TZ: Europe/Rome
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    ports:
+      - '127.0.0.1:${TEST_DB_PORT:-5433}:5432'
+    tmpfs:
+      - /var/lib/postgresql/data
+  mailpit:
+    image: axllent/mailpit:v1.27.4
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:${SMTP_PORT:-1025}:1025'
+      - '127.0.0.1:${MAILPIT_PORT:-8025}:8025'
+    healthcheck:
+      test: [CMD, /mailpit, readyz]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  dev-data:

@@ -1,0 +1,11 @@
+[Unit]
+Description=IEPF remind-feedback schedule
+
+[Timer]
+OnCalendar=*-*-* 17:00:00 Europe/Rome
+Unit=iepf-job@remind-feedback.service
+# Avoid duplicate email batches after downtime. Preserve existing cron behavior.
+Persistent=false
+
+[Install]
+WantedBy=timers.target

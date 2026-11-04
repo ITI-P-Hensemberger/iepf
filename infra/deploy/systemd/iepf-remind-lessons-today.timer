@@ -1,0 +1,11 @@
+[Unit]
+Description=IEPF remind-lessons-today schedule
+
+[Timer]
+OnCalendar=*-*-* 12:00:00 Europe/Rome
+Unit=iepf-job@remind-lessons-today.service
+# Avoid duplicate email batches after downtime. Preserve existing cron behavior.
+Persistent=false
+
+[Install]
+WantedBy=timers.target

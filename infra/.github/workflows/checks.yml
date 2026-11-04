@@ -1,0 +1,39 @@
+name: Infrastructure checks
+on:
+  workflow_call:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check scripts
+        run: |
+          for script in deploy/*.sh; do bash -n "$script"; done
+          shellcheck deploy/*.sh
+      - name: Test deployment failure and recovery paths
+        run: |
+          python3 tests/test_deploy.py
+          python3 tests/test_local.py
+          docker compose -f docker-compose-dev.yml config --quiet
+      - name: Validate Compose without loading production secrets
+        env:
+          DEPLOY_ROOT: /opt/iepf
+          COMPOSE_PROJECT_NAME: iepf
+          POSTGRES_DATA_DIR: /opt/infra/iepf/postgres-data
+          ACME_DIR: /root/iepf/letsencrypt
+          POSTGRES_IMAGE: postgres:16
+          TRAEFIK_IMAGE: traefik:latest
+          FRONTEND_IMAGE: frontend:validation
+          BACKEND_IMAGE: backend:validation
+          TOOLS_IMAGE: backend:validation
+        run: |
+          # Some Compose versions still require env_file paths to exist.
+          export DEPLOY_ROOT="$RUNNER_TEMP/iepf-validation"
+          mkdir -p "$DEPLOY_ROOT/shared"
+          touch "$DEPLOY_ROOT/shared/backend.env" "$DEPLOY_ROOT/shared/postgres.env"
+          docker compose -f deploy/compose.yaml config --quiet

@@ -1,0 +1,117 @@
+services:
+  traefik:
+    image: traefik:latest
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - '--api.dashboard=true'
+      - '--providers.docker=true'
+      - '--providers.docker.exposedbydefault=false'
+
+      - '--entrypoints.web.address=:80'
+      - '--entrypoints.websecure.address=:443'
+
+      - '--certificatesresolvers.le.acme.email=iepf@hensemberger.it'
+      - '--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json'
+      - '--certificatesresolvers.le.acme.tlschallenge=true'
+
+      # (opzionale ma consigliato) redirect 80 -> 443
+      - '--entrypoints.web.http.redirections.entrypoint.to=websecure'
+      - '--entrypoints.web.http.redirections.entrypoint.scheme=https'
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt
+    networks:
+      - iepf
+
+  frontend:
+    image: ghcr.io/iti-p-hensemberger/iepf-frontend:latest
+    restart: unless-stopped
+    environment:
+      - API_BASE_URL=http://backend:9999
+      - TZ=Europe/Rome
+    labels:
+      - 'traefik.enable=true'
+      # https://iepf.hensemberger.it -> frontend
+      - 'traefik.http.routers.iepf-frontend.rule=Host(`iepf.hensemberger.it`)'
+      - 'traefik.http.routers.iepf-frontend.entrypoints=websecure'
+      - 'traefik.http.routers.iepf-frontend.tls=true'
+      - 'traefik.http.routers.iepf-frontend.tls.certresolver=le'
+      - 'traefik.http.services.iepf-frontend.loadbalancer.server.port=3000'
+    networks:
+      - iepf
+
+  backend:
+    image: ghcr.io/iti-p-hensemberger/iepf-backend:latest
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Rome
+    env_file:
+      - .env.backend
+    networks:
+      - iepf
+    depends_on:
+      - db
+
+  backend-cron-generate-lessons:
+    image: ghcr.io/iti-p-hensemberger/iepf-backend:cron-generate-lessons
+    profiles: ['cron']
+    environment:
+      - TZ=Europe/Rome
+    env_file:
+      - .env.backend
+    networks:
+      - iepf
+    depends_on:
+      - db
+    restart: 'no'
+
+  backend-cron-remind-feedback:
+    image: ghcr.io/iti-p-hensemberger/iepf-backend:cron-remind-feedback
+    profiles: ['cron']
+    environment:
+      - TZ=Europe/Rome
+    env_file:
+      - .env.backend
+    networks:
+      - iepf
+    depends_on:
+      - db
+    restart: 'no'
+
+  backend-cron-remind-lessons:
+    image: ghcr.io/iti-p-hensemberger/iepf-backend:cron-remind-lessons
+    entrypoint: ['pnpm', 'remind:lessons']
+    profiles: ['cron']
+    environment:
+      - TZ=Europe/Rome
+    env_file:
+      - .env.backend
+    networks:
+      - iepf
+    depends_on:
+      - db
+    restart: 'no'
+
+  db:
+    image: postgres:16
+    container_name: postgres
+    command: ['postgres', '-c', 'timezone=Europe/Rome']
+    restart: always
+    shm_size: 128mb
+    env_file:
+      - .env.postgres
+    environment:
+      - TZ=Europe/Rome
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    networks:
+      - iepf
+
+networks:
+  iepf:
+    driver: bridge
+    name: iepf
