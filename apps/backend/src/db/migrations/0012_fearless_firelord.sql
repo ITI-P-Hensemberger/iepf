@@ -1,0 +1,1 @@
+ALTER TYPE "public"."weekday_start_time" ADD VALUE '14:00-16:00';

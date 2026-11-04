@@ -85,6 +85,13 @@
       "when": 1770491513883,
       "tag": "0011_gorgeous_lady_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793030511497,
+      "tag": "0012_fearless_firelord",
+      "breakpoints": true
     }
   ]
 }

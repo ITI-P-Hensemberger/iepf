@@ -23,7 +23,7 @@ const TutorIdParamsSchema = z.object({
   })
 })
 
-const weekdayStartTimeSchema = z.enum(['14:00', '15:00'])
+const weekdayStartTimeSchema = z.enum(['14:00', '15:00', '14:00-16:00'])
 
 export const weekdayAvailabilityItemSchema = z.object({
   weekday: z.number().int().min(1).max(5),

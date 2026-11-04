@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto'
 
 import { users } from './users.schema'
 
-export const weekdayStartTime = pgEnum('weekday_start_time', ['14:00', '15:00'])
+export const weekdayStartTime = pgEnum('weekday_start_time', ['14:00', '15:00', '14:00-16:00'])
 
 export const tutorWeekdayAvailability = pgTable('tutor_weekday_availability', {
   id: uuid().primaryKey().$defaultFn(() => randomUUID()),

@@ -182,28 +182,33 @@ async function main() {
       if (closureDateSet.has(formatDateKey(lessonDate))) {
         continue
       }
-      const startAt = combineDateAndTime(lessonDate, availability.startTime)
+      const startTimes = availability.startTime === '14:00-16:00'
+        ? ['14:00', '15:00']
+        : [availability.startTime]
 
-      for (const subjectId of subjectIds) {
-        const exists = await lessonExists(tutor.id, subjectId, startAt, targetMonday)
+      for (const startTime of startTimes) {
+        const startAt = combineDateAndTime(lessonDate, startTime)
+        for (const subjectId of subjectIds) {
+          const exists = await lessonExists(tutor.id, subjectId, startAt, targetMonday)
 
-        if (exists) {
-          totalSkipped += 1
-          continue
+          if (exists) {
+            totalSkipped += 1
+            continue
+          }
+
+          await db.insert(lessons).values({
+            tutorId: tutor.id,
+            subjectId,
+            startAt,
+            durationMinutes: 60,
+            seats: settings.dailyCapacity,
+            generatedByJob: true,
+            generatedForWeek: targetMonday
+          })
+
+          totalCreated += 1
+          createdForTutor += 1
         }
-
-        await db.insert(lessons).values({
-          tutorId: tutor.id,
-          subjectId,
-          startAt,
-          durationMinutes: 60,
-          seats: settings.dailyCapacity,
-          generatedByJob: true,
-          generatedForWeek: targetMonday
-        })
-
-        totalCreated += 1
-        createdForTutor += 1
       }
     }
 
