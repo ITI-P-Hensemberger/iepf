@@ -133,3 +133,8 @@ button:disabled,
 [role='button'][aria-disabled='true'] {
   cursor: not-allowed;
 }
+
+/* Self-hosted: next/font/google breaks the build on some Google Fonts responses. */
+html {
+  font-family: 'Roboto', Arial, Helvetica, sans-serif;
+}
