@@ -86,6 +86,58 @@ describe('proxy', () => {
     expect(response.headers.get('set-cookie')).toContain('iepf_access=;')
   })
 
+  describe.each([
+    ['429', () => json({}, 429)],
+    ['500', () => json({}, 500)],
+    ['503', () => json({}, 503)],
+    ['a network error', () => { throw new TypeError('fetch failed') }]
+  ])('when the backend answers %s', (_name, answer) => {
+    const refreshOnly = { iepf_refresh: 'current', iepf_access_expires_at: '0' }
+
+    beforeEach(() => {
+      vi.stubGlobal('fetch', vi.fn(async () => answer()))
+    })
+
+    it('keeps the session and shows a retry page on protected pages', async () => {
+      for (const cookies of [session('student'), refreshOnly]) {
+        const response = await proxy(page('/student', cookies))
+        expect(response.status).toBe(503)
+        expect(location(response)).toBeNull()
+        expect(response.headers.get('set-cookie')).toBeNull()
+      }
+    })
+
+    it('leaves public pages open', async () => {
+      const response = await proxy(page('/auth/login', session('student')))
+      expect(response.status).toBe(200)
+      expect(location(response)).toBeNull()
+      expect(response.headers.get('set-cookie')).toBeNull()
+    })
+  })
+
+  it('clears the session when the refresh token is rejected', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json({}, 401)))
+    const response = await proxy(page('/student', { iepf_refresh: 'old' }))
+    expect(location(response)).toBe('/')
+    expect(response.headers.get('set-cookie')).toContain('iepf_refresh=;')
+  })
+
+  it('keeps rotated tokens when the profile call fails after a refresh', async () => {
+    const tokens = { accessToken: jwt('student'), tokenType: 'Bearer', expiresIn: 3600, refreshToken: 'next', refreshTokenExpiresIn: 7200 }
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/auth/refresh') ? json(tokens) : json({}, 500)))
+    const response = await proxy(page('/student', { iepf_refresh: 'old' }))
+    expect(response.status).toBe(503)
+    expect(response.headers.get('set-cookie')).toContain('iepf_refresh=next')
+  })
+
+  it('signs out when a freshly refreshed token is rejected', async () => {
+    const tokens = { accessToken: jwt('student'), tokenType: 'Bearer', expiresIn: 3600, refreshToken: 'next', refreshTokenExpiresIn: 7200 }
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/auth/refresh') ? json(tokens) : json({}, 401)))
+    const response = await proxy(page('/student', { iepf_refresh: 'old' }))
+    expect(location(response)).toBe('/')
+    expect(response.headers.get('set-cookie')).toContain('iepf_access=;')
+  })
+
   it('forwards the client address when refreshing a token', async () => {
     const tokens = { accessToken: jwt('student'), tokenType: 'Bearer', expiresIn: 3600, refreshToken: 'next', refreshTokenExpiresIn: 7200 }
     const fetchMock = vi.fn(async (url: string) => url.endsWith('/auth/refresh')

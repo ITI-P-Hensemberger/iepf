@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
-import { AUTH_COOKIES, fetchUserProfile, refreshWithProfile } from '@/lib/auth'
+import { AUTH_COOKIES, fetchUserProfile, isAuthRejected, refreshWithProfile, type AuthTokens } from '@/lib/auth'
 import { clearAuthCookies, setAuthCookies } from '@/lib/auth-cookies'
 
 const STUDENT_PREFIX = '/student'
@@ -38,6 +38,42 @@ function isExpired(expiresAt: string | undefined) {
   return Date.now() >= timestamp
 }
 
+function isProtectedPath(pathname: string) {
+  return [ADMIN_PREFIX, TUTOR_PREFIX, ACTIVATOR_PREFIX, STUDENT_PREFIX, PROFILE_PREFIX]
+    .some(prefix => pathname.startsWith(prefix))
+}
+
+const UNAVAILABLE_PAGE = `<!doctype html>
+<html lang="it">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Servizio non disponibile</title></head>
+<body style="font-family:system-ui,sans-serif;max-width:32rem;margin:20vh auto;padding:0 1rem;text-align:center">
+<h1>Servizio temporaneamente non disponibile</h1>
+<p>La tua sessione è ancora attiva. Riprova tra qualche istante.</p>
+<p><a href="">Riprova</a></p>
+</body>
+</html>`
+
+// The backend failed without rejecting the session: keep the cookies, and only hold back
+// pages that cannot be rendered without knowing who the user is.
+function backendUnavailable(request: NextRequest, tokens: AuthTokens | null, remember: boolean) {
+  const response = isProtectedPath(request.nextUrl.pathname)
+    ? new NextResponse(UNAVAILABLE_PAGE, {
+        status: 503,
+        headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Retry-After': '15' }
+      })
+    : NextResponse.next()
+  if (tokens) {
+    setAuthCookies(response, tokens, remember)
+  }
+  return response
+}
+
+function signOut(request: NextRequest) {
+  const response = NextResponse.redirect(new URL('/', request.url))
+  clearAuthCookies(response)
+  return response
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -69,13 +105,9 @@ export async function proxy(request: NextRequest) {
       refreshed = await refreshWithProfile(apiBaseUrl, refreshToken, request.headers)
       didRefresh = true
       accessToken = refreshed.tokens.accessToken
-      role = refreshed.profile.role ?? 'student'
-      active = String(refreshed.profile.isActive === true)
       accessExpiresAt = String(Date.now() + refreshed.tokens.expiresIn * 1000)
-    } catch {
-      const response = NextResponse.redirect(new URL('/', request.url))
-      clearAuthCookies(response)
-      return response
+    } catch (error) {
+      return isAuthRejected(error) ? signOut(request) : backendUnavailable(request, null, remember)
     }
   }
 
@@ -84,10 +116,10 @@ export async function proxy(request: NextRequest) {
       const profile = await fetchUserProfile(apiBaseUrl, accessToken, request.headers)
       role = profile.role ?? 'student'
       active = String(profile.isActive === true)
-    } catch {
-      const response = NextResponse.redirect(new URL('/', request.url))
-      clearAuthCookies(response)
-      return response
+    } catch (error) {
+      return isAuthRejected(error)
+        ? signOut(request)
+        : backendUnavailable(request, refreshed?.tokens ?? null, remember)
     }
   }
 

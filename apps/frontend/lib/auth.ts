@@ -108,6 +108,18 @@ function getProfileFromToken(accessToken: string): UserProfile | null {
   return null
 }
 
+function statusError(message: string, status: number) {
+  const error = new Error(message)
+  ;(error as Error & { status?: number }).status = status
+  return error
+}
+
+// Only a 401 proves the session is invalid. Anything else (restart, 5xx, 429, network)
+// is temporary and must not sign the user out.
+export function isAuthRejected(error: unknown) {
+  return (error as { status?: number } | null)?.status === 401
+}
+
 export async function fetchUserProfile(
   apiBaseUrl: string,
   accessToken: string,
@@ -120,7 +132,7 @@ export async function fetchUserProfile(
 
   const userId = getUserIdFromToken(accessToken)
   if (!userId) {
-    throw new Error('Missing user id in token')
+    throw statusError('Missing user id in token', 401)
   }
 
   const response = await fetch(`${apiBaseUrl}/users/${userId}`, {
@@ -131,7 +143,7 @@ export async function fetchUserProfile(
   })
 
   if (!response.ok) {
-    throw new Error('Failed to fetch user')
+    throw statusError('Failed to fetch user', response.status)
   }
 
   const payload = (await response.json()) as unknown
@@ -181,14 +193,21 @@ export async function refreshWithProfile(
   })
 
   if (!response.ok) {
-    const error = new Error('Refresh failed')
-    ;(error as Error & { status?: number }).status = response.status
-    throw error
+    throw statusError('Refresh failed', response.status)
   }
 
   const payload = (await response.json()) as unknown
   const tokens = unwrapBackendData<AuthTokens>(payload)
-  const profile = await fetchUserProfile(apiBaseUrl, tokens.accessToken, requestHeaders)
 
-  return { tokens, profile }
+  // The old refresh token is already gone: losing these tokens would end the session,
+  // so a temporary profile failure must still return them.
+  try {
+    const profile = await fetchUserProfile(apiBaseUrl, tokens.accessToken, requestHeaders)
+    return { tokens, profile }
+  } catch (error) {
+    if (isAuthRejected(error)) {
+      throw error
+    }
+    return { tokens, profile: null }
+  }
 }
