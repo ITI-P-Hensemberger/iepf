@@ -40,6 +40,11 @@ immagine. Cambiano:
    quel caso, ruotarli a parte. Attenzione: cambiare `PASSWORD_SALT` può invalidare le password
    esistenti, va valutato separatamente.
 
+   Gitleaks sulla storia importata segnala altri 11 possibili segreti: 8 in vecchi file
+   `apps/backend/http/*.http`, non più presenti su `HEAD`, e 3 in versioni di
+   `apps/backend/.env.test`. Non li ho aperti né rimossi: controllare che i primi 8 non siano
+   token di produzione ancora validi.
+
 ## Passi manuali
 
 ### Preparazione, senza effetti sulla produzione
@@ -262,3 +267,9 @@ Il progetto Compose resta `iepf-dev`, quindi il volume dei dati è lo stesso.
 Il workflow non è mai girato su GitHub, perché richiede il push. Le verifiche locali coprono la
 sintassi, gli script e le immagini, ma non i permessi GHCR, `DEPLOY_ENABLED` né l'SSH reale: per
 questo esistono la prova a vuoto del passo 5 e l'attivazione `infra` del passo 10.
+
+actionlint segnala un solo errore: `queue: max` a livello di job, che la sua versione non conosce.
+La documentazione GitHub lo descrive nella sezione `jobs.<job_id>.concurrency`, ma senza un esempio
+a quel livello; i vecchi workflow lo usavano a livello di workflow. Se GitHub lo rifiuta, il run del
+passo 5 fallisce subito, senza effetti sulla produzione. In quel caso il deploy va spostato in un
+workflow separato, con la `concurrency` a livello di workflow.
