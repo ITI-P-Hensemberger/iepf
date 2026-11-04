@@ -4,7 +4,13 @@ on:
     types: [release]
   push:
     branches: [main]
-    paths: ['deploy/**', '.github/workflows/**']
+    paths:
+      - deploy/compose.yaml
+      - deploy/apply.sh
+      - deploy/job.sh
+      - deploy/backup.sh
+      - deploy/systemd/**
+      - .github/workflows/**
   workflow_dispatch:
     inputs:
       component:

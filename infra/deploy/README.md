@@ -27,7 +27,7 @@ registry finché sono necessarie al primo avvio o a un rollback.
 
 # Deploy operativo
 
-I push su `main` di frontend e backend eseguono typecheck, lint e build con npm,
+I push su `main` di frontend e backend eseguono typecheck, lint e build (npm per il backend, pnpm con lockfile frozen per il frontend),
 pubblicano immagini linux/amd64 identificate dal commit e notificano i digest
 alla pipeline centrale di infra. La pipeline infra esegue i controlli, trasferisce
 un bundle via SSH e lo attiva. La coda GitHub (`queue: max`) e il lock sulla VPS
@@ -86,3 +86,15 @@ Diagnostica: `systemctl list-timers 'iepf-*'`,
 `journalctl -u iepf-backup`, e `readlink -f /opt/iepf/current`.
 Gli script di build e il vecchio Compose nella radice rimangono per consultazione;
 il percorso operativo automatico è `deploy/`.
+
+Il probe backend interroga `/doc`, pubblico anche nelle immagini precedenti:
+l'attuale `/health` è intercettato dai middleware di autenticazione. Il probe
+frontend usa l'hostname del container per supportare anche il binding delle
+vecchie immagini standalone. La disponibilità PostgreSQL viene controllata
+separatamente con `pg_isready`. Il probe HTTP non sostituisce un test funzionale
+completo delle operazioni applicative.
+
+Le modifiche alla sola documentazione non attivano un deploy; vengono comunque
+eseguiti i controlli infrastrutturali. La configurazione dei timer installata in
+`/etc/systemd/system` si aggiorna rieseguendo `install-timers.sh` dopo un deploy
+che modifica `deploy/systemd/`.
