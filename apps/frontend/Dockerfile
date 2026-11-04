@@ -25,6 +25,9 @@ COPY --from=builder /app/apps/frontend/.next/standalone /app
 COPY --from=builder /app/apps/frontend/public /app/apps/frontend/public
 COPY --from=builder /app/apps/frontend/.next/static /app/apps/frontend/.next/static
 
+# Next writes optimized images here at runtime, as the unprivileged user.
+RUN mkdir -p /app/apps/frontend/.next/cache && chown -R nextjs:nodejs /app/apps/frontend/.next/cache
+
 WORKDIR /app/apps/frontend
 USER nextjs
 EXPOSE 3000
