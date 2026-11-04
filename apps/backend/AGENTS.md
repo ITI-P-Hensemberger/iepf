@@ -18,7 +18,7 @@
 - `pnpm run lint` / `pnpm run lint:fix` — ESLint checks and auto-fix.
 - `pnpm run test` — run Vitest once with `NODE_ENV=test`; `test:watch` watches.
 - Use Node 22 and pnpm 10.28.2; `pnpm-lock.yaml` is the sole dependency lockfile.
-- Full local setup lives in sibling `iepf-infra`: `make setup`, `make dev`, `make seed`, `make test`, `make check`.
+- Full local setup lives in sibling `iepf-infra`: `make setup`, `make dev`, `make seed`, `make seed-full`, `make test`, `make check`.
 - DB utilities: `pnpm run db:generate`, `db:push`, `db:migrate`, `db:studio`, `db:clean` (managed local databases only).
 
 ## Coding Style & Naming Conventions

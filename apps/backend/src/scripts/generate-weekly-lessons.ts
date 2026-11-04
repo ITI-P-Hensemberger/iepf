@@ -1,5 +1,5 @@
 // Purpose: Generate weekly lessons based on tutor weekday availability.
-import { and, eq } from 'drizzle-orm'
+import { and, eq, ilike } from 'drizzle-orm'
 
 import db, { closeDb } from '@/db'
 import { lessons } from '@/db/schemas/lessons.schema'
@@ -8,6 +8,7 @@ import { users } from '@/db/schemas/users.schema'
 import { DEFAULT_TUTOR_SETTINGS } from '@/lib/constants'
 import { buildLessonsGeneratedMessage } from '@/lib/email-templates'
 import { closeMailer, sendMail } from '@/lib/mailer'
+import { assertMockEnvironment, MOCK_TUTOR_PATTERN } from '@/lib/mock-data'
 
 function getNextWeekMonday(): Date {
   const now = new Date()
@@ -50,7 +51,7 @@ function combineDateAndTime(date: Date, timeStr: string): Date {
   return combined
 }
 
-async function getActiveTutors() {
+async function getActiveTutors(mockOnly: boolean) {
   return db
     .select({
       id: users.id,
@@ -63,7 +64,8 @@ async function getActiveTutors() {
     .where(
       and(
         eq(users.role, 'tutor'),
-        eq(tutorProfiles.isActive, true)
+        eq(tutorProfiles.isActive, true),
+        ...(mockOnly ? [ilike(users.email, MOCK_TUTOR_PATTERN)] : [])
       )
     )
 }
@@ -138,6 +140,10 @@ async function lessonExists(tutorId: string, subjectId: string, startAt: Date, g
 
 async function main() {
   const args = new Set(process.argv.slice(2))
+  const mockOnly = args.has('--mock-only')
+  if (mockOnly) {
+    assertMockEnvironment()
+  }
   const useToday = args.has('today') || args.has('--today')
   const targetMonday = useToday ? getCurrentWeekMonday() : getNextWeekMonday()
   const minLessonDate = useToday ? getStartOfTomorrow() : null
@@ -147,7 +153,7 @@ async function main() {
     process.stdout.write(`Limiting to lessons from ${minLessonDate!.toISOString().split('T')[0]} through end of week\n`)
   }
 
-  const activeTutors = await getActiveTutors()
+  const activeTutors = await getActiveTutors(mockOnly)
   process.stdout.write(`Found ${activeTutors.length} active tutors\n`)
 
   let totalCreated = 0

@@ -1,5 +1,5 @@
 // Purpose: Seed mock lesson bookings and feedback for active users.
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, ilike, inArray } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 
 import db, { closeDb } from '@/db'
@@ -12,6 +12,7 @@ import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'
+import { assertMockEnvironment, MOCK_STUDENT_PATTERN, MOCK_TUTOR_PATTERN } from '@/lib/mock-data'
 
 function randomPick<T>(items: T[], count: number) {
   const copy = [...items]
@@ -47,6 +48,7 @@ function getDateKey(date: Date) {
 }
 
 async function main() {
+  assertMockEnvironment()
   const activeStudents = await db
     .select({
       id: users.id,
@@ -54,7 +56,7 @@ async function main() {
     })
     .from(users)
     .innerJoin(studentProfiles, eq(studentProfiles.userId, users.id))
-    .where(and(eq(users.role, 'student'), eq(studentProfiles.isActive, true)))
+    .where(and(eq(users.role, 'student'), eq(studentProfiles.isActive, true), ilike(users.email, MOCK_STUDENT_PATTERN)))
 
   const activeTutors = await db
     .select({
@@ -63,7 +65,7 @@ async function main() {
     })
     .from(users)
     .innerJoin(tutorProfiles, eq(tutorProfiles.userId, users.id))
-    .where(and(eq(users.role, 'tutor'), eq(tutorProfiles.isActive, true)))
+    .where(and(eq(users.role, 'tutor'), eq(tutorProfiles.isActive, true), ilike(users.email, MOCK_TUTOR_PATTERN)))
 
   if (activeStudents.length === 0 || activeTutors.length === 0) {
     throw new Error('No active students or tutors found. Seed mock users first.')
@@ -80,7 +82,7 @@ async function main() {
       status: lessons.status
     })
     .from(lessons)
-    .where(eq(lessons.status, 'scheduled'))
+    .where(and(eq(lessons.status, 'scheduled'), inArray(lessons.tutorId, activeTutors.map(tutor => tutor.id))))
     .orderBy(desc(lessons.startAt))
 
   const tutorSettingsRows = scheduledLessons.length

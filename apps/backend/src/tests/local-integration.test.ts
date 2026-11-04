@@ -2,6 +2,8 @@
 /* eslint-disable node/no-process-env */
 import { sql } from 'drizzle-orm'
 import { Buffer } from 'node:buffer'
+import { spawnSync } from 'node:child_process'
+import { createRequire } from 'node:module'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import app from '@/app'
@@ -11,6 +13,8 @@ import { cleanDatabase } from '@/lib/db-cleanup'
 import { DEV_PASSWORD, DEV_ROLES, seedDevelopmentData } from '@/lib/dev-seed'
 import { assertLocalDatabase } from '@/lib/local-database'
 import { closeMailer, sendMail } from '@/lib/mailer'
+import { MOCK_PASSWORD } from '@/lib/mock-data'
+import { verifyPassword } from '@/lib/password'
 
 let ids: Record<string, string>
 let refreshToken: string
@@ -102,5 +106,40 @@ describe('local environment', () => {
     const message = await fetch(`${base}/api/v1/message/${result.messages[0].ID}`).then(r => r.json())
     expect(message.HTML).toContain('<strong>Local email</strong>')
     expect(message.To[0].Address).toBe('student@example.test')
+  })
+
+  it('runs the complete mock pipeline with fictional addresses, settings and Mailpit', async () => {
+    const base = process.env.MAILPIT_URL ?? 'http://127.0.0.1:8025'
+    const search = `${base}/api/v1/search?query=${encodeURIComponent('to:mock.tutor-active-01@example.test')}`
+    const before = await fetch(search).then(r => r.json())
+    const previous = new Set(before.messages.map((message: { ID: string }) => message.ID))
+    const require = createRequire(import.meta.url)
+    const result = spawnSync(process.execPath, [require.resolve('tsx/cli'), 'src/scripts/seed-full.ts'], {
+      env: process.env,
+      encoding: 'utf8',
+      timeout: 90000
+    })
+    expect(result.status, result.stderr || result.stdout).toBe(0)
+    const counts = await db.execute(sql`select
+      (select count(*)::int from users where email like 'mock.%@example.test') as users,
+      (select count(*)::int from tutor_invite_tokens where email like 'mock.%@example.test') as tutor_invites,
+      (select count(*)::int from admin_invite_tokens where email like 'mock.%@example.test') as admin_invites,
+      (select count(*)::int from global_settings) as settings,
+      (select count(*)::int from lessons where generated_by_job = true) as generated_lessons,
+      (select count(*)::int from lesson_feedback) as feedback`)
+    expect(counts.rows[0].users).toBe(97)
+    expect(counts.rows[0].tutor_invites).toBe(10)
+    expect(counts.rows[0].admin_invites).toBe(1)
+    expect(counts.rows[0].settings).toBe(3)
+    expect(counts.rows[0].generated_lessons).toBeGreaterThan(0)
+    expect(counts.rows[0].feedback).toBeGreaterThan(0)
+    const student = await db.query.users.findFirst({ where: (fields, ops) => ops.eq(fields.email, 'mock.student-active-01@example.test') })
+    expect(student).toBeDefined()
+    expect(await verifyPassword(student!.passwordHash, MOCK_PASSWORD)).toBe(true)
+    // Existing demo/custom data must not become input to the full mock booking job.
+    const original = await db.execute(sql`select count(*)::int as count from lesson_bookings where student_id = ${ids.student}`)
+    expect(original.rows[0].count).toBe(1)
+    const messages = await fetch(search).then(r => r.json())
+    expect(messages.messages.some((message: { ID: string }) => !previous.has(message.ID))).toBe(true)
   })
 })

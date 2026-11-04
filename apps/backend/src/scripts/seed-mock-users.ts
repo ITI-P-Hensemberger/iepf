@@ -8,16 +8,9 @@ import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { users } from '@/db/schemas/users.schema'
 import { issueAdminInviteToken } from '@/lib/admin-invite'
 import { DEFAULT_LESSON_TOKENS, DEFAULT_TUTOR_SETTINGS } from '@/lib/constants'
+import { assertMockEnvironment, buildMockEmail, MOCK_PASSWORD } from '@/lib/mock-data'
 import { hashPassword } from '@/lib/password'
 import { issueTutorInviteToken } from '@/lib/tutor-invite'
-
-const EMAIL_PREFIX = 'jordan.castiglioni+'
-const EMAIL_DOMAIN = '@hensemberger.it'
-const DEFAULT_PASSWORD = 'Password123!'
-
-function buildEmail(alias: string) {
-  return `${EMAIL_PREFIX}${alias}${EMAIL_DOMAIN}`
-}
 
 const ITALIAN_FIRST_NAMES = [
   'Marco',
@@ -199,8 +192,9 @@ async function ensureTutorProfile(userId: string, sectionId: string, year: numbe
 }
 
 async function main() {
+  assertMockEnvironment()
   const sections = await getSections()
-  const passwordHash = await hashPassword(DEFAULT_PASSWORD)
+  const passwordHash = await hashPassword(MOCK_PASSWORD)
 
   const totals = {
     studentsActive: 30,
@@ -224,7 +218,7 @@ async function main() {
   let created = 0
 
   for (let i = 1; i <= totals.studentsActive; i += 1) {
-    const email = buildEmail(`student-active-${String(i).padStart(2, '0')}`)
+    const email = buildMockEmail(`student-active-${String(i).padStart(2, '0')}`)
     const { firstName, lastName } = pickName(i)
     const { id } = await getOrCreateUser(email, 'student', firstName, lastName, passwordHash, true)
     const section = nextSection()
@@ -234,7 +228,7 @@ async function main() {
   }
 
   for (let i = 1; i <= totals.studentsInactive; i += 1) {
-    const email = buildEmail(`student-inactive-${String(i).padStart(2, '0')}`)
+    const email = buildMockEmail(`student-inactive-${String(i).padStart(2, '0')}`)
     const { firstName, lastName } = pickName(i + 100)
     const { id } = await getOrCreateUser(email, 'student', firstName, lastName, passwordHash, true)
     const section = nextSection()
@@ -244,7 +238,7 @@ async function main() {
   }
 
   for (let i = 1; i <= totals.studentsUnverified; i += 1) {
-    const email = buildEmail(`student-pending-${String(i).padStart(2, '0')}`)
+    const email = buildMockEmail(`student-pending-${String(i).padStart(2, '0')}`)
     const { firstName, lastName } = pickName(i + 200)
     const { id } = await getOrCreateUser(email, 'student', firstName, lastName, passwordHash, true)
     const section = nextSection()
@@ -254,7 +248,7 @@ async function main() {
   }
 
   for (let i = 1; i <= totals.tutorsActive; i += 1) {
-    const email = buildEmail(`tutor-active-${String(i).padStart(2, '0')}`)
+    const email = buildMockEmail(`tutor-active-${String(i).padStart(2, '0')}`)
     const { firstName, lastName } = pickName(i + 300)
     const { id } = await getOrCreateUser(email, 'tutor', firstName, lastName, passwordHash, true)
     const section = nextSection()
@@ -264,7 +258,7 @@ async function main() {
   }
 
   for (let i = 1; i <= totals.tutorsInactive; i += 1) {
-    const email = buildEmail(`tutor-inactive-${String(i).padStart(2, '0')}`)
+    const email = buildMockEmail(`tutor-inactive-${String(i).padStart(2, '0')}`)
     const { firstName, lastName } = pickName(i + 400)
     const { id } = await getOrCreateUser(email, 'tutor', firstName, lastName, passwordHash, true)
     const section = nextSection()
@@ -274,13 +268,13 @@ async function main() {
   }
 
   for (let i = 1; i <= totals.tutorInvites; i += 1) {
-    const email = buildEmail(`tutor-invite-${String(i).padStart(2, '0')}`)
+    const email = buildMockEmail(`tutor-invite-${String(i).padStart(2, '0')}`)
     await issueTutorInviteToken(email)
     created += 1
   }
 
   for (let i = 1; i <= totals.adminsActive; i += 1) {
-    const email = buildEmail(`admin-active-${String(i).padStart(2, '0')}`)
+    const email = buildMockEmail(`admin-active-${String(i).padStart(2, '0')}`)
     const { firstName, lastName } = pickName(i + 500)
     const { id } = await getOrCreateUser(email, 'admin', firstName, lastName, passwordHash, true)
     await ensureAdminProfile(id, true)
@@ -288,7 +282,7 @@ async function main() {
   }
 
   for (let i = 1; i <= totals.adminsInactive; i += 1) {
-    const email = buildEmail(`admin-inactive-${String(i).padStart(2, '0')}`)
+    const email = buildMockEmail(`admin-inactive-${String(i).padStart(2, '0')}`)
     const { firstName, lastName } = pickName(i + 600)
     const { id } = await getOrCreateUser(email, 'admin', firstName, lastName, passwordHash, true)
     await ensureAdminProfile(id, false)
@@ -296,7 +290,7 @@ async function main() {
   }
 
   for (let i = 1; i <= totals.adminInvites; i += 1) {
-    const email = buildEmail(`admin-invite-${String(i).padStart(2, '0')}`)
+    const email = buildMockEmail(`admin-invite-${String(i).padStart(2, '0')}`)
     await issueAdminInviteToken(email)
     created += 1
   }

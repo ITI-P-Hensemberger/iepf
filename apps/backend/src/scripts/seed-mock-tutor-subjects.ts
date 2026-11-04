@@ -5,12 +5,9 @@ import db, { closeDb } from '@/db'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'
-
-const EMAIL_PREFIX = 'jordan.castiglioni+'
-const EMAIL_DOMAIN = '@hensemberger.it'
+import { assertMockEnvironment, MOCK_TUTOR_PATTERN } from '@/lib/mock-data'
 
 async function getMockActiveTutors() {
-  const emailPattern = `${EMAIL_PREFIX}tutor-%${EMAIL_DOMAIN}`
   return db
     .select({
       id: users.id
@@ -20,7 +17,7 @@ async function getMockActiveTutors() {
     .where(and(
       eq(users.role, 'tutor'),
       eq(tutorProfiles.isActive, true),
-      ilike(users.email, emailPattern)
+      ilike(users.email, MOCK_TUTOR_PATTERN)
     ))
 }
 
@@ -50,6 +47,7 @@ function pickSubjectIds(tutorIndex: number, allSubjectIds: string[]) {
 }
 
 async function main() {
+  assertMockEnvironment()
   const tutors = await getMockActiveTutors()
 
   if (tutors.length === 0) {

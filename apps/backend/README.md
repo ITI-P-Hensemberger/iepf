@@ -19,7 +19,13 @@ configurazione esportata. Non copiare env di produzione nel setup locale.
 `pnpm seed:dev` richiede un database loopback chiamato iepf_dev o iepf_test e un
 NODE_ENV development/test. Il seed è piccolo, ripetibile, non invia email e non
 sovrascrive gli utenti demo già modificati. `db:clean` applica la stessa protezione.
-Gli altri seed storici sono script separati e non vengono eseguiti da make dev.
+`make seed-full` in infra esegue la catena storica completa tramite
+`pnpm seed:all-mock-data`, incluse le impostazioni globali. I mock usano indirizzi
+`mock.*@example.test`, password `Password123!`, e le notifiche finiscono in Mailpit.
+I seed mock richiedono DB e SMTP locali; non modificano gli alias personali già
+esistenti. La generazione standard di produzione non usa il filtro --mock-only.
+Il seed ricco è additivo: rieseguirlo può aggiungere storico e feedback.
+Nessun seed viene eseguito automaticamente da make dev.
 
 `make test` in infra prepara il DB di test, applica tutte le migrazioni e avvia
 `pnpm test` (Vitest run); `pnpm test:watch` è disponibile se DB e Mailpit sono già

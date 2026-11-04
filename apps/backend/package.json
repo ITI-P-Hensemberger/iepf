@@ -26,7 +26,7 @@
     "seed:mock-tutor-weekday-availability": "tsx src/scripts/seed-mock-tutor-weekday-availability.ts",
     "seed:mock-lesson-bookings": "tsx src/scripts/seed-mock-lesson-bookings.ts",
     "seed:global-settings": "tsx src/scripts/seed-global-settings.ts",
-    "seed:all-mock-data": "tsx src/scripts/seed-admin.ts && tsx src/scripts/seed-activator.ts && tsx src/scripts/seed-class-sections.ts && tsx src/scripts/seed-subjects.ts && tsx src/scripts/seed-mock-users.ts && tsx src/scripts/seed-mock-tutor-subjects.ts && tsx src/scripts/seed-mock-tutor-weekday-availability.ts && tsx src/scripts/generate-weekly-lessons.ts && tsx src/scripts/seed-mock-lesson-bookings.ts",
+    "seed:all-mock-data": "tsx src/scripts/seed-full.ts",
     "generate:lessons": "tsx src/scripts/generate-weekly-lessons.ts",
     "remind:feedback": "tsx src/scripts/remind-missing-feedback.ts",
     "remind:lessons": "tsx src/scripts/remind-upcoming-lessons.ts",

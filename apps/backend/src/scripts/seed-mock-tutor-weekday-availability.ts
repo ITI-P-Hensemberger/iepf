@@ -5,12 +5,9 @@ import db, { closeDb } from '@/db'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorWeekdayAvailability } from '@/db/schemas/tutor-weekday-availability.schema'
 import { users } from '@/db/schemas/users.schema'
-
-const EMAIL_PREFIX = 'jordan.castiglioni+'
-const EMAIL_DOMAIN = '@hensemberger.it'
+import { assertMockEnvironment, MOCK_TUTOR_PATTERN } from '@/lib/mock-data'
 
 async function getMockTutors() {
-  const emailPattern = `${EMAIL_PREFIX}tutor-%${EMAIL_DOMAIN}`
   return db
     .select({
       id: users.id,
@@ -20,7 +17,7 @@ async function getMockTutors() {
     .innerJoin(tutorProfiles, eq(tutorProfiles.userId, users.id))
     .where(and(
       eq(users.role, 'tutor'),
-      ilike(users.email, emailPattern)
+      ilike(users.email, MOCK_TUTOR_PATTERN)
     ))
 }
 
@@ -41,6 +38,7 @@ function buildWeekdays(tutorIndex: number) {
 }
 
 async function main() {
+  assertMockEnvironment()
   const tutors = await getMockTutors()
 
   if (tutors.length === 0) {

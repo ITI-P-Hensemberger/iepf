@@ -12,6 +12,8 @@ interface MailPayload {
   html?: string
 }
 
+const localSmtp = env.NODE_ENV !== 'production' && ['localhost', '127.0.0.1', '::1'].includes(env.SMTP_HOST ?? '')
+
 const transport = env.SMTP_HOST
   ? nodemailer.createTransport({
       host: env.SMTP_HOST,
@@ -19,7 +21,7 @@ const transport = env.SMTP_HOST
       secure: env.SMTP_PORT === 465,
       pool: true,
       maxConnections: 3,
-      rateLimit: 10,
+      rateLimit: localSmtp ? undefined : 10,
       rateDelta: 60_000,
       auth: env.SMTP_USER && env.SMTP_PASS
         ? {
