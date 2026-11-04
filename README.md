@@ -9,7 +9,7 @@ infra/           Compose, deploy su VPS, launcher locale, script CI
 ```
 
 Il lockfile è uno solo, `pnpm-lock.yaml` nella radice. La migrazione dalle tre
-repository precedenti è descritta in [docs/cutover.md](docs/cutover.md).
+repository precedenti, con rollback e attività aperte, è in [docs/cutover.md](docs/cutover.md).
 
 ## Sviluppo locale
 
