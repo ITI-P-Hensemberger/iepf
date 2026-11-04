@@ -386,6 +386,32 @@ describe('public and protected routes', () => {
     expect(await db.query.studentProfiles.findFirst({ where: (fields, ops) => ops.eq(fields.userId, rows[0].id) })).toBeDefined()
   })
 
+  it('recognizes a real unique violation as Drizzle reports it', async () => {
+    const { email } = await createStudent(0)
+    const error = await db.insert(users).values({ email, firstName: 'A', lastName: 'B', passwordHash, role: 'student' }).catch(caught => caught)
+    expect(isUniqueConstraintError(error)).toBe(true)
+  })
+
+  it('keeps the invite and leaves nothing behind when the database fails midway', async () => {
+    const email = `tutor-${crypto.randomUUID()}@hensemberger.it`
+    const { token } = await issueTutorInviteToken(email)
+    const [section] = await db.select({ id: classSections.id }).from(classSections).limit(1)
+    const body = { token, firstName: 'Nuovo', lastName: 'Tutor', password: 'Integrity123!', year: 4, sectionId: section.id }
+
+    await db.execute(sql`create function fail_for_test() returns trigger language plpgsql as $$ begin raise exception 'simulated failure'; end $$`)
+    await db.execute(sql`create trigger fail_for_test before insert on tutor_settings for each row execute function fail_for_test()`)
+    try {
+      expect((await request('/auth/tutor-invite/confirm', { body })).status).toBe(500)
+    }
+    finally {
+      await db.execute(sql`drop trigger fail_for_test on tutor_settings`)
+      await db.execute(sql`drop function fail_for_test()`)
+    }
+    expect(await db.query.users.findFirst({ where: eq(users.email, email) })).toBeUndefined()
+
+    expect((await request('/auth/tutor-invite/confirm', { body })).status).toBe(201)
+  })
+
   it('recognizes unique violations wrapped by Drizzle', () => {
     expect(isUniqueConstraintError({ code: '23505' })).toBe(true)
     expect(isUniqueConstraintError({ cause: { code: '23505' } })).toBe(true)

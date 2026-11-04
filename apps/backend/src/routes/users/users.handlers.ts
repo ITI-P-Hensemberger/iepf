@@ -12,6 +12,7 @@ import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
 import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
+import { isUniqueConstraintError } from '@/lib/db-errors'
 import {
   buildActivationChangedMessage,
   buildPasswordChangedMessage,
@@ -50,13 +51,6 @@ function buildDuplicateEmailError() {
       }
     ]
   })
-}
-
-function isUniqueConstraintError(error: unknown): boolean {
-  return typeof error === 'object'
-    && error !== null
-    && 'code' in error
-    && (error as { code?: string }).code === '23505'
 }
 
 function forbid(): never {
