@@ -462,8 +462,8 @@ export default function AdminAdminDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Conferma modifica email</AlertDialogTitle>
             <AlertDialogDescription>
-              Se l'email inserita è errata, l'admin potrebbe perdere l'accesso
-              all'account. In caso di problemi, contatta l'amministratore di
+              Se l&apos;email inserita è errata, l&apos;admin potrebbe perdere l&apos;accesso
+              all&apos;account. In caso di problemi, contatta l&apos;amministratore di
               sistema.
             </AlertDialogDescription>
           </AlertDialogHeader>

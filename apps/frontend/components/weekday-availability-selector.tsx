@@ -20,8 +20,12 @@ const WEEKDAYS = [
   { value: 5, label: 'Venerdì' }
 ] as const
 
-const START_TIMES = ['14:00', '15:00'] as const
-type StartTime = (typeof START_TIMES)[number]
+const START_TIMES = [
+  { value: '14:00', label: '14 (1h)' },
+  { value: '15:00', label: '15 (1h)' },
+  { value: '14:00-16:00', label: '14-16 (2h)' }
+] as const
+type StartTime = (typeof START_TIMES)[number]['value']
 
 export type WeekdayAvailability = {
   weekday: number
@@ -166,8 +170,8 @@ export function WeekdayAvailabilitySelector({
                     </SelectTrigger>
                     <SelectContent>
                       {START_TIMES.map((slot) => (
-                        <SelectItem key={slot} value={slot}>
-                          {slot}
+                        <SelectItem key={slot.value} value={slot.value}>
+                          {slot.label}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -25,7 +25,7 @@ const availabilityItemSchema = z
   .object({
     weekday: z.number().min(1).max(5),
     isAvailable: z.boolean(),
-    startTime: z.enum(['14:00', '15:00']).nullable()
+    startTime: z.enum(['14:00', '15:00', '14:00-16:00']).nullable()
   })
   .superRefine((value, ctx) => {
     if (value.isAvailable && !value.startTime) {
