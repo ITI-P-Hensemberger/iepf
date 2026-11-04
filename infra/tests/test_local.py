@@ -73,6 +73,12 @@ class LocalTests(unittest.TestCase):
                         local.main()
                     compose.assert_not_called()
 
+    def test_seed_full_migrates_before_running_existing_pipeline(self):
+        with patch('sys.argv', ['local.py', 'seed-full']), patch.object(local, 'start_infra'):
+            with patch.object(local, 'pnpm') as pnpm:
+                local.main()
+                self.assertEqual([call.args for call in pnpm.call_args_list], [('db:migrate',), ('seed:all-mock-data',)])
+
     def test_rejects_ambiguous_port_configuration(self):
         with patch.dict(os.environ, DEV_DB_PORT='3000', FRONTEND_PORT='3000'):
             with self.assertRaisesRegex(RuntimeError, 'distinct'):

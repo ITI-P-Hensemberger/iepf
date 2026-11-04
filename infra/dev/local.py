@@ -217,11 +217,11 @@ def dev():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['help','setup','dev','up','stop','down','logs','doctor','db-migrate','db-generate','seed','db-reset','test','check'])
+    parser.add_argument('command', choices=['help','setup','dev','up','stop','down','logs','doctor','db-migrate','db-generate','seed','seed-full','db-reset','test','check'])
     parser.add_argument('--confirm', action='store_true')
     args = parser.parse_args()
     if args.command == 'help':
-        print('make setup  Install pinned dependencies and create local env files\nmake dev    Start infra, migrate, run both apps\nmake stop   Stop both apps and local infra, keep data\nmake up / down / logs / doctor\nmake db-migrate / db-generate / seed\nmake db-reset CONFIRM=yes  Delete ONLY managed dev data and seed it again\nmake test   Fresh isolated DB, migrations, backend integration tests\nmake check  Typecheck, lint and build both apps')
+        print('make setup  Install pinned dependencies and create local env files\nmake dev    Start infra, migrate, run both apps\nmake stop   Stop both apps and local infra, keep data\nmake up / down / logs / doctor\nmake db-migrate / db-generate / seed / seed-full\nmake db-reset CONFIRM=yes  Delete ONLY managed dev data and seed it again\nmake test   Fresh isolated DB, migrations, backend integration tests\nmake check  Typecheck, lint and build both apps')
         return
     cfg = prepare()
     command = args.command
@@ -247,11 +247,11 @@ def main():
         compose('--profile', 'test', 'down')
     elif command == 'logs':
         compose('logs', '--follow', '--tail', '100')
-    elif command in ('db-migrate','db-generate','seed'):
+    elif command in ('db-migrate','db-generate','seed','seed-full'):
         start_infra()
-        if command == 'seed':
+        if command in ('seed','seed-full'):
             pnpm('db:migrate')
-        pnpm({'db-migrate':'db:migrate','db-generate':'db:generate','seed':'seed:dev'}[command])
+        pnpm({'db-migrate':'db:migrate','db-generate':'db:generate','seed':'seed:dev','seed-full':'seed:all-mock-data'}[command])
     elif command == 'db-reset':
         if not args.confirm:
             raise RuntimeError('No data deleted. To reset the managed local DB: make db-reset CONFIRM=yes')

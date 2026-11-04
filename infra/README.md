@@ -41,7 +41,8 @@ repo, aggiornando e committando il lockfile.
 ## Dati demo e database
 
 ```bash
-make seed                     # migra e aggiunge dati demo, senza inviare email
+make seed                     # campione minimo, senza inviare email
+make seed-full                # intera catena mock esistente, con email su Mailpit
 make db-generate              # genera i file SQL dopo una modifica agli schemi
 make db-migrate               # applica le migrazioni versionate
 make db-reset CONFIRM=yes      # ricrea SOLO iepf_dev e ricarica i dati demo
@@ -60,6 +61,25 @@ Il nuovo database dev è `iepf_dev` in un volume Docker dedicato al progetto
 vengono importati, cancellati o modificati. `make stop` non elimina il volume.
 I servizi sono esposti solo sul loopback del Mac; non ci sono container_name
 fissi. Non usare `docker compose down -v` se si vogliono conservare i dati.
+
+
+`make seed-full` applica le migrazioni ed esegue i seed esistenti in ordine:
+admin, activator, sezioni, materie, impostazioni globali, utenti mock, materie e
+disponibilità tutor, generazione lezioni e prenotazioni/feedback.
+Gli indirizzi sono fittizi: ad esempio `mock.student-active-01@example.test` e
+`mock.tutor-active-01@example.test`, con password `Password123!`. Admin e activator
+usano `admin@example.test` e `activator@example.test`, password `LocalDemo123!` se
+creati dal seed; gli account esistenti conservano le proprie password.
+Il dataset completo aggiunge 97 utenti mock e 11 inviti, oltre agli account base.
+La generazione e le prenotazioni mock sono limitate agli utenti `mock.*@example.test`.
+I vecchi alias personali eventualmente già nel DB restano invariati: non vengono
+rinominati o cancellati automaticamente.
+
+Le email della generazione lezioni arrivano in Mailpit. Il comando richiede DB
+locale e SMTP su loopback anche se eseguito direttamente come
+`pnpm seed:all-mock-data`. Il dataset ricco è additivo: rieseguirlo conserva gli
+utenti esistenti, ma può aggiungere storico lezioni, prenotazioni e feedback.
+Per ripartire da zero: `make db-reset CONFIRM=yes`, poi `make seed-full`.
 
 ## Test e verifiche
 
