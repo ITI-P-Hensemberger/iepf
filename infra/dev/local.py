@@ -154,6 +154,12 @@ def start_infra(test=False):
     compose('up', '-d', '--wait', '--wait-timeout', '120', 'db-test' if test else 'db-dev', 'mailpit')
 
 
+def process_start(pid):
+    # lstart follows locale and timezone: fix both so any shell reads the same value.
+    return subprocess.check_output(['ps', '-p', str(pid), '-o', 'lstart='], text=True,
+                                   env=dict(os.environ, LC_ALL='C', TZ='UTC')).strip()
+
+
 def stop_apps():
     pidfile = HOME / 'processes.json'
     if not pidfile.exists():
@@ -162,7 +168,7 @@ def stop_apps():
     state = json.loads(pidfile.read_text())
     try:
         command = subprocess.check_output(['ps', '-p', str(state['supervisor']), '-o', 'command='], text=True).strip()
-        started = subprocess.check_output(['ps', '-p', str(state['supervisor']), '-o', 'lstart='], text=True).strip()
+        started = process_start(state['supervisor'])
         if str(Path(__file__).resolve()) not in command or started != state['started']:
             pidfile.unlink(missing_ok=True)
             return
@@ -195,7 +201,7 @@ def dev():
     try:
         for repo, env in [(BACKEND, local_database()), (FRONTEND, app_env(frontend=True))]:
             children.append(subprocess.Popen([*PNPM, 'run', 'dev'], cwd=repo, env=env, start_new_session=True))
-        started = subprocess.check_output(['ps', '-p', str(os.getpid()), '-o', 'lstart='], text=True).strip()
+        started = process_start(os.getpid())
         pidfile.write_text(json.dumps({'supervisor': os.getpid(), 'started': started, 'children': [p.pid for p in children]}))
         print('Dev started. Ctrl+C stops both apps; database and Mailpit remain available.', flush=True)
         while all(p.poll() is None for p in children):

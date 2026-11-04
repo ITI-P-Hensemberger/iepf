@@ -1,9 +1,13 @@
 """Safety and persistence checks for local orchestration; no real Docker commands."""
 import importlib.util
 import fcntl
+import json
 import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -123,6 +127,43 @@ class LocalTests(unittest.TestCase):
         source = (local.INFRA / 'dev/local.py').read_text()
         self.assertIn("ROOT / '.local'", source)
         self.assertIn('.local/', (local.ROOT / '.gitignore').read_text().splitlines())
+
+    def start_supervisor(self):
+        # Same process identity as dev(): the launcher path appears in its command line.
+        pidfile = self.home / 'processes.json'
+        ready = self.home / 'ready'
+        code = ('import os, pathlib, signal, sys, time\n'
+                'def stop(*_):\n'
+                '    pathlib.Path(sys.argv[1]).unlink(missing_ok=True)\n'
+                '    os._exit(0)\n'
+                'signal.signal(signal.SIGTERM, stop)\n'
+                'pathlib.Path(sys.argv[2]).touch()\n'
+                'time.sleep(30)\n')
+        process = subprocess.Popen([sys.executable, '-c', code, str(pidfile), str(ready), str(Path(local.__file__).resolve())])
+        self.addCleanup(process.wait)
+        self.addCleanup(process.kill)
+        for _ in range(200):
+            if ready.exists():
+                return process, pidfile
+            time.sleep(0.05)
+        self.fail('Fake supervisor did not start')
+
+    def test_stop_recognizes_supervisor_from_another_locale_and_timezone(self):
+        process, pidfile = self.start_supervisor()
+        with patch.dict(os.environ, TZ='Asia/Tokyo', LC_ALL='it_IT.UTF-8'):
+            started = local.process_start(process.pid)
+        pidfile.write_text(json.dumps({'supervisor': process.pid, 'started': started, 'children': []}))
+        with patch.dict(os.environ, TZ='America/New_York', LC_ALL='C'):
+            local.stop_apps()
+        self.assertEqual(process.wait(timeout=5), 0)
+        self.assertFalse(pidfile.exists())
+
+    def test_stop_never_signals_a_reused_pid(self):
+        process, pidfile = self.start_supervisor()
+        pidfile.write_text(json.dumps({'supervisor': process.pid, 'started': 'Thu Jan  1 00:00:00 1970', 'children': []}))
+        local.stop_apps()
+        self.assertIsNone(process.poll())
+        self.assertFalse(pidfile.exists())
 
     def test_rejects_ambiguous_port_configuration(self):
         with patch.dict(os.environ, DEV_DB_PORT='3000', FRONTEND_PORT='3000'):
