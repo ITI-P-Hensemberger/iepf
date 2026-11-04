@@ -27,7 +27,7 @@ registry finché sono necessarie al primo avvio o a un rollback.
 
 # Deploy operativo
 
-I push su `main` di frontend e backend eseguono typecheck, lint e build (npm per il backend, pnpm con lockfile frozen per il frontend),
+I push su `main` di frontend e backend eseguono typecheck, lint e build (pnpm con lockfile frozen in entrambe le repo),
 pubblicano immagini linux/amd64 identificate dal commit e notificano i digest
 alla pipeline centrale di infra. La pipeline infra esegue i controlli, trasferisce
 un bundle via SSH e lo attiva. La coda GitHub (`queue: max`) e il lock sulla VPS
@@ -62,7 +62,7 @@ Prima attivazione:
 5. Pubblicare backend e frontend: le build e i successivi deploy sono automatici.
 
 Le immagini di manutenzione sono costruite dallo stesso commit del backend e
-usate per migrazioni e job, con npm e i flag `--today`/`--tomorrow` inoltrati.
+usate per migrazioni e job, con gli script package.json e i flag `--today`/`--tomorrow` inoltrati.
 Prima di ogni cambio dell'immagine di manutenzione si esegue un backup locale e
 su Drive. Un errore di backup o migrazione blocca l'attivazione delle nuove
 immagini. I backup locali hanno retention 7 giorni, quelli su Drive 30 giorni.

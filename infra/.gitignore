@@ -6,3 +6,6 @@ postgres-test-data
 
 letsencrypt/
 *.tar.gz
+
+.local/
+__pycache__/

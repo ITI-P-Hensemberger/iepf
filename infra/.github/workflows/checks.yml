@@ -16,7 +16,10 @@ jobs:
           for script in deploy/*.sh; do bash -n "$script"; done
           shellcheck deploy/*.sh
       - name: Test deployment failure and recovery paths
-        run: python3 tests/test_deploy.py
+        run: |
+          python3 tests/test_deploy.py
+          python3 tests/test_local.py
+          docker compose -f docker-compose-dev.yml config --quiet
       - name: Validate Compose without loading production secrets
         env:
           DEPLOY_ROOT: /opt/iepf
