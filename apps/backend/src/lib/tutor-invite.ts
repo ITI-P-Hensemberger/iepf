@@ -1,6 +1,8 @@
 // Purpose: Tutor invite token lifecycle helpers.
 import { eq } from 'drizzle-orm'
 
+import type { Transaction } from '@/db'
+
 import db from '@/db'
 import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
 import env from '@/env'
@@ -33,31 +35,25 @@ export async function issueTutorInviteToken(email: string) {
   }
 }
 
-export async function consumeTutorInviteToken(token: string) {
-  const tokenHash = hashToken(token)
-  const found = await db.query.tutorInviteTokens.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.tokenHash, tokenHash)
-    },
-    columns: {
-      id: true,
-      email: true,
-      expiresAt: true
-    }
+// Locks the invite until the transaction ends, so it is spent only if the account is created.
+export async function lockTutorInviteToken(token: string, tx: Transaction) {
+  const [found] = await tx.select({
+    id: tutorInviteTokens.id,
+    email: tutorInviteTokens.email,
+    expiresAt: tutorInviteTokens.expiresAt
   })
+    .from(tutorInviteTokens)
+    .where(eq(tutorInviteTokens.tokenHash, hashToken(token)))
+    .for('update')
 
   if (!found) {
     return null
   }
 
   if (found.expiresAt <= new Date()) {
-    await db.delete(tutorInviteTokens).where(eq(tutorInviteTokens.id, found.id))
+    await tx.delete(tutorInviteTokens).where(eq(tutorInviteTokens.id, found.id))
     return null
   }
 
-  await db.delete(tutorInviteTokens).where(eq(tutorInviteTokens.id, found.id))
-
-  return {
-    email: found.email
-  }
+  return { id: found.id, email: found.email }
 }

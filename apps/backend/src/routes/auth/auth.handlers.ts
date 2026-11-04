@@ -14,9 +14,10 @@ import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { users } from '@/db/schemas/users.schema'
-import { consumeAdminInviteToken, issueAdminInviteToken } from '@/lib/admin-invite'
+import { issueAdminInviteToken, lockAdminInviteToken } from '@/lib/admin-invite'
 import { createAccessToken } from '@/lib/auth'
 import { DEFAULT_LESSON_TOKENS, DEFAULT_TUTOR_SETTINGS, ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
+import { isUniqueConstraintError } from '@/lib/db-errors'
 import {
   buildAdminInviteMessage,
   buildEmailVerificationMessage,
@@ -35,7 +36,7 @@ import { buildPagedResponse } from '@/lib/pagination'
 import { hashPassword, verifyPassword } from '@/lib/password'
 import { consumePasswordResetToken, issuePasswordResetToken } from '@/lib/password-reset'
 import { issueRefreshToken, revokeRefreshToken, revokeUserRefreshTokens, rotateRefreshToken } from '@/lib/refresh-tokens'
-import { consumeTutorInviteToken, issueTutorInviteToken } from '@/lib/tutor-invite'
+import { issueTutorInviteToken, lockTutorInviteToken } from '@/lib/tutor-invite'
 
 import type {
   ConfirmAdminInviteRoute,
@@ -188,40 +189,56 @@ export const register: AppRouteHandler<RegisterRoute> = async (c) => {
     }
   }
 
-  const [inserted] = await db
-    .insert(users)
-    .values({
-      email,
-      firstName: userData.firstName,
-      lastName: userData.lastName,
-      passwordHash,
-      role: 'student'
+  let created
+  try {
+    created = await db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(users)
+        .values({
+          email,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          passwordHash,
+          role: 'student'
+        })
+        .returning({
+          id: users.id,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          role: users.role,
+          emailVerifiedAt: users.emailVerifiedAt,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt
+        })
+
+      await tx.insert(studentProfiles).values({
+        userId: inserted.id,
+        sectionId: userData.sectionId,
+        year: userData.year,
+        isActive: false
+      })
+
+      await tx.insert(tokenLedger).values({
+        studentId: inserted.id,
+        delta: DEFAULT_LESSON_TOKENS,
+        reason: 'initial_grant'
+      })
+
+      const verification = await issueEmailVerificationToken(inserted.id, tx)
+
+      return { inserted, verification }
     })
-    .returning({
-      id: users.id,
-      email: users.email,
-      firstName: users.firstName,
-      lastName: users.lastName,
-      role: users.role,
-      emailVerifiedAt: users.emailVerifiedAt,
-      createdAt: users.createdAt,
-      updatedAt: users.updatedAt
-    })
+  }
+  catch (error) {
+    // A concurrent registration can pass the check above and lose on the unique index.
+    if (isUniqueConstraintError(error)) {
+      return c.json(buildDuplicateEmailError(), HttpStatusCodes.CONFLICT)
+    }
+    throw error
+  }
+  const { inserted, verification } = created
 
-  await db.insert(studentProfiles).values({
-    userId: inserted.id,
-    sectionId: userData.sectionId,
-    year: userData.year,
-    isActive: false
-  })
-
-  await db.insert(tokenLedger).values({
-    studentId: inserted.id,
-    delta: DEFAULT_LESSON_TOKENS,
-    reason: 'initial_grant'
-  })
-
-  const verification = await issueEmailVerificationToken(inserted.id)
   const registrationEmail = buildStudentRegistrationMessage(verification.token)
   sendMail({
     to: inserted.email,
@@ -411,48 +428,69 @@ export const inviteAdmin: AppRouteHandler<InviteAdminRoute> = async (c) => {
 
 export const confirmAdminInvite: AppRouteHandler<ConfirmAdminInviteRoute> = async (c) => {
   const payload = c.req.valid('json')
-  const invite = await consumeAdminInviteToken(payload.token)
+  let outcome
+  try {
+    outcome = await db.transaction(async (tx) => {
+      const invite = await lockAdminInviteToken(payload.token, tx)
+      if (!invite) {
+        return { kind: 'invalid' } as const
+      }
 
-  if (!invite) {
+      const existing = await tx.query.users.findFirst({
+        where(fields, operators) {
+          return operators.eq(fields.email, invite.email)
+        },
+        columns: { id: true }
+      })
+      if (existing) {
+        return { kind: 'duplicate' } as const
+      }
+
+      const passwordHash = await hashPassword(payload.password)
+      const [inserted] = await tx.insert(users)
+        .values({
+          email: invite.email,
+          firstName: payload.firstName,
+          lastName: payload.lastName,
+          passwordHash,
+          role: 'admin',
+          emailVerifiedAt: new Date()
+        })
+        .returning({
+          id: users.id,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          role: users.role,
+          emailVerifiedAt: users.emailVerifiedAt,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt
+        })
+
+      await tx.insert(adminProfiles).values({
+        userId: inserted.id,
+        isActive: false
+      })
+
+      await tx.delete(adminInviteTokens).where(eq(adminInviteTokens.id, invite.id))
+
+      return { kind: 'created', inserted } as const
+    })
+  }
+  catch (error) {
+    if (!isUniqueConstraintError(error)) {
+      throw error
+    }
+    outcome = { kind: 'duplicate' } as const
+  }
+
+  if (outcome.kind === 'invalid') {
     return unauthorized(c)
   }
-
-  const existing = await db.query.users.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.email, invite.email)
-    },
-    columns: { id: true }
-  })
-
-  if (existing) {
+  if (outcome.kind === 'duplicate') {
     return c.json(buildDuplicateEmailError(), HttpStatusCodes.CONFLICT)
   }
-
-  const passwordHash = await hashPassword(payload.password)
-  const [inserted] = await db.insert(users)
-    .values({
-      email: invite.email,
-      firstName: payload.firstName,
-      lastName: payload.lastName,
-      passwordHash,
-      role: 'admin',
-      emailVerifiedAt: new Date()
-    })
-    .returning({
-      id: users.id,
-      email: users.email,
-      firstName: users.firstName,
-      lastName: users.lastName,
-      role: users.role,
-      emailVerifiedAt: users.emailVerifiedAt,
-      createdAt: users.createdAt,
-      updatedAt: users.updatedAt
-    })
-
-  await db.insert(adminProfiles).values({
-    userId: inserted.id,
-    isActive: false
-  })
+  const { inserted } = outcome
 
   const confirmation = buildRegistrationConfirmedMessage()
   sendMail({
@@ -524,65 +562,89 @@ export const inviteTutor: AppRouteHandler<InviteTutorRoute> = async (c) => {
 
 export const confirmTutorInvite: AppRouteHandler<ConfirmTutorInviteRoute> = async (c) => {
   const payload = c.req.valid('json')
-  const invite = await consumeTutorInviteToken(payload.token)
+  let outcome
+  try {
+    outcome = await db.transaction(async (tx) => {
+      const invite = await lockTutorInviteToken(payload.token, tx)
+      if (!invite) {
+        return { kind: 'invalid' } as const
+      }
 
-  if (!invite) {
+      const existing = await tx.query.users.findFirst({
+        where(fields, operators) {
+          return operators.eq(fields.email, invite.email)
+        },
+        columns: { id: true }
+      })
+      if (existing) {
+        return { kind: 'duplicate' } as const
+      }
+
+      const section = await tx.query.classSections.findFirst({
+        where(fields, operators) {
+          return operators.eq(fields.id, payload.sectionId as string)
+        },
+        columns: { id: true }
+      })
+      if (!section) {
+        return { kind: 'invalidSection' } as const
+      }
+
+      const passwordHash = await hashPassword(payload.password)
+      const [inserted] = await tx.insert(users)
+        .values({
+          email: invite.email,
+          firstName: payload.firstName,
+          lastName: payload.lastName,
+          passwordHash,
+          role: 'tutor',
+          emailVerifiedAt: new Date()
+        })
+        .returning({
+          id: users.id,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          role: users.role,
+          emailVerifiedAt: users.emailVerifiedAt,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt
+        })
+
+      await tx.insert(tutorProfiles).values({
+        userId: inserted.id,
+        sectionId: payload.sectionId,
+        year: payload.year,
+        isActive: true
+      })
+
+      await tx.insert(tutorSettings).values({
+        tutorId: inserted.id,
+        ...DEFAULT_TUTOR_SETTINGS
+      })
+
+      await tx.delete(tutorInviteTokens).where(eq(tutorInviteTokens.id, invite.id))
+
+      return { kind: 'created', inserted } as const
+    })
+  }
+  catch (error) {
+    if (!isUniqueConstraintError(error)) {
+      throw error
+    }
+    outcome = { kind: 'duplicate' } as const
+  }
+
+  if (outcome.kind === 'invalid') {
     return unauthorized(c)
   }
-
-  const existing = await db.query.users.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.email, invite.email)
-    },
-    columns: { id: true }
-  })
-
-  if (existing) {
+  if (outcome.kind === 'duplicate') {
     return c.json(buildDuplicateEmailError(), HttpStatusCodes.CONFLICT)
   }
-
-  const section = await db.query.classSections.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.id, payload.sectionId as string)
-    },
-    columns: { id: true }
-  })
-  if (!section) {
+  if (outcome.kind === 'invalidSection') {
     return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
   }
-
-  const passwordHash = await hashPassword(payload.password)
-  const [inserted] = await db.insert(users)
-    .values({
-      email: invite.email,
-      firstName: payload.firstName,
-      lastName: payload.lastName,
-      passwordHash,
-      role: 'tutor',
-      emailVerifiedAt: new Date()
-    })
-    .returning({
-      id: users.id,
-      email: users.email,
-      firstName: users.firstName,
-      lastName: users.lastName,
-      role: users.role,
-      emailVerifiedAt: users.emailVerifiedAt,
-      createdAt: users.createdAt,
-      updatedAt: users.updatedAt
-    })
-
-  await db.insert(tutorProfiles).values({
-    userId: inserted.id,
-    sectionId: payload.sectionId,
-    year: payload.year,
-    isActive: true
-  })
-
-  await db.insert(tutorSettings).values({
-    tutorId: inserted.id,
-    ...DEFAULT_TUTOR_SETTINGS
-  })
+  const { inserted } = outcome
 
   const confirmation = buildRegistrationConfirmedMessage()
   sendMail({
