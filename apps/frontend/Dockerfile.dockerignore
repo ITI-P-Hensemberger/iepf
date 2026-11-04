@@ -1,0 +1,18 @@
+# Context is the repository root: send only this app and the workspace manifests.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!apps/frontend
+**/.git
+**/.gitignore
+**/.env
+**/.env.*
+**/node_modules
+**/.next
+**/npm-debug.log
+**/yarn.lock
+**/pnpm-debug.log
+**/.DS_Store
+apps/frontend/Dockerfile
+apps/frontend/Dockerfile.dockerignore

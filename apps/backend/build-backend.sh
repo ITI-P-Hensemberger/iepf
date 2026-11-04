@@ -5,7 +5,9 @@ OWNER="iti-p-hensemberger"
 PLATFORM="linux/amd64"
 
 IMAGE="ghcr.io/${OWNER}/iepf-backend"
-CONTEXT="."
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+CONTEXT="${REPO_ROOT}"
+DOCKERFILE="${REPO_ROOT}/apps/backend/Dockerfile"
 
 GIT_SHA="$(git rev-parse --short HEAD)"
 
@@ -18,6 +20,7 @@ echo
 
 docker buildx build \
   --platform "${PLATFORM}" \
+  --file "${DOCKERFILE}" \
   -t "${IMAGE}:latest" \
   -t "${IMAGE}:${VERSION}" \
   -t "${IMAGE}:${GIT_SHA}" \
@@ -26,6 +29,7 @@ docker buildx build \
 
 docker buildx build \
   --platform "${PLATFORM}" \
+  --file "${DOCKERFILE}" \
   --target migrate \
   -t "${IMAGE}:migrate" \
   -t "${IMAGE}:migrate-${VERSION}" \
@@ -35,6 +39,7 @@ docker buildx build \
 
 docker buildx build \
   --platform "${PLATFORM}" \
+  --file "${DOCKERFILE}" \
   --target cron-generate-lessons \
   -t "${IMAGE}:cron-generate-lessons" \
   -t "${IMAGE}:cron-generate-lessons-${VERSION}" \
@@ -44,6 +49,7 @@ docker buildx build \
 
 docker buildx build \
   --platform "${PLATFORM}" \
+  --file "${DOCKERFILE}" \
   --target cron-remind-feedback \
   -t "${IMAGE}:cron-remind-feedback" \
   -t "${IMAGE}:cron-remind-feedback-${VERSION}" \
@@ -53,6 +59,7 @@ docker buildx build \
 
 docker buildx build \
   --platform "${PLATFORM}" \
+  --file "${DOCKERFILE}" \
   --target cron-remind-lessons \
   -t "${IMAGE}:cron-remind-lessons" \
   -t "${IMAGE}:cron-remind-lessons-${VERSION}" \

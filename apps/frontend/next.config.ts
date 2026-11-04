@@ -2,11 +2,14 @@ import type { NextConfig } from 'next'
 import withPWA from 'next-pwa'
 import path from 'node:path'
 
+// pnpm links dependencies from the workspace root, so both roots must include it.
+const workspaceRoot = path.resolve(__dirname, '../..')
+
 const nextConfig: NextConfig = {
   output: 'standalone',
-  outputFileTracingRoot: path.resolve(__dirname),
+  outputFileTracingRoot: workspaceRoot,
   turbopack: {
-    root: path.resolve(__dirname)
+    root: workspaceRoot
   }
 }
 

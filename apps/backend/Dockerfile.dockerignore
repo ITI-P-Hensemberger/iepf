@@ -1,0 +1,22 @@
+# Context is the repository root: send only this app and the workspace manifests.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!apps/backend
+**/.git
+**/.gitignore
+**/.env
+**/.env.*
+**/node_modules
+**/dist
+**/logs
+**/.DS_Store
+**/.tmp
+**/dev.db
+**/test.db
+**/coverage
+**/.vscode
+**/.idea
+apps/backend/http
+apps/backend/postgres

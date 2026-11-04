@@ -15,9 +15,10 @@ import time
 from urllib.parse import urlparse
 
 INFRA = Path(__file__).resolve().parents[1]
-BACKEND = Path(os.environ.get('IEPF_BACKEND_DIR', INFRA.parent / 'iepf-backend')).resolve()
-FRONTEND = Path(os.environ.get('IEPF_FRONTEND_DIR', INFRA.parent / 'iepf-frontend')).resolve()
-HOME = Path(os.environ.get('IEPF_DEV_HOME', INFRA / '.local')).resolve()
+ROOT = INFRA.parent
+BACKEND = ROOT / 'apps' / 'backend'
+FRONTEND = ROOT / 'apps' / 'frontend'
+HOME = Path(os.environ.get('IEPF_DEV_HOME', ROOT / '.local')).resolve()
 PNPM = ['npx', '--yes', 'pnpm@10.28.2']
 
 
@@ -226,15 +227,13 @@ def main():
     cfg = prepare()
     command = args.command
     if command == 'setup':
-        for repo in (BACKEND, FRONTEND):
-            if not (repo / 'package.json').exists():
-                raise RuntimeError(f'Missing sibling repository: {repo}')
-            run([*PNPM, 'install', '--frozen-lockfile'], cwd=repo, env=dict(node_environment(), CI='true'))
+        # One workspace install from the root covers both applications.
+        run([*PNPM, 'install', '--frozen-lockfile'], cwd=ROOT, env=dict(node_environment(), CI='true'))
         print(f'Environment ready in {HOME}. Next: make dev (and optionally make seed).')
     elif command == 'doctor':
         env = node_environment()
         run(['node', '--version'], env=env)
-        run([*PNPM, '--version'], cwd=BACKEND, env=env)
+        run([*PNPM, '--version'], cwd=ROOT, env=env)
         run(['docker', 'info', '--format', '{{.ServerVersion}}'])
         compose('config', '--quiet')
         print(f'Local environment: {HOME}; project: {cfg["COMPOSE_PROJECT_NAME"]}')

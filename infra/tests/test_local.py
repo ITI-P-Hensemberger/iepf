@@ -94,6 +94,36 @@ class LocalTests(unittest.TestCase):
                     self.assertIn('CREATE DATABASE iepf_dev OWNER iepf', compose.call_args.args)
                     self.assertEqual([call.args for call in pnpm.call_args_list], [('db:migrate',)])
 
+    def test_paths_follow_the_monorepo_layout(self):
+        root = Path(__file__).resolve().parents[2]
+        self.assertEqual(local.ROOT, root)
+        self.assertEqual(local.BACKEND, root / 'apps/backend')
+        self.assertEqual(local.FRONTEND, root / 'apps/frontend')
+        self.assertEqual(local.INFRA, root / 'infra')
+        for path in (local.BACKEND, local.FRONTEND, local.ROOT):
+            self.assertTrue((path / 'package.json').exists())
+        self.assertTrue((local.INFRA / 'docker-compose-dev.yml').exists())
+
+    def test_setup_installs_the_workspace_once_from_the_root(self):
+        with patch('sys.argv', ['local.py', 'setup']), patch.object(local, 'node_environment', return_value={}):
+            with patch.object(local, 'run') as run:
+                local.main()
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args.kwargs['cwd'], local.ROOT)
+        self.assertEqual(run.call_args.args[0][-2:], ['install', '--frozen-lockfile'])
+
+    def test_check_runs_each_script_inside_each_app(self):
+        with patch('sys.argv', ['local.py', 'check']), patch.object(local, 'node_environment', return_value={}):
+            with patch.object(local, 'run') as run:
+                local.main()
+        calls = [(c.kwargs['cwd'], c.args[0][-1]) for c in run.call_args_list]
+        self.assertEqual(calls, [(app, script) for app in (local.BACKEND, local.FRONTEND) for script in ('typecheck', 'lint', 'build')])
+
+    def test_default_local_home_is_at_the_repository_root(self):
+        source = (local.INFRA / 'dev/local.py').read_text()
+        self.assertIn("ROOT / '.local'", source)
+        self.assertIn('.local/', (local.ROOT / '.gitignore').read_text().splitlines())
+
     def test_rejects_ambiguous_port_configuration(self):
         with patch.dict(os.environ, DEV_DB_PORT='3000', FRONTEND_PORT='3000'):
             with self.assertRaisesRegex(RuntimeError, 'distinct'):

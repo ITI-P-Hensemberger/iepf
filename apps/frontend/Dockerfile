@@ -1,28 +1,31 @@
 # syntax=docker/dockerfile:1
+# Build context is the repository root:
+#   docker build -f apps/frontend/Dockerfile .
 
 FROM node:22-alpine AS deps
 WORKDIR /app
 RUN npm install --global pnpm@10.28.2
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY apps/frontend/package.json apps/frontend/package.json
+RUN pnpm install --frozen-lockfile --filter iepf-frontend
 
 FROM deps AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY apps/frontend apps/frontend
+WORKDIR /app/apps/frontend
 RUN pnpm run build
 
 FROM node:22-alpine AS runner
-WORKDIR /app
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 
 RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
 
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+# Standalone output mirrors the workspace, so server.js sits in apps/frontend.
+COPY --from=builder /app/apps/frontend/.next/standalone /app
+COPY --from=builder /app/apps/frontend/public /app/apps/frontend/public
+COPY --from=builder /app/apps/frontend/.next/static /app/apps/frontend/.next/static
 
+WORKDIR /app/apps/frontend
 USER nextjs
 EXPOSE 3000
 CMD ["node", "server.js"]

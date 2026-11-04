@@ -1,0 +1,9 @@
+# Fallback for builders that ignore Dockerfile.dockerignore: never send local state.
+.git
+.local
+infra
+**/.env
+**/.env.*
+**/node_modules
+**/.next
+**/dist
