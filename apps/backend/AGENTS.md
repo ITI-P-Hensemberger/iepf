@@ -17,8 +17,8 @@
 - `pnpm run typecheck` — type-check without emitting.
 - `pnpm run lint` / `pnpm run lint:fix` — ESLint checks and auto-fix.
 - `pnpm run test` — run Vitest once with `NODE_ENV=test`; `test:watch` watches.
-- Use Node 22 and pnpm 10.28.2; `pnpm-lock.yaml` is the sole dependency lockfile.
-- Full local setup lives in sibling `iepf-infra`: `make setup`, `make dev`, `make seed`, `make seed-full`, `make test`, `make check`.
+- Use Node 22 and pnpm 10.28.2; the root `pnpm-lock.yaml` is the sole dependency lockfile.
+- Full local setup runs from the monorepo root: `make setup`, `make dev`, `make seed`, `make seed-full`, `make test`, `make check`.
 - DB utilities: `pnpm run db:generate`, `db:push`, `db:migrate`, `db:studio`, `db:clean` (managed local databases only).
 
 ## Coding Style & Naming Conventions
@@ -29,7 +29,7 @@
 
 ## Testing Guidelines
 - Framework: Vitest. Tests live in `src/tests/` and use `*.test.ts` naming.
-- Integration tests use real PostgreSQL and Mailpit through `make test` in infra. The DB must be named `iepf_test`; migrations run before tests.
+- Integration tests use real PostgreSQL and Mailpit through `make test` from the monorepo root. The DB must be named `iepf_test`; migrations run before tests.
 - Tests run sequentially; avoid concurrency assumptions.
 - Run a targeted test with `pnpm run test -- src/tests/local-integration.test.ts`.
 

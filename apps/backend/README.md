@@ -1,14 +1,14 @@
 # IEPF backend
 
 API Hono/TypeScript, PostgreSQL 16 e Drizzle. Runtime: Node 22 e pnpm 10.28.2.
-`pnpm-lock.yaml` è l'unico lockfile; locale, CI e Docker usano installazioni frozen.
+`pnpm-lock.yaml` nella radice della monorepo è l'unico lockfile; locale, CI e Docker usano installazioni frozen.
 
-Per avviare l'intero progetto, clonare frontend e infra come cartelle affiancate,
-poi da `iepf-infra` eseguire `make setup`, `make dev` e facoltativamente `make seed`.
-La [guida locale](https://github.com/ITI-P-Hensemberger/iepf-infra#sviluppo-locale)
+Per avviare l'intero progetto, dalla radice della monorepo eseguire `make setup`,
+`make dev` e facoltativamente `make seed`.
+La [guida locale](../../README.md#sviluppo-locale)
 include porte, utenti demo, Mailpit, reset e test isolati.
 
-Comandi nella repo: `pnpm dev`, `pnpm typecheck`, `pnpm lint`, `pnpm build`,
+Comandi in questa cartella: `pnpm dev`, `pnpm typecheck`, `pnpm lint`, `pnpm build`,
 `pnpm db:generate`, `pnpm db:migrate`. Generare e committare le migrazioni SQL;
 la pipeline le applica in produzione dopo il backup.
 

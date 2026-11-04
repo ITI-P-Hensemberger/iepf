@@ -1,14 +1,9 @@
-# Repository e identità dopo il trasferimento
+# Repository e identità
 
-Le repository sono `ITI-P-Hensemberger/iepf-backend`,
-`ITI-P-Hensemberger/iepf-frontend` e `ITI-P-Hensemberger/iepf-infra`.
-Le nuove immagini vengono pubblicate sotto `ghcr.io/iti-p-hensemberger/`.
-
-`jdncst-dev` è Owner dell'organizzazione e Admin delle repository: non occorre
-cambiare l'autore dei commit o autenticarsi come proprietario delle repository.
-I workflow usano `GITHUB_TOKEN` della repository e `github.actor` per il login
-GHCR. Il secret `INFRA_DISPATCH_TOKEN` deve avere accesso alla nuova repository
-`ITI-P-Hensemberger/iepf-infra`, con permesso Contents: write per repository_dispatch.
+Il codice vive nella monorepo `ITI-P-Hensemberger/iepf`; le immagini restano
+`ghcr.io/iti-p-hensemberger/iepf-backend` e `iepf-frontend`, gli unici nomi accettati
+da `apply.sh`. I workflow usano `GITHUB_TOKEN` della repository e `github.actor` per
+il login GHCR: entrambi i package devono concedere alla monorepo il ruolo Write.
 
 Il trasferimento delle repository non va confuso con la migrazione delle immagini
 esistenti. `bootstrap.sh` rileva i digest dei container attualmente in esecuzione e
@@ -27,23 +22,55 @@ registry finché sono necessarie al primo avvio o a un rollback.
 
 # Deploy operativo
 
-I push su `main` di frontend e backend eseguono typecheck, lint e build (pnpm con lockfile frozen in entrambe le repo),
-pubblicano immagini linux/amd64 identificate dal commit e notificano i digest
-alla pipeline centrale di infra. La pipeline infra esegue i controlli, trasferisce
-un bundle via SSH e lo attiva. La coda GitHub (`queue: max`) e il lock sulla VPS
+Il workflow unico `.github/workflows/ci-release.yml` decide cosa fare con
+`infra/ci/changes.py`, unica sorgente dei filtri per percorso:
+
+| Modifica | Controlli | Rilascio |
+| --- | --- | --- |
+| `apps/backend/**` | backend | backend |
+| `apps/frontend/**` | frontend | frontend |
+| `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `.nvmrc`, `.dockerignore` | entrambe le app | entrambe le app |
+| file del bundle in `infra/deploy/` (`compose.yaml`, `apply.sh`, `job.sh`, `backup.sh`, `systemd/`) | infra | infra |
+| `.github/workflows/**`, `infra/ci/**` | tutti | infra |
+| resto di `infra/`, `.github/`, `Makefile` | infra | nessuno |
+| file `.md` | quelli dell'app | nessuno |
+
+Su `main` i controlli infra girano sempre, perché ogni deploy li presuppone. Una push
+senza base affidabile (primo push o force push) conta come modifica di tutto.
+Il backend esegue typecheck, lint, build, migrazioni e test; il frontend typecheck,
+lint, test e build, con lockfile frozen. Vengono poi pubblicate immagini linux/amd64
+identificate dal commit, trasferito un bundle via SSH e attivato.
+
+Il job `deploy` richiede la variabile `DEPLOY_ENABLED=true`: senza, le immagini vengono
+pubblicate ma nulla va in produzione. Se un controllo o una build fallisce non si
+rilascia nessun componente di quel commit. Quando un commit cambia entrambe le app si
+applica un bundle per componente, prima il backend e poi il frontend, e ci si ferma al
+primo errore. Ogni bundle contiene già i file di deploy dalla punta di `main`, quindi
+il rilascio `infra` separato parte solo se nessuna app viene rilasciata.
+
+Una build più vecchia salta il deploy di un componente solo se un commit successivo su
+`main` rilascia quello stesso componente. Se un deploy fallisce e i commit successivi
+non toccano quel componente, rilanciare il run fallito oppure usare `workflow_dispatch`
+con `component=backend` o `frontend` senza immagine: ricostruisce da `main` e rilascia.
+
+La coda GitHub (`queue: max`) e il lock sulla VPS
 impediscono deploy e job concorrenti sul database. Non viene effettuato alcun
 checkout Git sul server. Sul piano Free con repo private si usano secret di
 repository; il workflow non richiede GitHub Environments.
 
-La VPS usa `/opt/iepf/releases/<run-id>-<attempt>` e il link `current`. I file in
+La VPS usa `/opt/iepf/releases/<release-id>` e il link `current`. L'ID è
+`<run-id>-<attempt><slot>`, con slot 1 backend, 2 frontend, 3 infra, 4 rollback: un run
+può attivare più componenti e `apply.sh` rifiuta un ID già esistente. Il tentativo 1 del
+backend nel run 123 è quindi `123-11`. Le release create prima della monorepo conservano
+l'ID `<run-id>-<attempt>` e restano valide per il rollback. I file in
 `shared` contengono configurazione, credenziali e backup: non sono versionati né
 inclusi nei bundle. I bind mount PostgreSQL e ACME sono rilevati dal bootstrap e
 rimangono nei percorsi esistenti. L'utente SSH configurato è root, con una chiave
 dedicata a Actions e opzione `restrict` nell'authorized_keys; questo accesso ha
 privilegi amministrativi sul server.
 
-Secret di infra: `VPS_SSH_KEY`, `VPS_KNOWN_HOSTS`.
-Variabili di infra: `VPS_HOST`, `VPS_USER`, `VPS_PORT`.
+Secret della monorepo: `VPS_SSH_KEY`, `VPS_KNOWN_HOSTS`.
+Variabili della monorepo: `VPS_HOST`, `VPS_USER`, `VPS_PORT`, `DEPLOY_ENABLED`.
 Il login GHCR per il pull è configurato direttamente sulla VPS con un token
 classic `read:packages`. Il token di login personale `gh` non viene copiato nei
 secret o sul server.
@@ -53,13 +80,13 @@ Prima attivazione:
 1. Eseguire `bootstrap.sh` sulla VPS: rileva immagini e percorsi, copia i file env,
    salva il crontab; non riavvia servizi.
 2. Eseguire `backup.sh` e verificare l'upload su Drive.
-3. Pubblicare la repo infra: il primo push attiva le versioni esistenti con i
+3. Pubblicare la repo: la prima attivazione infra attiva le versioni esistenti con i
    controlli di salute. La prima attivazione infra non esegue migrazioni.
 4. Dopo il successo eseguire `install-timers.sh` sulla VPS: installa i timer e
    rimuove solo i vecchi cron IEPF. Gli orari sono in Europe/Rome: backup 02:00,
    reminder lezioni oggi 12:00, domani 20:30, feedback 17:00; generazione lezioni
    sabato 12:00. Non recupera automaticamente gli invii persi dopo un downtime.
-5. Pubblicare backend e frontend: le build e i successivi deploy sono automatici.
+5. Rilasciare backend e frontend: le build e i successivi deploy sono automatici.
 
 Le immagini di manutenzione sono costruite dallo stesso commit del backend e
 usate per migrazioni e job, con gli script package.json e i flag `--today`/`--tomorrow` inoltrati.
@@ -74,7 +101,7 @@ release gestita precedente; il cutover deve essere seguito da un operatore.
 Questo stack Compose può avere un breve downtime durante la ricreazione dei
 container, non implementa un deploy blue/green.
 
-Rollback da GitHub: avviare manualmente `Production deploy`, scegliere
+Rollback da GitHub: avviare manualmente `CI and release` da `main`, scegliere
 `component=rollback` e indicare un ID presente in `/opt/iepf/releases`. Vengono
 ripristinati i digest e la configurazione di quella release; non si eseguono
 migrazioni inverse. Verificare la compatibilità con lo schema attuale prima di
@@ -117,8 +144,8 @@ gunzip -c FILE.sql.gz | docker exec -i postgres sh -ec 'psql -U "$POSTGRES_USER"
 docker compose --env-file /opt/iepf/shared/host.env --env-file /opt/iepf/current/images.env -f /opt/iepf/current/compose.yaml up -d --wait frontend backend
 ```
 
-Le modifiche alla sola documentazione non attivano un deploy; vengono comunque
-eseguiti i controlli infrastrutturali. La configurazione dei timer installata in
+Le modifiche alla sola documentazione non attivano un deploy; su `main` vengono
+comunque eseguiti i controlli infrastrutturali. La configurazione dei timer installata in
 `/etc/systemd/system` si aggiorna rieseguendo `install-timers.sh` dopo un deploy
 che modifica `deploy/systemd/`.
 

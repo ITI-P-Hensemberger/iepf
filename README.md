@@ -1,22 +1,24 @@
-# IEPF infrastructure
+# IEPF
 
-## Sviluppo locale
-
-Clonare le tre repository come cartelle affiancate:
+Monorepo pnpm della piattaforma IEPF:
 
 ```text
-iepf/
-  iepf-backend/
-  iepf-frontend/
-  iepf-infra/
+apps/backend/    API Hono, Drizzle
+apps/frontend/   Next.js 16
+infra/           Compose, deploy su VPS, launcher locale, script CI
 ```
+
+Il lockfile è uno solo, `pnpm-lock.yaml` nella radice. La migrazione dalle tre
+repository precedenti è descritta in [docs/cutover.md](docs/cutover.md).
+
+## Sviluppo locale
 
 Requisiti: macOS o Linux, Python 3.9+, make, Docker con Compose e Node 22 con npm.
 Lo script usa Node 22 dal PATH o da un'installazione nvm già presente. Se manca:
 `nvm install 22`. pnpm 10.28.2 viene invocato tramite npx: non serve installarlo
 globalmente. La prima installazione richiede accesso al registry npm.
 
-Da `iepf-infra`:
+Dalla radice della repository:
 
 ```bash
 make setup       # installa dipendenze frozen e prepara gli env locali
@@ -34,9 +36,9 @@ Il setup non sovrascrive file esistenti e non modifica i `.env` delle app.
 il fuso Europe/Rome, senza usare credenziali SMTP o database di produzione.
 Il backend supporta `ENV_FILE` e dà precedenza alle variabili del processo.
 
-Entrambe le app usano pnpm 10.28.2 e `pnpm-lock.yaml` come unico lockfile.
-Non usare npm install per aggiungere dipendenze: utilizzare pnpm nella rispettiva
-repo, aggiornando e committando il lockfile.
+Entrambe le app usano pnpm 10.28.2 e `pnpm-lock.yaml` nella radice come unico
+lockfile. Non usare npm install per aggiungere dipendenze: dalla radice eseguire
+`pnpm --filter iepf-backend add PACCHETTO` (o `iepf-frontend`) e committare il lockfile.
 
 ## Dati demo e database
 
@@ -103,6 +105,10 @@ autenticazione/refresh e consegna SMTP tramite Mailpit. I messaggi di test sono
 ricercati per un subject univoco; la casella locale non viene svuotata.
 La CI backend esegue la stessa suite con PostgreSQL e Mailpit come servizi.
 
+I test di infrastruttura non richiedono Docker e si lanciano da `infra/`:
+`python3 tests/test_local.py`, `python3 tests/test_ci.py` e, solo su Linux,
+`python3 tests/test_deploy.py`.
+
 I comandi di reset, pulizia e seed rifiutano database fuori da loopback o con
 nome diverso da `iepf_dev`/`iepf_test`; il test richiede esattamente `iepf_test`.
 Il launcher rifiuta Docker context remoti. Un reset richiede sempre CONFIRM=yes.
@@ -124,10 +130,9 @@ sono generati coerentemente. Per cambiarle in un ambiente già preparato,
 arrestarlo e aggiornare tutti i riferimenti nei quattro file. Non rinominare il
 progetto se si vuole continuare a usare lo stesso volume dati.
 
-Per layout diversi si possono impostare IEPF_BACKEND_DIR e IEPF_FRONTEND_DIR.
-
 ## Produzione
 
-I push su main avviano le pipeline di rilascio. La VPS non effettua checkout Git.
-Configurazione, backup, schedulazione e rollback: [runbook](deploy/README.md).
+I push su main avviano `.github/workflows/ci-release.yml`, che controlla, costruisce
+e rilascia solo ciò che è cambiato. La VPS non effettua checkout Git.
+Configurazione, backup, schedulazione e rollback: [runbook](infra/deploy/README.md).
 Il Compose locale e il launcher non sono inclusi nei bundle di produzione.

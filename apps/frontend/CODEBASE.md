@@ -104,18 +104,17 @@ IEPF Frontend is a Next.js 16 App Router project for an Italian educational plat
 
 
 ## Delivery
-- `.github/workflows/ci-release.yml` runs pnpm-based typecheck, lint, and build on pull requests and main.
-- Main publishes a linux/amd64 image to GHCR and dispatches its immutable digest to `ITI-P-Hensemberger/iepf-infra`.
-- Production activation, health checks, and rollback are managed by the infra repository.
-- `INFRA_DISPATCH_TOKEN` is a repository secret scoped to dispatching events to the infra repository.
+- The root `.github/workflows/ci-release.yml` runs typecheck, lint, tests, and build when the frontend or the workspace files change.
+- Main publishes a linux/amd64 image to GHCR and the same workflow deploys its immutable digest.
+- Production activation, health checks, and rollback are managed by `infra/`.
 - Docker excludes all local `.env.*` files; `API_BASE_URL` is supplied at runtime.
 
-- CI and Docker pin pnpm 10.28.2 and install with `--frozen-lockfile`, honoring `pnpm-workspace.yaml` overrides.
-- `pnpm-lock.yaml` is authoritative for frontend development and deployment.
+- CI and Docker pin pnpm 10.28.2 and install with `--frozen-lockfile`, honoring the root `pnpm-workspace.yaml` overrides.
+- The root `pnpm-lock.yaml` is authoritative for development and deployment.
 
 ## Local development
-- The infra repo provides `make setup`, `make dev`, `make stop`, `make seed`, `make test`, and `make check` for the sibling repo layout.
-- Managed env files live in `iepf-infra/.local/`; the launcher exports frontend variables directly, preserving existing frontend `.env` files.
-- Node 22 and pnpm 10.28.2 are shared across both application repositories. `pnpm-lock.yaml` is authoritative; npm lockfiles have been removed.
-- Mailpit captures local email; the infra README documents demo accounts, separate dev/test databases and configurable ports.
-- `next.config.ts` pins Turbopack and standalone tracing roots to the frontend directory so parent/sibling lockfiles cannot change CSS/module resolution.
+- The monorepo root provides `make setup`, `make dev`, `make stop`, `make seed`, `make test`, and `make check`.
+- Managed env files live in `.local/` at the monorepo root; the launcher exports frontend variables directly, preserving existing frontend `.env` files.
+- Node 22 and pnpm 10.28.2 are shared across both applications. The root `pnpm-lock.yaml` is authoritative; npm lockfiles have been removed.
+- Mailpit captures local email; the root README documents demo accounts, separate dev/test databases and configurable ports.
+- `next.config.ts` pins Turbopack and standalone tracing roots to the workspace root, where pnpm links dependencies; standalone output therefore starts from `apps/frontend/server.js`.
