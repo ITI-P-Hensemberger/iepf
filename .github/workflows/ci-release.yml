@@ -1,0 +1,286 @@
+name: CI and release
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      component:
+        description: 'backend/frontend without an image rebuild from main; rollback needs a release'
+        type: choice
+        options: [infra, frontend, backend, rollback]
+        default: infra
+      image:
+        description: Application image including @sha256 digest
+        type: string
+      tools_image:
+        description: Matching backend maintenance image including @sha256 digest
+        type: string
+      release:
+        description: Existing release ID for rollback (for example 123456789-11)
+        type: string
+permissions:
+  contents: read
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend_checks: ${{ steps.plan.outputs.backend_checks }}
+      backend_release: ${{ steps.plan.outputs.backend_release }}
+      frontend_checks: ${{ steps.plan.outputs.frontend_checks }}
+      frontend_release: ${{ steps.plan.outputs.frontend_release }}
+      infra_checks: ${{ steps.plan.outputs.infra_checks }}
+      infra_release: ${{ steps.plan.outputs.infra_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Refuse manual runs outside main
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          echo 'Manual releases run only from main.' >&2
+          exit 1
+      - id: plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          INPUT_COMPONENT: ${{ inputs.component }}
+          INPUT_IMAGE: ${{ inputs.image }}
+        run: python3 infra/ci/changes.py
+
+  backend-checks:
+    needs: changes
+    if: needs.changes.outputs.backend_checks == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: iepf
+          POSTGRES_PASSWORD: iepf_local_password
+          POSTGRES_DB: iepf_test
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U iepf -d iepf_test"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+      mailpit:
+        image: axllent/mailpit:v1.27.4
+        ports: ['1025:1025', '8025:8025']
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://iepf:iepf_local_password@127.0.0.1:5433/iepf_test
+      SMTP_HOST: 127.0.0.1
+      SMTP_PORT: '1025'
+      MAILPIT_URL: http://127.0.0.1:8025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter iepf-backend
+      - run: pnpm --filter iepf-backend run typecheck
+      - run: pnpm --filter iepf-backend run lint
+      - run: pnpm --filter iepf-backend run build
+      - run: pnpm --filter iepf-backend run db:migrate
+      - run: pnpm --filter iepf-backend run test
+
+  frontend-checks:
+    needs: changes
+    if: needs.changes.outputs.frontend_checks == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter iepf-frontend
+      - run: pnpm --filter iepf-frontend run typecheck
+      - run: pnpm --filter iepf-frontend run lint
+      - run: pnpm --filter iepf-frontend run test
+      - run: pnpm --filter iepf-frontend run build
+
+  infra-checks:
+    needs: changes
+    if: needs.changes.outputs.infra_checks == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check scripts
+        run: |
+          for script in deploy/*.sh; do bash -n "$script"; done
+          shellcheck deploy/*.sh
+      - name: Test deployment failure and recovery paths
+        run: |
+          python3 tests/test_deploy.py
+          python3 tests/test_local.py
+          python3 tests/test_ci.py
+          docker compose -f docker-compose-dev.yml config --quiet
+      - name: Validate Compose without loading production secrets
+        env:
+          COMPOSE_PROJECT_NAME: iepf
+          POSTGRES_DATA_DIR: /opt/infra/iepf/postgres-data
+          ACME_DIR: /root/iepf/letsencrypt
+          POSTGRES_IMAGE: postgres:16
+          TRAEFIK_IMAGE: traefik:latest
+          FRONTEND_IMAGE: frontend:validation
+          BACKEND_IMAGE: backend:validation
+          TOOLS_IMAGE: backend:validation
+        run: |
+          # Some Compose versions still require env_file paths to exist.
+          export DEPLOY_ROOT="$RUNNER_TEMP/iepf-validation"
+          mkdir -p "$DEPLOY_ROOT/shared"
+          touch "$DEPLOY_ROOT/shared/backend.env" "$DEPLOY_ROOT/shared/postgres.env"
+          docker compose -f deploy/compose.yaml config --quiet
+
+  # Stable required check: individual check jobs may be skipped by the path filters.
+  checks-passed:
+    needs: [backend-checks, frontend-checks, infra-checks]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: test "$FAILED" = false
+
+  backend-image:
+    needs: [changes, backend-checks]
+    if: needs.changes.outputs.backend_release == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.app.outputs.digest }}
+      tools_digest: ${{ steps.tools.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build application image
+        id: app
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/backend/Dockerfile
+          platforms: linux/amd64
+          push: true
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          tags: ghcr.io/iti-p-hensemberger/iepf-backend:${{ github.sha }}
+          cache-from: type=gha,scope=backend-app
+          cache-to: type=gha,mode=max,scope=backend-app
+      - name: Build maintenance image
+        id: tools
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/backend/Dockerfile
+          target: migrate
+          platforms: linux/amd64
+          push: true
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          tags: ghcr.io/iti-p-hensemberger/iepf-backend:tools-${{ github.sha }}
+          cache-from: type=gha,scope=backend-tools
+          cache-to: type=gha,mode=max,scope=backend-tools
+
+  frontend-image:
+    needs: [changes, frontend-checks]
+    if: needs.changes.outputs.frontend_release == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.app.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build application image
+        id: app
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/frontend/Dockerfile
+          platforms: linux/amd64
+          push: true
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          tags: ghcr.io/iti-p-hensemberger/iepf-frontend:${{ github.sha }}
+          cache-from: type=gha,scope=frontend-app
+          cache-to: type=gha,mode=max,scope=frontend-app
+
+  deploy:
+    needs: [changes, backend-checks, frontend-checks, infra-checks, backend-image, frontend-image]
+    # DEPLOY_ENABLED is the production switch: until it is 'true' images are built but nothing deploys.
+    # A failed check or image stops every component of the commit, since they may depend on each other.
+    if: >-
+      !cancelled() && !failure()
+      && vars.DEPLOY_ENABLED == 'true'
+      && github.ref == 'refs/heads/main'
+      && github.event_name != 'pull_request'
+      && (github.event_name == 'workflow_dispatch'
+        || needs.changes.outputs.backend_release == 'true'
+        || needs.changes.outputs.frontend_release == 'true'
+        || needs.changes.outputs.infra_release == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: production
+      queue: max
+    steps:
+      # Tip of main rather than this run's commit: an older build must not bring back older deploy files.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER }}
+        run: |
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS" && test -n "$VPS_HOST" && test -n "$VPS_USER"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Transfer and apply releases
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SOURCE_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          BACKEND_DIGEST: ${{ needs.backend-image.outputs.digest }}
+          TOOLS_DIGEST: ${{ needs.backend-image.outputs.tools_digest }}
+          FRONTEND_DIGEST: ${{ needs.frontend-image.outputs.digest }}
+          INFRA_RELEASE: ${{ needs.changes.outputs.infra_release }}
+          INPUT_COMPONENT: ${{ inputs.component }}
+          INPUT_IMAGE: ${{ inputs.image }}
+          INPUT_TOOLS_IMAGE: ${{ inputs.tools_image }}
+          INPUT_RELEASE: ${{ inputs.release }}
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          VPS_PORT: ${{ vars.VPS_PORT || '22' }}
+        run: python3 infra/ci/deploy.py
