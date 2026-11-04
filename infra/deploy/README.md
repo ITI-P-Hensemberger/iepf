@@ -98,3 +98,10 @@ Le modifiche alla sola documentazione non attivano un deploy; vengono comunque
 eseguiti i controlli infrastrutturali. La configurazione dei timer installata in
 `/etc/systemd/system` si aggiorna rieseguendo `install-timers.sh` dopo un deploy
 che modifica `deploy/systemd/`.
+
+Al termine del cutover i vecchi script, Compose e file env sono stati archiviati
+in `/opt/iepf/shared/legacy/`, accessibile solo a root. La directory
+`/opt/infra/iepf/` conserva esclusivamente i bind mount `postgres-data` e
+`letsencrypt`; `/root/iepf` è un collegamento a questa directory. Non cancellare
+questi percorsi finché i bind mount non vengono migrati esplicitamente. Il server
+esegue le release sotto `/opt/iepf/` senza checkout delle repository.
