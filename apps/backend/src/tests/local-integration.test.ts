@@ -1,6 +1,6 @@
 // Purpose: Exercise real PostgreSQL migrations, local demo data, auth and SMTP.
 /* eslint-disable node/no-process-env */
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { Buffer } from 'node:buffer'
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import app from '@/app'
 import db, { closeDb } from '@/db'
+import { refreshTokens } from '@/db/schemas/refresh-tokens.schema'
 import env from '@/env'
 import { cleanDatabase } from '@/lib/db-cleanup'
 import { DEV_PASSWORD, DEV_ROLES, seedDevelopmentData } from '@/lib/dev-seed'
@@ -15,6 +16,8 @@ import { assertLocalDatabase } from '@/lib/local-database'
 import { closeMailer, sendMail } from '@/lib/mailer'
 import { MOCK_PASSWORD } from '@/lib/mock-data'
 import { verifyPassword } from '@/lib/password'
+import { ROTATION_GRACE_MS } from '@/lib/refresh-tokens'
+import { hashToken } from '@/lib/token-utils'
 
 let ids: Record<string, string>
 let refreshToken: string
@@ -73,6 +76,28 @@ describe('local environment', () => {
     expect((await post('/auth/login', { email: 'student@example.test', password: 'wrong' })).status).toBe(401)
   })
 
+  it('lets parallel refreshes of one token all succeed with distinct tokens', async () => {
+    const login = await post('/auth/login', { email: 'student@example.test', password: DEV_PASSWORD })
+    const { refreshToken: token } = await login.json()
+    const responses = await Promise.all(Array.from({ length: 5 }, () => post('/auth/refresh', { refreshToken: token })))
+    expect(responses.map(response => response.status)).toEqual([200, 200, 200, 200, 200])
+    const bodies = await Promise.all(responses.map(response => response.json()))
+    const issued = bodies.map(body => body.refreshToken as string)
+    expect(new Set(issued).size).toBe(5)
+    expect((await post('/auth/refresh', { refreshToken: issued[0] })).status).toBe(200)
+  })
+
+  it('removes rotated tokens once their grace period has ended', async () => {
+    const login = await post('/auth/login', { email: 'student@example.test', password: DEV_PASSWORD })
+    const { refreshToken: first } = await login.json()
+    const { refreshToken: second } = await (await post('/auth/refresh', { refreshToken: first })).json()
+    await db.update(refreshTokens)
+      .set({ rotatedAt: new Date(Date.now() - ROTATION_GRACE_MS) })
+      .where(eq(refreshTokens.tokenHash, hashToken(first)))
+    expect((await post('/auth/refresh', { refreshToken: second })).status).toBe(200)
+    expect(await db.query.refreshTokens.findFirst({ where: eq(refreshTokens.tokenHash, hashToken(first)) })).toBeUndefined()
+  })
+
   it('authenticates all four demo roles and issues usable refresh tokens', async () => {
     for (const role of DEV_ROLES) {
       const response = await post('/auth/login', { email: `${role}@example.test`, password: DEV_PASSWORD })
@@ -88,6 +113,13 @@ describe('local environment', () => {
     expect(response.status).toBe(200)
     const body = await response.json()
     expect(body.refreshToken).not.toBe(refreshToken)
+    // Within the grace period the old token still works, so a lost response is harmless.
+    const retried = await post('/auth/refresh', { refreshToken })
+    expect(retried.status).toBe(200)
+    expect((await retried.json()).refreshToken).not.toBe(body.refreshToken)
+    await db.update(refreshTokens)
+      .set({ rotatedAt: new Date(Date.now() - ROTATION_GRACE_MS) })
+      .where(eq(refreshTokens.tokenHash, hashToken(refreshToken)))
     expect((await post('/auth/refresh', { refreshToken })).status).toBe(401)
   })
 

@@ -99,6 +99,13 @@
       "when": 1793806694986,
       "tag": "0013_light_polaris",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793822276746,
+      "tag": "0014_flawless_gauntlet",
+      "breakpoints": true
     }
   ]
 }
