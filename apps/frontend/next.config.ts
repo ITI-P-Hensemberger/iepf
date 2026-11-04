@@ -1,9 +1,13 @@
 import type { NextConfig } from 'next'
 import withPWA from 'next-pwa'
+import path from 'node:path'
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  turbopack: {}
+  outputFileTracingRoot: path.resolve(__dirname),
+  turbopack: {
+    root: path.resolve(__dirname)
+  }
 }
 
 export default withPWA({

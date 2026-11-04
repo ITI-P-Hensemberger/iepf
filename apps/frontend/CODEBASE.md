@@ -116,3 +116,4 @@ IEPF Frontend is a Next.js 16 App Router project for an Italian educational plat
 - Managed env files live in `iepf-infra/.local/`; the launcher exports frontend variables directly, preserving existing frontend `.env` files.
 - Node 22 and pnpm 10.28.2 are shared across both application repositories. `pnpm-lock.yaml` is authoritative; npm lockfiles have been removed.
 - Mailpit captures local email; the infra README documents demo accounts, separate dev/test databases and configurable ports.
+- `next.config.ts` pins Turbopack and standalone tracing roots to the frontend directory so parent/sibling lockfiles cannot change CSS/module resolution.
