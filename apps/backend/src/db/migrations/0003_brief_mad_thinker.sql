@@ -1,0 +1,2 @@
+ALTER TABLE "lesson_bookings" ADD COLUMN "counts_for_student" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "lessons" ADD COLUMN "counts_for_tutor" boolean DEFAULT false NOT NULL;

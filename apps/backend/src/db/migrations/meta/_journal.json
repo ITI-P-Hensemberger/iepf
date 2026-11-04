@@ -1,0 +1,104 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1769099665850,
+      "tag": "0000_furry_the_liberteens",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1769100336888,
+      "tag": "0001_bent_kulan_gath",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1769102141308,
+      "tag": "0002_lucky_victor_mancha",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1769117616507,
+      "tag": "0003_brief_mad_thinker",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1769119026322,
+      "tag": "0004_awesome_vance_astro",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1769167483649,
+      "tag": "0005_lame_ezekiel",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1769356578798,
+      "tag": "0006_cloudy_rawhide_kid",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1769623810155,
+      "tag": "0007_wakeful_iceman",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1769646245196,
+      "tag": "0008_right_lily_hollister",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1770490238660,
+      "tag": "0009_tricky_lethal_legion",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1770491255300,
+      "tag": "0010_sweet_legion",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1770491513883,
+      "tag": "0011_gorgeous_lady_vermin",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793030511497,
+      "tag": "0012_fearless_firelord",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793806694986,
+      "tag": "0013_light_polaris",
+      "breakpoints": true
+    }
+  ]
+}
