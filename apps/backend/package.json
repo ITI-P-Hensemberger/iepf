@@ -2,7 +2,6 @@
   "name": "iepf-backend",
   "type": "module",
   "version": "1.0.0",
-  "packageManager": "pnpm@10.28.2",
   "license": "SEE LICENSE IN LICENSE",
   "scripts": {
     "dev": "tsx watch src/index.ts",
