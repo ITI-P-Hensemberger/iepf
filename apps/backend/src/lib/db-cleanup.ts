@@ -2,8 +2,10 @@
 import { Pool } from 'pg'
 
 import env from '@/env'
+import { assertLocalDatabase } from '@/lib/local-database'
 
 export async function cleanDatabase() {
+  assertLocalDatabase(env.DATABASE_URL, env.NODE_ENV)
   const pool = new Pool({ connectionString: env.DATABASE_URL })
   try {
     const { rows } = await pool.query(

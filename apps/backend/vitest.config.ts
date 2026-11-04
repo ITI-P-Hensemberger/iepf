@@ -9,11 +9,11 @@ export default defineConfig({
     }
   },
   test: {
-    // Run tests sequentially to avoid SQLite lock contention.
+    // Integration tests share one isolated PostgreSQL database.
     sequence: {
       concurrent: false
     },
-    setupFiles: ['./src/tests/global-setup.ts'],
+    testTimeout: 30000,
     // Allow schema pushes to finish in slower environments.
     hookTimeout: 30000,
     fileParallelism: false,

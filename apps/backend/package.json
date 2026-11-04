@@ -2,6 +2,7 @@
   "name": "iepf-backend",
   "type": "module",
   "version": "1.0.0",
+  "packageManager": "pnpm@10.28.2",
   "license": "SEE LICENSE IN LICENSE",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -9,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "pnpm run lint --fix",
-    "test": "cross-env NODE_ENV=test vitest",
+    "test": "cross-env NODE_ENV=test vitest run",
     "build": "tsc && tsc-alias",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
@@ -28,7 +29,9 @@
     "seed:all-mock-data": "tsx src/scripts/seed-admin.ts && tsx src/scripts/seed-activator.ts && tsx src/scripts/seed-class-sections.ts && tsx src/scripts/seed-subjects.ts && tsx src/scripts/seed-mock-users.ts && tsx src/scripts/seed-mock-tutor-subjects.ts && tsx src/scripts/seed-mock-tutor-weekday-availability.ts && tsx src/scripts/generate-weekly-lessons.ts && tsx src/scripts/seed-mock-lesson-bookings.ts",
     "generate:lessons": "tsx src/scripts/generate-weekly-lessons.ts",
     "remind:feedback": "tsx src/scripts/remind-missing-feedback.ts",
-    "remind:lessons": "tsx src/scripts/remind-upcoming-lessons.ts"
+    "remind:lessons": "tsx src/scripts/remind-upcoming-lessons.ts",
+    "test:watch": "cross-env NODE_ENV=test vitest",
+    "seed:dev": "tsx src/scripts/seed-dev.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.9",

@@ -2,16 +2,17 @@
 
 FROM node:22-bookworm-slim AS base
 WORKDIR /app
+RUN npm install --global pnpm@10.28.2
 
 FROM base AS deps
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
 
 FROM base AS build
-COPY package.json package-lock.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY --from=deps /app/node_modules /app/node_modules
 COPY . .
-RUN npm run build
+RUN pnpm run build
 
 FROM build AS migrate
 CMD ["npm", "run", "db:migrate"]
@@ -26,7 +27,7 @@ FROM build AS cron-remind-lessons
 CMD ["npm", "run", "remind:lessons"]
 
 FROM deps AS prod-deps
-RUN npm prune --omit=dev
+RUN pnpm prune --prod
 
 FROM base AS runner
 ENV NODE_ENV=production

@@ -16,8 +16,10 @@
 - `pnpm run start` — run the compiled server from `dist/`.
 - `pnpm run typecheck` — type-check without emitting.
 - `pnpm run lint` / `pnpm run lint:fix` — ESLint checks and auto-fix.
-- `pnpm run test` — run Vitest with `NODE_ENV=test`.
-- DB utilities: `pnpm run db:generate`, `db:push`, `db:migrate`, `db:studio`, `db:reset`.
+- `pnpm run test` — run Vitest once with `NODE_ENV=test`; `test:watch` watches.
+- Use Node 22 and pnpm 10.28.2; `pnpm-lock.yaml` is the sole dependency lockfile.
+- Full local setup lives in sibling `iepf-infra`: `make setup`, `make dev`, `make seed`, `make test`, `make check`.
+- DB utilities: `pnpm run db:generate`, `db:push`, `db:migrate`, `db:studio`, `db:clean` (managed local databases only).
 
 ## Coding Style & Naming Conventions
 - TypeScript, ESM modules, 2-space indentation, single quotes, and no semicolons.
@@ -27,9 +29,9 @@
 
 ## Testing Guidelines
 - Framework: Vitest. Tests live in `src/tests/` and use `*.test.ts` naming.
-- Use helpers from `src/tests/test-helpers.ts` and `testClient(createTestApp(router))`.
+- Integration tests use real PostgreSQL and Mailpit through `make test` in infra. The DB must be named `iepf_test`; migrations run before tests.
 - Tests run sequentially; avoid concurrency assumptions.
-- Run a targeted test with `pnpm run test -- src/tests/users.test.ts`.
+- Run a targeted test with `pnpm run test -- src/tests/local-integration.test.ts`.
 
 ## Commit & Pull Request Guidelines
 - Commit messages are short, imperative, sentence case (e.g., “Fix migration journal seeding”).
