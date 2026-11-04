@@ -100,3 +100,10 @@ IEPF Frontend is a Next.js 16 App Router project for an Italian educational plat
 - Avoid adding new dependencies unless necessary
 - When adding a shared pattern, prefer a reusable component in `components/` or `components/ui/`
 
+
+## Delivery
+- `.github/workflows/ci-release.yml` runs npm-based typecheck, lint, and build on pull requests and main.
+- Main publishes a linux/amd64 image to GHCR and dispatches its immutable digest to `ITI-P-Hensemberger/iepf-infra`.
+- Production activation, health checks, and rollback are managed by the infra repository.
+- `INFRA_DISPATCH_TOKEN` is a repository secret scoped to dispatching events to the infra repository.
+- Docker excludes all local `.env.*` files; `API_BASE_URL` is supplied at runtime.
