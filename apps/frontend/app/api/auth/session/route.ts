@@ -1,0 +1,42 @@
+import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
+
+import { AUTH_COOKIES, fetchUserProfile, refreshWithProfile } from '@/lib/auth'
+import { setAuthCookies } from '@/lib/auth-cookies'
+
+export async function GET(request: Request) {
+  const apiBaseUrl =
+    process.env.API_BASE_URL ?? 'http://localhost:9999'
+  const cookieStore = await cookies()
+  const accessToken = cookieStore.get(AUTH_COOKIES.access)?.value
+  const refreshToken = cookieStore.get(AUTH_COOKIES.refresh)?.value
+  const accessExpiresAt = cookieStore.get(AUTH_COOKIES.accessExpiresAt)?.value
+  const remember = cookieStore.get(AUTH_COOKIES.remember)?.value === 'true'
+
+  const isExpired =
+    !accessExpiresAt || Number.isNaN(Number(accessExpiresAt))
+      ? true
+      : Date.now() >= Number(accessExpiresAt)
+
+  try {
+    if ((!accessToken || isExpired) && refreshToken) {
+      const { tokens, profile } = await refreshWithProfile(
+        apiBaseUrl,
+        refreshToken,
+        request.headers
+      )
+      const response = NextResponse.json(profile)
+      setAuthCookies(response, tokens, remember)
+      return response
+    }
+
+    if (!accessToken) {
+      return NextResponse.json(null)
+    }
+
+    const profile = await fetchUserProfile(apiBaseUrl, accessToken, request.headers)
+    return NextResponse.json(profile)
+  } catch {
+    return NextResponse.json(null)
+  }
+}
