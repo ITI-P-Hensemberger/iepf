@@ -6,6 +6,7 @@ import { and, asc, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 import { randomUUID } from 'node:crypto'
 
+import type { DbExecutor, DbTransaction } from '@/lib/lesson-tokens'
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
@@ -26,7 +27,7 @@ import {
 import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
-import { getStudentTokenBalance } from '@/lib/lesson-tokens'
+import { getStudentTokenBalance, lockUsers } from '@/lib/lesson-tokens'
 import { sendMail } from '@/lib/mailer'
 import { buildPagedResponse } from '@/lib/pagination'
 import { containsProfanity } from '@/lib/profanity'
@@ -164,8 +165,12 @@ function sameDay(a: Date, b: Date) {
     && a.getDate() === b.getDate()
 }
 
-async function getTutorDailyCapacity(tutorId: string): Promise<number> {
-  const settings = await db.query.tutorSettings.findFirst({
+function rejection<S extends number>(message: string, status: S) {
+  return { rejected: true as const, message, status }
+}
+
+async function getTutorDailyCapacity(tutorId: string, executor: DbExecutor = db): Promise<number> {
+  const settings = await executor.query.tutorSettings.findFirst({
     where(fields, operators) {
       return operators.eq(fields.tutorId, tutorId)
     },
@@ -174,8 +179,8 @@ async function getTutorDailyCapacity(tutorId: string): Promise<number> {
   return settings?.dailyCapacity ?? 1
 }
 
-async function cancelConfirmedBookings(lessonId: string, adminId: string) {
-  const bookings = await db.query.lessonBookings.findMany({
+async function cancelConfirmedBookings(tx: DbTransaction, lessonId: string, adminId: string) {
+  const bookings = await tx.query.lessonBookings.findMany({
     where(fields, operators) {
       return operators.and(
         operators.eq(fields.lessonId, lessonId),
@@ -185,7 +190,7 @@ async function cancelConfirmedBookings(lessonId: string, adminId: string) {
   })
 
   for (const booking of bookings) {
-    await db.update(lessonBookings)
+    await tx.update(lessonBookings)
       .set({
         status: 'canceled',
         canceledAt: new Date(),
@@ -196,7 +201,7 @@ async function cancelConfirmedBookings(lessonId: string, adminId: string) {
       })
       .where(eq(lessonBookings.id, booking.id))
 
-    await db.insert(tokenLedger).values({
+    await tx.insert(tokenLedger).values({
       studentId: booking.studentId,
       lessonId,
       delta: 1,
@@ -209,13 +214,13 @@ function getDateKey(date: Date): string {
   return date.toISOString().split('T')[0]
 }
 
-async function getTutorDailyBookingCount(tutorId: string, date: Date): Promise<number> {
+async function getTutorDailyBookingCount(tutorId: string, date: Date, executor: DbExecutor = db): Promise<number> {
   const dayStart = new Date(date)
   dayStart.setHours(0, 0, 0, 0)
   const dayEnd = new Date(date)
   dayEnd.setHours(23, 59, 59, 999)
 
-  const tutorLessons = await db.query.lessons.findMany({
+  const tutorLessons = await executor.query.lessons.findMany({
     where(fields, operators) {
       return operators.and(
         operators.eq(fields.tutorId, tutorId),
@@ -231,7 +236,7 @@ async function getTutorDailyBookingCount(tutorId: string, date: Date): Promise<n
   }
 
   const lessonIds = tutorLessons.map(l => l.id)
-  const bookings = await db.query.lessonBookings.findMany({
+  const bookings = await executor.query.lessonBookings.findMany({
     where(fields, operators) {
       return operators.and(
         operators.inArray(fields.lessonId, lessonIds),
@@ -244,14 +249,14 @@ async function getTutorDailyBookingCount(tutorId: string, date: Date): Promise<n
   return bookings.length
 }
 
-async function getStudentDailyBookingCount(studentId: string, date: Date): Promise<number> {
+async function getStudentDailyBookingCount(studentId: string, date: Date, executor: DbExecutor = db): Promise<number> {
   const dayStart = new Date(date)
   dayStart.setHours(0, 0, 0, 0)
   const dayEnd = new Date(date)
   dayEnd.setHours(23, 59, 59, 999)
 
-  const [{ total }] = await db
-    .select({ total: sql<number>`count(*)` })
+  const [{ total }] = await executor
+    .select({ total: sql<number>`count(*)::int` })
     .from(lessonBookings)
     .innerJoin(lessons, eq(lessonBookings.lessonId, lessons.id))
     .where(and(
@@ -646,7 +651,7 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
 
     const canBook = studentActive
       && hasTokens
-      && lesson.status === 'scheduled'
+      && (lesson.status === 'scheduled' || lesson.status === 'confirmed')
       && !sameDayOrAfter(now, new Date(lesson.startAt))
       && now < bookingCutoff
       && !bookedLessonIds.has(lesson.id)
@@ -831,13 +836,14 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
-  const lesson = await db.query.lessons.findFirst({
+  const lessonOwner = await db.query.lessons.findFirst({
     where(fields, operators) {
       return operators.eq(fields.id, lessonId)
-    }
+    },
+    columns: { tutorId: true }
   })
 
-  if (!lesson) {
+  if (!lessonOwner) {
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
@@ -845,48 +851,57 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
     return c.json(buildErrorResponse(HttpStatusPhrases.PROFANITY_DETECTED), HttpStatusCodes.BAD_REQUEST)
   }
 
-  if (!isAdmin) {
-    if (lesson.status === 'canceled' || lesson.status === 'completed') {
-      return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
+  // Student balance/daily limit and tutor capacity are checked and written under the same locks.
+  const outcome = await db.transaction(async (tx) => {
+    await lockUsers(tx, [studentUser.id, lessonOwner.tutorId])
+
+    const [lesson] = await tx.select().from(lessons).where(eq(lessons.id, lessonId)).for('update')
+
+    if (!lesson) {
+      return rejection(HttpStatusPhrases.NOT_FOUND, HttpStatusCodes.NOT_FOUND)
     }
 
-    if (lesson.status !== 'scheduled') {
-      return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
+    if (!isAdmin) {
+      // The first booking turns a lesson 'confirmed'; remaining seats stay bookable.
+      if (lesson.status !== 'scheduled' && lesson.status !== 'confirmed') {
+        return rejection(HttpStatusPhrases.BAD_REQUEST, HttpStatusCodes.BAD_REQUEST)
+      }
+
+      const lessonStart = new Date(lesson.startAt)
+      if (sameDayOrAfter(new Date(), lessonStart)) {
+        return rejection(HttpStatusPhrases.BAD_REQUEST, HttpStatusCodes.BAD_REQUEST)
+      }
+
+      const bookingCutoff = new Date(lessonStart)
+      bookingCutoff.setDate(lessonStart.getDate() - 1)
+      bookingCutoff.setHours(20, 0, 0, 0)
+      if (new Date() >= bookingCutoff) {
+        return rejection(HttpStatusPhrases.BAD_REQUEST, HttpStatusCodes.BAD_REQUEST)
+      }
     }
 
-    const lessonStart = new Date(lesson.startAt)
-    if (sameDayOrAfter(new Date(), lessonStart)) {
-      return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
+    const studentProfile = await tx.query.studentProfiles.findFirst({
+      where(fields, operators) {
+        return operators.eq(fields.userId, studentUser.id)
+      },
+      columns: {
+        isActive: true
+      }
+    })
+
+    if (!studentProfile?.isActive) {
+      return rejection(HttpStatusPhrases.FORBIDDEN, HttpStatusCodes.FORBIDDEN)
     }
 
-    const bookingCutoff = new Date(lessonStart)
-    bookingCutoff.setDate(lessonStart.getDate() - 1)
-    bookingCutoff.setHours(20, 0, 0, 0)
-    if (new Date() >= bookingCutoff) {
-      return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
-    }
-  }
-
-  const studentProfile = await db.query.studentProfiles.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.userId, studentUser.id)
-    },
-    columns: {
-      isActive: true
-    }
-  })
-
-  if (!studentProfile?.isActive) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
-  }
-
-  if (!isAdmin) {
-    const tokenBalance = await getStudentTokenBalance(studentUser.id)
-    if (tokenBalance <= 0) {
-      return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
+    if (!isAdmin) {
+      const tokenBalance = await getStudentTokenBalance(studentUser.id, tx)
+      if (tokenBalance <= 0) {
+        return rejection(HttpStatusPhrases.FORBIDDEN, HttpStatusCodes.FORBIDDEN)
+      }
     }
 
-    const existingBooking = await db.query.lessonBookings.findFirst({
+    // Admins may override capacity, but a student can hold only one active booking per lesson.
+    const existingBooking = await tx.query.lessonBookings.findFirst({
       where(fields, operators) {
         return operators.and(
           operators.eq(fields.lessonId, lesson.id),
@@ -898,61 +913,77 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
     })
 
     if (existingBooking) {
-      return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
+      return rejection(HttpStatusPhrases.CONFLICT, HttpStatusCodes.CONFLICT)
     }
 
-    const studentDailyBookings = await getStudentDailyBookingCount(studentUser.id, new Date(lesson.startAt))
-    if (studentDailyBookings >= 1) {
-      return c.json(buildErrorResponse(HttpStatusPhrases.STUDENT_DAILY_BOOKING_LIMIT), HttpStatusCodes.CONFLICT)
+    if (!isAdmin) {
+      const studentDailyBookings = await getStudentDailyBookingCount(studentUser.id, new Date(lesson.startAt), tx)
+      if (studentDailyBookings >= 1) {
+        return rejection(HttpStatusPhrases.STUDENT_DAILY_BOOKING_LIMIT, HttpStatusCodes.CONFLICT)
+      }
     }
+
+    const dailyCapacity = await getTutorDailyCapacity(lesson.tutorId, tx)
+    const dailyBookings = await getTutorDailyBookingCount(lesson.tutorId, new Date(lesson.startAt), tx)
+
+    const bookingCount = await tx.query.lessonBookings.findMany({
+      where(fields, operators) {
+        return operators.and(
+          operators.eq(fields.lessonId, lesson.id),
+          operators.eq(fields.status, 'confirmed')
+        )
+      },
+      columns: { id: true }
+    })
+
+    if (!isAdmin) {
+      if (dailyBookings >= dailyCapacity) {
+        return rejection(HttpStatusPhrases.CONFLICT, HttpStatusCodes.CONFLICT)
+      }
+
+      if (bookingCount.length >= lesson.seats) {
+        return rejection(HttpStatusPhrases.CONFLICT, HttpStatusCodes.CONFLICT)
+      }
+    }
+
+    const [booking] = await tx.insert(lessonBookings).values({
+      lessonId: lesson.id,
+      studentId: studentUser.id,
+      topic: payload.topic,
+      status: 'confirmed',
+      countsForStudent: true
+    }).returning({
+      id: lessonBookings.id,
+      lessonId: lessonBookings.lessonId,
+      studentId: lessonBookings.studentId,
+      topic: lessonBookings.topic,
+      status: lessonBookings.status,
+      countsForStudent: lessonBookings.countsForStudent,
+      studentPresence: lessonBookings.studentPresence,
+      studentPresenceAt: lessonBookings.studentPresenceAt
+    })
+
+    await tx.insert(tokenLedger).values({
+      studentId: studentUser.id,
+      lessonId: lesson.id,
+      delta: -1,
+      reason: 'lesson_booking'
+    })
+
+    if (lesson.status === 'scheduled') {
+      await tx.update(lessons)
+        .set({ status: 'confirmed' })
+        .where(eq(lessons.id, lesson.id))
+    }
+
+    return { rejected: false as const, lesson, booking, dailyCapacity, dailyBookings, confirmedCount: bookingCount.length }
+  })
+
+  if (outcome.rejected) {
+    return c.json(buildErrorResponse(outcome.message), outcome.status)
   }
 
-  const dailyCapacity = await getTutorDailyCapacity(lesson.tutorId)
-  const dailyBookings = await getTutorDailyBookingCount(lesson.tutorId, new Date(lesson.startAt))
-
-  const bookingCount = await db.query.lessonBookings.findMany({
-    where(fields, operators) {
-      return operators.and(
-        operators.eq(fields.lessonId, lesson.id),
-        operators.eq(fields.status, 'confirmed')
-      )
-    },
-    columns: { id: true }
-  })
-
-  if (!isAdmin) {
-    if (dailyBookings >= dailyCapacity) {
-      return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
-    }
-
-    if (bookingCount.length >= lesson.seats) {
-      return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
-    }
-  }
-
-  const [booking] = await db.insert(lessonBookings).values({
-    lessonId: lesson.id,
-    studentId: studentUser.id,
-    topic: payload.topic,
-    status: 'confirmed',
-    countsForStudent: true
-  }).returning({
-    id: lessonBookings.id,
-    lessonId: lessonBookings.lessonId,
-    studentId: lessonBookings.studentId,
-    topic: lessonBookings.topic,
-    status: lessonBookings.status,
-    countsForStudent: lessonBookings.countsForStudent,
-    studentPresence: lessonBookings.studentPresence,
-    studentPresenceAt: lessonBookings.studentPresenceAt
-  })
-
-  await db.insert(tokenLedger).values({
-    studentId: studentUser.id,
-    lessonId: lesson.id,
-    delta: -1,
-    reason: 'lesson_booking'
-  })
+  const { lesson, booking, dailyCapacity, dailyBookings, confirmedCount } = outcome
 
   const lessonDetails = await fetchLessonEmailDetails(lesson.id, lesson.tutorId, lesson.subjectId)
   const studentsMap = await fetchStudentsDetails([studentUser.id])
@@ -997,13 +1028,7 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
     }
   }
 
-  if (lesson.status === 'scheduled') {
-    await db.update(lessons)
-      .set({ status: 'confirmed' })
-      .where(eq(lessons.id, lesson.id))
-  }
-
-  const updatedConfirmedCount = bookingCount.length + 1
+  const updatedConfirmedCount = confirmedCount + 1
   const updatedDailyBookings = dailyBookings + 1
   const availableSeats = Math.max(0, Math.min(
     lesson.seats - updatedConfirmedCount,
@@ -1106,19 +1131,31 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
 
   const shouldRefund = !countsForStudent
 
-  await db.update(lessonBookings)
-    .set({
-      status: 'canceled',
-      canceledAt: new Date(),
-      canceledBy: currentUser.id,
-      studentPresence: null,
-      studentPresenceAt: null,
-      countsForStudent
-    })
-    .where(eq(lessonBookings.id, bookingId))
+  // Locks make a repeated cancellation fail instead of refunding the token twice.
+  const canceled = await db.transaction(async (tx) => {
+    await lockUsers(tx, [booking.studentId, lesson.tutorId])
 
-  if (lesson.status === 'confirmed') {
-    const remaining = await db.query.lessonBookings.findMany({
+    const [lockedBooking] = await tx.select({ status: lessonBookings.status })
+      .from(lessonBookings)
+      .where(eq(lessonBookings.id, bookingId))
+      .for('update')
+
+    if (lockedBooking?.status !== 'confirmed') {
+      return false
+    }
+
+    await tx.update(lessonBookings)
+      .set({
+        status: 'canceled',
+        canceledAt: new Date(),
+        canceledBy: currentUser.id,
+        studentPresence: null,
+        studentPresenceAt: null,
+        countsForStudent
+      })
+      .where(eq(lessonBookings.id, bookingId))
+
+    const remaining = await tx.query.lessonBookings.findMany({
       where(fields, operators) {
         return operators.and(
           operators.eq(fields.lessonId, lesson.id),
@@ -1129,19 +1166,25 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
     })
 
     if (remaining.length === 0) {
-      await db.update(lessons)
+      await tx.update(lessons)
         .set({ status: 'scheduled' })
-        .where(eq(lessons.id, lesson.id))
+        .where(and(eq(lessons.id, lesson.id), eq(lessons.status, 'confirmed')))
     }
-  }
 
-  if (shouldRefund) {
-    await db.insert(tokenLedger).values({
-      studentId: booking.studentId,
-      lessonId: lesson.id,
-      delta: 1,
-      reason: 'lesson_cancel_student'
-    })
+    if (shouldRefund) {
+      await tx.insert(tokenLedger).values({
+        studentId: booking.studentId,
+        lessonId: lesson.id,
+        delta: 1,
+        reason: 'lesson_cancel_student'
+      })
+    }
+
+    return true
+  })
+
+  if (!canceled) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
   const lessonDetails = await fetchLessonEmailDetails(lesson.id, lesson.tutorId, lesson.subjectId)
@@ -1244,33 +1287,13 @@ export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
     forbid()
   }
 
-  if (isTutor) {
-    const confirmedBookings = await db.query.lessonBookings.findMany({
-      where(fields, operators) {
-        return operators.and(
-          operators.eq(fields.lessonId, lesson.id),
-          operators.eq(fields.status, 'confirmed')
-        )
-      },
-      columns: { id: true }
-    })
-
-    if (confirmedBookings.length > 0) {
-      return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
-    }
-  }
-
   const countsForTutor = isAdmin ? (payload?.countsForTutor ?? false) : false
 
-  await db.update(lessons)
-    .set({ status: 'canceled', countsForTutor })
-    .where(eq(lessons.id, lessonId))
+  // The tutor lock serializes this with new bookings, so none can slip in unrefunded.
+  const confirmedBookings = await db.transaction(async (tx) => {
+    await lockUsers(tx, [lesson.tutorId])
 
-  let confirmedStudentIds: string[] = []
-  const topicsByStudentId = new Map<string, string | null>()
-  let confirmedTopics: string[] = []
-  if (isAdmin) {
-    const confirmedBookings = await db.query.lessonBookings.findMany({
+    const bookings = await tx.query.lessonBookings.findMany({
       where(fields, operators) {
         return operators.and(
           operators.eq(fields.lessonId, lesson.id),
@@ -1279,6 +1302,30 @@ export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
       },
       columns: { studentId: true, topic: true }
     })
+
+    if (isTutor && bookings.length > 0) {
+      return null
+    }
+
+    await tx.update(lessons)
+      .set({ status: 'canceled', countsForTutor })
+      .where(eq(lessons.id, lessonId))
+
+    if (isAdmin) {
+      await cancelConfirmedBookings(tx, lessonId, currentUser.id)
+    }
+
+    return bookings
+  })
+
+  if (!confirmedBookings) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
+  }
+
+  let confirmedStudentIds: string[] = []
+  const topicsByStudentId = new Map<string, string | null>()
+  let confirmedTopics: string[] = []
+  if (isAdmin) {
     confirmedStudentIds = confirmedBookings.map(booking => booking.studentId)
     confirmedTopics = confirmedBookings
       .map(booking => booking.topic?.trim())
@@ -1286,7 +1333,6 @@ export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
     for (const booking of confirmedBookings) {
       topicsByStudentId.set(booking.studentId, booking.topic ?? null)
     }
-    await cancelConfirmedBookings(lessonId, currentUser.id)
   }
 
   if (isAdmin && confirmedStudentIds.length > 0) {
@@ -1552,48 +1598,49 @@ export const updateBookingCounts: AppRouteHandler<UpdateBookingCountsRoute> = as
   const payload = c.req.valid('json')
   ensureAdmin(c)
 
-  const booking = await db.query.lessonBookings.findFirst({
-    where(fields, operators) {
-      return operators.and(
-        operators.eq(fields.id, bookingId),
-        operators.eq(fields.lessonId, lessonId)
-      )
+  const outcome = await db.transaction(async (tx) => {
+    const [booking] = await tx.select()
+      .from(lessonBookings)
+      .where(and(eq(lessonBookings.id, bookingId), eq(lessonBookings.lessonId, lessonId)))
+      .for('update')
+
+    if (!booking) {
+      return null
     }
+
+    const [updated] = await tx.update(lessonBookings)
+      .set({ countsForStudent: payload.countsForStudent })
+      .where(eq(lessonBookings.id, bookingId))
+      .returning({
+        id: lessonBookings.id,
+        lessonId: lessonBookings.lessonId,
+        studentId: lessonBookings.studentId,
+        topic: lessonBookings.topic,
+        status: lessonBookings.status,
+        countsForStudent: lessonBookings.countsForStudent,
+        studentPresence: lessonBookings.studentPresence,
+        studentPresenceAt: lessonBookings.studentPresenceAt
+      })
+
+    if (booking.countsForStudent !== payload.countsForStudent) {
+      await tx.insert(tokenLedger).values({
+        studentId: booking.studentId,
+        lessonId: booking.lessonId,
+        delta: payload.countsForStudent ? -1 : 1,
+        reason: 'lesson_counts_adjusted'
+      })
+    }
+
+    return updated
   })
 
-  if (!booking) {
+  if (!outcome) {
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
-  const countsForStudentChanged = booking.countsForStudent !== payload.countsForStudent
-
-  const [updated] = await db.update(lessonBookings)
-    .set({ countsForStudent: payload.countsForStudent })
-    .where(eq(lessonBookings.id, bookingId))
-    .returning({
-      id: lessonBookings.id,
-      lessonId: lessonBookings.lessonId,
-      studentId: lessonBookings.studentId,
-      topic: lessonBookings.topic,
-      status: lessonBookings.status,
-      countsForStudent: lessonBookings.countsForStudent,
-      studentPresence: lessonBookings.studentPresence,
-      studentPresenceAt: lessonBookings.studentPresenceAt
-    })
-
-  if (countsForStudentChanged) {
-    const delta = payload.countsForStudent ? -1 : 1
-    await db.insert(tokenLedger).values({
-      studentId: booking.studentId,
-      lessonId: booking.lessonId,
-      delta,
-      reason: 'lesson_counts_adjusted'
-    })
-  }
-
   return c.json({
-    ...updated,
-    studentPresenceAt: updated.studentPresenceAt ? updated.studentPresenceAt.toISOString() : null
+    ...outcome,
+    studentPresenceAt: outcome.studentPresenceAt ? outcome.studentPresenceAt.toISOString() : null
   }, HttpStatusCodes.OK)
 }
 
@@ -1618,90 +1665,110 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
 
   const newStartAt = new Date(payload.startAt)
 
-  const dailyCapacity = await getTutorDailyCapacity(payload.tutorId)
-  const seats = dailyCapacity
+  const outcome = await db.transaction(async (tx) => {
+    await lockUsers(tx, [lesson.tutorId, payload.tutorId])
 
-  const [newLesson] = await db.insert(lessons).values({
-    tutorId: payload.tutorId,
-    subjectId: payload.subjectId,
-    startAt: newStartAt,
-    durationMinutes: payload.durationMinutes,
-    seats,
-    status: lesson.status
-  }).returning({
-    id: lessons.id,
-    countsForTutor: lessons.countsForTutor
-  })
+    const [lockedLesson] = await tx.select({ status: lessons.status })
+      .from(lessons)
+      .where(eq(lessons.id, lesson.id))
+      .for('update')
 
-  await db.update(lessons)
-    .set({ status: 'canceled', countsForTutor: false })
-    .where(eq(lessons.id, lesson.id))
-
-  const existingBookings = await db.query.lessonBookings.findMany({
-    where(fields, operators) {
-      return operators.and(
-        operators.eq(fields.lessonId, lesson.id),
-        operators.eq(fields.status, 'confirmed')
-      )
-    },
-    columns: {
-      id: true,
-      studentId: true,
-      topic: true,
-      countsForStudent: true,
-      studentPresence: true,
-      studentPresenceAt: true
+    if (!lockedLesson || lockedLesson.status === 'completed' || lockedLesson.status === 'canceled') {
+      return null
     }
-  })
 
-  if (existingBookings.length > 0) {
-    const bookingIdMap = new Map<string, string>()
-    const newBookingRows = existingBookings.map((booking) => {
-      const newId = randomUUID()
-      bookingIdMap.set(booking.id, newId)
-      return {
-        id: newId,
-        lessonId: newLesson.id,
-        studentId: booking.studentId,
-        topic: booking.topic,
-        status: 'confirmed',
-        countsForStudent: booking.countsForStudent,
-        studentPresence: booking.studentPresence,
-        studentPresenceAt: booking.studentPresenceAt
+    const seats = await getTutorDailyCapacity(payload.tutorId, tx)
+
+    const [createdLesson] = await tx.insert(lessons).values({
+      tutorId: payload.tutorId,
+      subjectId: payload.subjectId,
+      startAt: newStartAt,
+      durationMinutes: payload.durationMinutes,
+      seats,
+      status: lockedLesson.status
+    }).returning({
+      id: lessons.id,
+      countsForTutor: lessons.countsForTutor
+    })
+
+    await tx.update(lessons)
+      .set({ status: 'canceled', countsForTutor: false })
+      .where(eq(lessons.id, lesson.id))
+
+    const bookings = await tx.query.lessonBookings.findMany({
+      where(fields, operators) {
+        return operators.and(
+          operators.eq(fields.lessonId, lesson.id),
+          operators.eq(fields.status, 'confirmed')
+        )
+      },
+      columns: {
+        id: true,
+        studentId: true,
+        topic: true,
+        countsForStudent: true,
+        studentPresence: true,
+        studentPresenceAt: true
       }
     })
 
-    await db.insert(lessonBookings).values(newBookingRows)
-
-    if (existingBookings.some(booking => booking.studentPresence !== null)) {
-      await db.update(lessons)
-        .set({ countsForTutor: true })
-        .where(eq(lessons.id, newLesson.id))
-    }
-
-    for (const [oldBookingId, newBookingId] of bookingIdMap) {
-      await db.update(lessonFeedback)
-        .set({
-          lessonId: newLesson.id,
-          bookingId: newBookingId
-        })
-        .where(eq(lessonFeedback.bookingId, oldBookingId))
-    }
-
-    await db.update(lessonBookings)
-      .set({
-        status: 'canceled',
-        canceledAt: new Date(),
-        canceledBy: admin.id,
-        countsForStudent: false,
-        studentPresence: null,
-        studentPresenceAt: null
+    if (bookings.length > 0) {
+      const bookingIdMap = new Map<string, string>()
+      const newBookingRows = bookings.map((booking) => {
+        const newId = randomUUID()
+        bookingIdMap.set(booking.id, newId)
+        return {
+          id: newId,
+          lessonId: createdLesson.id,
+          studentId: booking.studentId,
+          topic: booking.topic,
+          status: 'confirmed',
+          countsForStudent: booking.countsForStudent,
+          studentPresence: booking.studentPresence,
+          studentPresenceAt: booking.studentPresenceAt
+        }
       })
-      .where(and(
-        eq(lessonBookings.lessonId, lesson.id),
-        eq(lessonBookings.status, 'confirmed')
-      ))
+
+      await tx.insert(lessonBookings).values(newBookingRows)
+
+      if (bookings.some(booking => booking.studentPresence !== null)) {
+        await tx.update(lessons)
+          .set({ countsForTutor: true })
+          .where(eq(lessons.id, createdLesson.id))
+      }
+
+      for (const [oldBookingId, newBookingId] of bookingIdMap) {
+        await tx.update(lessonFeedback)
+          .set({
+            lessonId: createdLesson.id,
+            bookingId: newBookingId
+          })
+          .where(eq(lessonFeedback.bookingId, oldBookingId))
+      }
+
+      await tx.update(lessonBookings)
+        .set({
+          status: 'canceled',
+          canceledAt: new Date(),
+          canceledBy: admin.id,
+          countsForStudent: false,
+          studentPresence: null,
+          studentPresenceAt: null
+        })
+        .where(and(
+          eq(lessonBookings.lessonId, lesson.id),
+          eq(lessonBookings.status, 'confirmed')
+        ))
+    }
+
+    return { newLesson: createdLesson, existingBookings: bookings }
+  })
+
+  if (!outcome) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
+
+  const { newLesson, existingBookings } = outcome
 
   if (existingBookings.length > 0) {
     const studentIds = existingBookings.map(booking => booking.studentId)

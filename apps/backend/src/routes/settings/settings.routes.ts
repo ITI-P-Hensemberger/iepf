@@ -73,7 +73,8 @@ export const mySettingsSchema = z.object({
 })
 
 export const resetSchoolYearSchema = z.object({
-  confirmation: z.literal('RESET')
+  confirmation: z.literal('RESET'),
+  password: z.string().min(1).max(200)
 })
 
 export const resetSchoolYearResultSchema = z.object({
@@ -155,6 +156,7 @@ export const resetSchoolYear = createRoute({
   request: { body: jsonContentRequired(resetSchoolYearSchema, 'Reset confirmation') },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(resetSchoolYearResultSchema, 'School year reset'),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN), 'Wrong password or impersonated session'),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(createErrorSchema(resetSchoolYearSchema), 'Invalid confirmation')
   }
 })

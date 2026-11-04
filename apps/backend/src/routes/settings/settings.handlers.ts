@@ -1,7 +1,7 @@
 // Purpose: Global settings handlers for admins and role-specific consumers.
 import type { Context } from 'hono'
 
-import { eq, inArray } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
@@ -10,8 +10,10 @@ import db from '@/db'
 import { globalSettings } from '@/db/schemas/global-settings.schema'
 import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
 import { users } from '@/db/schemas/users.schema'
+import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { verifyPassword } from '@/lib/password'
 
 import type {
   GetAdminSettingsRoute,
@@ -130,21 +132,33 @@ export const updateAdminSettings: AppRouteHandler<UpdateAdminSettingsRoute> = as
 }
 
 export const resetSchoolYear: AppRouteHandler<ResetSchoolYearRoute> = async (c) => {
-  ensureAdmin(c)
-  c.req.valid('json')
+  const admin = ensureAdmin(c)
+  const { password } = c.req.valid('json')
 
-  const [studentRows, tutorRows] = await Promise.all([
-    db.select({ id: users.id }).from(users).where(eq(users.role, 'student')),
-    db.select({ id: users.id }).from(users).where(eq(users.role, 'tutor'))
-  ])
+  // The deletion cascades to all school-year data: require the real admin, re-authenticated.
+  if (c.get('impersonation')) {
+    return c.json(buildErrorResponse('Reset non consentito durante una sessione impersonata'), HttpStatusCodes.FORBIDDEN)
+  }
 
-  await db.transaction(async (tx) => {
-    await tx.delete(tutorInviteTokens)
-    await tx.delete(users).where(inArray(users.id, studentRows.map(user => user.id)))
-    await tx.delete(users).where(inArray(users.id, tutorRows.map(user => user.id)))
+  const account = await db.query.users.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.id, admin.id)
+    },
+    columns: { passwordHash: true }
   })
 
-  return c.json({ deletedStudents: studentRows.length, deletedTutors: tutorRows.length }, HttpStatusCodes.OK)
+  if (!account || !await verifyPassword(account.passwordHash, password)) {
+    return c.json(buildErrorResponse('Password non corretta'), HttpStatusCodes.FORBIDDEN)
+  }
+
+  const result = await db.transaction(async (tx) => {
+    await tx.delete(tutorInviteTokens)
+    const students = await tx.delete(users).where(eq(users.role, 'student')).returning({ id: users.id })
+    const tutors = await tx.delete(users).where(eq(users.role, 'tutor')).returning({ id: users.id })
+    return { deletedStudents: students.length, deletedTutors: tutors.length }
+  })
+
+  return c.json(result, HttpStatusCodes.OK)
 }
 
 export const getMySettings: AppRouteHandler<GetMySettingsRoute> = async (c) => {

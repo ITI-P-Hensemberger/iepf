@@ -13,6 +13,11 @@ function requestIp(c: Context) {
 
 export function auditLogger() {
   return async (c: Context, next: Next) => {
+    // Container probes run every few seconds and are not user activity.
+    if (c.req.path === '/health') {
+      return next()
+    }
+
     const start = Date.now()
     await next()
 

@@ -7,7 +7,11 @@ import * as routes from './feedback.routes'
 
 const router = createRouter()
 
-router.use('*', authenticate())
+// Routers are mounted at '/': a '*' middleware here would also guard later public routes.
+router.use('/feedback', authenticate())
+router.use('/feedback/*', authenticate())
+router.use('/lessons/:lessonId/feedback', authenticate())
+router.use('/lessons/:lessonId/feedback/*', authenticate())
 
 router.openapi(routes.createLessonFeedback, handlers.createLessonFeedback)
 router.openapi(routes.updateLessonFeedback, handlers.updateLessonFeedback)

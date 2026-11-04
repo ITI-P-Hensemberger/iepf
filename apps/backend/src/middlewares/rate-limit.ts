@@ -11,7 +11,11 @@ interface RateLimitOptions {
   windowMs: number
   max: number
   keyPrefix: string
+  // Narrows the bucket beyond the client IP, e.g. to one account behind a shared school NAT.
+  discriminator?: (c: Context<AppBindings>) => Promise<string | null>
 }
+
+const PRUNE_THRESHOLD = 10_000
 
 interface RateLimitEntry {
   count: number
@@ -46,7 +50,15 @@ export function rateLimit(options: RateLimitOptions): MiddlewareHandler<AppBindi
     }
 
     const now = Date.now()
-    const key = `${options.keyPrefix}:${getClientKey(c)}`
+    const discriminator = options.discriminator ? await options.discriminator(c) : null
+    const key = [options.keyPrefix, getClientKey(c), discriminator].filter(Boolean).join(':')
+    if (store.size >= PRUNE_THRESHOLD) {
+      store.forEach((value, storedKey) => {
+        if (value.resetAt <= now) {
+          store.delete(storedKey)
+        }
+      })
+    }
     const existing = store.get(key)
     const entry = existing && existing.resetAt > now
       ? existing
@@ -65,5 +77,15 @@ export function rateLimit(options: RateLimitOptions): MiddlewareHandler<AppBindi
     }
 
     await next()
+  }
+}
+
+export async function loginEmailDiscriminator(c: Context<AppBindings>) {
+  try {
+    const body = await c.req.json()
+    return typeof body?.email === 'string' ? body.email.trim().toLowerCase().slice(0, 254) : null
+  }
+  catch {
+    return null
   }
 }

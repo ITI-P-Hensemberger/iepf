@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "lesson_bookings_confirmed_unique" ON "lesson_bookings" USING btree ("lesson_id","student_id") WHERE "lesson_bookings"."status" = 'confirmed';

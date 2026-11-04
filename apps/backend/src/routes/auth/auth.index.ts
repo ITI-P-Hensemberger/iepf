@@ -1,21 +1,28 @@
 // Purpose: Auth router wiring.
 import { createRouter } from '@/lib/create-app'
 import { authenticate } from '@/middlewares/auth'
-import { rateLimit } from '@/middlewares/rate-limit'
+import { loginEmailDiscriminator, rateLimit } from '@/middlewares/rate-limit'
 
 import * as handlers from './auth.handlers'
 import * as routes from './auth.routes'
 
 const router = createRouter()
 
+// A whole class can share one school IP: guess limits apply per account, with a wider IP ceiling.
+router.use('/auth/login', rateLimit({
+  windowMs: 60_000,
+  max: 120,
+  keyPrefix: 'auth:login-ip'
+}))
 router.use('/auth/login', rateLimit({
   windowMs: 60_000,
   max: 5,
-  keyPrefix: 'auth:login'
+  keyPrefix: 'auth:login',
+  discriminator: loginEmailDiscriminator
 }))
 router.use('/auth/register', rateLimit({
   windowMs: 60_000,
-  max: 5,
+  max: 30,
   keyPrefix: 'auth:register'
 }))
 router.use('/auth/password/reset/request', rateLimit({
@@ -35,7 +42,7 @@ router.use('/auth/verify-email/request', rateLimit({
 }))
 router.use('/auth/verify-email/confirm', rateLimit({
   windowMs: 60_000,
-  max: 5,
+  max: 30,
   keyPrefix: 'auth:verify-email-confirm'
 }))
 router.use('/auth/refresh', rateLimit({

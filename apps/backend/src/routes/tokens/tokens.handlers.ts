@@ -10,7 +10,7 @@ import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
-import { getStudentTokenBalance } from '@/lib/lesson-tokens'
+import { getStudentTokenBalance, lockUsers } from '@/lib/lesson-tokens'
 
 import type { AdjustTokensRoute } from './tokens.routes'
 
@@ -50,17 +50,22 @@ export const adjustTokens: AppRouteHandler<AdjustTokensRoute> = async (c) => {
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
-  const currentTokens = await getStudentTokenBalance(studentId)
-  const nextTokens = Math.max(currentTokens + payload.delta, 0)
-  const appliedDelta = nextTokens - currentTokens
+  const nextTokens = await db.transaction(async (tx) => {
+    await lockUsers(tx, [studentId])
+    const currentTokens = await getStudentTokenBalance(studentId, tx)
+    const balance = Math.max(currentTokens + payload.delta, 0)
+    const appliedDelta = balance - currentTokens
 
-  if (appliedDelta !== 0) {
-    await db.insert(tokenLedger).values({
-      studentId,
-      delta: appliedDelta,
-      reason: payload.reason
-    })
-  }
+    if (appliedDelta !== 0) {
+      await tx.insert(tokenLedger).values({
+        studentId,
+        delta: appliedDelta,
+        reason: payload.reason
+      })
+    }
+
+    return balance
+  })
 
   return c.json({ studentId, lessonTokens: nextTokens }, HttpStatusCodes.OK)
 }
