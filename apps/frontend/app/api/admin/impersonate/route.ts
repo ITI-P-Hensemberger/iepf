@@ -1,3 +1,4 @@
+import { backendFetch } from '@/lib/backend-fetch'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -66,7 +67,7 @@ export async function POST(
     return NextResponse.json({ message: 'userId is required.' }, { status: 422 })
   }
 
-  const response = await fetch(`${apiBaseUrl}/admin/impersonate`, {
+  const response = await backendFetch(`${apiBaseUrl}/admin/impersonate`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,

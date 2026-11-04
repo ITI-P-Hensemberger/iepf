@@ -10,8 +10,8 @@ IEPF Frontend is a Next.js 16 App Router project for an Italian educational plat
 - Styling: Tailwind CSS v4 + `tw-animate-css`
 - UI primitives: Radix UI via custom wrappers in `components/ui/*`
 - State/data: React hooks + fetch to Next API routes
-- TypeScript, ESLint, no tests configured
-- Scripts: `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm typecheck`
+- TypeScript, ESLint, Vitest (`*.test.ts` next to the code)
+- Scripts: `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm test`
 
 ## App Structure
 - `app/` contains routes (App Router)
@@ -54,6 +54,7 @@ IEPF Frontend is a Next.js 16 App Router project for an Italian educational plat
   - `parseBackendPayload`, `unwrapBackendData`, `extractPayloadArray`
 - Example normalization: `app/api/lessons/route.ts` maps `dailyCapacity` -> `dailyAvailability`
 - Backend contract is stored in `api-doc.json`
+- Route handlers call the backend through `backendFetch` (`lib/backend-fetch.ts`), and `lib/auth.ts` takes the request headers: the backend only sees this app, so without the client address all users share one rate-limit bucket and audit logs lose the IP
 
 ## UI & UX Conventions
 - All UI text in Italian
@@ -95,6 +96,7 @@ IEPF Frontend is a Next.js 16 App Router project for an Italian educational plat
 
 ## Conventions
 - Use `cn()` from `lib/utils.ts` to merge class names
+- Lessons with free seats stay bookable after the first booking (`scheduled` or `confirmed`); use `lessonBookableSeats` (`lib/lesson-seats.ts`) for the count shown to students
 - Prefer `extractPayloadArray` for list payloads with uncertain shapes
 - Keep UX text Italian and consistent with existing tone
 - Avoid adding new dependencies unless necessary

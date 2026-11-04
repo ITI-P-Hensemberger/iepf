@@ -1,3 +1,4 @@
+import { backendFetch } from '@/lib/backend-fetch'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -18,7 +19,7 @@ export async function DELETE(
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   }
 
-  const response = await fetch(
+  const response = await backendFetch(
     `${apiBaseUrl}/tutors/${tutorId}/subjects/${subjectId}`,
     {
       method: 'DELETE',

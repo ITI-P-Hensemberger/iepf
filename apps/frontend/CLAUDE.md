@@ -12,6 +12,7 @@ IEPF Frontend is a Next.js 16 application for an Italian educational platform (I
 pnpm dev      # Start development server on localhost:3000
 pnpm build    # Build for production
 pnpm lint     # Run ESLint
+pnpm test     # Run Vitest
 pnpm start    # Start production server
 ```
 
@@ -87,4 +88,4 @@ const form = useForm<FormValues>({
 - TypeScript strict mode throughout
 - Path alias: `@/*` maps to project root
 - Styling: Tailwind CSS with `cn()` utility from `lib/utils.ts`
-- No test framework currently configured
+- Tests: Vitest (`pnpm test`), `*.test.ts` next to the code

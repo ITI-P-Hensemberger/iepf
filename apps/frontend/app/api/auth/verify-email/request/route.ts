@@ -1,3 +1,4 @@
+import { backendFetch } from '@/lib/backend-fetch'
 import { NextResponse } from 'next/server'
 
 import { parseBackendPayload } from '@/lib/backend-response'
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
     )
   }
 
-  const response = await fetch(`${apiBaseUrl}/auth/verify-email/request`, {
+  const response = await backendFetch(`${apiBaseUrl}/auth/verify-email/request`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'

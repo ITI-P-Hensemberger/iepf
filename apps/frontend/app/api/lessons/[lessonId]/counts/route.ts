@@ -1,3 +1,4 @@
+import { backendFetch } from '@/lib/backend-fetch'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -37,7 +38,7 @@ export async function PATCH(
   }
 
   const requestBody = { countsForTutor: body.countsForTutor }
-  const response = await fetch(`${apiBaseUrl}/lessons/${lessonId}/counts`, {
+  const response = await backendFetch(`${apiBaseUrl}/lessons/${lessonId}/counts`, {
     method: 'PATCH',
     headers: {
       Authorization: `Bearer ${accessToken}`,

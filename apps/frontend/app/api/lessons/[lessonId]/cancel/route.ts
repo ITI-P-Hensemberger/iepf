@@ -1,3 +1,4 @@
+import { backendFetch } from '@/lib/backend-fetch'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -34,7 +35,7 @@ export async function POST(
     payload.countsForTutor = body.countsForTutor
   }
 
-  const response = await fetch(`${apiBaseUrl}/lessons/${lessonId}/cancel`, {
+  const response = await backendFetch(`${apiBaseUrl}/lessons/${lessonId}/cancel`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,

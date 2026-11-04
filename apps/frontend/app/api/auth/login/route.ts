@@ -34,7 +34,8 @@ export async function POST(request: Request) {
     const { tokens, profile } = await loginWithProfile(
       apiBaseUrl,
       body.email,
-      body.password
+      body.password,
+      request.headers
     )
 
     const response = NextResponse.json({

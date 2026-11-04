@@ -1,3 +1,4 @@
+import { backendFetch } from '@/lib/backend-fetch'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -18,7 +19,7 @@ export async function GET(
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   }
 
-  const response = await fetch(
+  const response = await backendFetch(
     `${apiBaseUrl}/tutors/${tutorId}/weekday-availability`,
     {
       headers: {
@@ -79,7 +80,7 @@ export async function PUT(
     )
   }
 
-  const response = await fetch(
+  const response = await backendFetch(
     `${apiBaseUrl}/tutors/${tutorId}/weekday-availability`,
     {
       method: 'PUT',

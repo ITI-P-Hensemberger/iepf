@@ -166,16 +166,18 @@ export default function AdminSettingsPage() {
   const [resettingSchoolYear, setResettingSchoolYear] = React.useState(false)
   const [schoolYearResetOpen, setSchoolYearResetOpen] = React.useState(false)
   const [schoolYearResetConfirmation, setSchoolYearResetConfirmation] = React.useState('')
+  const [schoolYearResetPassword, setSchoolYearResetPassword] = React.useState('')
 
   async function handleSchoolYearReset() {
     setResettingSchoolYear(true)
     try {
-      const response = await fetch('/api/settings/school-year/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmation: 'RESET' }) })
+      const response = await fetch('/api/settings/school-year/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmation: 'RESET', password: schoolYearResetPassword }) })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.message ?? 'Reset non riuscito.')
       toast.success(`Eliminati ${payload.deletedStudents} studenti e ${payload.deletedTutors} tutor.`)
       setSchoolYearResetOpen(false)
       setSchoolYearResetConfirmation('')
+      setSchoolYearResetPassword('')
     } catch (error) { toast.error(error instanceof Error ? error.message : 'Reset non riuscito.') } finally { setResettingSchoolYear(false) }
   }
 
@@ -1195,15 +1197,19 @@ export default function AdminSettingsPage() {
                     <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>Resettare l&apos;anno scolastico?</AlertDialogTitle>
-                        <AlertDialogDescription>Questa operazione elimina definitivamente studenti, tutor, lezioni, prenotazioni, feedback e inviti tutor. Admin e impostazioni globali restano invariati.</AlertDialogDescription>
+                        <AlertDialogDescription>Questa operazione elimina definitivamente studenti, tutor, lezioni, prenotazioni, feedback e inviti tutor. Admin e impostazioni globali restano invariati. Si può recuperare solo da un backup: esportare prima i dati necessari e far eseguire un backup manuale, perché quello automatico risale alle 02:00.</AlertDialogDescription>
                       </AlertDialogHeader>
                       <Field className='gap-2'>
                         <FieldLabel htmlFor='school-year-reset-confirmation'>Digita RESET per confermare</FieldLabel>
                         <Input id='school-year-reset-confirmation' value={schoolYearResetConfirmation} onChange={(event) => setSchoolYearResetConfirmation(event.target.value)} autoComplete='off' />
                       </Field>
+                      <Field className='gap-2'>
+                        <FieldLabel htmlFor='school-year-reset-password'>La tua password admin</FieldLabel>
+                        <Input id='school-year-reset-password' type='password' value={schoolYearResetPassword} onChange={(event) => setSchoolYearResetPassword(event.target.value)} autoComplete='current-password' />
+                      </Field>
                       <AlertDialogFooter>
                         <AlertDialogCancel disabled={resettingSchoolYear}>Annulla</AlertDialogCancel>
-                        <AlertDialogAction variant='destructive' onClick={handleSchoolYearReset} disabled={schoolYearResetConfirmation !== 'RESET' || resettingSchoolYear}>{resettingSchoolYear ? 'Reset in corso...' : 'Elimina dati'}</AlertDialogAction>
+                        <AlertDialogAction variant='destructive' onClick={(event) => { event.preventDefault(); void handleSchoolYearReset() }} disabled={schoolYearResetConfirmation !== 'RESET' || !schoolYearResetPassword || resettingSchoolYear}>{resettingSchoolYear ? 'Reset in corso...' : 'Elimina dati'}</AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>

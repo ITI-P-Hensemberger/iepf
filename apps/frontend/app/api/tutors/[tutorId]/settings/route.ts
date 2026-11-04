@@ -1,3 +1,4 @@
+import { backendFetch } from '@/lib/backend-fetch'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -21,7 +22,7 @@ export async function GET(
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   }
 
-  const response = await fetch(`${apiBaseUrl}/tutors/${tutorId}/settings`, {
+  const response = await backendFetch(`${apiBaseUrl}/tutors/${tutorId}/settings`, {
     headers: {
       Authorization: `Bearer ${accessToken}`
     }
@@ -64,7 +65,7 @@ export async function PUT(
     return NextResponse.json({ message: 'Invalid body.' }, { status: 400 })
   }
 
-  const response = await fetch(`${apiBaseUrl}/tutors/${tutorId}/settings`, {
+  const response = await backendFetch(`${apiBaseUrl}/tutors/${tutorId}/settings`, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${accessToken}`,

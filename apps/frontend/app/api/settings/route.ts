@@ -1,3 +1,4 @@
+import { backendFetch } from '@/lib/backend-fetch'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -13,7 +14,7 @@ export async function GET() {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   }
 
-  const response = await fetch(`${apiBaseUrl}/settings`, {
+  const response = await backendFetch(`${apiBaseUrl}/settings`, {
     headers: {
       Authorization: `Bearer ${accessToken}`
     },
@@ -47,7 +48,7 @@ export async function PATCH(request: Request) {
 
   const bodyText = await request.text()
 
-  const response = await fetch(`${apiBaseUrl}/settings`, {
+  const response = await backendFetch(`${apiBaseUrl}/settings`, {
     method: 'PATCH',
     headers: {
       Authorization: `Bearer ${accessToken}`,

@@ -1,3 +1,4 @@
+import { backendFetch } from '@/lib/backend-fetch'
 import { cookies } from 'next/headers'
 import { NextResponse, type NextRequest } from 'next/server'
 
@@ -75,7 +76,7 @@ export async function GET(request: NextRequest) {
   const targetUrl = new URL(`${apiBaseUrl}/lessons`)
   targetUrl.search = incomingUrl.searchParams.toString()
 
-  const response = await fetch(targetUrl.toString(), {
+  const response = await backendFetch(targetUrl.toString(), {
     headers: {
       Authorization: `Bearer ${accessToken}`
     },
@@ -148,7 +149,7 @@ export async function POST(request: Request) {
     )
   }
 
-  const response = await fetch(`${apiBaseUrl}/lessons`, {
+  const response = await backendFetch(`${apiBaseUrl}/lessons`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,

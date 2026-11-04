@@ -1,3 +1,4 @@
+import { backendFetch } from '@/lib/backend-fetch'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -36,7 +37,7 @@ export async function PATCH(
     )
   }
 
-  const response = await fetch(
+  const response = await backendFetch(
     `${apiBaseUrl}/lessons/${lessonId}/bookings/${bookingId}/presence`,
     {
       method: 'PATCH',

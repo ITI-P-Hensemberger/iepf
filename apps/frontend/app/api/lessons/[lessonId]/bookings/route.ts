@@ -1,3 +1,4 @@
+import { backendFetch } from '@/lib/backend-fetch'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -17,7 +18,7 @@ export async function GET(
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   }
 
-  const response = await fetch(`${apiBaseUrl}/lessons/${lessonId}/bookings`, {
+  const response = await backendFetch(`${apiBaseUrl}/lessons/${lessonId}/bookings`, {
     headers: {
       Authorization: `Bearer ${accessToken}`
     }

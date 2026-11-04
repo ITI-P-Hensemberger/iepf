@@ -1,3 +1,4 @@
+import { backendFetch } from '@/lib/backend-fetch'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -43,7 +44,7 @@ export async function POST(
     )
   }
 
-  const response = await fetch(`${apiBaseUrl}/students/${id}/tokens/adjust`, {
+  const response = await backendFetch(`${apiBaseUrl}/students/${id}/tokens/adjust`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,

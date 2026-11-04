@@ -1,3 +1,4 @@
+import { clientIpHeaders } from '@/lib/client-ip'
 import { unwrapBackendData } from '@/lib/backend-response'
 
 export type AuthTokens = {
@@ -109,7 +110,8 @@ function getProfileFromToken(accessToken: string): UserProfile | null {
 
 export async function fetchUserProfile(
   apiBaseUrl: string,
-  accessToken: string
+  accessToken: string,
+  requestHeaders: Headers
 ): Promise<UserProfile> {
   const tokenProfile = getProfileFromToken(accessToken)
   if (tokenProfile) {
@@ -123,7 +125,8 @@ export async function fetchUserProfile(
 
   const response = await fetch(`${apiBaseUrl}/users/${userId}`, {
     headers: {
-      Authorization: `Bearer ${accessToken}`
+      Authorization: `Bearer ${accessToken}`,
+      ...clientIpHeaders(requestHeaders)
     }
   })
 
@@ -138,12 +141,14 @@ export async function fetchUserProfile(
 export async function loginWithProfile(
   apiBaseUrl: string,
   email: string,
-  password: string
+  password: string,
+  requestHeaders: Headers
 ) {
   const response = await fetch(`${apiBaseUrl}/auth/login`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      ...clientIpHeaders(requestHeaders)
     },
     body: JSON.stringify({ email, password })
   })
@@ -156,19 +161,21 @@ export async function loginWithProfile(
 
   const payload = (await response.json()) as unknown
   const tokens = unwrapBackendData<AuthTokens>(payload)
-  const profile = await fetchUserProfile(apiBaseUrl, tokens.accessToken)
+  const profile = await fetchUserProfile(apiBaseUrl, tokens.accessToken, requestHeaders)
 
   return { tokens, profile }
 }
 
 export async function refreshWithProfile(
   apiBaseUrl: string,
-  refreshToken: string
+  refreshToken: string,
+  requestHeaders: Headers
 ) {
   const response = await fetch(`${apiBaseUrl}/auth/refresh`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      ...clientIpHeaders(requestHeaders)
     },
     body: JSON.stringify({ refreshToken })
   })
@@ -181,7 +188,7 @@ export async function refreshWithProfile(
 
   const payload = (await response.json()) as unknown
   const tokens = unwrapBackendData<AuthTokens>(payload)
-  const profile = await fetchUserProfile(apiBaseUrl, tokens.accessToken)
+  const profile = await fetchUserProfile(apiBaseUrl, tokens.accessToken, requestHeaders)
 
   return { tokens, profile }
 }

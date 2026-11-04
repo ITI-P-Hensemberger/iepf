@@ -1,3 +1,4 @@
+import { backendFetch } from '@/lib/backend-fetch'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -21,7 +22,7 @@ export async function GET(
   const search = url.search ? url.search : ''
   const targetPath = path.join('/')
 
-  const response = await fetch(`${apiBaseUrl}/admin/stats/${targetPath}${search}`, {
+  const response = await backendFetch(`${apiBaseUrl}/admin/stats/${targetPath}${search}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`
     },

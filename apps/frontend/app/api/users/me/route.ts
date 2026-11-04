@@ -1,3 +1,4 @@
+import { backendFetch } from '@/lib/backend-fetch'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -57,7 +58,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ message: 'No valid fields.' }, { status: 400 })
   }
 
-  const response = await fetch(`${apiBaseUrl}/users/${userId}`, {
+  const response = await backendFetch(`${apiBaseUrl}/users/${userId}`, {
     method: 'PATCH',
     headers: {
       Authorization: `Bearer ${accessToken}`,

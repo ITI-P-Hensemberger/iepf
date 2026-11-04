@@ -1,3 +1,4 @@
+import { backendFetch } from '@/lib/backend-fetch'
 import { NextResponse } from 'next/server'
 
 import { parseBackendPayload } from '@/lib/backend-response'
@@ -8,7 +9,7 @@ export async function GET() {
     process.env.NEXT_PUBLIC_API_BASE_URL ??
     'http://localhost:9999'
 
-  const response = await fetch(`${apiBaseUrl}/class-sections`)
+  const response = await backendFetch(`${apiBaseUrl}/class-sections`)
 
   const payload = await response.text()
   const parsed = parseBackendPayload(payload)

@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 import { AUTH_COOKIES, fetchUserProfile, refreshWithProfile } from '@/lib/auth'
 import { setAuthCookies } from '@/lib/auth-cookies'
 
-export async function GET() {
+export async function GET(request: Request) {
   const apiBaseUrl =
     process.env.API_BASE_URL ?? 'http://localhost:9999'
   const cookieStore = await cookies()
@@ -22,7 +22,8 @@ export async function GET() {
     if ((!accessToken || isExpired) && refreshToken) {
       const { tokens, profile } = await refreshWithProfile(
         apiBaseUrl,
-        refreshToken
+        refreshToken,
+        request.headers
       )
       const response = NextResponse.json(profile)
       setAuthCookies(response, tokens, remember)
@@ -33,7 +34,7 @@ export async function GET() {
       return NextResponse.json(null)
     }
 
-    const profile = await fetchUserProfile(apiBaseUrl, accessToken)
+    const profile = await fetchUserProfile(apiBaseUrl, accessToken, request.headers)
     return NextResponse.json(profile)
   } catch {
     return NextResponse.json(null)

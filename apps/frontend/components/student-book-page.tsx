@@ -1,5 +1,6 @@
 'use client'
 
+import { lessonBookableSeats } from '@/lib/lesson-seats'
 import * as React from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
@@ -1017,16 +1018,7 @@ export default function StudentBookPage() {
                               {lesson.tutorLastName} {lesson.tutorFirstName}
                             </TableCell>
                             <TableCell>
-                              {Math.max(
-                                0,
-                                lesson.availableSeats - lesson.dailyOccupancy
-                              ) > 0
-                                ? Math.max(
-                                    0,
-                                    lesson.availableSeats -
-                                      lesson.dailyOccupancy
-                                  )
-                                : '-'}
+                              {lessonBookableSeats(lesson) || '-'}
                             </TableCell>
                             <TableCell className='text-right'>
                               <Button

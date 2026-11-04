@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 import { AUTH_COOKIES, refreshWithProfile } from '@/lib/auth'
 import { clearAuthCookies, setAuthCookies } from '@/lib/auth-cookies'
 
-export async function POST() {
+export async function POST(request: Request) {
   const apiBaseUrl =
     process.env.API_BASE_URL ?? 'http://localhost:9999'
   const cookieStore = await cookies()
@@ -20,7 +20,8 @@ export async function POST() {
   try {
     const { tokens, profile } = await refreshWithProfile(
       apiBaseUrl,
-      refreshToken
+      refreshToken,
+      request.headers
     )
 
     const response = NextResponse.json({

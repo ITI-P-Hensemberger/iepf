@@ -1,3 +1,4 @@
+import { backendFetch } from '@/lib/backend-fetch'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -22,7 +23,7 @@ export async function GET(
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   }
 
-  const response = await fetch(`${apiBaseUrl}/feedback/${feedbackId}`, {
+  const response = await backendFetch(`${apiBaseUrl}/feedback/${feedbackId}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`
     },
@@ -103,7 +104,7 @@ export async function PATCH(
     requestBody.text = textValue
   }
 
-  const response = await fetch(`${apiBaseUrl}/feedback/${feedbackId}`, {
+  const response = await backendFetch(`${apiBaseUrl}/feedback/${feedbackId}`, {
     method: 'PATCH',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -141,7 +142,7 @@ export async function DELETE(
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   }
 
-  const response = await fetch(`${apiBaseUrl}/feedback/${feedbackId}`, {
+  const response = await backendFetch(`${apiBaseUrl}/feedback/${feedbackId}`, {
     method: 'DELETE',
     headers: {
       Authorization: `Bearer ${accessToken}`

@@ -66,7 +66,7 @@ export async function proxy(request: NextRequest) {
 
   if (refreshToken && needsRefresh) {
     try {
-      refreshed = await refreshWithProfile(apiBaseUrl, refreshToken)
+      refreshed = await refreshWithProfile(apiBaseUrl, refreshToken, request.headers)
       didRefresh = true
       accessToken = refreshed.tokens.accessToken
       role = refreshed.profile.role ?? 'student'
@@ -81,7 +81,7 @@ export async function proxy(request: NextRequest) {
 
   if (accessToken) {
     try {
-      const profile = await fetchUserProfile(apiBaseUrl, accessToken)
+      const profile = await fetchUserProfile(apiBaseUrl, accessToken, request.headers)
       role = profile.role ?? 'student'
       active = String(profile.isActive === true)
     } catch {
