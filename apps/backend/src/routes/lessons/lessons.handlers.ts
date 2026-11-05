@@ -2,7 +2,7 @@
 import type { SQL } from 'drizzle-orm'
 import type { Context } from 'hono'
 
-import { and, asc, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, ilike, inArray, lte, or, sql } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 import { randomUUID } from 'node:crypto'
 
@@ -15,6 +15,7 @@ import { lessonFeedback } from '@/db/schemas/lesson-feedback.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
 import { subjects } from '@/db/schemas/subjects.schema'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
+import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
 import {
   buildLessonBookingCanceledMessage,
@@ -31,6 +32,7 @@ import { getStudentTokenBalance, lockUsers } from '@/lib/lesson-tokens'
 import { sendMail } from '@/lib/mailer'
 import { buildPagedResponse } from '@/lib/pagination'
 import { containsProfanity } from '@/lib/profanity'
+import { tutorCanTeachStudent } from '@/lib/school-years'
 
 import type {
   BookGeneratedLessonRoute,
@@ -505,10 +507,26 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
   tomorrow.setHours(0, 0, 0, 0)
   tomorrow.setDate(tomorrow.getDate() + 1)
 
+  const studentProfile = await db.query.studentProfiles.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.userId, currentUser.id)
+    },
+    columns: { isActive: true, year: true }
+  })
+
   const conditions = [
     gte(lessons.startAt, tomorrow),
     or(eq(lessons.status, 'scheduled'), eq(lessons.status, 'confirmed'))
   ]
+  // Same rule as tutorCanTeachStudent, which bookGeneratedLesson enforces.
+  if (studentProfile?.year != null) {
+    conditions.push(inArray(
+      lessons.tutorId,
+      db.select({ userId: tutorProfiles.userId })
+        .from(tutorProfiles)
+        .where(gt(tutorProfiles.year, studentProfile.year))
+    ))
+  }
   if (query.subjectId) {
     conditions.push(eq(lessons.subjectId, query.subjectId))
   }
@@ -564,15 +582,7 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
   minDate.setHours(0, 0, 0, 0)
   maxDate.setHours(23, 59, 59, 999)
 
-  const [studentProfile, tokenBalance] = await Promise.all([
-    db.query.studentProfiles.findFirst({
-      where(fields, operators) {
-        return operators.eq(fields.userId, currentUser.id)
-      },
-      columns: { isActive: true }
-    }),
-    getStudentTokenBalance(currentUser.id)
-  ])
+  const tokenBalance = await getStudentTokenBalance(currentUser.id)
 
   const studentActive = studentProfile?.isActive === true
   const hasTokens = tokenBalance > 0
@@ -885,7 +895,8 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
         return operators.eq(fields.userId, studentUser.id)
       },
       columns: {
-        isActive: true
+        isActive: true,
+        year: true
       }
     })
 
@@ -894,6 +905,16 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
     }
 
     if (!isAdmin) {
+      const tutorProfile = await tx.query.tutorProfiles.findFirst({
+        where(fields, operators) {
+          return operators.eq(fields.userId, lesson.tutorId)
+        },
+        columns: { year: true }
+      })
+      if (!tutorProfile || !tutorCanTeachStudent(tutorProfile.year, studentProfile.year)) {
+        return rejection(HttpStatusPhrases.TUTOR_YEAR_NOT_HIGHER, HttpStatusCodes.FORBIDDEN)
+      }
+
       const tokenBalance = await getStudentTokenBalance(studentUser.id, tx)
       if (tokenBalance <= 0) {
         return rejection(HttpStatusPhrases.FORBIDDEN, HttpStatusCodes.FORBIDDEN)

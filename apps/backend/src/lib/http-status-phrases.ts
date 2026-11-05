@@ -52,6 +52,7 @@ export const REQUEST_HEADER_FIELDS_TOO_LARGE = 'Campi header richiesta troppo gr
 export const UNAVAILABLE_FOR_LEGAL_REASONS = 'Non disponibile per motivi legali'
 export const INTERNAL_SERVER_ERROR = 'Errore interno del server'
 export const STUDENT_DAILY_BOOKING_LIMIT = 'Hai già una lezione prenotata per questo giorno'
+export const TUTOR_YEAR_NOT_HIGHER = 'Puoi prenotare solo lezioni di tutor di un anno superiore al tuo'
 export const NOT_IMPLEMENTED = 'Non implementato'
 export const BAD_GATEWAY = 'Gateway non valido'
 export const SERVICE_UNAVAILABLE = 'Servizio non disponibile'

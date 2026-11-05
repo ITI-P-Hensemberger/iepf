@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto'
 import z from 'zod'
 
 import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
+import { isYearInRange, STUDENT_YEARS, yearRangeMessage } from '@/lib/school-years'
 import { toZodV4SchemaTyped } from '@/lib/zod-utils'
 
 export const users = pgTable('users', {
@@ -70,16 +71,16 @@ const baseUserInputSchema = z.object({
   password: z.string().min(8).max(200)
 }).strict()
 
-// Student registration can include optional section/year details.
+// Lesson visibility depends on the student's year, so registration requires it.
 export const studentRegisterSchema = toZodV4SchemaTyped(baseUserInputSchema.extend({
   sectionId: z.uuid().optional(),
-  year: z.number().int().optional()
+  year: z.number().int()
 })).superRefine((value, ctx) => {
-  if (value.year !== undefined && (value.year < 1 || value.year > 3)) {
+  if (!isYearInRange(value.year, STUDENT_YEARS)) {
     ctx.addIssue({
       code: 'custom',
       path: ['year'],
-      message: 'L\'anno deve essere compreso tra 1 e 3'
+      message: yearRangeMessage(STUDENT_YEARS)
     })
   }
 })

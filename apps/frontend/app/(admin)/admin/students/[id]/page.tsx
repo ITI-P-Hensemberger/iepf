@@ -47,6 +47,7 @@ import {
 } from '@/components/ui/select'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
+import { STUDENT_YEARS } from '@/lib/school-years'
 
 function normalizeName(value: string) {
   const trimmed = value.trim()
@@ -621,9 +622,9 @@ export default function AdminStudentDetailPage() {
                             <SelectContent>
                               <SelectGroup>
                                 <SelectLabel>Anno</SelectLabel>
-                                <SelectItem value='1'>1° anno</SelectItem>
-                                <SelectItem value='2'>2° anno</SelectItem>
-                                <SelectItem value='3'>3° anno</SelectItem>
+                                {STUDENT_YEARS.map((year) => (
+                                  <SelectItem key={year} value={String(year)}>{year}° anno</SelectItem>
+                                ))}
                               </SelectGroup>
                             </SelectContent>
                           </Select>

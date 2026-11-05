@@ -31,8 +31,8 @@ function HomepageTabs() {
             esercizi in autonomia, passo dopo passo.
           </p>
           <p>
-            Le attività sono seguite dai nostri tutor: studenti di quarta e
-            quinta selezionati per competenza e capacità di spiegare in modo
+            Le attività sono seguite dai nostri tutor: studenti di terza,
+            quarta e quinta selezionati per competenza e capacità di spiegare in modo
             chiaro e pratico.
           </p>
         </Card>

@@ -52,6 +52,7 @@ import {
 } from '@/components/weekday-availability-selector'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
+import { TUTOR_YEARS } from '@/lib/school-years'
 
 function normalizeName(value: string) {
   const trimmed = value.trim()
@@ -995,8 +996,9 @@ export default function AdminTutorDetailPage() {
                             <SelectContent>
                               <SelectGroup>
                                 <SelectLabel>Anno</SelectLabel>
-                                <SelectItem value='4'>4° anno</SelectItem>
-                                <SelectItem value='5'>5° anno</SelectItem>
+                                {TUTOR_YEARS.map((year) => (
+                                  <SelectItem key={year} value={String(year)}>{year}° anno</SelectItem>
+                                ))}
                               </SelectGroup>
                             </SelectContent>
                           </Select>
