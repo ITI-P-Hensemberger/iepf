@@ -320,7 +320,8 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Stima:** M
   - **Dipendenze:** 14
 
-- [ ] **17. Correggere il matcher del proxy e i link email**
+- [x] **17. Correggere il matcher del proxy e i link email**
+  - **Stato:** il matcher salta i file statici; reset password, verifica email e inviti si aprono anche da autenticati.
   - **Problema:** il matcher fa passare anche gli asset di `public/`. I link email sotto `/auth`
     reindirizzano gli utenti già autenticati, quindi chi è connesso non riesce ad aprire il
     link di reset password.
