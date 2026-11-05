@@ -27,6 +27,7 @@
     "seed:global-settings": "tsx src/scripts/seed-global-settings.ts",
     "seed:all-mock-data": "tsx src/scripts/seed-full.ts",
     "generate:lessons": "tsx src/scripts/generate-weekly-lessons.ts",
+    "cleanup:data": "tsx src/scripts/cleanup-data.ts",
     "remind:feedback": "tsx src/scripts/remind-missing-feedback.ts",
     "remind:lessons": "tsx src/scripts/remind-upcoming-lessons.ts",
     "test:watch": "cross-env NODE_ENV=test vitest",

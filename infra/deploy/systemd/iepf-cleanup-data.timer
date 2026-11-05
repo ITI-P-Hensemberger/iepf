@@ -1,0 +1,10 @@
+[Unit]
+Description=IEPF data cleanup schedule
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Europe/Rome
+Unit=iepf-job@cleanup-data.service
+Persistent=false
+
+[Install]
+WantedBy=timers.target
