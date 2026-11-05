@@ -17,9 +17,29 @@ const securityHeaders = [
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' }
 ]
 
+// Next.js inlines its bootstrap scripts, and a nonce would make every page dynamic: inline
+// scripts stay allowed, so this limits where code can load from and send data to.
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'"
+].join('; ')
+
+// Dev mode needs eval and a websocket, which the policy rightly forbids.
+const headers = process.env.NODE_ENV === 'development'
+  ? securityHeaders
+  : [...securityHeaders, { key: 'Content-Security-Policy-Report-Only', value: contentSecurityPolicy }]
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  headers: async () => [{ source: '/:path*', headers: securityHeaders }],
+  headers: async () => [{ source: '/:path*', headers }],
   output: 'standalone',
   outputFileTracingRoot: workspaceRoot,
   turbopack: {
