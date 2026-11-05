@@ -294,7 +294,8 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **PR:** dedicata (migrazione).
   - **Dipendenze:** nessuna
 
-- [ ] **15. Definire la conservazione dei dati**
+- [x] **15. Definire la conservazione dei dati**
+  - **Stato:** `audit_logs` conservati 90 giorni per decisione dell'utente; il job notturno `iepf-cleanup-data` cancella anche token e inviti scaduti. **Dopo il deploy:** rieseguire `install-timers.sh` sulla VPS.
   - **Problema:** `audit_logs` cresce senza limiti, con una riga per richiesta (escluso
     `/health`) che contiene IP e user agent. I token scaduti non vengono mai cancellati, salvo
     quando qualcuno prova a usarli.

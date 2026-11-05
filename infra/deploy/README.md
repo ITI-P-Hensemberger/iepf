@@ -84,8 +84,8 @@ Prima attivazione:
    controlli di salute. La prima attivazione infra non esegue migrazioni.
 4. Dopo il successo eseguire `bash /opt/iepf/current/install-timers.sh` sulla VPS: installa i timer e
    rimuove solo i vecchi cron IEPF. Gli orari sono in Europe/Rome: backup 02:00,
-   reminder lezioni oggi 12:00, domani 20:30, feedback 17:00; generazione lezioni
-   sabato 12:00. Non recupera automaticamente gli invii persi dopo un downtime.
+   pulizia dati 03:30, reminder lezioni oggi 12:00, domani 20:30, feedback 17:00;
+   generazione lezioni sabato 12:00. Non recupera automaticamente gli invii persi dopo un downtime.
 5. Rilasciare backend e frontend: le build e i successivi deploy sono automatici.
 
 Le immagini di manutenzione sono costruite dallo stesso commit del backend e
@@ -116,6 +116,9 @@ nel journal. La disponibilità del sito va controllata da un servizio esterno su
 `https://iepf.hensemberger.it/auth/login`, perché il backend non è esposto. Per provare
 l'avviso: `systemctl start iepf-alert@prova.service`. `install-timers.sh` copia lo script in
 `/opt/iepf/shared/alert.sh`, così funziona anche dopo un rollback: rieseguirlo se lo script cambia.
+
+Conservazione: ogni notte `iepf-job@cleanup-data` cancella gli `audit_logs` più vecchi di
+90 giorni e i token e gli inviti scaduti (`apps/backend/src/lib/data-retention.ts`).
 
 Diagnostica: `systemctl list-timers 'iepf-*'`,
 `journalctl -u iepf-job@remind-lessons-today`,

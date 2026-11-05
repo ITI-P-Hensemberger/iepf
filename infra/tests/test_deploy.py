@@ -204,6 +204,16 @@ if name=='curl' and fail=='http': sys.exit(1)
         self.assertIn('/opt/iepf/shared/alert.sh', (SOURCE / 'systemd' / 'iepf-alert@.service').read_text())
         self.assertIn('"$ROOT/shared/alert.sh"', (SOURCE / 'install-timers.sh').read_text())
 
+    def test_cleanup_job_runs_its_script(self):
+        r = subprocess.run(['bash', str(self.bundle / 'job.sh'), 'cleanup-data'], env=self.env, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.commands()[-1][-2:], ['run', 'cleanup:data'])
+
+    def test_every_timer_is_enabled_by_install_timers(self):
+        script = (SOURCE / 'install-timers.sh').read_text()
+        for timer in (SOURCE / 'systemd').glob('*.timer'):
+            self.assertEqual(script.count(timer.name), 2, timer.name)
+
     def test_scheduled_units_alert_on_failure(self):
         for name in ['iepf-job@.service', 'iepf-backup.service']:
             self.assertIn('OnFailure=iepf-alert@%n.service', (SOURCE / 'systemd' / name).read_text())

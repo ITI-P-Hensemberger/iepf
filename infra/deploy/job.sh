@@ -7,6 +7,7 @@ flock -w 1800 9
 RELEASE=$(readlink -f "$ROOT/current")
 ARGS=()
 case "${1:-}" in
+  cleanup-data) TASK=cleanup:data ;;
   generate-lessons) TASK=generate:lessons ;;
   remind-feedback) TASK=remind:feedback ;;
   remind-lessons-today) TASK=remind:lessons; ARGS=(-- --today) ;;
