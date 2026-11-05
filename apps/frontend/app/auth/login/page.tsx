@@ -12,6 +12,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
 import { notifyAuthChanged } from '@/lib/auth-events'
+import { safeInternalPath } from '@/lib/safe-redirect'
 import { BackButton } from '@/components/back-button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import {
@@ -108,7 +109,7 @@ function LoginContent() {
 
       notifyAuthChanged()
 
-      const nextPath = nextParam && nextParam.startsWith('/') ? nextParam : null
+      const nextPath = safeInternalPath(nextParam)
 
       if (nextPath) {
         router.push(nextPath)

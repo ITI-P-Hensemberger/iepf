@@ -13,9 +13,7 @@ l'assenza di un limite per gli argomenti.
 
 ## Stato
 
-I punti 2-9 sono su branch non ancora uniti a `main`. Unire 2, 3, 4 in quest'ordine e 7, 8, 9
-in quest'ordine; 5 e 6 sono indipendenti. Provati tutti insieme: nessun conflitto, test,
-lint, build, immagini Docker e prova nel browser passano. I punti 10-25 non sono iniziati.
+I punti 2-9 sono uniti a `main` e in produzione. Il punto 1 è rimandato. I punti 11-25 non sono iniziati.
 
 ## Legenda
 
@@ -78,7 +76,7 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Dipendenze:** nessuna
 
 - [x] **2. Rimuovere `next-pwa`**
-  - **Stato:** branch `chore/remove-next-pwa`. Le segnalazioni tolte sono 51, non 49 (da 174 a 123). La storia mostra Next 16 solo da gennaio 2026, quindi le release precedenti potevano aver registrato un service worker: `/sw.js` ora serve uno script che svuota le sue cache e lo rimuove. Il file si potrà togliere più avanti.
+  - **Stato:** Le segnalazioni tolte sono 51, non 49 (da 174 a 123). La storia mostra Next 16 solo da gennaio 2026, quindi le release precedenti potevano aver registrato un service worker: `/sw.js` ora serve uno script che svuota le sue cache e lo rimuove. Il file si potrà togliere più avanti.
   - **Problema:** il plugin non produce nulla: in produzione `/sw.js` e `/manifest.json`
     danno 404. Pesa comunque 49 segnalazioni di audit, tutte raggiungibili solo tramite
     `next-pwa`.
@@ -96,7 +94,7 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Dipendenze:** nessuna
 
 - [x] **3. Aggiornare le dipendenze**
-  - **Stato:** branch `chore/update-dependencies`, sopra il punto 2. `pnpm audit --prod`: resta 1 moderata in `serveStatic` di `@hono/node-server`, non usato dal backend e corretto solo nella 2.x. Quattro regole `react-hooks` nuove sono warning (65 errori sul codice esistente): vanno riportate a errore col punto 25. Provati nel browser login, prenotazione, annullamento e, via Mailpit, l'invio email.
+  - **Stato:** `pnpm audit --prod`: resta 1 moderata in `serveStatic` di `@hono/node-server`, non usato dal backend e corretto solo nella 2.x. Quattro regole `react-hooks` nuove sono warning (65 errori sul codice esistente): vanno riportate a errore col punto 25. Provati nel browser login, prenotazione, annullamento e, via Mailpit, l'invio email.
   - **Problema:** `pnpm audit --prod` riporta 174 segnalazioni: 4 critiche, 74 alte, 82
     moderate, 14 basse. I moduli con più avvisi sono `next` (38), `hono` (34) e `nodemailer`
     (20). Le 4 critiche di Next non sembrano sfruttabili qui (Linux Alpine, niente
@@ -117,7 +115,7 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Dipendenze:** 2
 
 - [x] **4. Aggiungere Dependabot o Renovate**
-  - **Stato:** branch `chore/add-dependabot`, da unire dopo il punto 3. File validato con lo schema ufficiale; la prima tornata di PR si vedrà solo dopo il merge.
+  - **Stato:** File validato con lo schema ufficiale; il primo run per npm è fallito con 17 errori perché Dependabot rifiuta versioni con meno di 3 giorni e il punto 3 ne aveva appena installate. Si sblocca da solo entro il 7 novembre; `minimumReleaseAge` nel workspace evita che si ripeta. Da controllare il primo run successivo.
   - **Problema:** nessun aggiornamento automatico è configurato, e infatti si sono accumulate
     le 174 segnalazioni.
   - **File:** nuovo `.github/dependabot.yml` (o `renovate.json`)
@@ -128,8 +126,8 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Stima:** S
   - **Dipendenze:** 3
 
-- [ ] **5. Aggiungere il monitoraggio dei job**
-  - **Stato:** codice pronto sul branch `fix/job-monitoring`, ma il punto **non è chiuso**. Resta da fare sulla VPS, dopo il deploy: impostare `ALERT_WEBHOOK_URL` e `BACKUP_HEARTBEAT_URL` in `host.env`, eseguire `install-timers.sh`, provare con `systemctl start iepf-alert@prova.service` e configurare il controllo esterno del sito. Fino ad allora gli errori arrivano solo al journal.
+- [x] **5. Aggiungere il monitoraggio dei job**
+  - **Stato:** confermato sulla VPS: `ALERT_WEBHOOK_URL` e `BACKUP_HEARTBEAT_URL` configurati, avviso e ping provati, controllo esterno del sito attivo.
   - **Problema:** se un timer fallisce non lo sa nessuno. Nessuna unit ha `OnFailure` e non
     c'è un servizio di alert. Il backend non è esposto, quindi `/health` non si raggiunge
     dall'esterno. Gli script di promemoria terminano con successo anche se tutte le email
@@ -152,7 +150,7 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Dipendenze:** nessuna. Il punto 1 ne trae beneficio.
 
 - [x] **6. Fare logout solo su 401 in `proxy.ts`**
-  - **Stato:** branch `fix/logout-only-on-401`. Corretta anche `app/api/auth/refresh/route.ts`, che cancellava i cookie su ogni errore. Test su proxy e rotte; pagina 503 provata nel browser con backend irraggiungibile: la sessione resta valida.
+  - **Stato:** Corretta anche `app/api/auth/refresh/route.ts`, che cancellava i cookie su ogni errore. Test su proxy e rotte; pagina 503 provata nel browser con backend irraggiungibile: la sessione resta valida.
   - **Problema:** qualsiasi errore del backend (riavvio, 5xx, 429, rete) cancella i cookie e
     disconnette l'utente. Inoltre `refreshWithProfile` ruota il token e poi chiede il
     profilo: se questa seconda chiamata fallisce, i token nuovi vanno persi e quello vecchio
@@ -170,7 +168,7 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Dipendenze:** nessuna. Da solo non basta: le corse del punto 7 danno comunque 401.
 
 - [x] **7. Rendere atomica la rotazione dei refresh token**
-  - **Stato:** branch `fix/refresh-token-rotation`. Margine di 30 secondi, migrazione `0014`.
+  - **Stato:** Margine di 30 secondi, migrazione `0014`.
   - **Problema:** la rotazione legge, cancella e inserisce in passi separati, senza
     transazione né margine di tolleranza. Con richieste parallele e token scaduto, chi arriva
     dopo la cancellazione riceve 401 e viene disconnesso. Se la risposta si perde dopo la
@@ -187,7 +185,7 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Dipendenze:** va coordinato con il punto 6.
 
 - [x] **8. Normalizzare le email con maiuscole**
-  - **Stato:** branch `fix/normalize-emails`, sopra il punto 7, migrazione `0015`, provata su un database temporaneo. Gli indirizzi che differiscono solo per maiuscole non vengono toccati. **Prima del deploy, sulla VPS:** `docker exec postgres sh -ec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select lower(email), count(*) from users group by 1 having count(*) > 1"'`. Se restituisce righe, va scelto a mano quale account tenere.
+  - **Stato:** Gli indirizzi che differiscono solo per maiuscole non vengono toccati. **Prima del deploy, sulla VPS:** `docker exec postgres sh -ec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select lower(email), count(*) from users group by 1 having count(*) > 1"'`. Se restituisce righe, va scelto a mano quale account tenere.
   - **Problema:** `schoolEmailSchema` non normalizza, quindi gli inviti salvano l'indirizzo
     così com'è, mentre il login lo mette in minuscolo: l'account creato non riesce ad
     accedere. Anche `requestPasswordReset` e `requestEmailVerification` cercano l'indirizzo
@@ -206,7 +204,7 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Dipendenze:** nessuna
 
 - [x] **9. Rendere transazionali inviti e registrazione**
-  - **Stato:** branch `fix/transactional-invites`, sopra il punto 8. Test anche con un errore reale del database a metà conferma. I controlli `23505` di `users`, `subjects`, `class-sections` e `tutor-subjects` ora usano `lib/db-errors.ts`, che riconosce gli errori incapsulati da Drizzle.
+  - **Stato:** Test anche con un errore reale del database a metà conferma. I controlli `23505` di `users`, `subjects`, `class-sections` e `tutor-subjects` ora usano `lib/db-errors.ts`, che riconosce gli errori incapsulati da Drizzle.
   - **Problema:** l'invito viene consumato prima di validare i dati: una sezione non valida
     o un errore del database lo bruciano. Registrazione e conferma inviti scrivono più
     tabelle senza transazione, quindi possono lasciare un utente senza profilo. Una
@@ -228,7 +226,8 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
 
 ## MEDIA
 
-- [ ] **10. Correggere il redirect dopo il login**
+- [x] **10. Correggere il redirect dopo il login**
+  - **Stato:** `lib/safe-redirect.ts`, con test; nel browser `next=//evil.example` porta alla home del ruolo e un `next` interno funziona.
   - **Problema:** il controllo `startsWith('/')` accetta `next=//sito-esterno.com`, quindi un
     link può portare l'utente su un sito esterno subito dopo il login.
   - **File:** `apps/frontend/app/auth/login/page.tsx:111`
