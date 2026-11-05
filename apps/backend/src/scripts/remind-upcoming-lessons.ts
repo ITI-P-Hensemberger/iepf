@@ -5,7 +5,8 @@ import db, { closeDb } from '@/db'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
 import { buildLessonReminderStudentMessage, buildLessonReminderTutorMessage } from '@/lib/email-templates'
-import { closeMailer, sendMail } from '@/lib/mailer'
+import { createMailBatch } from '@/lib/mail-batch'
+import { closeMailer } from '@/lib/mailer'
 
 function buildClassLabel(sectionName: string | null, sectionId: string | null, year: number | null) {
   const sectionLabel = sectionName ?? sectionId
@@ -130,7 +131,7 @@ async function main() {
   const sectionNameMap = new Map(sections.map(section => [section.id, section.name]))
   const lessonMap = new Map(lessonsRows.map(lesson => [lesson.id, lesson]))
 
-  const sendTasks: Array<Promise<unknown>> = []
+  const mailBatch = createMailBatch()
 
   for (const booking of bookings) {
     const lesson = lessonMap.get(booking.lessonId)
@@ -158,12 +159,12 @@ async function main() {
       today
     })
 
-    sendTasks.push(sendMail({
+    mailBatch.send({
       to: student.email,
       subject: studentMessage.subject,
       text: studentMessage.text,
       html: studentMessage.html
-    }).catch(err => console.error('Failed to send student reminder email:', err)))
+    })
   }
 
   const tutorLessonMap = new Map<string, Map<string, { startAt: Date, subjectName: string, students: Array<{ name: string, classLabel: string | null }>, topics: string[] }>>()
@@ -218,15 +219,15 @@ async function main() {
       today
     })
 
-    sendTasks.push(sendMail({
+    mailBatch.send({
       to: tutor.email,
       subject: tutorMessage.subject,
       text: tutorMessage.text,
       html: tutorMessage.html
-    }).catch(err => console.error('Failed to send tutor reminder email:', err)))
+    })
   }
 
-  await Promise.allSettled(sendTasks)
+  await mailBatch.finish()
   console.warn(`Sent reminders for ${bookings.length} booking(s).`)
 }
 

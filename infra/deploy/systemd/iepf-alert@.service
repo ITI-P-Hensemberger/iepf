@@ -1,0 +1,7 @@
+[Unit]
+Description=IEPF failure alert for %i
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/iepf/shared/alert.sh %i
+TimeoutStartSec=2min

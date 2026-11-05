@@ -25,7 +25,7 @@ class DeployTests(unittest.TestCase):
         self.bin = self.base / 'bin'
         for p in [self.root / 'shared', self.root / 'releases', self.bundle, self.bin]:
             p.mkdir(parents=True)
-        for name in ['apply.sh', 'backup.sh', 'job.sh', 'compose.yaml']:
+        for name in ['apply.sh', 'backup.sh', 'job.sh', 'alert.sh', 'compose.yaml']:
             text = (SOURCE / name).read_text().replace('ROOT=/opt/iepf', f'ROOT={self.root}')
             (self.bundle / name).write_text(text)
         import shutil
@@ -147,6 +147,48 @@ if name=='curl' and fail=='http': sys.exit(1)
             r = subprocess.run(['bash', str(self.bundle / 'job.sh'), name], env=self.env, capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertEqual(self.commands()[-1][-4:], ['run','remind:lessons','--',flag])
+
+    def test_alert_posts_the_failed_unit(self):
+        (self.root / 'shared' / 'host.env').write_text('ALERT_WEBHOOK_URL=https://alerts.example/topic?a=b\n')
+        r = subprocess.run(['bash', str(self.bundle / 'alert.sh'), 'iepf-backup.service'], env=self.env, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        call = self.commands()[-1]
+        self.assertEqual(call[0], 'curl')
+        self.assertIn('https://alerts.example/topic?a=b', call)
+        self.assertTrue(any('iepf-backup.service' in arg for arg in call))
+
+    def test_alert_without_url_warns_and_calls_nothing(self):
+        r = subprocess.run(['bash', str(self.bundle / 'alert.sh'), 'iepf-backup.service'], env=self.env, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('nobody was notified', r.stderr)
+        self.assertEqual(self.commands(), [])
+
+    def test_alert_reports_a_failed_delivery(self):
+        (self.root / 'shared' / 'host.env').write_text('ALERT_WEBHOOK_URL=https://alerts.example\n')
+        r = subprocess.run(['bash', str(self.bundle / 'alert.sh'), 'x'], env=dict(self.env, FAIL='http'), capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0)
+
+    def test_backup_pings_heartbeat_only_after_success(self):
+        (self.root / 'shared' / 'host.env').write_text('BACKUP_HEARTBEAT_URL=https://ping.example/id\n')
+        run = lambda failure: subprocess.run(['bash', str(self.bundle / 'backup.sh')], env=dict(self.env, FAIL=failure), capture_output=True, text=True)
+        self.assertNotEqual(run('upload').returncode, 0)
+        self.assertFalse(any(c[0] == 'curl' for c in self.commands()))
+        self.assertEqual(run('').returncode, 0)
+        self.assertIn('https://ping.example/id', self.commands()[-1])
+
+    def test_failed_heartbeat_does_not_fail_the_backup(self):
+        (self.root / 'shared' / 'host.env').write_text('BACKUP_HEARTBEAT_URL=https://ping.example/id\n')
+        r = subprocess.run(['bash', str(self.bundle / 'backup.sh')], env=dict(self.env, FAIL='http'), capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('Backup heartbeat failed', r.stderr)
+
+    def test_alert_survives_a_rollback(self):
+        self.assertIn('/opt/iepf/shared/alert.sh', (SOURCE / 'systemd' / 'iepf-alert@.service').read_text())
+        self.assertIn('"$ROOT/shared/alert.sh"', (SOURCE / 'install-timers.sh').read_text())
+
+    def test_scheduled_units_alert_on_failure(self):
+        for name in ['iepf-job@.service', 'iepf-backup.service']:
+            self.assertIn('OnFailure=iepf-alert@%n.service', (SOURCE / 'systemd' / name).read_text())
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

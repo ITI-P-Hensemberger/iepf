@@ -15,4 +15,9 @@ mv "$FILE.partial" "$FILE"
 rclone copy "$FILE" gdrive:postgres-backups
 rclone delete gdrive:postgres-backups --min-age 30d
 find "$ROOT/shared/backups" -type f -name '*.sql.gz' -mtime +7 -delete
+# A missed ping is what reveals a run that never started, which OnFailure cannot see.
+HEARTBEAT=$(grep -m1 '^BACKUP_HEARTBEAT_URL=' "$ROOT/shared/host.env" | cut -d= -f2- || true)
+if [[ -n "$HEARTBEAT" ]]; then
+  curl --fail --silent --show-error --retry 3 --retry-delay 5 --max-time 20 "$HEARTBEAT" -o /dev/null || echo 'Backup heartbeat failed' >&2
+fi
 echo 'Backup complete'

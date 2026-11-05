@@ -2,6 +2,7 @@
 Description=IEPF PostgreSQL offsite backup
 Requires=docker.service
 After=docker.service network-online.target
+OnFailure=iepf-alert@%n.service
 
 [Service]
 Type=oneshot
