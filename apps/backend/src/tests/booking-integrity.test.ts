@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import app from '@/app'
 import db, { closeDb } from '@/db'
 import { auditLogs } from '@/db/schemas/audit-logs.schema'
+import { classSections } from '@/db/schemas/class-sections.schema'
 import { emailVerificationTokens } from '@/db/schemas/email-verification-tokens.schema'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
@@ -15,12 +16,15 @@ import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { users } from '@/db/schemas/users.schema'
 import env from '@/env'
+import { issueAdminInviteToken } from '@/lib/admin-invite'
 import { cleanDatabase } from '@/lib/db-cleanup'
+import { isUniqueConstraintError } from '@/lib/db-errors'
 import { DEV_PASSWORD, seedDevelopmentData } from '@/lib/dev-seed'
 import { getStudentTokenBalance } from '@/lib/lesson-tokens'
 import { assertLocalDatabase } from '@/lib/local-database'
 import { closeMailer } from '@/lib/mailer'
 import { hashPassword } from '@/lib/password'
+import { issueTutorInviteToken } from '@/lib/tutor-invite'
 import { resetRateLimiters } from '@/middlewares/rate-limit'
 
 let ids: Record<string, string>
@@ -342,6 +346,78 @@ describe('public and protected routes', () => {
     const response = await request('/auth/verify-email/request', { body: { email: email.toUpperCase() } })
     expect(response.status).toBe(200)
     expect(await db.select().from(emailVerificationTokens).where(eq(emailVerificationTokens.userId, id))).toHaveLength(1)
+  })
+
+  it('keeps a tutor invite usable when the confirmation data is invalid', async () => {
+    const email = `tutor-${crypto.randomUUID()}@hensemberger.it`
+    const { token } = await issueTutorInviteToken(email)
+    const [section] = await db.select({ id: classSections.id }).from(classSections).limit(1)
+    const body = { token, firstName: 'Nuovo', lastName: 'Tutor', password: 'Integrity123!', year: 4 }
+
+    const rejected = await request('/auth/tutor-invite/confirm', { body: { ...body, sectionId: crypto.randomUUID() } })
+    expect(rejected.status).toBe(400)
+    expect(await db.query.users.findFirst({ where: eq(users.email, email) })).toBeUndefined()
+
+    const confirmed = await request('/auth/tutor-invite/confirm', { body: { ...body, sectionId: section.id } })
+    expect(confirmed.status).toBe(201)
+    const user = await db.query.users.findFirst({ where: eq(users.email, email) })
+    expect(await db.query.tutorProfiles.findFirst({ where: (fields, ops) => ops.eq(fields.userId, user!.id) })).toBeDefined()
+    expect(await db.query.tutorSettings.findFirst({ where: (fields, ops) => ops.eq(fields.tutorId, user!.id) })).toBeDefined()
+
+    const reused = await request('/auth/tutor-invite/confirm', { body: { ...body, sectionId: section.id } })
+    expect(reused.status).toBe(401)
+  })
+
+  it('lets only one concurrent confirmation spend an invite', async () => {
+    const email = `admin-${crypto.randomUUID()}@hensemberger.it`
+    const { token } = await issueAdminInviteToken(email)
+    const body = { token, firstName: 'Nuovo', lastName: 'Admin', password: 'Integrity123!' }
+    const responses = await Promise.all([1, 2].map(() => request('/auth/admin-invite/confirm', { body })))
+    expect(responses.map(response => response.status).sort()).toEqual([201, 401])
+  })
+
+  it('answers 409 to the loser of a concurrent registration, leaving one complete account', async () => {
+    const email = `student-${crypto.randomUUID()}@hensemberger.it`
+    const body = { email, firstName: 'Nuovo', lastName: 'Studente', password: 'Integrity123!' }
+    const responses = await Promise.all([1, 2, 3].map(() => request('/auth/register', { body })))
+    expect(responses.map(response => response.status).sort()).toEqual([201, 409, 409])
+    const rows = await db.select({ id: users.id }).from(users).where(eq(users.email, email))
+    expect(rows).toHaveLength(1)
+    expect(await db.query.studentProfiles.findFirst({ where: (fields, ops) => ops.eq(fields.userId, rows[0].id) })).toBeDefined()
+  })
+
+  it('recognizes a real unique violation as Drizzle reports it', async () => {
+    const { email } = await createStudent(0)
+    const error = await db.insert(users).values({ email, firstName: 'A', lastName: 'B', passwordHash, role: 'student' }).catch(caught => caught)
+    expect(isUniqueConstraintError(error)).toBe(true)
+  })
+
+  it('keeps the invite and leaves nothing behind when the database fails midway', async () => {
+    const email = `tutor-${crypto.randomUUID()}@hensemberger.it`
+    const { token } = await issueTutorInviteToken(email)
+    const [section] = await db.select({ id: classSections.id }).from(classSections).limit(1)
+    const body = { token, firstName: 'Nuovo', lastName: 'Tutor', password: 'Integrity123!', year: 4, sectionId: section.id }
+
+    await db.execute(sql`create function fail_for_test() returns trigger language plpgsql as $$ begin raise exception 'simulated failure'; end $$`)
+    await db.execute(sql`create trigger fail_for_test before insert on tutor_settings for each row execute function fail_for_test()`)
+    try {
+      expect((await request('/auth/tutor-invite/confirm', { body })).status).toBe(500)
+    }
+    finally {
+      await db.execute(sql`drop trigger fail_for_test on tutor_settings`)
+      await db.execute(sql`drop function fail_for_test()`)
+    }
+    expect(await db.query.users.findFirst({ where: eq(users.email, email) })).toBeUndefined()
+
+    expect((await request('/auth/tutor-invite/confirm', { body })).status).toBe(201)
+  })
+
+  it('recognizes unique violations wrapped by Drizzle', () => {
+    expect(isUniqueConstraintError({ code: '23505' })).toBe(true)
+    expect(isUniqueConstraintError({ cause: { code: '23505' } })).toBe(true)
+    expect(isUniqueConstraintError({ code: '23503' })).toBe(false)
+    expect(isUniqueConstraintError(new Error('other'))).toBe(false)
+    expect(isUniqueConstraintError(null)).toBe(false)
   })
 
   it('serves /health without authentication or audit rows', async () => {

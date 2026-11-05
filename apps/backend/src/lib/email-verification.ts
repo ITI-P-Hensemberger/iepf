@@ -13,12 +13,12 @@ function buildExpiryDate() {
   return new Date(Date.now() + (env.EMAIL_VERIFICATION_TTL * 1000))
 }
 
-export async function issueEmailVerificationToken(userId: string) {
+export async function issueEmailVerificationToken(userId: string, executor: Pick<typeof db, 'insert'> = db) {
   const token = generateToken(TOKEN_BYTE_LENGTH)
   const tokenHash = hashToken(token)
   const expiresAt = buildExpiryDate()
 
-  await db.insert(emailVerificationTokens).values({
+  await executor.insert(emailVerificationTokens).values({
     userId,
     tokenHash,
     expiresAt
