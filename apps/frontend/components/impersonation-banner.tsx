@@ -84,6 +84,8 @@ export default function ImpersonationBanner() {
         }
         throw new Error(message)
       }
+      // A full reload guarantees nothing about the impersonated user stays in memory.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.href = '/admin'
     } catch (err) {
       toast.error(

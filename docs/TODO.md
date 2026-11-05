@@ -443,7 +443,10 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Evidenza:** `Verificato`, con una correzione: oggi conto **31 file** con `useEffect` e
     `fetch(` in `app`, `components` e `lib`, non 37 (i file con `useEffect` sono 39).
   - **Fatto quando:** c'è una decisione scritta, provata su una pagina pilota. Se positiva, la
-    migrazione procede a piccole PR.
+    migrazione procede a piccole PR. Comprende il ricaricamento completo a fine onboarding del
+    tutor (`components/tutor-onboarding-form.tsx`): va sostituito invalidando il dato di
+    `useTutorOnboarding`, e tolto il suo `eslint-disable`. Logout e fine impersonazione invece
+    restano ricaricamenti completi, perché garantiscono che nulla resti in memoria.
   - **Stima:** L (S per la sola valutazione)
   - **Dipendenze:** 22, 23, 24
 

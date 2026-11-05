@@ -18,6 +18,15 @@ import {
 import { ModeToggle } from './theme-mode-toggle'
 import { Button } from './ui/button'
 
+function MenuLink({ href, children }: { href: string, children: React.ReactNode }) {
+  return (
+    <DropdownMenuItem asChild className='cursor-pointer'>
+      {/* Prefetching would call the proxy and the backend for every visible item. */}
+      <Link href={href} prefetch={false}>{children}</Link>
+    </DropdownMenuItem>
+  )
+}
+
 export default function Header() {
   const { profile } = useSession()
   const [avatarGradient, setAvatarGradient] = React.useState(
@@ -84,116 +93,28 @@ export default function Header() {
             </Avatar>
           </DropdownMenuTrigger>
           <DropdownMenuContent className='w-auto' align='end'>
-            <DropdownMenuItem
-              className='cursor-pointer'
-              onSelect={(event) => {
-                event.preventDefault()
-                window.location.assign('/profile')
-              }}
-            >
-              Profilo
-            </DropdownMenuItem>
+            <MenuLink href='/profile'>Profilo</MenuLink>
             <DropdownMenuSeparator />
             {profile?.role === 'student' && (
-              <DropdownMenuItem
-                className='cursor-pointer'
-                onSelect={(event) => {
-                  event.preventDefault()
-                  window.location.assign('/faq')
-                }}
-              >
-                Domande frequenti
-              </DropdownMenuItem>
+              <MenuLink href='/faq'>Domande frequenti</MenuLink>
             )}
             {profile?.role === 'tutor' && (
               <DropdownMenuGroup>
-                <DropdownMenuItem
-                  className='cursor-pointer'
-                  onSelect={(event) => {
-                    event.preventDefault()
-                    window.location.assign('/tutor/settings/availability')
-                  }}
-                >
-                  Disponibilità
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className='cursor-pointer'
-                  onSelect={(event) => {
-                    event.preventDefault()
-                    window.location.assign('/tutor/settings/subjects')
-                  }}
-                >
-                  Materie
-                </DropdownMenuItem>
+                <MenuLink href='/tutor/settings/availability'>Disponibilità</MenuLink>
+                <MenuLink href='/tutor/settings/subjects'>Materie</MenuLink>
               </DropdownMenuGroup>
             )}
             {profile?.role === 'admin' && (
               <DropdownMenuGroup>
-                <DropdownMenuItem
-                  className='cursor-pointer'
-                  onSelect={(event) => {
-                    event.preventDefault()
-                    window.location.assign('/admin/students')
-                  }}
-                >
-                  Gestione Studenti
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className='cursor-pointer'
-                  onSelect={(event) => {
-                    event.preventDefault()
-                    window.location.assign('/admin/tutors')
-                  }}
-                >
-                  Gestione Tutor
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className='cursor-pointer'
-                  onSelect={(event) => {
-                    event.preventDefault()
-                    window.location.assign('/admin/admins')
-                  }}
-                >
-                  Gestione Admin
-                </DropdownMenuItem>
+                <MenuLink href='/admin/students'>Gestione Studenti</MenuLink>
+                <MenuLink href='/admin/tutors'>Gestione Tutor</MenuLink>
+                <MenuLink href='/admin/admins'>Gestione Admin</MenuLink>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className='cursor-pointer'
-                  onSelect={(event) => {
-                    event.preventDefault()
-                    window.location.assign('/admin/lessons')
-                  }}
-                >
-                  Gestione Lezioni
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className='cursor-pointer'
-                  onSelect={(event) => {
-                    event.preventDefault()
-                    window.location.assign('/admin/feedback')
-                  }}
-                >
-                  Gestione Feedback
-                </DropdownMenuItem>
+                <MenuLink href='/admin/lessons'>Gestione Lezioni</MenuLink>
+                <MenuLink href='/admin/feedback'>Gestione Feedback</MenuLink>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className='cursor-pointer'
-                  onSelect={(event) => {
-                    event.preventDefault()
-                    window.location.assign('/admin/settings')
-                  }}
-                >
-                  Impostazioni globali
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className='cursor-pointer'
-                  onSelect={(event) => {
-                    event.preventDefault()
-                    window.location.assign('/admin/stats')
-                  }}
-                >
-                  Statistiche
-                </DropdownMenuItem>
+                <MenuLink href='/admin/settings'>Impostazioni globali</MenuLink>
+                <MenuLink href='/admin/stats'>Statistiche</MenuLink>
               </DropdownMenuGroup>
             )}
             <DropdownMenuSeparator />
