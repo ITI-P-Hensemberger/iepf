@@ -1,6 +1,6 @@
 // Purpose: Token ledger for auditing student lesson token changes.
 import { relations } from 'drizzle-orm'
-import { integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { randomUUID } from 'node:crypto'
 
 import { lessons } from './lessons.schema'
@@ -15,7 +15,9 @@ export const tokenLedger = pgTable('token_ledger', {
   createdAt: timestamp({ mode: 'date' })
     .defaultNow()
     .notNull()
-})
+}, table => [
+  index('token_ledger_student_id_idx').on(table.studentId)
+])
 
 export const tokenLedgerRelations = relations(tokenLedger, ({ one }) => ({
   student: one(users, {

@@ -1,6 +1,6 @@
 // Purpose: Lesson bookings for students with per-student topics.
 import { relations, sql } from 'drizzle-orm'
-import { boolean, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
+import { boolean, index, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import { randomUUID } from 'node:crypto'
 
 import { lessons } from './lessons.schema'
@@ -27,7 +27,8 @@ export const lessonBookings = pgTable('lesson_bookings', {
 }, table => [
   uniqueIndex('lesson_bookings_confirmed_unique')
     .on(table.lessonId, table.studentId)
-    .where(sql`${table.status} = 'confirmed'`)
+    .where(sql`${table.status} = 'confirmed'`),
+  index('lesson_bookings_student_id_idx').on(table.studentId)
 ])
 
 export const lessonBookingsRelations = relations(lessonBookings, ({ one }) => ({

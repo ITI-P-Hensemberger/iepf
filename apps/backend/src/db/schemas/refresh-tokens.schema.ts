@@ -1,6 +1,6 @@
 // Purpose: Refresh token storage schema.
 import { relations } from 'drizzle-orm'
-import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import { randomUUID } from 'node:crypto'
 
 import { users } from './users.schema'
@@ -19,7 +19,9 @@ export const refreshTokens = pgTable('refresh_tokens', {
     .defaultNow()
     .notNull()
     .$onUpdate(() => new Date())
-})
+}, table => [
+  uniqueIndex('refresh_tokens_token_hash_unique').on(table.tokenHash)
+])
 
 export const refreshTokensRelations = relations(refreshTokens, ({ one }) => ({
   user: one(users, {

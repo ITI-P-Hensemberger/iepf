@@ -1,6 +1,6 @@
 // Purpose: Lesson sessions scheduled for tutors and subjects.
 import { relations } from 'drizzle-orm'
-import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { boolean, index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { randomUUID } from 'node:crypto'
 
 import { subjects } from './subjects.schema'
@@ -24,7 +24,10 @@ export const lessons = pgTable('lessons', {
     .defaultNow()
     .notNull()
     .$onUpdate(() => new Date())
-})
+}, table => [
+  index('lessons_start_at_idx').on(table.startAt),
+  index('lessons_tutor_id_idx').on(table.tutorId)
+])
 
 export const lessonsRelations = relations(lessons, ({ one }) => ({
   tutor: one(users, {
