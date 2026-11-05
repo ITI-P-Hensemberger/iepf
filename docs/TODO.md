@@ -346,6 +346,7 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Dipendenze:** nessuna. Coordinare con il punto 6 la pagina di errore temporaneo.
 
 - [ ] **19. Valutare una coda email su database**
+  - **Stato:** scelta la soluzione B: `reminder_deliveries` registra i promemoria inviati e impedisce i doppi invii, migrazione `0017`. Se l'invio fallisce il record viene tolto e il rilancio riprova. **La coda completa resta da fare:** il punto rimane per le email transazionali, che possono ancora perdersi.
   - **Problema:** le email fire-and-forget si perdono a ogni riavvio, compresi reset password e
     inviti. I promemoria non hanno protezione da invii doppi: rilanciare un job rimanda tutto.
   - **File:** `apps/backend/src/lib/mailer.ts`, `apps/backend/src/routes/auth/auth.handlers.ts`,
