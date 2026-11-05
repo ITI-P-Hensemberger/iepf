@@ -1,7 +1,7 @@
 // Purpose: Auth route schemas.
 import { createRoute, z } from '@hono/zod-openapi'
 
-import { schoolEmailSchema, selectUsersWithProfilesSchema, studentRegisterSchema } from '@/db/schemas/users.schema'
+import { normalizedEmailSchema, schoolEmailSchema, selectUsersWithProfilesSchema, studentRegisterSchema } from '@/db/schemas/users.schema'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
@@ -202,7 +202,7 @@ export const requestPasswordReset = createRoute({
   request: {
     body: jsonContentRequired(
       z.object({
-        email: z.email()
+        email: normalizedEmailSchema
       }),
       'Password reset request'
     )
@@ -255,7 +255,7 @@ export const requestEmailVerification = createRoute({
   request: {
     body: jsonContentRequired(
       z.object({
-        email: z.email()
+        email: normalizedEmailSchema
       }),
       'Email verification request'
     )

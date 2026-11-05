@@ -26,9 +26,17 @@ export const users = pgTable('users', {
 
 export const SCHOOL_EMAIL_DOMAIN = '@hensemberger.it'
 
-export const schoolEmailSchema = z
-  .intersection(z.email(), z.string().max(100))
-  .refine(email => email.toLowerCase().endsWith(SCHOOL_EMAIL_DOMAIN), {
+// Stored addresses are lowercase and login lowercases its input, so every address must be
+// normalized on the way in or the account stops being reachable.
+export const normalizedEmailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .pipe(z.email())
+
+export const schoolEmailSchema = normalizedEmailSchema
+  .refine(email => email.length <= 100, { message: 'Massimo 100 caratteri' })
+  .refine(email => email.endsWith(SCHOOL_EMAIL_DOMAIN), {
     message: `Utilizza una mail ${SCHOOL_EMAIL_DOMAIN}`
   })
 
