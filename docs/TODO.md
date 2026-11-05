@@ -315,7 +315,7 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Stima:** M
   - **Dipendenze:** 14 (`audit_logs.created_at`), 5
 
-- [ ] **16. Paginare la lista lezioni nel database**
+- [x] **16. Paginare la lista lezioni nel database**
   - **Problema:** la lista carica tutte le lezioni in memoria, calcola i campi e solo alla fine
     applica `slice`.
   - **File:** `apps/backend/src/routes/lessons/lessons.handlers.ts:330` e `:407`
