@@ -238,7 +238,7 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Dipendenze:** nessuna
 
 - [ ] **11. Aggiungere gli header di sicurezza**
-  - **Stato:** HSTS, `X-Frame-Options`, `X-Content-Type-Options` e `Referrer-Policy` aggiunti e `x-powered-by` tolto. HSTS parte da 30 giorni, senza sottodomini. **La CSP resta da fare:** il punto rimane aperto per quella.
+  - **Stato:** HSTS, `X-Frame-Options`, `X-Content-Type-Options` e `Referrer-Policy` aggiunti e `x-powered-by` tolto. HSTS parte da 30 giorni, senza sottodomini. La CSP è attiva solo in `report-only`, senza nonce: gli script inline restano permessi. **Resta da applicarla:** il punto rimane aperto finché la navigazione in produzione non conferma che non ci sono violazioni.
   - **Problema:** la home in produzione non invia HSTS, CSP, `X-Frame-Options`,
     `X-Content-Type-Options` né `Referrer-Policy`, ed espone `x-powered-by: Next.js`.
   - **File:** `apps/frontend/next.config.ts`, `infra/deploy/compose.yaml` (etichette Traefik)
