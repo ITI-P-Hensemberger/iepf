@@ -260,7 +260,8 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Stima:** S
   - **Dipendenze:** nessuna
 
-- [ ] **13. Gestire `SIGTERM` e dare timeout al pool**
+- [x] **13. Gestire `SIGTERM` e dare timeout al pool**
+  - **Stato:** `SIGTERM` e `SIGINT` fermano il server, attendono le email in corso e chiudono mailer e database entro 10 secondi; `stop_grace_period` è 15 secondi. Pool con timeout di connessione di 5 secondi e di query di 30. Le email ancora in coda oltre quel limite si perdono: resta il punto 19.
   - **Problema:** il backend non gestisce `SIGTERM`, quindi ogni deploy interrompe le
     richieste in corso e le email non ancora inviate. Il pool in `db/index.ts` non ha timeout,
     quindi un database bloccato trattiene le richieste.

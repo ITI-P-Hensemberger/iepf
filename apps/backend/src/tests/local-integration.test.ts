@@ -68,6 +68,11 @@ describe('local environment', () => {
     expect(student?.firstName).toBe('Edited locally')
   })
 
+  it('gives database statements a timeout', async () => {
+    const result = await db.execute(sql`show statement_timeout`)
+    expect(result.rows[0].statement_timeout).toBe('30s')
+  })
+
   it('serves public API documentation', async () => {
     expect((await app.request('/doc')).status).toBe(200)
   })

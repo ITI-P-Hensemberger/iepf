@@ -51,7 +51,10 @@ const schema = {
 }
 
 const pool = new Pool({
-  connectionString: env.DATABASE_URL
+  connectionString: env.DATABASE_URL,
+  // A stuck database must fail requests, not hold them open forever.
+  connectionTimeoutMillis: 5_000,
+  statement_timeout: 30_000
 })
 
 pool.on('error', (error) => {
