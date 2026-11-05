@@ -46,15 +46,15 @@ export async function sendMail(payload: MailPayload) {
     subject: payload.subject,
     text: payload.text,
     html: payload.html
+  }).catch((error: unknown) => {
+    throw redactSendError(error)
   })
 
   // eslint-disable-next-line no-console
   console.log('SMTP sendMail result', {
     messageId: info.messageId,
-    envelope: info.envelope,
-    accepted: info.accepted,
-    rejected: info.rejected,
-    response: (info as { response?: string }).response
+    accepted: info.accepted?.length ?? 0,
+    rejected: info.rejected?.length ?? 0
   })
 
   if (!env.SMTP_HOST) {
@@ -64,6 +64,12 @@ export async function sendMail(payload: MailPayload) {
       console.log(`Email preview to ${payload.to}: ${preview}`)
     }
   }
+}
+
+// Nodemailer errors carry the recipients in their fields and message, and callers log them.
+export function redactSendError(error: unknown) {
+  const { code, responseCode } = (error ?? {}) as { code?: string, responseCode?: number }
+  return new Error(`SMTP send failed: ${code ?? 'unknown'}${responseCode ? ` (${responseCode})` : ''}`)
 }
 
 export function closeMailer() {

@@ -249,7 +249,8 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
     header possono uscire prima, in una PR separata.
   - **Dipendenze:** 2 e 3, che cambiano `next.config.ts`.
 
-- [ ] **12. Togliere gli indirizzi email dai log**
+- [x] **12. Togliere gli indirizzi email dai log**
+  - **Stato:** tolti anche gli indirizzi dagli errori di nodemailer, che i chiamanti scrivono nei log. Restano solo con `SMTP_DEBUG` attivo e nell'anteprima senza `SMTP_HOST`.
   - **Problema:** `mailer.ts` registra `envelope`, `accepted` e `rejected`, cioè gli indirizzi
     dei destinatari, a ogni invio.
   - **File:** `apps/backend/src/lib/mailer.ts:52`
