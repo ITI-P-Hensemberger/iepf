@@ -13,6 +13,7 @@ import { passwordResetTokens } from '@/db/schemas/password-reset-tokens.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { subjects } from '@/db/schemas/subjects.schema'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
+import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { users } from '@/db/schemas/users.schema'
 import env from '@/env'
@@ -52,7 +53,7 @@ async function login(email: string, password = DEV_PASSWORD) {
   return (await response.json()).accessToken as string
 }
 
-async function createStudent(tokens: number) {
+async function createStudent(tokens: number, year: number | null = 1) {
   const email = `integrity-${crypto.randomUUID()}@example.test`
   const [student] = await db.insert(users).values({
     email,
@@ -62,7 +63,7 @@ async function createStudent(tokens: number) {
     role: 'student',
     emailVerifiedAt: new Date()
   }).returning({ id: users.id })
-  await db.insert(studentProfiles).values({ userId: student.id, year: 1, isActive: true })
+  await db.insert(studentProfiles).values({ userId: student.id, year, isActive: true })
   if (tokens !== 0) {
     await db.insert(tokenLedger).values({ studentId: student.id, delta: tokens, reason: 'initial_grant' })
   }
@@ -78,9 +79,24 @@ function nextLessonDay() {
   return date
 }
 
-async function createLesson(seats: number, startAt = nextLessonDay()) {
+async function createTutor(year: number) {
+  const [tutor] = await db.insert(users).values({
+    email: `integrity-tutor-${crypto.randomUUID()}@example.test`,
+    firstName: 'Integrity',
+    lastName: 'Tutor',
+    passwordHash,
+    role: 'tutor',
+    emailVerifiedAt: new Date()
+  }).returning({ id: users.id })
+  const [section] = await db.select({ id: classSections.id }).from(classSections).limit(1)
+  await db.insert(tutorProfiles).values({ userId: tutor.id, sectionId: section.id, year, isActive: true })
+  await db.insert(tutorSettings).values({ tutorId: tutor.id, dailyCapacity: 20 })
+  return tutor.id
+}
+
+async function createLesson(seats: number, startAt = nextLessonDay(), tutorId = ids.tutor) {
   const [lesson] = await db.insert(lessons).values({
-    tutorId: ids.tutor,
+    tutorId,
     subjectId,
     startAt,
     durationMinutes: 60,
@@ -378,7 +394,7 @@ describe('public and protected routes', () => {
 
   it('answers 409 to the loser of a concurrent registration, leaving one complete account', async () => {
     const email = `student-${crypto.randomUUID()}@hensemberger.it`
-    const body = { email, firstName: 'Nuovo', lastName: 'Studente', password: 'Integrity123!' }
+    const body = { email, firstName: 'Nuovo', lastName: 'Studente', password: 'Integrity123!', year: 1 }
     const responses = await Promise.all([1, 2, 3].map(() => request('/auth/register', { body })))
     expect(responses.map(response => response.status).sort()).toEqual([201, 409, 409])
     const rows = await db.select({ id: users.id }).from(users).where(eq(users.email, email))
@@ -487,6 +503,99 @@ describe('public and protected routes', () => {
 })
 
 // Last: this deletes every student and tutor created above.
+describe('school years', () => {
+  function registerStudent(year?: number) {
+    return request('/auth/register', {
+      body: {
+        email: `student-${crypto.randomUUID()}@hensemberger.it`,
+        firstName: 'Nuovo',
+        lastName: 'Studente',
+        password: 'Integrity123!',
+        ...(year === undefined ? {} : { year })
+      }
+    })
+  }
+
+  it.each([[1, 201], [4, 201], [0, 422], [5, 422], [undefined, 422]])('registers a student of year %s with status %i', async (year, status) => {
+    expect((await registerStudent(year)).status).toBe(status)
+  })
+
+  it.each([[3, 201], [5, 201], [2, 422], [6, 422]])('confirms a tutor invite for year %i with status %i', async (year, status) => {
+    const { token } = await issueTutorInviteToken(`tutor-${crypto.randomUUID()}@hensemberger.it`)
+    const [section] = await db.select({ id: classSections.id }).from(classSections).limit(1)
+    const response = await request('/auth/tutor-invite/confirm', {
+      body: { token, firstName: 'Nuovo', lastName: 'Tutor', password: 'Integrity123!', sectionId: section.id, year }
+    })
+    expect(response.status).toBe(status)
+  })
+
+  it('applies the same limits when an admin edits a profile', async () => {
+    const student = await createStudent(0)
+    const tutorId = await createTutor(4)
+    const [section] = await db.select({ id: classSections.id }).from(classSections).limit(1)
+    const patch = (id: string, year: number) => request(`/users/${id}`, {
+      method: 'PATCH',
+      token: adminToken,
+      body: { sectionId: section.id, year }
+    })
+    expect((await patch(student.id, 4)).status).toBe(200)
+    expect((await patch(student.id, 5)).status).toBe(422)
+    expect((await patch(tutorId, 3)).status).toBe(200)
+    expect((await patch(tutorId, 2)).status).toBe(422)
+  })
+
+  async function availableOn(day: Date, token: string) {
+    const from = new Date(day)
+    from.setHours(0, 0, 0, 0)
+    const to = new Date(day)
+    to.setHours(23, 59, 59, 999)
+    const params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString(), limit: '100' })
+    const response = await request(`/lessons/available?${params}`, { method: 'GET', token })
+    expect(response.status).toBe(200)
+    return await response.json() as { data: Array<{ id: string }>, total: number }
+  }
+
+  it.each([
+    [4, 1, true],
+    [4, 3, true],
+    [5, 4, true],
+    [3, 2, true],
+    [3, 3, false],
+    [4, 4, false],
+    [3, 4, false],
+    [3, null, true]
+  ])('with a tutor of year %i and a student of year %s, the lesson is offered and bookable: %s', async (tutorYear, studentYear, allowed) => {
+    const student = await createStudent(2, studentYear)
+    const day = nextLessonDay()
+    const lessonId = await createLesson(1, day, await createTutor(tutorYear))
+
+    const available = await availableOn(day, student.token)
+    expect(available.data.map(lesson => lesson.id)).toEqual(allowed ? [lessonId] : [])
+    expect(available.total).toBe(allowed ? 1 : 0)
+
+    const booked = await book(lessonId, student.token)
+    expect(booked.status).toBe(allowed ? 201 : 403)
+    expect(await confirmedBookings(lessonId)).toHaveLength(allowed ? 1 : 0)
+    expect(await getStudentTokenBalance(student.id)).toBe(allowed ? 1 : 2)
+  })
+
+  it('tells the student why a lesson cannot be booked', async () => {
+    const student = await createStudent(1, 4)
+    const response = await book(await createLesson(1, nextLessonDay(), await createTutor(4)), student.token)
+    expect((await response.json()).error.message).toBe('Puoi prenotare solo lezioni di tutor di un anno superiore al tuo')
+  })
+
+  it('lets an admin book a student with a tutor of the same year', async () => {
+    const student = await createStudent(1, 4)
+    const lessonId = await createLesson(1, nextLessonDay(), await createTutor(4))
+    const response = await request(`/lessons/${lessonId}/book`, {
+      token: adminToken,
+      body: { topic: 'Equazioni', studentId: student.id }
+    })
+    expect(response.status).toBe(201)
+  })
+})
+
 describe('school year reset', () => {
   const path = '/settings/school-year/reset'
   const counts = async () => (await db.execute(sql`select

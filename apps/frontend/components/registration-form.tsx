@@ -37,6 +37,7 @@ import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 
 import { extractPayloadArray } from '@/lib/backend-response'
+import { STUDENT_YEARS } from '@/lib/school-years'
 const formSchema = z
   .object({
     first_name: z
@@ -358,9 +359,9 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
                     <SelectContent>
                       <SelectGroup>
                         <SelectLabel>Anno</SelectLabel>
-                        <SelectItem value='1'>1° anno</SelectItem>
-                        <SelectItem value='2'>2° anno</SelectItem>
-                        <SelectItem value='3'>3° anno</SelectItem>
+                        {STUDENT_YEARS.map((year) => (
+                          <SelectItem key={year} value={String(year)}>{year}° anno</SelectItem>
+                        ))}
                       </SelectGroup>
                     </SelectContent>
                   </Select>

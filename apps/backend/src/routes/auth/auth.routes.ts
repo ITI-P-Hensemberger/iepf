@@ -6,6 +6,7 @@ import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
 import { createErrorMessageSchema, createErrorSchema, createMessageObjectSchema, createPagedListSchema, IdUUIDParamsSchema } from '@/lib/openapi/schemas'
+import { isYearInRange, TUTOR_YEARS, yearRangeMessage } from '@/lib/school-years'
 import { queryBoolean } from '@/lib/zod-utils'
 
 const tags = ['Auth']
@@ -52,11 +53,11 @@ export const tutorInviteConfirmSchema = z.object({
   sectionId: z.uuid(),
   year: z.number().int()
 }).superRefine((value, ctx) => {
-  if (value.year !== undefined && (value.year < 4 || value.year > 5)) {
+  if (!isYearInRange(value.year, TUTOR_YEARS)) {
     ctx.addIssue({
       code: 'custom',
       path: ['year'],
-      message: 'L\'anno deve essere compreso tra 4 e 5'
+      message: yearRangeMessage(TUTOR_YEARS)
     })
   }
 })

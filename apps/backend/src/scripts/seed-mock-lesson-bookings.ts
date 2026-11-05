@@ -13,6 +13,7 @@ import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'
 import { assertMockEnvironment, MOCK_STUDENT_PATTERN, MOCK_TUTOR_PATTERN } from '@/lib/mock-data'
+import { tutorCanTeachStudent } from '@/lib/school-years'
 
 function randomPick<T>(items: T[], count: number) {
   const copy = [...items]
@@ -52,7 +53,8 @@ async function main() {
   const activeStudents = await db
     .select({
       id: users.id,
-      email: users.email
+      email: users.email,
+      year: studentProfiles.year
     })
     .from(users)
     .innerJoin(studentProfiles, eq(studentProfiles.userId, users.id))
@@ -61,7 +63,8 @@ async function main() {
   const activeTutors = await db
     .select({
       id: users.id,
-      email: users.email
+      email: users.email,
+      year: tutorProfiles.year
     })
     .from(users)
     .innerJoin(tutorProfiles, eq(tutorProfiles.userId, users.id))
@@ -70,6 +73,7 @@ async function main() {
   if (activeStudents.length === 0 || activeTutors.length === 0) {
     throw new Error('No active students or tutors found. Seed mock users first.')
   }
+  const tutorYears = new Map(activeTutors.map(tutor => [tutor.id, tutor.year]))
 
   const scheduledLessons = await db
     .select({
@@ -146,7 +150,11 @@ async function main() {
     }
 
     const desired = Math.min(available, 2)
-    const selectedStudents = randomPick(activeStudents.filter(student => !existing.has(student.id)), desired)
+    const selectedStudents = randomPick(
+      activeStudents.filter(student => !existing.has(student.id)
+        && tutorCanTeachStudent(tutorYears.get(lesson.tutorId)!, student.year)),
+      desired
+    )
 
     for (const student of selectedStudents) {
       bookingRows.push({

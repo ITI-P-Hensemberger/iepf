@@ -26,6 +26,7 @@ import { sendMail } from '@/lib/mailer'
 import { buildPagedResponse } from '@/lib/pagination'
 import { hashPassword } from '@/lib/password'
 import { revokeUserRefreshTokens } from '@/lib/refresh-tokens'
+import { isYearInRange, STUDENT_YEARS, TUTOR_YEARS, yearRangeMessage } from '@/lib/school-years'
 
 import type { GetOneRoute, ListRoute, PatchRoute, RemoveRoute } from './users.routes'
 
@@ -655,15 +656,15 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     }
 
     if (hasProfileUpdates && existing.role === 'student') {
-      if (profileUpdates.year !== undefined && (profileUpdates.year < 1 || profileUpdates.year > 3)) {
+      if (profileUpdates.year !== undefined && !isYearInRange(profileUpdates.year, STUDENT_YEARS)) {
         return c.json(
-          buildErrorResponse('L\'anno deve essere compreso tra 1 e 3', {
+          buildErrorResponse(yearRangeMessage(STUDENT_YEARS), {
             name: 'ZodError',
             issues: [
               {
                 code: ZOD_ERROR_CODES.INVALID_UPDATES,
                 path: ['year'],
-                message: 'L\'anno deve essere compreso tra 1 e 3'
+                message: yearRangeMessage(STUDENT_YEARS)
               }
             ]
           }),
@@ -673,15 +674,15 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     }
 
     if (hasProfileUpdates && existing.role === 'tutor') {
-      if (profileUpdates.year !== undefined && (profileUpdates.year < 4 || profileUpdates.year > 5)) {
+      if (profileUpdates.year !== undefined && !isYearInRange(profileUpdates.year, TUTOR_YEARS)) {
         return c.json(
-          buildErrorResponse('L\'anno deve essere compreso tra 4 e 5', {
+          buildErrorResponse(yearRangeMessage(TUTOR_YEARS), {
             name: 'ZodError',
             issues: [
               {
                 code: ZOD_ERROR_CODES.INVALID_UPDATES,
                 path: ['year'],
-                message: 'L\'anno deve essere compreso tra 4 e 5'
+                message: yearRangeMessage(TUTOR_YEARS)
               }
             ]
           }),

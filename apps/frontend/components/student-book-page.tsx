@@ -1043,7 +1043,8 @@ export default function StudentBookPage() {
                           colSpan={5}
                           className='text-muted-foreground'
                         >
-                          Nessuna lezione disponibile.
+                          Nessuna lezione disponibile. Le lezioni sono tenute
+                          da tutor di un anno superiore al tuo.
                         </TableCell>
                       </TableRow>
                     )}

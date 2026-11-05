@@ -37,6 +37,7 @@ import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 
 import { extractPayloadArray } from '@/lib/backend-response'
+import { TUTOR_YEARS } from '@/lib/school-years'
 
 function normalizeName(value: string) {
   const trimmed = value.trim()
@@ -84,12 +85,11 @@ const formSchema = z
     if (!year) {
       return
     }
-    const parsed = Number(year)
-    if (!Number.isInteger(parsed) || parsed < 4 || parsed > 5) {
+    if (!(TUTOR_YEARS as readonly number[]).includes(Number(year))) {
       ctx.addIssue({
         code: 'custom',
         path: ['year'],
-        message: "L'anno deve essere compreso tra 4 e 5"
+        message: `L'anno deve essere compreso tra ${TUTOR_YEARS[0]} e ${TUTOR_YEARS[TUTOR_YEARS.length - 1]}`
       })
     }
   })
@@ -352,8 +352,9 @@ export function TutorRegistrationForm({
                     <SelectContent>
                       <SelectGroup>
                         <SelectLabel>Anno</SelectLabel>
-                        <SelectItem value='4'>4° anno</SelectItem>
-                        <SelectItem value='5'>5° anno</SelectItem>
+                        {TUTOR_YEARS.map((year) => (
+                          <SelectItem key={year} value={String(year)}>{year}° anno</SelectItem>
+                        ))}
                       </SelectGroup>
                     </SelectContent>
                   </Select>

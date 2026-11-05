@@ -222,7 +222,7 @@ async function main() {
     const { firstName, lastName } = pickName(i)
     const { id } = await getOrCreateUser(email, 'student', firstName, lastName, passwordHash, true)
     const section = nextSection()
-    const year = (i % 3) + 1
+    const year = (i % 4) + 1
     await ensureStudentProfile(id, section.id, year, true)
     created += 1
   }
@@ -232,7 +232,7 @@ async function main() {
     const { firstName, lastName } = pickName(i + 100)
     const { id } = await getOrCreateUser(email, 'student', firstName, lastName, passwordHash, true)
     const section = nextSection()
-    const year = (i % 3) + 1
+    const year = (i % 4) + 1
     await ensureStudentProfile(id, section.id, year, false)
     created += 1
   }
@@ -242,7 +242,7 @@ async function main() {
     const { firstName, lastName } = pickName(i + 200)
     const { id } = await getOrCreateUser(email, 'student', firstName, lastName, passwordHash, true)
     const section = nextSection()
-    const year = (i % 3) + 1
+    const year = (i % 4) + 1
     await ensureStudentProfile(id, section.id, year, false)
     created += 1
   }
@@ -252,7 +252,7 @@ async function main() {
     const { firstName, lastName } = pickName(i + 300)
     const { id } = await getOrCreateUser(email, 'tutor', firstName, lastName, passwordHash, true)
     const section = nextSection()
-    const year = (i % 2) + 4
+    const year = (i % 3) + 3
     await ensureTutorProfile(id, section.id, year, true)
     created += 1
   }
@@ -262,7 +262,7 @@ async function main() {
     const { firstName, lastName } = pickName(i + 400)
     const { id } = await getOrCreateUser(email, 'tutor', firstName, lastName, passwordHash, true)
     const section = nextSection()
-    const year = (i % 2) + 4
+    const year = (i % 3) + 3
     await ensureTutorProfile(id, section.id, year, false)
     created += 1
   }
