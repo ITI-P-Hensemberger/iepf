@@ -311,7 +311,14 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
       )
     : clauses.length ? and(...clauses) : undefined
 
-  const baseQuery = db
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(lessons)
+    .innerJoin(users, eq(lessons.tutorId, users.id))
+    .innerJoin(subjects, eq(lessons.subjectId, subjects.id))
+    .where(listWhere)
+
+  const pageLessons = await db
     .select({
       id: lessons.id,
       tutorId: lessons.tutorId,
@@ -326,22 +333,25 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
     .from(lessons)
     .innerJoin(users, eq(lessons.tutorId, users.id))
     .innerJoin(subjects, eq(lessons.subjectId, subjects.id))
+    .where(listWhere)
+    // Lessons can start together: without the id they could repeat or vanish between pages.
+    .orderBy(direction, asc(lessons.id))
+    .limit(query.limit)
+    .offset(query.offset)
 
-  const allLessons = await (listWhere ? baseQuery.where(listWhere) : baseQuery).orderBy(direction)
-
-  if (allLessons.length === 0) {
-    return c.json(buildPagedResponse([], 0, query.limit, query.offset), HttpStatusCodes.OK)
+  if (pageLessons.length === 0) {
+    return c.json(buildPagedResponse([], total, query.limit, query.offset), HttpStatusCodes.OK)
   }
 
   // Get unique tutor+day combinations
   const tutorDayKeys = new Set<string>()
-  for (const lesson of allLessons) {
+  for (const lesson of pageLessons) {
     const dateKey = getDateKey(new Date(lesson.startAt))
     tutorDayKeys.add(`${lesson.tutorId}:${dateKey}`)
   }
 
   // Get tutor capacities
-  const tutorIds = [...new Set(allLessons.map(l => l.tutorId))]
+  const tutorIds = [...new Set(pageLessons.map(l => l.tutorId))]
   const tutorCapacities = new Map<string, number>()
   for (const tutorId of tutorIds) {
     tutorCapacities.set(tutorId, await getTutorDailyCapacity(tutorId))
@@ -357,7 +367,7 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
   }
 
   // Get per-lesson booking counts
-  const lessonIds = allLessons.map(l => l.id)
+  const lessonIds = pageLessons.map(l => l.id)
   const bookings = await db.query.lessonBookings.findMany({
     where(fields, operators) {
       return operators.and(
@@ -373,17 +383,7 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
     lessonBookingCounts.set(booking.lessonId, (lessonBookingCounts.get(booking.lessonId) ?? 0) + 1)
   }
 
-  const sortedLessons = [...allLessons].sort((a, b) => {
-    const aTime = query.sortBy === 'createdAt'
-      ? new Date(a.createdAt).getTime()
-      : new Date(a.startAt).getTime()
-    const bTime = query.sortBy === 'createdAt'
-      ? new Date(b.createdAt).getTime()
-      : new Date(b.startAt).getTime()
-    return query.sortDir === 'desc' ? bTime - aTime : aTime - bTime
-  })
-
-  const items = sortedLessons.map((lesson) => {
+  const items = pageLessons.map((lesson) => {
     const dateKey = getDateKey(new Date(lesson.startAt))
     const tutorDayKey = `${lesson.tutorId}:${dateKey}`
     const dailyBookings = tutorDayBookings.get(tutorDayKey) ?? 0
@@ -405,10 +405,7 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
     }
   })
 
-  const total = items.length
-  const paged = items.slice(query.offset, query.offset + query.limit)
-
-  return c.json(buildPagedResponse(paged, total, query.limit, query.offset), HttpStatusCodes.OK)
+  return c.json(buildPagedResponse(items, total, query.limit, query.offset), HttpStatusCodes.OK)
 }
 
 export const listMyLessons: AppRouteHandler<ListMyLessonsRoute> = async (c) => {
