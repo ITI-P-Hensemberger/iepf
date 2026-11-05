@@ -12,6 +12,8 @@ const PENDING_PATH = '/student/pending'
 const TUTOR_PREFIX = '/tutor'
 const ADMIN_PENDING_PATH = '/admin/pending'
 const TUTOR_PENDING_PATH = '/tutor/pending'
+// Reached from links in emails, so they must open for a user who is already signed in.
+const EMAIL_LINK_PATHS = ['/auth/reset-password', '/auth/verify-email', '/auth/sign-up-tutor', '/auth/sign-up-admin']
 
 
 function roleHome(role: string | null, isActive: boolean) {
@@ -129,7 +131,7 @@ export async function proxy(request: NextRequest) {
   const isActivator = role === 'activator'
   const isActive = active === 'true'
 
-  const isAuthRoute = pathname.startsWith(AUTH_PREFIX)
+  const isAuthRoute = pathname.startsWith(AUTH_PREFIX) && !EMAIL_LINK_PATHS.includes(pathname)
   const isAdminRoute = pathname.startsWith(ADMIN_PREFIX)
   const isTutorRoute = pathname.startsWith(TUTOR_PREFIX)
   const isActivatorRoute = pathname.startsWith(ACTIVATOR_PREFIX)
@@ -214,5 +216,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next|favicon.ico|api).*)']
+  // Static files need no session check: each one would call the backend and add an audit row.
+  matcher: ['/((?!_next|favicon.ico|api|.*\\.(?:png|jpe?g|gif|svg|webp|ico|txt|xml|webmanifest|woff2?)$).*)']
 }

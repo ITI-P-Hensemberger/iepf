@@ -1,7 +1,8 @@
+import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { proxy } from './proxy'
+import { config, proxy } from './proxy'
 
 function jwt(sub: string) {
   const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
@@ -29,6 +30,16 @@ function location(response: Response) {
   const value = response.headers.get('location')
   return value ? new URL(value).pathname + new URL(value).search : null
 }
+
+describe('proxy matcher', () => {
+  it.each(['/', '/student', '/admin/tutors', '/auth/login', '/auth/reset-password'])('runs on %s', (url) => {
+    expect(unstable_doesMiddlewareMatch({ config, url })).toBe(true)
+  })
+
+  it.each(['/logo.png', '/icon.png', '/apple-icon.png', '/favicon.ico', '/_next/static/chunk.js', '/api/lessons'])('skips %s', (url) => {
+    expect(unstable_doesMiddlewareMatch({ config, url })).toBe(false)
+  })
+})
 
 describe('proxy', () => {
   beforeEach(() => {
@@ -66,6 +77,24 @@ describe('proxy', () => {
     mockProfile({ role: 'tutor', isActive: true })
     expect(location(await proxy(page('/', session('tutor'))))).toBe('/tutor')
     expect(location(await proxy(page('/auth/login', session('tutor'))))).toBe('/tutor')
+  })
+
+  it.each(['/auth/reset-password', '/auth/verify-email', '/auth/sign-up-tutor', '/auth/sign-up-admin'])(
+    'opens the email link %s for a signed-in user',
+    async (path) => {
+      mockProfile({ role: 'student', isActive: true })
+      const response = await proxy(page(`${path}?token=abc`, session('student')))
+      expect(location(response)).toBeNull()
+      expect(response.status).toBe(200)
+    }
+  )
+
+  it('keeps rotated tokens when opening an email link', async () => {
+    const tokens = { accessToken: jwt('student'), tokenType: 'Bearer', expiresIn: 3600, refreshToken: 'next', refreshTokenExpiresIn: 7200 }
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/auth/refresh') ? json(tokens) : json({ role: 'student', isActive: true })))
+    const response = await proxy(page('/auth/reset-password?token=abc', { iepf_refresh: 'old' }))
+    expect(location(response)).toBeNull()
+    expect(response.headers.get('set-cookie')).toContain('iepf_refresh=next')
   })
 
   it('holds inactive students on the pending page', async () => {
