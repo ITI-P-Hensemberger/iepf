@@ -39,7 +39,22 @@ const transport = env.SMTP_HOST
       buffer: true
     })
 
-export async function sendMail(payload: MailPayload) {
+const pendingMail = new Set<Promise<void>>()
+
+// Most emails are sent without being awaited, so shutdown has to know what is in flight.
+export function sendMail(payload: MailPayload) {
+  const delivery = deliverMail(payload)
+  pendingMail.add(delivery)
+  const forget = () => pendingMail.delete(delivery)
+  delivery.then(forget, forget)
+  return delivery
+}
+
+export async function waitForPendingMail() {
+  await Promise.allSettled(pendingMail)
+}
+
+async function deliverMail(payload: MailPayload) {
   const info = await transport.sendMail({
     from: env.SMTP_FROM ?? 'no-reply@example.com',
     to: payload.to,
