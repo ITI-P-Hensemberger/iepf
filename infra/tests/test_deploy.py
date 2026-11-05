@@ -25,7 +25,7 @@ class DeployTests(unittest.TestCase):
         self.bin = self.base / 'bin'
         for p in [self.root / 'shared', self.root / 'releases', self.bundle, self.bin]:
             p.mkdir(parents=True)
-        for name in ['apply.sh', 'backup.sh', 'job.sh', 'alert.sh', 'compose.yaml']:
+        for name in ['apply.sh', 'backup.sh', 'job.sh', 'alert.sh', 'install-timers.sh', 'compose.yaml']:
             text = (SOURCE / name).read_text().replace('ROOT=/opt/iepf', f'ROOT={self.root}')
             (self.bundle / name).write_text(text)
         import shutil
@@ -181,6 +181,24 @@ if name=='curl' and fail=='http': sys.exit(1)
         r = subprocess.run(['bash', str(self.bundle / 'backup.sh')], env=dict(self.env, FAIL='http'), capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn('Backup heartbeat failed', r.stderr)
+
+    def run_install_timers(self, crontab):
+        (self.previous / 'systemd').mkdir()
+        (self.previous / 'alert.sh').write_text('')
+        for name, body in [('crontab', crontab), ('systemctl', ''), ('install', '')]:
+            path = self.bin / name
+            path.write_text('#!/bin/bash\n' + body)
+            path.chmod(0o755)
+        return subprocess.run(['bash', str(self.bundle / 'install-timers.sh')], env=self.env, capture_output=True, text=True)
+
+    def test_install_timers_works_without_a_crontab(self):
+        r = self.run_install_timers('[[ "$1" != -l ]] || { echo "no crontab for root" >&2; exit 1; }\n')
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_install_timers_keeps_unrelated_cron_jobs(self):
+        r = self.run_install_timers('[[ "$1" != -l ]] || printf "0 1 * * * other\\n0 2 * * * /opt/infra/iepf/backup-postgres.sh\\n"\n')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual((self.root / 'shared' / 'crontab.after-timers').read_text(), '0 1 * * * other\n')
 
     def test_alert_survives_a_rollback(self):
         self.assertIn('/opt/iepf/shared/alert.sh', (SOURCE / 'systemd' / 'iepf-alert@.service').read_text())

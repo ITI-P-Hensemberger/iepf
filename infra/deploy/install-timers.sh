@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Run once after the first successful release. Preserve all unrelated cron jobs.
+# Run after the first successful release and whenever systemd/ or alert.sh change.
+# Safe to rerun. Preserve all unrelated cron jobs.
 set -Eeuo pipefail
 umask 077
 ROOT=/opt/iepf
@@ -7,7 +8,8 @@ RELEASE=$(readlink -f "$ROOT/current")
 [[ -s "$RELEASE/images.env" && -d "$RELEASE/systemd" ]]
 exec 9>"$ROOT/shared/deploy.lock"
 flock -w 1800 9
-crontab -l > "$ROOT/shared/crontab.before-timers"
+# crontab -l fails when the user has no crontab, which is a normal state on a rerun.
+crontab -l > "$ROOT/shared/crontab.before-timers" 2>/dev/null || : > "$ROOT/shared/crontab.before-timers"
 python3 - "$ROOT/shared/crontab.before-timers" "$ROOT/shared/crontab.after-timers" <<'PY'
 from pathlib import Path
 import sys

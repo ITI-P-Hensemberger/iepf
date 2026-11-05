@@ -11,7 +11,7 @@ WORKSPACE_FILES = {'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.nv
 WORKFLOWS = '.github/workflows/'
 CI_SCRIPTS = 'infra/ci/'
 # Exactly the files that form the production bundle.
-DEPLOY_FILES = {'infra/deploy/compose.yaml', 'infra/deploy/apply.sh', 'infra/deploy/job.sh', 'infra/deploy/backup.sh', 'infra/deploy/alert.sh'}
+DEPLOY_FILES = {'infra/deploy/compose.yaml', 'infra/deploy/apply.sh', 'infra/deploy/job.sh', 'infra/deploy/backup.sh', 'infra/deploy/alert.sh', 'infra/deploy/install-timers.sh'}
 DEPLOY_DIRS = ('infra/deploy/systemd/',)
 OUTPUTS = [f'{name}_{kind}' for name in (*APPS, 'infra') for kind in ('checks', 'release')]
 

@@ -30,7 +30,7 @@ Il workflow unico `.github/workflows/ci-release.yml` decide cosa fare con
 | `apps/backend/**` | backend | backend |
 | `apps/frontend/**` | frontend | frontend |
 | `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `.nvmrc`, `.dockerignore` | entrambe le app | entrambe le app |
-| file del bundle in `infra/deploy/` (`compose.yaml`, `apply.sh`, `job.sh`, `backup.sh`, `alert.sh`, `systemd/`) | infra | infra |
+| file del bundle in `infra/deploy/` (`compose.yaml`, `apply.sh`, `job.sh`, `backup.sh`, `alert.sh`, `install-timers.sh`, `systemd/`) | infra | infra |
 | `.github/workflows/**`, `infra/ci/**` | tutti | infra |
 | resto di `infra/`, `.github/`, `Makefile` | infra | nessuno |
 | file `.md` | quelli dell'app | nessuno |
@@ -82,7 +82,7 @@ Prima attivazione:
 2. Eseguire `backup.sh` e verificare l'upload su Drive.
 3. Pubblicare la repo: la prima attivazione infra attiva le versioni esistenti con i
    controlli di salute. La prima attivazione infra non esegue migrazioni.
-4. Dopo il successo eseguire `install-timers.sh` sulla VPS: installa i timer e
+4. Dopo il successo eseguire `bash /opt/iepf/current/install-timers.sh` sulla VPS: installa i timer e
    rimuove solo i vecchi cron IEPF. Gli orari sono in Europe/Rome: backup 02:00,
    reminder lezioni oggi 12:00, domani 20:30, feedback 17:00; generazione lezioni
    sabato 12:00. Non recupera automaticamente gli invii persi dopo un downtime.
@@ -155,7 +155,7 @@ docker compose --env-file /opt/iepf/shared/host.env --env-file /opt/iepf/current
 
 Le modifiche alla sola documentazione non attivano un deploy; su `main` vengono
 comunque eseguiti i controlli infrastrutturali. La configurazione dei timer installata in
-`/etc/systemd/system` si aggiorna rieseguendo `install-timers.sh` dopo un deploy
+`/etc/systemd/system` si aggiorna rieseguendo `bash /opt/iepf/current/install-timers.sh` dopo un deploy
 che modifica `deploy/systemd/`.
 
 Al termine del cutover i vecchi script, Compose e file env sono stati archiviati
