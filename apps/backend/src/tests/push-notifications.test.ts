@@ -26,7 +26,7 @@ import { closeMailer, waitForPendingMail } from '@/lib/mailer'
 import { deleteStaleSubscriptions, deliverPush, MAX_SUBSCRIPTIONS_PER_USER, saveSubscription, setPushConfig, STALE_SUBSCRIPTION_DAYS, waitForPendingPush } from '@/lib/push'
 import { lessonChangedPush } from '@/lib/push-messages'
 import { createPushBatch, sendReminderPushOnce } from '@/lib/reminder-delivery'
-import { isAllowedPushEndpoint, isValidSubscriptionKeys } from '@/lib/web-push'
+import { isAllowedPushEndpoint, isValidSubscriptionKeys, isValidVapidSubject } from '@/lib/web-push'
 import { resetRateLimiters } from '@/middlewares/rate-limit'
 
 // A real browser key pair shape: 65-byte uncompressed point and 16-byte secret.
@@ -101,6 +101,15 @@ describe('push endpoint checks', () => {
     expect(isAllowedPushEndpoint('https://fcm.googleapis.com.evil.test/x')).toBe(false)
     expect(isAllowedPushEndpoint('https://fcm.googleapis.com:8443/x')).toBe(false)
     expect(isAllowedPushEndpoint('not a url')).toBe(false)
+  })
+
+  it('refuses VAPID subjects that Apple rejects', () => {
+    expect(isValidVapidSubject('mailto:iepf@hensemberger.it')).toBe(true)
+    expect(isValidVapidSubject('https://iepf.hensemberger.it')).toBe(true)
+    expect(isValidVapidSubject('mailto:no-reply@example.test')).toBe(false)
+    expect(isValidVapidSubject('mailto:someone@example.com')).toBe(false)
+    expect(isValidVapidSubject('https://localhost')).toBe(false)
+    expect(isValidVapidSubject('iepf@hensemberger.it')).toBe(false)
   })
 
   it('checks the size of the subscription keys', () => {

@@ -83,6 +83,28 @@ export function isValidVapidKeys(publicKey: string, privateKey: string) {
 }
 
 // Push services accept at most 32 base64url characters as a topic.
+// Apple refuses the VAPID token (403 BadJwtToken) when the subject names a reserved domain.
+const RESERVED_SUBJECT_DOMAIN = /(?:^|\.)(?:test|example|invalid|localhost|local)$|^example\.(?:com|net|org)$/i
+
+export function isValidVapidSubject(subject: string) {
+  let domain: string
+  if (subject.startsWith('mailto:')) {
+    domain = subject.slice('mailto:'.length).split('@')[1] ?? ''
+  }
+  else if (subject.startsWith('https://')) {
+    try {
+      domain = new URL(subject).hostname
+    }
+    catch {
+      return false
+    }
+  }
+  else {
+    return false
+  }
+  return domain.includes('.') && !RESERVED_SUBJECT_DOMAIN.test(domain)
+}
+
 function topicHeader(topic: string) {
   return createHash('sha256').update(topic).digest('base64url').slice(0, 32)
 }

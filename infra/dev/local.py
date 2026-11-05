@@ -81,7 +81,8 @@ def vapid_keys():
     encode = lambda raw: base64.urlsafe_b64encode(raw).rstrip(b'=').decode()
     public = b'\x04' + point[0].to_bytes(32, 'big') + point[1].to_bytes(32, 'big')
     return {'VAPID_PUBLIC_KEY': encode(public), 'VAPID_PRIVATE_KEY': encode(secret.to_bytes(32, 'big')),
-            'VAPID_SUBJECT': 'mailto:no-reply@example.test'}
+            # Apple rejects reserved domains such as example.test: use the project's contact.
+            'VAPID_SUBJECT': 'mailto:iepf@hensemberger.it'}
 
 
 def add_missing_env(path, values):

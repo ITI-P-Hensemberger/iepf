@@ -148,7 +148,9 @@ iepf-compose run --rm --no-deps maintenance npm run push:vapid-keys
 ```
 
 1. Aggiungere a `/opt/iepf/shared/backend.env` le due righe stampate e
-   `VAPID_SUBJECT=mailto:iepf@hensemberger.it`, un contatto per i servizi push.
+   `VAPID_SUBJECT=mailto:iepf@hensemberger.it`, un contatto per i servizi push. Deve
+   essere un dominio reale: Apple rifiuta ogni invio (403 `BadJwtToken`) con domini
+   come `example.test`, e il backend non parte con un valore del genere.
    Così la chiave privata non lascia mai il server.
 2. Ricreare il backend perché rilegga il file:
    `iepf-compose up -d --force-recreate --wait backend`. I job dei timer leggono il file

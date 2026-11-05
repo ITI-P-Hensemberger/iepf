@@ -5,7 +5,7 @@ import { expand } from 'dotenv-expand'
 import path from 'node:path'
 import { z } from 'zod'
 
-import { isValidVapidKeys } from './lib/web-push'
+import { isValidVapidKeys, isValidVapidSubject } from './lib/web-push'
 
 expand(config({
   path: path.resolve(
@@ -97,8 +97,8 @@ const EnvSchema = z.object({
     else if (!isValidVapidKeys(input.VAPID_PUBLIC_KEY!, input.VAPID_PRIVATE_KEY!)) {
       ctx.addIssue({ code: 'custom', path: ['VAPID_PRIVATE_KEY'], message: 'VAPID keys are not a valid P-256 key pair' })
     }
-    else if (!/^(?:mailto:|https:\/\/)/.test(input.VAPID_SUBJECT!)) {
-      ctx.addIssue({ code: 'custom', path: ['VAPID_SUBJECT'], message: 'Must start with mailto: or https://' })
+    else if (!isValidVapidSubject(input.VAPID_SUBJECT!)) {
+      ctx.addIssue({ code: 'custom', path: ['VAPID_SUBJECT'], message: 'Must be mailto: or https:// with a real domain (Apple rejects example.test and similar)' })
     }
   }
   if (input.NODE_ENV === 'production' && !input.SITE_URL) {
