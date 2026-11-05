@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
-import { AUTH_COOKIES, refreshWithProfile } from '@/lib/auth'
+import { AUTH_COOKIES, isAuthRejected, refreshWithProfile } from '@/lib/auth'
 import { clearAuthCookies, setAuthCookies } from '@/lib/auth-cookies'
 
 export async function POST(request: Request) {
@@ -25,12 +25,15 @@ export async function POST(request: Request) {
     )
 
     const response = NextResponse.json({
-      role: profile.role ?? 'student',
-      isActive: profile.isActive === true
+      role: profile ? profile.role ?? 'student' : null,
+      isActive: profile?.isActive === true
     })
     setAuthCookies(response, tokens, remember)
     return response
-  } catch {
+  } catch (error) {
+    if (!isAuthRejected(error)) {
+      return NextResponse.json({ message: 'Service unavailable.' }, { status: 503 })
+    }
     const response = NextResponse.json({ message: 'Refresh failed.' }, { status: 401 })
     clearAuthCookies(response)
     return response
