@@ -119,7 +119,9 @@ export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
         )
       }
 
-      // Redirect to tutor home with full page reload to refresh data
+      // Redirect to tutor home with full page reload to refresh data.
+      // Temporary: docs/TODO.md item 25 replaces this with invalidating the onboarding data.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.href = '/tutor'
     } catch (err) {
       toast.error(
