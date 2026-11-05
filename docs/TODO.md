@@ -362,7 +362,8 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
 
 ## MANUTENZIONE
 
-- [ ] **20. Rafforzare CI e deploy**
+- [x] **20. Rafforzare CI e deploy**
+  - **Stato:** action fissate per SHA, aggiornate da Dependabot; `TRAEFIK_IMAGE` già fissata per digest sulla VPS. **Decisioni:** `main` resta non protetto, rischio accettato perché c'è un solo sviluppatore; da rivedere se se ne aggiunge un altro. L'utente di deploy resta root, rimandato: un utente nel gruppo `docker` è comunque equivalente a root.
   - **Problema:** `main` non è protetto, le action sono fissate per tag e non per SHA, e l'utente
     SSH di deploy è root.
   - **File:** `.github/workflows/ci-release.yml`, `infra/deploy/README.md:68`,
