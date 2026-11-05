@@ -1,5 +1,5 @@
 // Purpose: Audit log entries for request and admin actions.
-import { integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { randomUUID } from 'node:crypto'
 
 export const auditLogs = pgTable('audit_logs', {
@@ -18,4 +18,6 @@ export const auditLogs = pgTable('audit_logs', {
   createdAt: timestamp({ mode: 'date' })
     .defaultNow()
     .notNull()
-})
+}, table => [
+  index('audit_logs_created_at_idx').on(table.createdAt)
+])

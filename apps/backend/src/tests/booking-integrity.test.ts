@@ -420,6 +420,35 @@ describe('public and protected routes', () => {
     expect(isUniqueConstraintError(null)).toBe(false)
   })
 
+  it('has the indexes the main queries rely on', async () => {
+    const result = await db.execute(sql`select indexname from pg_indexes where schemaname = 'public'`)
+    const names = result.rows.map(row => row.indexname)
+    expect(names).toEqual(expect.arrayContaining([
+      'lessons_start_at_idx',
+      'lessons_tutor_id_idx',
+      'lesson_bookings_student_id_idx',
+      'token_ledger_student_id_idx',
+      'audit_logs_created_at_idx',
+      'refresh_tokens_token_hash_unique'
+    ]))
+  })
+
+  it.each([
+    ['lessons_start_at_idx', sql`select id from lessons where start_at >= now()`],
+    ['lessons_tutor_id_idx', sql`select id from lessons where tutor_id = '00000000-0000-4000-8000-000000000000'`],
+    ['lesson_bookings_student_id_idx', sql`select id from lesson_bookings where student_id = '00000000-0000-4000-8000-000000000000'`],
+    ['token_ledger_student_id_idx', sql`select id from token_ledger where student_id = '00000000-0000-4000-8000-000000000000'`],
+    ['audit_logs_created_at_idx', sql`select id from audit_logs where created_at < now()`],
+    ['refresh_tokens_token_hash_unique', sql`select id from refresh_tokens where token_hash = 'x'`]
+  ])('can answer its query with %s', async (index, query) => {
+    const plan = await db.transaction(async (tx) => {
+      // Test tables are too small for the planner to pick an index on its own.
+      await tx.execute(sql`set local enable_seqscan = off`)
+      return tx.execute(sql`explain ${query}`)
+    })
+    expect(JSON.stringify(plan.rows)).toContain(index)
+  })
+
   it('serves /health without authentication or audit rows', async () => {
     const before = await db.select({ total: sql<number>`count(*)::int` }).from(auditLogs).where(eq(auditLogs.path, '/health'))
     const response = await request('/health', { method: 'GET' })

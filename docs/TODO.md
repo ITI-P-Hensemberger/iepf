@@ -277,7 +277,8 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Stima:** S
   - **Dipendenze:** nessuna
 
-- [ ] **14. Aggiungere gli indici mancanti**
+- [x] **14. Aggiungere gli indici mancanti**
+  - **Stato:** migrazione `0016`, con `refresh_tokens.token_hash` univoco; un test verifica con `EXPLAIN` che ogni query possa usare il suo indice. **Prima del deploy:** controllare le dimensioni di `audit_logs`, perché `CREATE INDEX` blocca le scritture finché non finisce.
   - **Problema:** mancano indici su `refresh_tokens.token_hash`, `lessons.start_at`,
     `lessons.tutor_id`, `lesson_bookings.student_id`, `token_ledger.student_id` e
     `audit_logs.created_at`.
