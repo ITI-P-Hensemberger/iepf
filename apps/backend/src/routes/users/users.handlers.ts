@@ -25,6 +25,8 @@ import { getStudentTokenBalances } from '@/lib/lesson-tokens'
 import { sendMail } from '@/lib/mailer'
 import { buildPagedResponse } from '@/lib/pagination'
 import { hashPassword } from '@/lib/password'
+import { notifyUsers } from '@/lib/push'
+import { activationChangedPush } from '@/lib/push-messages'
 import { revokeUserRefreshTokens } from '@/lib/refresh-tokens'
 import { isYearInRange, STUDENT_YEARS, TUTOR_YEARS, yearRangeMessage } from '@/lib/school-years'
 
@@ -859,6 +861,9 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
           text: message.text,
           html: message.html
         }).catch(err => console.error('Failed to send profile update email:', err))
+        if (activationChanged) {
+          notifyUsers([id], 'account', activationChangedPush(Boolean(profileUpdates.isActive)))
+        }
       }
     }
   }

@@ -10,6 +10,8 @@ import { buildLessonsGeneratedMessage } from '@/lib/email-templates'
 import { createMailBatch } from '@/lib/mail-batch'
 import { closeMailer } from '@/lib/mailer'
 import { assertMockEnvironment, MOCK_TUTOR_PATTERN } from '@/lib/mock-data'
+import { lessonsGeneratedPush } from '@/lib/push-messages'
+import { createPushBatch } from '@/lib/reminder-delivery'
 
 function getNextWeekMonday(): Date {
   const now = new Date()
@@ -162,6 +164,7 @@ async function main() {
   const closureDates = await getClosureDates()
   const closureDateSet = new Set(closureDates)
   const mailBatch = createMailBatch()
+  const pushBatch = createPushBatch()
 
   for (const tutor of activeTutors) {
     let createdForTutor = 0
@@ -233,8 +236,12 @@ async function main() {
         html: message.html
       })
     }
+    if (createdForTutor > 0) {
+      pushBatch.send(tutor.id, 'lessons', lessonsGeneratedPush({ count: createdForTutor, weekStart: targetMonday }))
+    }
   }
 
+  await pushBatch.finish()
   await mailBatch.finish()
   process.stdout.write(`Complete: ${totalCreated} lessons created, ${totalSkipped} skipped (already exist)\n`)
 }

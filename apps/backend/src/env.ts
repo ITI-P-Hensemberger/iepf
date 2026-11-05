@@ -5,6 +5,8 @@ import { expand } from 'dotenv-expand'
 import path from 'node:path'
 import { z } from 'zod'
 
+import { isValidVapidKeys } from './lib/web-push'
+
 expand(config({
   path: path.resolve(
     process.cwd(),
@@ -12,6 +14,13 @@ expand(config({
   ),
   override: false
 }))
+
+function optionalText() {
+  return z.preprocess(
+    value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().min(1).optional()
+  )
+}
 
 const EnvSchema = z.object({
   NODE_ENV: z.string().default('development'),
@@ -67,6 +76,10 @@ const EnvSchema = z.object({
     }
     return value
   }, z.boolean().optional()),
+  // Web Push keys: all three or none. Without them push notifications are off.
+  VAPID_PUBLIC_KEY: optionalText(),
+  VAPID_PRIVATE_KEY: optionalText(),
+  VAPID_SUBJECT: optionalText(),
   ADMIN_EMAIL: z.email().optional(),
   ADMIN_PASSWORD: z.string().min(8).optional(),
   ADMIN_FIRST_NAME: z.string().min(1).default('Admin'),
@@ -76,6 +89,18 @@ const EnvSchema = z.object({
   ACTIVATOR_FIRST_NAME: z.string().min(1).default('Activator'),
   ACTIVATOR_LAST_NAME: z.string().min(1).default('User')
 }).superRefine((input, ctx) => {
+  const vapid = [input.VAPID_PUBLIC_KEY, input.VAPID_PRIVATE_KEY, input.VAPID_SUBJECT]
+  if (vapid.some(Boolean)) {
+    if (!vapid.every(Boolean)) {
+      ctx.addIssue({ code: 'custom', path: ['VAPID_PUBLIC_KEY'], message: 'Set VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT together, or none of them' })
+    }
+    else if (!isValidVapidKeys(input.VAPID_PUBLIC_KEY!, input.VAPID_PRIVATE_KEY!)) {
+      ctx.addIssue({ code: 'custom', path: ['VAPID_PRIVATE_KEY'], message: 'VAPID keys are not a valid P-256 key pair' })
+    }
+    else if (!/^(?:mailto:|https:\/\/)/.test(input.VAPID_SUBJECT!)) {
+      ctx.addIssue({ code: 'custom', path: ['VAPID_SUBJECT'], message: 'Must start with mailto: or https://' })
+    }
+  }
   if (input.NODE_ENV === 'production' && !input.SITE_URL) {
     ctx.addIssue({
       code: 'invalid_type',

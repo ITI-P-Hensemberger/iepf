@@ -39,7 +39,17 @@ const headers = process.env.NODE_ENV === 'development'
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  headers: async () => [{ source: '/:path*', headers }],
+  headers: async () => [
+    { source: '/:path*', headers },
+    // Browsers check for a new service worker on every visit: it must never come from a cache.
+    {
+      source: '/sw.js',
+      headers: [
+        { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+        { key: 'Content-Type', value: 'application/javascript; charset=utf-8' }
+      ]
+    }
+  ],
   output: 'standalone',
   outputFileTracingRoot: workspaceRoot,
   turbopack: {

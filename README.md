@@ -130,9 +130,28 @@ sono generati coerentemente. Per cambiarle in un ambiente già preparato,
 arrestarlo e aggiornare tutti i riferimenti nei quattro file. Non rinominare il
 progetto se si vuole continuare a usare lo stesso volume dati.
 
+## Notifiche push
+
+Le push affiancano le email (prenotazioni, promemoria, feedback, attivazione account,
+lezioni generate) per chi le attiva dal profilo; le email partono sempre. Usano Web
+Push standard con chiavi VAPID (`web-push` nel backend, `apps/frontend/public/sw.js`
+e `app/manifest.ts` nel frontend), senza servizi a pagamento: il messaggio passa
+cifrato dal servizio push del browser. Il backend contatta solo gli endpoint di
+Google, Mozilla, Apple e Microsoft (`apps/backend/src/lib/web-push.ts`).
+
+`make setup` genera le chiavi locali in `backend.env`, e le aggiunge anche a un
+ambiente già preparato. Senza chiavi le push sono spente e il profilo lo dice.
+Per provarle serve Chrome, Edge o Firefox su `localhost`: il browser integrato
+dell'app desktop di Claude blocca le notifiche. Dopo averle attivate dal profilo, una
+notifica di prova parte con
+`ENV_FILE=../../.local/backend.env npx --yes pnpm@10.28.2 run push:test -- student@example.test`
+da `apps/backend`. Su iPhone le push funzionano solo con
+il sito aggiunto alla schermata Home (iOS 16.4 o successivo) e quindi via HTTPS.
+
 ## Produzione
 
 I push su main avviano `.github/workflows/ci-release.yml`, che controlla, costruisce
 e rilascia solo ciò che è cambiato. La VPS non effettua checkout Git.
-Configurazione, backup, schedulazione e rollback: [runbook](infra/deploy/README.md).
+Configurazione, backup, schedulazione e rollback: [runbook](infra/deploy/README.md),
+che descrive anche come attivare le notifiche push.
 Il Compose locale e il launcher non sono inclusi nei bundle di produzione.

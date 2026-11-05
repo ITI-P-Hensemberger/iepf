@@ -70,7 +70,8 @@ describe('cleanUpExpiredData', () => {
       emailVerificationTokens: 1,
       passwordResetTokens: 1,
       adminInviteTokens: 1,
-      tutorInviteTokens: 1
+      tutorInviteTokens: 1,
+      pushSubscriptions: 0
     })
     expect(await db.select().from(refreshTokens).where(eq(refreshTokens.tokenHash, 'r-kept'))).toHaveLength(1)
     expect(await db.select().from(tutorInviteTokens).where(eq(tutorInviteTokens.tokenHash, 't-kept'))).toHaveLength(1)

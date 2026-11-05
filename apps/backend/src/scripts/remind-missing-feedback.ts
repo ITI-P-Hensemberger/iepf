@@ -9,7 +9,8 @@ import { users } from '@/db/schemas/users.schema'
 import { buildLessonFeedbackReminderMessage } from '@/lib/email-templates'
 import { createMailBatch } from '@/lib/mail-batch'
 import { closeMailer } from '@/lib/mailer'
-import { localDayKey, pruneReminderDeliveries, sendReminderOnce } from '@/lib/reminder-delivery'
+import { feedbackReminderPush } from '@/lib/push-messages'
+import { createPushBatch, localDayKey, pruneReminderDeliveries, sendReminderOnce, sendReminderPushOnce } from '@/lib/reminder-delivery'
 
 function getDayBounds(reference = new Date()) {
   const start = new Date(reference)
@@ -138,6 +139,7 @@ async function remindMissingFeedback() {
 
   await pruneReminderDeliveries()
   const mailBatch = createMailBatch()
+  const pushBatch = createPushBatch()
   let sent = 0
 
   for (const [userId, pending] of pendingByUser.entries()) {
@@ -155,10 +157,12 @@ async function remindMissingFeedback() {
     })) {
       sent += 1
     }
+    await sendReminderPushOnce(pushBatch, `feedback:${localDayKey(now)}:${userId}`, userId, 'feedback', feedbackReminderPush(pending.role, pending.count))
   }
 
+  const pushed = await pushBatch.finish()
   await mailBatch.finish()
-  console.warn(`Sent ${sent} feedback reminder(s).`)
+  console.warn(`Sent ${sent} feedback reminder(s); ${pushed.delivered} push(es) delivered, ${pushed.failed} failed.`)
 }
 
 remindMissingFeedback()
