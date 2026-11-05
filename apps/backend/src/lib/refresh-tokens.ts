@@ -1,5 +1,5 @@
 // Purpose: Refresh token lifecycle helpers.
-import { eq } from 'drizzle-orm'
+import { and, eq, lte } from 'drizzle-orm'
 import { randomBytes } from 'node:crypto'
 
 import db from '@/db'
@@ -11,17 +11,19 @@ import type { AuthenticatedUser } from './types'
 import { hashToken } from './token-utils'
 
 const TOKEN_BYTE_LENGTH = 48
+// Parallel requests, or a response lost on the way back, must not sign the user out.
+export const ROTATION_GRACE_MS = 30_000
 
 function buildExpiryDate() {
   return new Date(Date.now() + (env.REFRESH_TOKEN_TTL * 1000))
 }
 
-export async function issueRefreshToken(userId: string) {
+export async function issueRefreshToken(userId: string, executor: Pick<typeof db, 'insert'> = db) {
   const token = randomBytes(TOKEN_BYTE_LENGTH).toString('hex')
   const tokenHash = hashToken(token)
   const expiresAt = buildExpiryDate()
 
-  await db.insert(refreshTokens).values({
+  await executor.insert(refreshTokens).values({
     userId,
     tokenHash,
     expiresAt
@@ -37,51 +39,69 @@ export async function issueRefreshToken(userId: string) {
 export async function rotateRefreshToken(refreshToken: string) {
   const tokenHash = hashToken(refreshToken)
 
-  const found = await db.query.refreshTokens.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.tokenHash, tokenHash)
-    },
-    columns: {
-      id: true,
-      userId: true,
-      expiresAt: true
+  return db.transaction(async (tx) => {
+    // The row lock serializes concurrent rotations of the same token.
+    const [found] = await tx.select({
+      id: refreshTokens.id,
+      userId: refreshTokens.userId,
+      expiresAt: refreshTokens.expiresAt,
+      rotatedAt: refreshTokens.rotatedAt
+    })
+      .from(refreshTokens)
+      .where(eq(refreshTokens.tokenHash, tokenHash))
+      .for('update')
+
+    if (!found) {
+      return null
+    }
+
+    const now = new Date()
+    const graceStart = new Date(now.getTime() - ROTATION_GRACE_MS)
+
+    if (found.expiresAt <= now) {
+      await tx.delete(refreshTokens).where(eq(refreshTokens.id, found.id))
+      return null
+    }
+
+    if (found.rotatedAt && found.rotatedAt <= graceStart) {
+      await tx.delete(refreshTokens).where(eq(refreshTokens.id, found.id))
+      return null
+    }
+
+    const user = await tx.query.users.findFirst({
+      where(fields, operators) {
+        return operators.eq(fields.id, found.userId)
+      },
+      columns: {
+        id: true,
+        email: true,
+        role: true,
+        emailVerifiedAt: true
+      }
+    })
+
+    if (!user) {
+      await tx.delete(refreshTokens).where(eq(refreshTokens.id, found.id))
+      return null
+    }
+
+    if (!found.rotatedAt) {
+      await tx.update(refreshTokens).set({ rotatedAt: now }).where(eq(refreshTokens.id, found.id))
+    }
+
+    // Keep the table bounded: rotated tokens are useless once their grace period ends.
+    await tx.delete(refreshTokens).where(and(
+      eq(refreshTokens.userId, found.userId),
+      lte(refreshTokens.rotatedAt, graceStart)
+    ))
+
+    const next = await issueRefreshToken(found.userId, tx)
+
+    return {
+      user: user as AuthenticatedUser,
+      refresh: next
     }
   })
-
-  if (!found) {
-    return null
-  }
-
-  if (found.expiresAt <= new Date()) {
-    await db.delete(refreshTokens).where(eq(refreshTokens.id, found.id))
-    return null
-  }
-
-  const user = await db.query.users.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.id, found.userId)
-    },
-    columns: {
-      id: true,
-      email: true,
-      role: true,
-      emailVerifiedAt: true
-    }
-  })
-
-  if (!user) {
-    await db.delete(refreshTokens).where(eq(refreshTokens.id, found.id))
-    return null
-  }
-
-  await db.delete(refreshTokens).where(eq(refreshTokens.id, found.id))
-
-  const next = await issueRefreshToken(found.userId)
-
-  return {
-    user: user as AuthenticatedUser,
-    refresh: next
-  }
 }
 
 export async function revokeRefreshToken(refreshToken: string) {

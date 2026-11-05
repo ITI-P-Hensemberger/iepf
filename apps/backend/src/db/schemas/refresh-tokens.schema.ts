@@ -10,6 +10,8 @@ export const refreshTokens = pgTable('refresh_tokens', {
   userId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),
   tokenHash: text().notNull(),
   expiresAt: timestamp({ mode: 'date' }).notNull(),
+  // Set by the first rotation; the token still works for a short grace period afterwards.
+  rotatedAt: timestamp({ mode: 'date' }),
   createdAt: timestamp({ mode: 'date' })
     .defaultNow()
     .notNull(),
