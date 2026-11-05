@@ -2,7 +2,7 @@
 # Build context is the repository root:
 #   docker build -f apps/frontend/Dockerfile .
 
-FROM node:22-alpine AS deps
+FROM node:26-alpine AS deps
 WORKDIR /app
 RUN npm install --global pnpm@10.28.2
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -14,7 +14,7 @@ COPY apps/frontend apps/frontend
 WORKDIR /app/apps/frontend
 RUN pnpm run build
 
-FROM node:22-alpine AS runner
+FROM node:26-alpine AS runner
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 
