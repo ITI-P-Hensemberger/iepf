@@ -336,7 +336,8 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Stima:** S
   - **Dipendenze:** 6 (stesso file)
 
-- [ ] **18. Aggiungere `error.tsx` e `loading.tsx`**
+- [x] **18. Aggiungere `error.tsx` e `loading.tsx`**
+  - **Stato:** `app/error.tsx`, `app/global-error.tsx` e `app/loading.tsx` alla radice valgono per tutte le aree.
   - **Problema:** il frontend ha solo `app/not-found.tsx`: un errore di rendering mostra la
     pagina predefinita di Next e la navigazione non ha stati di caricamento.
   - **File:** `apps/frontend/app/` (`error.tsx`, `global-error.tsx`, `loading.tsx`)
