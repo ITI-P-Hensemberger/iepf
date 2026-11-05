@@ -43,7 +43,7 @@ else
   RELEASE="$ROOT/releases/$ID"
   [[ ! -e "$RELEASE" ]] || { echo 'Release already exists' >&2; exit 1; }
   mkdir "$RELEASE"
-  cp "$BUNDLE/compose.yaml" "$BUNDLE/job.sh" "$BUNDLE/backup.sh" "$BUNDLE/alert.sh" "$RELEASE/"
+  cp "$BUNDLE/compose.yaml" "$BUNDLE/job.sh" "$BUNDLE/backup.sh" "$BUNDLE/alert.sh" "$BUNDLE/install-timers.sh" "$RELEASE/"
   cp -R "$BUNDLE/systemd" "$RELEASE/"
   BASE="$ROOT/shared/images.env"
   [[ -z "$PREVIOUS" ]] || BASE="$PREVIOUS/images.env"
