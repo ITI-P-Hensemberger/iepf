@@ -681,6 +681,23 @@ export function buildLessonCreatedMessage(params: {
   } satisfies EmailTemplate
 }
 
+// The previous tutor of a lesson an admin moved to someone else.
+export function buildLessonReassignedMessage(params: {
+  lessonStartAt: Date
+  subjectName: string
+  tutorName: string
+}) {
+  const dateLabel = formatLessonDate(params.lessonStartAt)
+  return {
+    subject: 'Lezione riassegnata',
+    text: `Ciao ${params.tutorName}, la lezione di ${params.subjectName} del ${dateLabel} è stata affidata a un altro tutor da un amministratore. Non devi più tenerla.`,
+    html: buildEmailHtml(
+      'Lezione riassegnata',
+      `Ciao ${params.tutorName}, la lezione di <strong>${params.subjectName}</strong> del <strong>${dateLabel}</strong> è stata affidata a un altro tutor da un amministratore.<br />Non devi più tenerla.`
+    )
+  } satisfies EmailTemplate
+}
+
 export function buildLessonPresenceUpdatedMessage(params: {
   lessonStartAt: Date
   subjectName: string

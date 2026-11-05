@@ -8,15 +8,23 @@ import type { WebPushTarget, WebPushTransport } from '@/lib/web-push'
 
 import app from '@/app'
 import db, { closeDb } from '@/db'
+import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
+import { lessons } from '@/db/schemas/lessons.schema'
 import { notificationPreferences } from '@/db/schemas/notification-preferences.schema'
 import { pushSubscriptions } from '@/db/schemas/push-subscriptions.schema'
 import { reminderDeliveries } from '@/db/schemas/reminder-deliveries.schema'
+import { studentProfiles } from '@/db/schemas/student-profiles.schema'
+import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
+import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
+import { users } from '@/db/schemas/users.schema'
 import env from '@/env'
 import { cleanDatabase } from '@/lib/db-cleanup'
 import { DEV_PASSWORD, seedDevelopmentData } from '@/lib/dev-seed'
+import { notifyStudentsOfNewLessons } from '@/lib/lessons-available'
 import { assertLocalDatabase } from '@/lib/local-database'
 import { closeMailer, waitForPendingMail } from '@/lib/mailer'
-import { deleteStaleSubscriptions, deliverPush, MAX_SUBSCRIPTIONS_PER_USER, setPushConfig, STALE_SUBSCRIPTION_DAYS, waitForPendingPush } from '@/lib/push'
+import { deleteStaleSubscriptions, deliverPush, MAX_SUBSCRIPTIONS_PER_USER, saveSubscription, setPushConfig, STALE_SUBSCRIPTION_DAYS, waitForPendingPush } from '@/lib/push'
+import { lessonChangedPush } from '@/lib/push-messages'
 import { createPushBatch, sendReminderPushOnce } from '@/lib/reminder-delivery'
 import { isAllowedPushEndpoint, isValidSubscriptionKeys } from '@/lib/web-push'
 import { resetRateLimiters } from '@/middlewares/rate-limit'
@@ -309,5 +317,133 @@ describe('retention', () => {
     expect(await deleteStaleSubscriptions()).toBe(1)
     const rows = await db.select().from(pushSubscriptions)
     expect(rows.map(row => row.endpoint)).toEqual([endpoint('recent')])
+  })
+})
+
+describe('reschedule texts', () => {
+  const before = { lessonId: 'old', subjectName: 'Matematica', startAt: new Date('2031-05-06T12:00:00Z'), durationMinutes: 60 }
+
+  it('name the one thing that changed', () => {
+    expect(lessonChangedPush('student', before, { ...before, lessonId: 'new', startAt: new Date('2031-05-07T13:00:00Z') }, false)?.title).toBe('Lezione spostata')
+    expect(lessonChangedPush('student', before, { ...before, durationMinutes: 90 }, false)).toMatchObject({ title: 'Durata cambiata', body: expect.stringContaining('90 minuti') })
+    expect(lessonChangedPush('student', before, { ...before, subjectName: 'Fisica' }, false)).toMatchObject({ title: 'Materia cambiata', body: expect.stringContaining('ora è Fisica (prima Matematica)') })
+    expect(lessonChangedPush('student', before, before, true)?.title).toBe('Tutor cambiato')
+  })
+
+  it('sum up several changes, and say nothing when nothing changed', () => {
+    const moved = { ...before, subjectName: 'Fisica', startAt: new Date('2031-05-07T13:00:00Z') }
+    expect(lessonChangedPush('student', before, moved, true)).toMatchObject({ title: 'Lezione modificata', body: expect.stringContaining('con un altro tutor') })
+    expect(lessonChangedPush('student', before, before, false)).toBeNull()
+    // The tutor hears about a change of tutor from the reassignment messages instead.
+    expect(lessonChangedPush('tutor', before, before, true)).toBeNull()
+  })
+})
+
+describe('new lessons of the week', () => {
+  const monday = new Date('2031-05-05T00:00:00')
+
+  async function addStudent(email: string, year: number | null, isActive = true) {
+    const [student] = await db.insert(users).values({ email, firstName: 'S', lastName: 'S', passwordHash: 'unused', role: 'student' }).returning({ id: users.id })
+    const sectionId = (await db.query.classSections.findFirst())!.id
+    await db.insert(studentProfiles).values({ userId: student.id, sectionId, year, isActive })
+    await saveSubscription(student.id, { endpoint: endpoint(email), p256dh: P256DH, auth: AUTH })
+    return student.id
+  }
+
+  it('reach the students who can book them, once per week', async () => {
+    await subscribe(tokens.student, 'year-2')
+    await addStudent('fourth-year@example.test', 4)
+    await addStudent('no-year@example.test', null)
+    await addStudent('inactive@example.test', 1, false)
+
+    const batch = createPushBatch()
+    // Tutors of the 4th year can teach the 2nd year, not the 4th.
+    expect(await notifyStudentsOfNewLessons(batch, monday, [3, 4])).toBe(2)
+    await batch.finish()
+    expect(sent.map(({ target }) => target.endpoint).sort()).toEqual([endpoint('no-year@example.test'), endpoint('year-2')])
+    expect(sent[0].payload).toMatchObject({ title: 'Nuove lezioni disponibili', url: '/student/book' })
+
+    const rerun = createPushBatch()
+    expect(await notifyStudentsOfNewLessons(rerun, monday, [5])).toBe(1)
+    await rerun.finish()
+    expect(sent.map(({ target }) => target.endpoint)).toContain(endpoint('fourth-year@example.test'))
+    expect(sent).toHaveLength(3)
+  })
+
+  it('reach nobody when no lesson was created', async () => {
+    await subscribe(tokens.student, 'year-2')
+    expect(await notifyStudentsOfNewLessons(createPushBatch(), monday, [])).toBe(0)
+  })
+})
+
+describe('reschedule notifications', () => {
+  let otherTutorId: string
+  let subjectId: string
+
+  beforeAll(async () => {
+    const [tutor] = await db.insert(users).values({ email: 'other-tutor@example.test', firstName: 'T', lastName: 'T', passwordHash: 'unused', role: 'tutor' }).returning({ id: users.id })
+    otherTutorId = tutor.id
+    const sectionId = (await db.query.classSections.findFirst())!.id
+    await db.insert(tutorProfiles).values({ userId: otherTutorId, sectionId, year: 5, isActive: true })
+    await db.insert(tutorSettings).values({ tutorId: otherTutorId, dailyCapacity: 3 })
+    subjectId = (await db.query.subjects.findFirst())!.id
+  })
+
+  async function bookedLesson(startAt: string) {
+    const [lesson] = await db.insert(lessons).values({ tutorId: ids.tutor, subjectId, startAt: new Date(startAt), durationMinutes: 60, seats: 2, status: 'confirmed' }).returning({ id: lessons.id })
+    await db.insert(lessonBookings).values({ lessonId: lesson.id, studentId: ids.student, topic: 'Argomento privato' })
+    return lesson.id
+  }
+
+  async function reschedule(lessonId: string, changes: Record<string, unknown>) {
+    const response = await call(`/lessons/${lessonId}/reschedule`, {
+      token: tokens.admin,
+      body: { tutorId: ids.tutor, subjectId, startAt: '2031-06-02T12:00:00.000Z', durationMinutes: 60, ...changes }
+    })
+    expect(response.status).toBe(200)
+    await waitForPendingPush()
+    await waitForPendingMail()
+  }
+
+  function titlesFor(name: string) {
+    return sent.filter(({ target }) => target.endpoint === endpoint(name)).map(({ payload }) => payload.title)
+  }
+
+  beforeEach(async () => {
+    await subscribe(tokens.student, 'student')
+    await subscribe(tokens.tutor, 'tutor')
+    await saveSubscription(otherTutorId, { endpoint: endpoint('other-tutor'), p256dh: P256DH, auth: AUTH })
+  })
+
+  it('tells the student and the same tutor what moved', async () => {
+    const lessonId = await bookedLesson('2031-06-02T12:00:00.000Z')
+    await reschedule(lessonId, { startAt: '2031-06-03T13:00:00.000Z' })
+    expect(titlesFor('student')).toEqual(['Lezione spostata'])
+    expect(titlesFor('tutor')).toEqual(['Lezione spostata'])
+    expect(titlesFor('other-tutor')).toEqual([])
+  })
+
+  it('tells both tutors when the lesson changes hands', async () => {
+    const lessonId = await bookedLesson('2031-06-09T12:00:00.000Z')
+    await reschedule(lessonId, { startAt: '2031-06-09T12:00:00.000Z', tutorId: otherTutorId })
+    expect(titlesFor('student')).toEqual(['Tutor cambiato'])
+    expect(titlesFor('tutor')).toEqual(['Lezione riassegnata'])
+    expect(titlesFor('other-tutor')).toEqual(['Nuova lezione assegnata'])
+    expect(String(sent.find(({ target }) => target.endpoint === endpoint('other-tutor'))?.payload.body)).toContain('1 studente prenotato')
+    expect(JSON.stringify(sent)).not.toContain('Argomento privato')
+  })
+
+  it('tells both tutors even when nobody booked', async () => {
+    const [lesson] = await db.insert(lessons).values({ tutorId: ids.tutor, subjectId, startAt: new Date('2031-06-16T12:00:00.000Z'), durationMinutes: 60, seats: 2 }).returning({ id: lessons.id })
+    await reschedule(lesson.id, { startAt: '2031-06-16T12:00:00.000Z', tutorId: otherTutorId })
+    expect(titlesFor('tutor')).toEqual(['Lezione riassegnata'])
+    expect(titlesFor('other-tutor')).toEqual(['Nuova lezione assegnata'])
+    expect(titlesFor('student')).toEqual([])
+  })
+
+  it('stays quiet when nothing changed', async () => {
+    const lessonId = await bookedLesson('2031-06-23T12:00:00.000Z')
+    await reschedule(lessonId, { startAt: '2031-06-23T12:00:00.000Z' })
+    expect(sent).toHaveLength(0)
   })
 })

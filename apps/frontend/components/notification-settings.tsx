@@ -18,12 +18,17 @@ import {
   type PushSupport
 } from '@/lib/push-client'
 
-const CATEGORY_LABELS: Array<{ key: PushCategory, label: string, description: string, tutorOnly?: boolean }> = [
+const CATEGORY_LABELS: Array<{ key: PushCategory, label: string, description: string, tutorDescription?: string }> = [
   { key: 'bookings', label: 'Prenotazioni', description: 'Conferme, annullamenti e spostamenti delle lezioni.' },
   { key: 'reminders', label: 'Promemoria', description: 'Le lezioni del giorno e del giorno dopo.' },
   { key: 'feedback', label: 'Feedback', description: 'Lezioni concluse che aspettano il tuo feedback.' },
   { key: 'account', label: 'Account', description: 'Attivazione o disattivazione del tuo account.' },
-  { key: 'lessons', label: 'Nuove lezioni', description: 'Lezioni create per te dalla scuola o dal calendario settimanale.', tutorOnly: true }
+  {
+    key: 'lessons',
+    label: 'Nuove lezioni',
+    description: 'Nuove lezioni disponibili da prenotare.',
+    tutorDescription: 'Lezioni create per te dalla scuola o dal calendario settimanale.'
+  }
 ]
 
 type DeviceState = 'loading' | 'off' | 'on' | 'blocked'
@@ -106,7 +111,10 @@ export function NotificationSettings({ role }: { role: 'student' | 'tutor' }) {
     }
   }
 
-  const categories = CATEGORY_LABELS.filter(category => !category.tutorOnly || role === 'tutor')
+  const categories = CATEGORY_LABELS.map(category => ({
+    ...category,
+    description: role === 'tutor' ? category.tutorDescription ?? category.description : category.description
+  }))
 
   return (
     <Card className='mt-6'>
