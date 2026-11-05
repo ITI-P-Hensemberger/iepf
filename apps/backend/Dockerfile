@@ -2,7 +2,7 @@
 # Build context is the repository root:
 #   docker build -f apps/backend/Dockerfile .
 
-FROM node:22-bookworm-slim AS base
+FROM node:25-bookworm-slim AS base
 WORKDIR /app
 RUN npm install --global pnpm@10.28.2
 
