@@ -1,6 +1,11 @@
 packages:
   - apps/*
 
+# Same 3 days Dependabot waits: it fails if package.json asks for anything younger, and it
+# leaves time for a compromised release to be caught. For an urgent security fix, add the
+# package to minimumReleaseAgeExclude.
+minimumReleaseAge: 4320
+
 allowBuilds:
   argon2: true
   esbuild: true
