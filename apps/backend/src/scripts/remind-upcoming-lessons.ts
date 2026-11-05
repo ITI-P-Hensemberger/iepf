@@ -7,6 +7,7 @@ import { lessons } from '@/db/schemas/lessons.schema'
 import { buildLessonReminderStudentMessage, buildLessonReminderTutorMessage } from '@/lib/email-templates'
 import { createMailBatch } from '@/lib/mail-batch'
 import { closeMailer } from '@/lib/mailer'
+import { localDayKey, pruneReminderDeliveries, sendReminderOnce } from '@/lib/reminder-delivery'
 
 function buildClassLabel(sectionName: string | null, sectionId: string | null, year: number | null) {
   const sectionLabel = sectionName ?? sectionId
@@ -68,6 +69,7 @@ async function main() {
   const lessonIds = lessonsRows.map(lesson => lesson.id)
   const bookings = await db
     .select({
+      id: lessonBookings.id,
       lessonId: lessonBookings.lessonId,
       studentId: lessonBookings.studentId,
       topic: lessonBookings.topic
@@ -131,7 +133,11 @@ async function main() {
   const sectionNameMap = new Map(sections.map(section => [section.id, section.name]))
   const lessonMap = new Map(lessonsRows.map(lesson => [lesson.id, lesson]))
 
+  await pruneReminderDeliveries()
   const mailBatch = createMailBatch()
+  // today and tomorrow are separate reminders for the same lesson, both wanted.
+  const reminderPrefix = `lessons-${today ? 'today' : 'tomorrow'}:${localDayKey(start)}`
+  let sent = 0
 
   for (const booking of bookings) {
     const lesson = lessonMap.get(booking.lessonId)
@@ -159,12 +165,14 @@ async function main() {
       today
     })
 
-    mailBatch.send({
+    if (await sendReminderOnce(mailBatch, `${reminderPrefix}:booking:${booking.id}`, {
       to: student.email,
       subject: studentMessage.subject,
       text: studentMessage.text,
       html: studentMessage.html
-    })
+    })) {
+      sent += 1
+    }
   }
 
   const tutorLessonMap = new Map<string, Map<string, { startAt: Date, subjectName: string, students: Array<{ name: string, classLabel: string | null }>, topics: string[] }>>()
@@ -219,16 +227,18 @@ async function main() {
       today
     })
 
-    mailBatch.send({
+    if (await sendReminderOnce(mailBatch, `${reminderPrefix}:tutor:${tutorId}`, {
       to: tutor.email,
       subject: tutorMessage.subject,
       text: tutorMessage.text,
       html: tutorMessage.html
-    })
+    })) {
+      sent += 1
+    }
   }
 
   await mailBatch.finish()
-  console.warn(`Sent reminders for ${bookings.length} booking(s).`)
+  console.warn(`Sent ${sent} reminder(s) for ${bookings.length} booking(s).`)
 }
 
 main()

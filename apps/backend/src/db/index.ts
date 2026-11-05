@@ -15,6 +15,7 @@ import { lessonFeedback } from './schemas/lesson-feedback.schema'
 import { lessons } from './schemas/lessons.schema'
 import { passwordResetTokens } from './schemas/password-reset-tokens.schema'
 import { refreshTokens } from './schemas/refresh-tokens.schema'
+import { reminderDeliveries } from './schemas/reminder-deliveries.schema'
 import { studentProfiles } from './schemas/student-profiles.schema'
 import { subjectRequests } from './schemas/subject-requests.schema'
 import { subjects } from './schemas/subjects.schema'
@@ -46,6 +47,7 @@ const schema = {
   lessonFeedback,
   tokenLedger,
   refreshTokens,
+  reminderDeliveries,
   emailVerificationTokens,
   passwordResetTokens
 }

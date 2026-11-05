@@ -3,14 +3,17 @@ import type { MailPayload } from './mailer'
 
 import { sendMail } from './mailer'
 
+export type MailBatch = ReturnType<typeof createMailBatch>
+
 export function createMailBatch(send: (payload: MailPayload) => Promise<void> = sendMail) {
   const tasks: Array<Promise<boolean>> = []
 
   return {
-    send(payload: MailPayload) {
+    send(payload: MailPayload, onFailed?: () => Promise<void>) {
       // Catch here: tasks can settle long before finish() awaits them.
-      tasks.push(send(payload).then(() => true, (error) => {
+      tasks.push(send(payload).then(() => true, async (error) => {
         console.error('Failed to send email:', error)
+        await onFailed?.().catch(cleanupError => console.error('Failed to undo email:', cleanupError))
         return false
       }))
     },
