@@ -13,8 +13,7 @@ l'assenza di un limite per gli argomenti.
 
 ## Stato
 
-I punti 2-4 e 6-9 sono uniti a `main` e in produzione. Il punto 5 è unito, ma resta aperto finché non
-è confermata la prova degli avvisi sulla VPS. Il punto 1 è rimandato. I punti 11-25 non sono iniziati.
+I punti 2-9 sono uniti a `main` e in produzione. Il punto 1 è rimandato. I punti 11-25 non sono iniziati.
 
 ## Legenda
 
@@ -116,7 +115,7 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Dipendenze:** 2
 
 - [x] **4. Aggiungere Dependabot o Renovate**
-  - **Stato:** File validato con lo schema ufficiale; il primo run per npm è fallito con 17 errori (`update_not_possible`, ad esempio su `vitest`), quindi gli aggiornamenti npm vanno ancora controllati.
+  - **Stato:** File validato con lo schema ufficiale; il primo run per npm è fallito con 17 errori perché Dependabot rifiuta versioni con meno di 3 giorni e il punto 3 ne aveva appena installate. Si sblocca da solo entro il 7 novembre; `minimumReleaseAge` nel workspace evita che si ripeta. Da controllare il primo run successivo.
   - **Problema:** nessun aggiornamento automatico è configurato, e infatti si sono accumulate
     le 174 segnalazioni.
   - **File:** nuovo `.github/dependabot.yml` (o `renovate.json`)
@@ -127,8 +126,8 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Stima:** S
   - **Dipendenze:** 3
 
-- [ ] **5. Aggiungere il monitoraggio dei job**
-  - **Stato:** codice in produzione, ma il punto **non è chiuso** finché non è confermato tutto quanto segue, sulla VPS: impostare `ALERT_WEBHOOK_URL` e `BACKUP_HEARTBEAT_URL` in `host.env`, eseguire `install-timers.sh`, provare con `systemctl start iepf-alert@prova.service` e configurare il controllo esterno del sito. Fino ad allora gli errori arrivano solo al journal.
+- [x] **5. Aggiungere il monitoraggio dei job**
+  - **Stato:** confermato sulla VPS: `ALERT_WEBHOOK_URL` e `BACKUP_HEARTBEAT_URL` configurati, avviso e ping provati, controllo esterno del sito attivo.
   - **Problema:** se un timer fallisce non lo sa nessuno. Nessuna unit ha `OnFailure` e non
     c'è un servizio di alert. Il backend non è esposto, quindi `/health` non si raggiunge
     dall'esterno. Gli script di promemoria terminano con successo anche se tutte le email
