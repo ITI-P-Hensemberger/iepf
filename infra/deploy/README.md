@@ -120,8 +120,7 @@ l'avviso: `systemctl start iepf-alert@prova.service`. `install-timers.sh` copia 
 Diagnostica: `systemctl list-timers 'iepf-*'`,
 `journalctl -u iepf-job@remind-lessons-today`,
 `journalctl -u iepf-backup`, e `readlink -f /opt/iepf/current`.
-Gli script di build e il vecchio Compose nella radice rimangono per consultazione;
-il percorso operativo automatico è `deploy/`.
+Il percorso operativo automatico è `deploy/`.
 
 Il probe backend interroga `/health`, pubblico e con verifica del database. Le
 immagini precedenti rispondono 401 su quella rotta: solo in quel caso il probe

@@ -13,7 +13,7 @@ l'assenza di un limite per gli argomenti.
 
 ## Stato
 
-I punti 2-9 sono uniti a `main` e in produzione. Il punto 1 è rimandato. I punti 11-25 non sono iniziati.
+I punti con la spunta sono fatti o in una PR aperta. Il punto 1 è rimandato.
 
 ## Legenda
 
@@ -380,7 +380,8 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **PR:** dedicata per il cambio di utente di deploy: può rompere il deploy stesso.
   - **Dipendenze:** 4
 
-- [ ] **21. Pulire file e configurazioni legacy**
+- [x] **21. Pulire file e configurazioni legacy**
+  - **Stato:** file legacy e `.env.development.example` rimossi, titolo API `IEPF API`, `AppType` rimosso, `@types/node` a 22 in entrambe le app. Tolto anche `public/sw.js` per scelta: i browser con un vecchio service worker non ricevono più lo script che lo disattiva.
   - **Problema:** restano file e impostazioni non più usati.
     - `infra/deploy.sh`, `infra/backup-postgres.sh`, `infra/docker-compose.yml`
     - `infra/.env.backend.example`, `infra/.env.frontend.example`, `infra/.env.postgres.example`
