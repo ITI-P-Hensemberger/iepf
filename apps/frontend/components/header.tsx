@@ -3,6 +3,9 @@ import * as React from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 
+import { BellOff } from 'lucide-react'
+
+import { openPushSetup, usePushSetup } from '@/components/push-prompt'
 import { logout } from '@/lib/auth-client'
 import { useSession } from '@/lib/use-session'
 import { Avatar, AvatarFallback } from './ui/avatar'
@@ -29,6 +32,8 @@ function MenuLink({ href, children }: { href: string, children: React.ReactNode 
 
 export default function Header() {
   const { profile } = useSession()
+  // Not null while this device could still turn push on: the popup is one click away.
+  const pushSetup = usePushSetup(profile?.role)
   const [avatarGradient, setAvatarGradient] = React.useState(
     'linear-gradient(135deg, #0f172a, #64748b)'
   )
@@ -94,6 +99,12 @@ export default function Header() {
           </DropdownMenuTrigger>
           <DropdownMenuContent className='w-auto' align='end'>
             <MenuLink href='/profile'>Profilo</MenuLink>
+            {pushSetup && (
+              <DropdownMenuItem className='cursor-pointer text-amber-700 dark:text-amber-400' onSelect={() => openPushSetup()}>
+                <BellOff className='size-4' />
+                Notifiche spente
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             {profile?.role === 'student' && (
               <MenuLink href='/faq'>Domande frequenti</MenuLink>

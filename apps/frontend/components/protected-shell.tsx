@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import Header from '@/components/header'
 import { MaintenanceBlock } from '@/components/maintenance-block'
 import { ServiceMessageBanner } from '@/components/service-message-banner'
-import { AnnouncementPopup } from '@/components/announcement-popup'
+import { PopupStack } from '@/components/popup-stack'
 import { useSettings } from '@/components/settings-provider'
 import { useSession } from '@/lib/use-session'
 
@@ -34,9 +34,7 @@ export default function ProtectedShell({ children }: ProtectedShellProps) {
     <>
       <Header />
       <ServiceMessageBanner />
-      {!maintenanceActive && profile?.id && profile.isActive !== false && (
-        <AnnouncementPopup userId={profile.id} />
-      )}
+      {!maintenanceActive && <PopupStack profile={profile} />}
       {maintenanceActive ? (
         <MaintenanceBlock message={settings?.maintenance.message} />
       ) : (

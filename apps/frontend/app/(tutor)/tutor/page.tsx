@@ -25,6 +25,7 @@ import {
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
 import { useSession } from '@/lib/use-session'
+import { PushInviteCard, TUTOR_ONBOARDED_FLAG as ONBOARDED_FLAG } from '@/components/push-prompt'
 import { toast } from 'sonner'
 
 type Lesson = {
@@ -125,6 +126,17 @@ function lessonSeatsLabel(lesson: Lesson) {
 
 export default function TutorPage() {
   const { profile, isLoading: isProfileLoading } = useSession()
+  // Set by the onboarding form right before it sends the tutor here.
+  const [justOnboarded] = React.useState(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      const flag = window.sessionStorage.getItem(ONBOARDED_FLAG) === '1'
+      window.sessionStorage.removeItem(ONBOARDED_FLAG)
+      return flag
+    } catch {
+      return false
+    }
+  })
   const tutorId = profile?.id ?? ''
   const [lessons, setLessons] = React.useState<Lesson[]>([])
   const [isLessonsLoading, setIsLessonsLoading] = React.useState(true)
@@ -280,6 +292,16 @@ export default function TutorPage() {
           <p className='text-muted-foreground mb-8'>
             Gestisci le tue lezioni da questa pagina.
           </p>
+          {justOnboarded && (
+            <div className='mb-8'>
+              <PushInviteCard
+                userId={profile?.id}
+                role={profile?.role}
+                title='Ti avvisiamo quando uno studente prenota'
+                description='Hai scelto materie e orari: attiva le notifiche per sapere subito delle nuove prenotazioni.'
+              />
+            </div>
+          )}
 
           <div className='grid gap-4 sm:gap-6 md:grid-cols-2'>
             <Link href='/tutor/settings/availability' className='group block'>

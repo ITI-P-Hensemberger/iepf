@@ -104,11 +104,12 @@ export function AnnouncementCard({
 export const popupFrameClassName =
   'flex max-h-[min(85dvh,40rem)] flex-col gap-0 overflow-hidden p-0'
 
-export function AnnouncementPopup({ userId }: { userId: string }) {
+export function AnnouncementPopup({ userId, onEmpty }: { userId: string, onEmpty?: () => void }) {
   const router = useRouter()
   const [queue, setQueue] = React.useState<ActiveAnnouncement[]>([])
   const [shown, setShown] = React.useState(0)
   const [total, setTotal] = React.useState(0)
+  const [loaded, setLoaded] = React.useState(false)
 
   React.useEffect(() => {
     let cancelled = false
@@ -129,6 +130,8 @@ export function AnnouncementPopup({ userId }: { userId: string }) {
         }
       } catch {
         // A popup is never worth an error on screen.
+      } finally {
+        if (!cancelled) setLoaded(true)
       }
     }
     void load()
@@ -138,6 +141,11 @@ export function AnnouncementPopup({ userId }: { userId: string }) {
   }, [userId])
 
   const current = queue[0]
+
+  // The next popup in line (push setup) waits until these are all closed.
+  React.useEffect(() => {
+    if (loaded && !current) onEmpty?.()
+  }, [loaded, current, onEmpty])
   // Radix closes the dialog after every action button too: handle each popup once.
   const handledId = React.useRef<string | null>(null)
 
