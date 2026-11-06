@@ -22,14 +22,22 @@ self.addEventListener('push', (event) => {
     data = { body: event.data ? event.data.text() : '' }
   }
   const title = typeof data.title === 'string' && data.title ? data.title : 'IEPF'
-  event.waitUntil(self.registration.showNotification(title, {
-    body: typeof data.body === 'string' ? data.body : '',
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-192.png',
-    tag: typeof data.tag === 'string' ? data.tag : undefined,
-    lang: 'it',
-    data: { url: safePath(data.url) }
-  }))
+  event.waitUntil(Promise.all([
+    self.registration.showNotification(title, {
+      body: typeof data.body === 'string' ? data.body : '',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      tag: typeof data.tag === 'string' ? data.tag : undefined,
+      lang: 'it',
+      data: { url: safePath(data.url) }
+    }),
+    // Open pages refresh the notification panel's counter without polling.
+    self.clients.matchAll({ type: 'window' }).then((windows) => {
+      for (const client of windows) {
+        client.postMessage({ type: 'iepf:notification' })
+      }
+    })
+  ]))
 })
 
 self.addEventListener('notificationclick', (event) => {

@@ -13,10 +13,11 @@ import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { sendMail } from '@/lib/mailer'
+import * as inbox from '@/lib/notification-inbox'
 import { getPushPublicKey, isPushEnabled, getPreferences as readPreferences, removeSubscription, saveSubscription } from '@/lib/push'
 import { isAllowedPushEndpoint, isValidSubscriptionKeys } from '@/lib/web-push'
 
-import type { GetDevicesRoute, GetPreferencesRoute, GetPushConfigRoute, SendSetupLinkRoute, SubscribeRoute, UnsubscribeRoute, UpdatePreferencesRoute } from './notifications.routes'
+import type { GetDevicesRoute, GetInboxRoute, GetPreferencesRoute, GetPushConfigRoute, GetUnreadRoute, MarkAllReadRoute, MarkReadRoute, SendSetupLinkRoute, SubscribeRoute, UnsubscribeRoute, UpdatePreferencesRoute } from './notifications.routes'
 
 // Activators get no notifications.
 const RECIPIENT_ROLES = new Set(['student', 'tutor', 'admin'])
@@ -101,5 +102,70 @@ export const sendSetupLink: AppRouteHandler<SendSetupLinkRoute> = async (c) => {
   }
   const message = buildPushSetupLinkMessage()
   void sendMail({ to: user.email, ...message }).catch(() => undefined)
+  return c.body(null, HttpStatusCodes.NO_CONTENT)
+}
+
+// The panel belongs to the user being viewed, so an impersonating admin sees the student's
+// notifications; only reading them is reserved to the user in person.
+function inboxUser(c: Context<AppBindings>) {
+  const currentUser = c.get('currentUser')
+  if (!currentUser || !RECIPIENT_ROLES.has(currentUser.role)) {
+    return null
+  }
+  return currentUser
+}
+
+export const getInbox: AppRouteHandler<GetInboxRoute> = async (c) => {
+  const user = inboxUser(c)
+  if (!user) {
+    return forbidden(c)
+  }
+  const { cursor, limit } = c.req.valid('query')
+  const decoded = cursor ? inbox.decodeCursor(cursor) : null
+  if (cursor && !decoded) {
+    return c.json(buildErrorResponse('Cursore non valido'), HttpStatusCodes.UNPROCESSABLE_ENTITY)
+  }
+  const [page, unread] = await Promise.all([
+    inbox.listNotifications(user.id, decoded, limit),
+    inbox.countUnread(user.id)
+  ])
+  return c.json({
+    items: page.items.map(item => ({
+      ...item,
+      createdAt: item.createdAt.toISOString(),
+      readAt: item.readAt?.toISOString() ?? null
+    })),
+    nextCursor: page.nextCursor,
+    unread
+  }, HttpStatusCodes.OK)
+}
+
+export const getUnread: AppRouteHandler<GetUnreadRoute> = async (c) => {
+  const user = inboxUser(c)
+  if (!user) {
+    return forbidden(c)
+  }
+  return c.json({ count: await inbox.countUnread(user.id) }, HttpStatusCodes.OK)
+}
+
+export const markRead: AppRouteHandler<MarkReadRoute> = async (c) => {
+  const user = inboxUser(c)
+  if (!user) {
+    return forbidden(c)
+  }
+  if (!c.get('impersonation')) {
+    await inbox.markRead(user.id, c.req.valid('param').id)
+  }
+  return c.body(null, HttpStatusCodes.NO_CONTENT)
+}
+
+export const markAllRead: AppRouteHandler<MarkAllReadRoute> = async (c) => {
+  const user = inboxUser(c)
+  if (!user) {
+    return forbidden(c)
+  }
+  if (!c.get('impersonation')) {
+    await inbox.markAllRead(user.id)
+  }
   return c.body(null, HttpStatusCodes.NO_CONTENT)
 }

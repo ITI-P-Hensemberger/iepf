@@ -15,6 +15,7 @@ import { lessonBookings } from './schemas/lesson-bookings.schema'
 import { lessonFeedback } from './schemas/lesson-feedback.schema'
 import { lessons } from './schemas/lessons.schema'
 import { notificationPreferences } from './schemas/notification-preferences.schema'
+import { notifications } from './schemas/notifications.schema'
 import { passwordResetTokens } from './schemas/password-reset-tokens.schema'
 import { pushSubscriptions } from './schemas/push-subscriptions.schema'
 import { refreshTokens } from './schemas/refresh-tokens.schema'
@@ -55,6 +56,7 @@ const schema = {
   passwordResetTokens,
   pushSubscriptions,
   notificationPreferences,
+  notifications,
   announcements,
   announcementDismissals
 }

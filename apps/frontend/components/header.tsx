@@ -5,7 +5,8 @@ import Link from 'next/link'
 
 import { BellOff } from 'lucide-react'
 
-import { openPushSetup, usePushSetup } from '@/components/push-prompt'
+import { NotificationBell } from '@/components/notification-bell'
+import { isPushRole, openPushSetup, usePushSetup } from '@/components/push-prompt'
 import { logout } from '@/lib/auth-client'
 import { useSession } from '@/lib/use-session'
 import { Avatar, AvatarFallback } from './ui/avatar'
@@ -90,6 +91,9 @@ export default function Header() {
             Home
           </span>
         </Link>
+        <div className='flex items-center gap-2'>
+        {/* Activators get no notifications, so they have no panel either. */}
+        {isPushRole(profile?.role) && <NotificationBell />}
         <DropdownMenu>
           <DropdownMenuTrigger className='focus:outline-none'>
             <Avatar
@@ -161,6 +165,7 @@ export default function Header() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
     </header>
   )

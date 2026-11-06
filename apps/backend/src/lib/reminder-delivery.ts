@@ -7,6 +7,7 @@ import type { PushCategory, PushMessage, PushResult } from '@/lib/push'
 
 import db from '@/db'
 import { reminderDeliveries } from '@/db/schemas/reminder-deliveries.schema'
+import { recordNotifications } from '@/lib/notification-inbox'
 import { deliverPush, isPushEnabled } from '@/lib/push'
 
 export const KEEP_DELIVERIES_DAYS = 7
@@ -64,18 +65,33 @@ export function createPushBatch(deliver: typeof deliverPush = deliverPush) {
   }
 }
 
+async function claim(key: string) {
+  const claimed = await db.insert(reminderDeliveries)
+    .values({ key })
+    .onConflictDoNothing()
+    .returning({ key: reminderDeliveries.key })
+  return claimed.length > 0
+}
+
+export async function recordNotificationOnce(key: string, userId: string, category: PushCategory, message: PushMessage) {
+  if (!(await claim(key))) {
+    return
+  }
+  if (!(await recordNotifications([userId], category, message))) {
+    await db.delete(reminderDeliveries).where(eq(reminderDeliveries.key, key))
+  }
+}
+
 // The same claim as sendReminderOnce, under its own key: email and push are retried apart.
+// The panel entry has a claim of its own: a push retried by a rerun must not add it twice,
+// and it is written even when push is off. Returns whether the push was sent.
 export async function sendReminderPushOnce(batch: PushBatch, key: string, userId: string, category: PushCategory, message: PushMessage) {
+  await recordNotificationOnce(`inbox:${key}`, userId, category, message)
   if (!isPushEnabled()) {
     return false
   }
   const pushKey = `push:${key}`
-  const claimed = await db.insert(reminderDeliveries)
-    .values({ key: pushKey })
-    .onConflictDoNothing()
-    .returning({ key: reminderDeliveries.key })
-
-  if (claimed.length === 0) {
+  if (!(await claim(pushKey))) {
     return false
   }
 

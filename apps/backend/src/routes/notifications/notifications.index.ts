@@ -24,5 +24,9 @@ router.openapi(routes.getPreferences, handlers.getPreferences)
 router.openapi(routes.updatePreferences, handlers.updatePreferences)
 router.openapi(routes.getDevices, handlers.getDevices)
 router.openapi(routes.sendSetupLink, handlers.sendSetupLink)
+router.openapi(routes.getInbox, handlers.getInbox)
+router.openapi(routes.getUnread, handlers.getUnread)
+router.openapi(routes.markAllRead, handlers.markAllRead)
+router.openapi(routes.markRead, handlers.markRead)
 
 export default router
