@@ -6,6 +6,7 @@ import { closeDb } from './db'
 import env from './env'
 import { createShutdown } from './lib/graceful-shutdown'
 import { closeMailer, waitForPendingMail } from './lib/mailer'
+import { closeNotificationStreams } from './lib/notification-stream'
 import { waitForPendingPush } from './lib/push'
 
 const port = env.PORT
@@ -25,9 +26,15 @@ const shutdown = createShutdown({
 
   exit: code => process.exit(code),
   steps: [
-    () => new Promise<void>((resolve, reject) => {
-      server.close(error => error ? reject(error) : resolve())
-    }),
+    async () => {
+      // Stop accepting first, then end the notification streams: server.close() waits for
+      // every open response, and a stream would otherwise hold it until the timeout.
+      const closed = new Promise<void>((resolve, reject) => {
+        server.close(error => error ? reject(error) : resolve())
+      })
+      await closeNotificationStreams()
+      await closed
+    },
     waitForPendingMail,
     waitForPendingPush,
     closeMailer,

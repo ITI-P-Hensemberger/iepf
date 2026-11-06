@@ -24,6 +24,7 @@ import {
   safeNotificationPath
 } from '@/lib/notification-inbox'
 import { syncAppBadge } from '@/lib/app-badge'
+import { watchUnread } from '@/lib/notification-stream'
 import { isImpersonating } from '@/lib/push-client'
 import { cn } from '@/lib/utils'
 
@@ -89,6 +90,31 @@ export function NotificationBell() {
       navigator.serviceWorker?.removeEventListener('message', onMessage)
     }
   }, [refreshUnread])
+
+  // While the tab is visible, a stream keeps the counter current as notifications arrive,
+  // also on a computer with no push. A hidden tab closes it and frees the connection.
+  React.useEffect(() => {
+    let stop: (() => void) | null = null
+    const follow = () => {
+      if (document.visibilityState === 'visible') {
+        stop ??= watchUnread({
+          onCount: (count) => {
+            setUnread(count)
+            setCountKnown(true)
+          }
+        })
+      } else {
+        stop?.()
+        stop = null
+      }
+    }
+    follow()
+    document.addEventListener('visibilitychange', follow)
+    return () => {
+      document.removeEventListener('visibilitychange', follow)
+      stop?.()
+    }
+  }, [])
 
   // The icon of the installed app shows the same count as the bell, but never the count of
   // someone an admin is impersonating on the admin's own device.
