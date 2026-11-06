@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/sonner'
 import Footer from '@/components/footer'
 import { SettingsProvider } from '@/components/settings-provider'
 import ImpersonationBanner from '@/components/impersonation-banner'
+import { SessionRefresh } from '@/components/session-refresh'
 import './fonts/roboto.css'
 import './globals.css'
 
@@ -37,6 +38,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <SettingsProvider>
+            <SessionRefresh />
             <div className='flex min-h-dvh flex-col'>
               <ImpersonationBanner />
               <div className='flex-1'>{children}</div>
