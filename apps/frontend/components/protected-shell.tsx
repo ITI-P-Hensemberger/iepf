@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import Header from '@/components/header'
 import { MaintenanceBlock } from '@/components/maintenance-block'
 import { ServiceMessageBanner } from '@/components/service-message-banner'
+import { AnnouncementPopup } from '@/components/announcement-popup'
 import { useSettings } from '@/components/settings-provider'
 import { useSession } from '@/lib/use-session'
 
@@ -14,7 +15,7 @@ type ProtectedShellProps = {
 }
 
 export default function ProtectedShell({ children }: ProtectedShellProps) {
-  const { isLoading } = useSession()
+  const { isLoading, profile } = useSession()
   const pathname = usePathname()
   const { settings, isLoading: isSettingsLoading } = useSettings()
 
@@ -33,6 +34,9 @@ export default function ProtectedShell({ children }: ProtectedShellProps) {
     <>
       <Header />
       <ServiceMessageBanner />
+      {!maintenanceActive && profile?.id && profile.isActive !== false && (
+        <AnnouncementPopup userId={profile.id} />
+      )}
       {maintenanceActive ? (
         <MaintenanceBlock message={settings?.maintenance.message} />
       ) : (

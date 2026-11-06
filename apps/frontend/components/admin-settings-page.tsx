@@ -29,6 +29,8 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { MarkdownEditor } from '@/components/markdown-editor'
+import { ServiceMessageCard } from '@/components/service-message-banner'
 import { Calendar } from '@/components/ui/calendar'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
@@ -936,24 +938,28 @@ export default function AdminSettingsPage() {
 
                         <Field className='gap-2'>
                           <FieldLabel>Messaggio</FieldLabel>
-                          <Textarea
+                          <MarkdownEditor
+                            id={`service-message-body-${role}`}
                             value={message.body}
-                            onChange={(event) =>
+                            onChange={(value) =>
                               setServiceMessageState((prev) => ({
                                 ...prev,
                                 [role]: {
                                   ...prev[role],
-                                  body: event.target.value
+                                  body: value
                                 }
                               }))
                             }
-                            placeholder='Messaggio visibile agli utenti'
+                            placeholder='Messaggio visibile agli utenti. Usa la barra sopra per **grassetto**, elenchi e link.'
                             maxLength={1000}
                             rows={4}
                           />
-                          <div className='text-xs text-muted-foreground'>
-                            {message.body.length}/1000
-                          </div>
+                          {message.body.trim() && (
+                            <div className='space-y-1'>
+                              <div className='text-xs text-muted-foreground'>Anteprima</div>
+                              <ServiceMessageCard message={message} />
+                            </div>
+                          )}
                         </Field>
                       </div>
                     )

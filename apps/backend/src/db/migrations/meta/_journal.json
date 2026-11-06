@@ -148,6 +148,13 @@
       "when": 1793935067587,
       "tag": "0020_timestamptz",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793937656315,
+      "tag": "0021_announcements",
+      "breakpoints": true
     }
   ]
 }

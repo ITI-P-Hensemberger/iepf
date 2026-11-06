@@ -11,6 +11,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
+import { startLoginSession } from '@/lib/announcement-dismissals'
 import { notifyAuthChanged } from '@/lib/auth-events'
 import { safeInternalPath } from '@/lib/safe-redirect'
 import { BackButton } from '@/components/back-button'
@@ -107,6 +108,7 @@ function LoginContent() {
         isActive?: boolean
       }
 
+      startLoginSession(window.localStorage)
       notifyAuthChanged()
 
       const nextPath = safeInternalPath(nextParam)

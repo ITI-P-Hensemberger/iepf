@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import Header from '@/components/header'
 import { MaintenanceBlock } from '@/components/maintenance-block'
 import { ServiceMessageBanner } from '@/components/service-message-banner'
+import { AnnouncementPopup } from '@/components/announcement-popup'
 import { useSettings } from '@/components/settings-provider'
 import { useSession } from '@/lib/use-session'
 
@@ -86,6 +87,9 @@ export default function StudentGuard({ children }: StudentGuardProps) {
     <>
       <Header />
       <ServiceMessageBanner />
+      {!maintenanceActive && profile?.id && profile.isActive !== false && (
+        <AnnouncementPopup userId={profile.id} />
+      )}
       {maintenanceActive ? (
         <MaintenanceBlock message={settings?.maintenance.message} />
       ) : (

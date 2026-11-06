@@ -6,6 +6,7 @@ import env from '@/env'
 
 import { adminInviteTokens } from './schemas/admin-invite-tokens.schema'
 import { adminProfiles } from './schemas/admin-profiles.schema'
+import { announcementDismissals, announcements } from './schemas/announcements.schema'
 import { auditLogs } from './schemas/audit-logs.schema'
 import { classSections } from './schemas/class-sections.schema'
 import { emailVerificationTokens } from './schemas/email-verification-tokens.schema'
@@ -53,7 +54,9 @@ const schema = {
   emailVerificationTokens,
   passwordResetTokens,
   pushSubscriptions,
-  notificationPreferences
+  notificationPreferences,
+  announcements,
+  announcementDismissals
 }
 
 const pool = new Pool({
