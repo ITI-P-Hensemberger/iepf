@@ -9,6 +9,7 @@ ARGS=()
 case "${1:-}" in
   cleanup-data) TASK=cleanup:data ;;
   generate-lessons) TASK=generate:lessons ;;
+  notify-admins) TASK=notify:admins ;;
   remind-feedback) TASK=remind:feedback ;;
   remind-lessons-today) TASK=remind:lessons; ARGS=(-- --today) ;;
   remind-lessons-tomorrow) TASK=remind:lessons; ARGS=(-- --tomorrow) ;;

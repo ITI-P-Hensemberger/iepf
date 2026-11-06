@@ -681,6 +681,23 @@ export function buildLessonCreatedMessage(params: {
   } satisfies EmailTemplate
 }
 
+// The previous tutor of a lesson an admin moved to someone else.
+export function buildLessonReassignedMessage(params: {
+  lessonStartAt: Date
+  subjectName: string
+  tutorName: string
+}) {
+  const dateLabel = formatLessonDate(params.lessonStartAt)
+  return {
+    subject: 'Lezione riassegnata',
+    text: `Ciao ${params.tutorName}, la lezione di ${params.subjectName} del ${dateLabel} è stata affidata a un altro tutor da un amministratore. Non devi più tenerla.`,
+    html: buildEmailHtml(
+      'Lezione riassegnata',
+      `Ciao ${params.tutorName}, la lezione di <strong>${params.subjectName}</strong> del <strong>${dateLabel}</strong> è stata affidata a un altro tutor da un amministratore.<br />Non devi più tenerla.`
+    )
+  } satisfies EmailTemplate
+}
+
 export function buildLessonPresenceUpdatedMessage(params: {
   lessonStartAt: Date
   subjectName: string
@@ -726,4 +743,96 @@ export function buildLessonsGeneratedMessage(params: {
       { hideHomeButton: true }
     )
   } satisfies EmailTemplate
+}
+
+// Admin notifications. Every value is escaped: names and subjects come from users.
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' })[char]!)
+}
+
+function adminLink(path: string) {
+  return new URL(path, env.SITE_URL ?? 'http://localhost:3000').toString()
+}
+
+function adminMessage(subject: string, lines: string[], action: { label: string, path: string }) {
+  const url = adminLink(action.path)
+  return {
+    subject,
+    text: `${lines.join(' ')} ${action.label}: ${url}`,
+    html: buildEmailHtml(subject, lines.map(escapeHtml).join('<br />'), { label: action.label, url }, { hideHomeButton: true })
+  } satisfies EmailTemplate
+}
+
+function studentLabel(name: string, classLabel: string | null) {
+  return classLabel ? `${name} (${classLabel})` : name
+}
+
+export function buildLowFeedbackAdminMessage(params: {
+  authorRole: 'student' | 'tutor'
+  rating: number
+  subjectName: string
+  lessonStartAt: Date
+  tutorName: string
+  studentName: string
+  studentClass: string | null
+}) {
+  const lesson = `la lezione di ${params.subjectName} del ${formatLessonDate(params.lessonStartAt)}`
+  const student = studentLabel(params.studentName, params.studentClass)
+  return params.authorRole === 'student'
+    ? adminMessage('Feedback basso da uno studente', [
+        `${student} ha dato ${params.rating}/5 al tutor ${params.tutorName} per ${lesson}.`
+      ], { label: 'Vedi i feedback', path: '/admin/feedback' })
+    : adminMessage('Feedback basso da un tutor', [
+        `Il tutor ${params.tutorName} ha dato ${params.rating}/5 a ${student} per ${lesson}.`
+      ], { label: 'Vedi i feedback', path: '/admin/feedback' })
+}
+
+export function buildLateCancellationAdminMessage(params: {
+  lessonId: string
+  subjectName: string
+  lessonStartAt: Date
+  tutorName: string
+  studentName: string
+  studentClass: string | null
+}) {
+  return adminMessage('Annullamento all\'ultimo momento', [
+    `${studentLabel(params.studentName, params.studentClass)} ha annullato oggi la prenotazione alla lezione di ${params.subjectName} del ${formatLessonDate(params.lessonStartAt)} con il tutor ${params.tutorName}.`
+  ], { label: 'Vedi la lezione', path: `/admin/lessons/${params.lessonId}` })
+}
+
+export function buildAbsenceAdminMessage(params: {
+  lessonId: string
+  subjectName: string
+  lessonStartAt: Date
+  tutorName: string
+  studentName: string
+  studentClass: string | null
+}) {
+  return adminMessage('Assenza segnata', [
+    `${studentLabel(params.studentName, params.studentClass)} risulta assente alla lezione di ${params.subjectName} del ${formatLessonDate(params.lessonStartAt)} con il tutor ${params.tutorName}.`
+  ], { label: 'Vedi la lezione', path: `/admin/lessons/${params.lessonId}` })
+}
+
+export function buildEmptyWeekAdminMessage(weekStart: Date) {
+  const week = weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
+  return adminMessage('Nessuna lezione generata', [
+    `La generazione automatica non ha creato lezioni per la settimana del ${week}, che ha giorni di scuola aperti.`,
+    'Controlla disponibilità, materie e stato dei tutor.'
+  ], { label: 'Vedi i tutor', path: '/admin/tutors' })
+}
+
+export function buildPendingAdminsMessage(admins: Array<{ name: string, email: string }>) {
+  return adminMessage('Admin in attesa di attivazione', [
+    admins.length === 1
+      ? 'Un admin ha accettato l\'invito e aspetta l\'attivazione:'
+      : `${admins.length} admin hanno accettato l'invito e aspettano l'attivazione:`,
+    ...admins.map(admin => `${admin.name} <${admin.email}>`)
+  ], { label: 'Vedi gli admin', path: '/admin/admins' })
+}
+
+export function buildSubjectRequestsAdminMessage(requests: Array<{ subjectName: string, count: number, total: number }>) {
+  return adminMessage('Nuove richieste di materie', [
+    'Nelle ultime 24 ore gli studenti hanno chiesto:',
+    ...requests.map(request => `${request.subjectName}: ${request.count} (${request.total} in totale)`)
+  ], { label: 'Vedi le richieste', path: '/admin/stats?tab=subject-requests' })
 }

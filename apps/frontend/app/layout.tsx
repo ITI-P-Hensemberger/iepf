@@ -8,7 +8,9 @@ import './fonts/roboto.css'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'IEPF - InsiemeÈ+Facile'
+  title: 'IEPF - InsiemeÈ+Facile',
+  // Added to the Home Screen, the site opens as an app: on iPhone that is what enables push.
+  appleWebApp: { capable: true, title: 'IEPF', statusBarStyle: 'default' }
 }
 
 export default function RootLayout({

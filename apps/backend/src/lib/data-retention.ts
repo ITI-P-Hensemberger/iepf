@@ -1,4 +1,5 @@
-// Purpose: Delete data that is no longer needed: old audit logs and expired tokens.
+// Purpose: Delete data that is no longer needed: old audit logs, expired tokens and push
+// subscriptions of devices that have been silent for months.
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 
 import { inArray, lt } from 'drizzle-orm'
@@ -10,6 +11,7 @@ import { emailVerificationTokens } from '@/db/schemas/email-verification-tokens.
 import { passwordResetTokens } from '@/db/schemas/password-reset-tokens.schema'
 import { refreshTokens } from '@/db/schemas/refresh-tokens.schema'
 import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
+import { deleteStaleSubscriptions } from '@/lib/push'
 
 export const AUDIT_LOG_RETENTION_DAYS = 90
 const BATCH_SIZE = 5_000
@@ -38,6 +40,7 @@ export async function cleanUpExpiredData(now = new Date()) {
     emailVerificationTokens: await deleteOlderThan(emailVerificationTokens, emailVerificationTokens.id, emailVerificationTokens.expiresAt, now),
     passwordResetTokens: await deleteOlderThan(passwordResetTokens, passwordResetTokens.id, passwordResetTokens.expiresAt, now),
     adminInviteTokens: await deleteOlderThan(adminInviteTokens, adminInviteTokens.id, adminInviteTokens.expiresAt, now),
-    tutorInviteTokens: await deleteOlderThan(tutorInviteTokens, tutorInviteTokens.id, tutorInviteTokens.expiresAt, now)
+    tutorInviteTokens: await deleteOlderThan(tutorInviteTokens, tutorInviteTokens.id, tutorInviteTokens.expiresAt, now),
+    pushSubscriptions: await deleteStaleSubscriptions(now)
   }
 }

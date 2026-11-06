@@ -9,6 +9,7 @@ import type { AppBindings, AppRouteHandler } from '@/lib/types'
 import db from '@/db'
 import { lessonFeedback } from '@/db/schemas/lesson-feedback.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
+import { LOW_FEEDBACK_RATING, notifyLowFeedback } from '@/lib/admin-notifications'
 import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
@@ -158,6 +159,8 @@ export const createLessonFeedback: AppRouteHandler<CreateLessonFeedbackRoute> = 
     text: payload.text ?? null
   }).returning()
 
+  notifyLowFeedback({ lessonId: lesson.id, studentId: booking.studentId, authorRole, rating: created.rating })
+
   return c.json({
     id: created.id,
     lessonId: created.lessonId,
@@ -240,6 +243,13 @@ export const updateLessonFeedback: AppRouteHandler<UpdateLessonFeedbackRoute> = 
     .set(updates)
     .where(eq(lessonFeedback.id, feedback.id))
     .returning()
+
+  // Only a rating that drops into the low range: editing the text of a low one is no news.
+  if (updated.rating !== feedback.rating && feedback.rating > LOW_FEEDBACK_RATING) {
+    const authorRole = updated.authorRole === 'tutor' ? 'tutor' : 'student'
+    const studentId = authorRole === 'student' ? updated.authorUserId : updated.targetUserId
+    notifyLowFeedback({ lessonId: updated.lessonId, studentId, authorRole, rating: updated.rating })
+  }
 
   return c.json({
     id: updated.id,

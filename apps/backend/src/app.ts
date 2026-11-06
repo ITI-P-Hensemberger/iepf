@@ -9,6 +9,7 @@ import classSections from '@/routes/class-sections/class-sections.index'
 import feedback from '@/routes/feedback/feedback.index'
 import health from '@/routes/health.route'
 import lessons from '@/routes/lessons/lessons.index'
+import notifications from '@/routes/notifications/notifications.index'
 import settings from '@/routes/settings/settings.index'
 import subjectRequests from '@/routes/subject-requests/subject-requests.index'
 import subjects from '@/routes/subjects/subjects.index'
@@ -32,6 +33,7 @@ const routes = [
   feedback,
   health,
   lessons,
+  notifications,
   settings,
   subjectRequests,
   subjects,

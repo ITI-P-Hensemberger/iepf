@@ -25,6 +25,8 @@ import { getStudentTokenBalances } from '@/lib/lesson-tokens'
 import { sendMail } from '@/lib/mailer'
 import { buildPagedResponse } from '@/lib/pagination'
 import { hashPassword } from '@/lib/password'
+import { notifyUsers } from '@/lib/push'
+import { activationChangedPush } from '@/lib/push-messages'
 import { revokeUserRefreshTokens } from '@/lib/refresh-tokens'
 import { isYearInRange, STUDENT_YEARS, TUTOR_YEARS, yearRangeMessage } from '@/lib/school-years'
 
@@ -824,8 +826,10 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     }
 
     if (existing.role === 'admin' && hasProfileUpdates) {
+      // Turning an admin off by hand is not the same as one still waiting to be activated.
+      const deactivated = profileUpdates.isActive === false && previousIsActive === true
       const result = await db.update(adminProfiles)
-        .set({ isActive: profileUpdates.isActive })
+        .set({ isActive: profileUpdates.isActive, ...(deactivated ? { deactivatedAt: new Date() } : {}) })
         .where(eq(adminProfiles.userId, id))
       if (result.rowCount === 0) {
         await db.insert(adminProfiles).values({
@@ -859,6 +863,9 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
           text: message.text,
           html: message.html
         }).catch(err => console.error('Failed to send profile update email:', err))
+        if (activationChanged) {
+          notifyUsers([id], 'account', activationChangedPush(Boolean(profileUpdates.isActive)))
+        }
       }
     }
   }

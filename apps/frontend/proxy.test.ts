@@ -36,7 +36,7 @@ describe('proxy matcher', () => {
     expect(unstable_doesMiddlewareMatch({ config, url })).toBe(true)
   })
 
-  it.each(['/logo.png', '/icon.png', '/apple-icon.png', '/favicon.ico', '/_next/static/chunk.js', '/api/lessons'])('skips %s', (url) => {
+  it.each(['/logo.png', '/icon.png', '/apple-icon.png', '/favicon.ico', '/_next/static/chunk.js', '/api/lessons', '/sw.js', '/manifest.webmanifest', '/icons/icon-192.png'])('skips %s', (url) => {
     expect(unstable_doesMiddlewareMatch({ config, url })).toBe(false)
   })
 })

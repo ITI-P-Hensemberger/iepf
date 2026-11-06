@@ -6,7 +6,6 @@ describe('security headers', () => {
   it('applies them to every path', async () => {
     const rules = await nextConfig.headers!()
 
-    expect(rules).toHaveLength(1)
     expect(rules[0].source).toBe('/:path*')
     expect(Object.fromEntries(rules[0].headers.map(({ key, value }) => [key, value]))).toMatchObject({
       'Strict-Transport-Security': 'max-age=2592000',
@@ -24,6 +23,13 @@ describe('security headers', () => {
     expect(keys).not.toContain('Content-Security-Policy')
     expect(policy).toContain("connect-src 'self'")
     expect(policy).toContain("frame-ancestors 'none'")
+  })
+
+  it('never serves the service worker from a cache', async () => {
+    const rules = await nextConfig.headers!()
+    const worker = rules.find(({ source }) => source === '/sw.js')
+
+    expect(worker?.headers).toContainEqual({ key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' })
   })
 
   it('does not advertise the framework', () => {

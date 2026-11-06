@@ -7,9 +7,13 @@ import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
 import { DEFAULT_TUTOR_SETTINGS } from '@/lib/constants'
 import { buildLessonsGeneratedMessage } from '@/lib/email-templates'
+import { notifyIfWeekEmpty } from '@/lib/empty-week'
+import { notifyStudentsOfNewLessons } from '@/lib/lessons-available'
 import { createMailBatch } from '@/lib/mail-batch'
 import { closeMailer } from '@/lib/mailer'
 import { assertMockEnvironment, MOCK_TUTOR_PATTERN } from '@/lib/mock-data'
+import { lessonsGeneratedPush } from '@/lib/push-messages'
+import { createPushBatch } from '@/lib/reminder-delivery'
 
 function getNextWeekMonday(): Date {
   const now = new Date()
@@ -58,7 +62,8 @@ async function getActiveTutors(mockOnly: boolean) {
       id: users.id,
       email: users.email,
       firstName: users.firstName,
-      lastName: users.lastName
+      lastName: users.lastName,
+      year: tutorProfiles.year
     })
     .from(users)
     .innerJoin(tutorProfiles, eq(tutorProfiles.userId, users.id))
@@ -162,6 +167,8 @@ async function main() {
   const closureDates = await getClosureDates()
   const closureDateSet = new Set(closureDates)
   const mailBatch = createMailBatch()
+  const pushBatch = createPushBatch()
+  const teachingYears: number[] = []
 
   for (const tutor of activeTutors) {
     let createdForTutor = 0
@@ -233,9 +240,22 @@ async function main() {
         html: message.html
       })
     }
+    if (createdForTutor > 0) {
+      teachingYears.push(tutor.year)
+      pushBatch.send(tutor.id, 'lessons', lessonsGeneratedPush({ count: createdForTutor, weekStart: targetMonday }))
+    }
   }
 
+  const studentsNotified = await notifyStudentsOfNewLessons(pushBatch, targetMonday, teachingYears)
+  // Only the scheduled run for next week: a --today rerun or mock data proves nothing.
+  if (!useToday && !mockOnly && await notifyIfWeekEmpty({ mail: mailBatch, push: pushBatch }, targetMonday, closureDateSet)) {
+    process.stdout.write('No lessons in the week: admins warned\n')
+  }
+  await pushBatch.finish()
   await mailBatch.finish()
+  if (studentsNotified > 0) {
+    process.stdout.write(`Told ${studentsNotified} student(s) about the new lessons\n`)
+  }
   process.stdout.write(`Complete: ${totalCreated} lessons created, ${totalSkipped} skipped (already exist)\n`)
 }
 

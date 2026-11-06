@@ -6,6 +6,7 @@ import { closeDb } from './db'
 import env from './env'
 import { createShutdown } from './lib/graceful-shutdown'
 import { closeMailer, waitForPendingMail } from './lib/mailer'
+import { waitForPendingPush } from './lib/push'
 
 const port = env.PORT
 // eslint-disable-next-line no-console
@@ -28,6 +29,7 @@ const shutdown = createShutdown({
       server.close(error => error ? reject(error) : resolve())
     }),
     waitForPendingMail,
+    waitForPendingPush,
     closeMailer,
     closeDb
   ]

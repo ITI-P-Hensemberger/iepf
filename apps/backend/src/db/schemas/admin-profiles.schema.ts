@@ -9,6 +9,9 @@ export const adminProfiles = pgTable('admin_profiles', {
   id: uuid().primaryKey().$defaultFn(() => randomUUID()),
   userId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),
   isActive: boolean().notNull().default(false),
+  // Set when an admin turns this account off: an inactive admin without it is still
+  // waiting for the first activation after accepting the invite.
+  deactivatedAt: timestamp({ mode: 'date' }),
   createdAt: timestamp({ mode: 'date' })
     .defaultNow()
     .notNull(),

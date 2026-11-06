@@ -7,7 +7,8 @@ import { lessons } from '@/db/schemas/lessons.schema'
 import { buildLessonReminderStudentMessage, buildLessonReminderTutorMessage } from '@/lib/email-templates'
 import { createMailBatch } from '@/lib/mail-batch'
 import { closeMailer } from '@/lib/mailer'
-import { localDayKey, pruneReminderDeliveries, sendReminderOnce } from '@/lib/reminder-delivery'
+import { studentReminderPush, tutorReminderPush } from '@/lib/push-messages'
+import { createPushBatch, localDayKey, pruneReminderDeliveries, sendReminderOnce, sendReminderPushOnce } from '@/lib/reminder-delivery'
 
 function buildClassLabel(sectionName: string | null, sectionId: string | null, year: number | null) {
   const sectionLabel = sectionName ?? sectionId
@@ -135,6 +136,7 @@ async function main() {
 
   await pruneReminderDeliveries()
   const mailBatch = createMailBatch()
+  const pushBatch = createPushBatch()
   // today and tomorrow are separate reminders for the same lesson, both wanted.
   const reminderPrefix = `lessons-${today ? 'today' : 'tomorrow'}:${localDayKey(start)}`
   let sent = 0
@@ -173,6 +175,12 @@ async function main() {
     })) {
       sent += 1
     }
+    await sendReminderPushOnce(pushBatch, `${reminderPrefix}:booking:${booking.id}`, booking.studentId, 'reminders', studentReminderPush({
+      lessonId: lesson.id,
+      subjectName,
+      startAt: new Date(lesson.startAt),
+      today
+    }))
   }
 
   const tutorLessonMap = new Map<string, Map<string, { startAt: Date, subjectName: string, students: Array<{ name: string, classLabel: string | null }>, topics: string[] }>>()
@@ -235,10 +243,16 @@ async function main() {
     })) {
       sent += 1
     }
+    await sendReminderPushOnce(pushBatch, `${reminderPrefix}:tutor:${tutorId}`, tutorId, 'reminders', tutorReminderPush({
+      startTimes: lessonsForTutor.map(lesson => lesson.startAt),
+      today
+    }))
   }
 
+  // Pushes first: a failed email batch throws, and the pushes already claimed must still go.
+  const pushed = await pushBatch.finish()
   await mailBatch.finish()
-  console.warn(`Sent ${sent} reminder(s) for ${bookings.length} booking(s).`)
+  console.warn(`Sent ${sent} reminder(s) for ${bookings.length} booking(s); ${pushed.delivered} push(es) delivered, ${pushed.failed} failed.`)
 }
 
 main()

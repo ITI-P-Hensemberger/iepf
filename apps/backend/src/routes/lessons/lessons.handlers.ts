@@ -17,12 +17,14 @@ import { subjects } from '@/db/schemas/subjects.schema'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
+import { notifyAbsence, notifyLateCancellation } from '@/lib/admin-notifications'
 import {
   buildLessonBookingCanceledMessage,
   buildLessonBookingConfirmedMessage,
   buildLessonCanceledMessage,
   buildLessonCreatedMessage,
   buildLessonPresenceUpdatedMessage,
+  buildLessonReassignedMessage,
   buildLessonRescheduledMessage
 } from '@/lib/email-templates'
 import { buildErrorResponse } from '@/lib/error-response'
@@ -32,6 +34,8 @@ import { getStudentTokenBalance, lockUsers } from '@/lib/lesson-tokens'
 import { sendMail } from '@/lib/mailer'
 import { buildPagedResponse } from '@/lib/pagination'
 import { containsProfanity } from '@/lib/profanity'
+import { notifyUsers } from '@/lib/push'
+import { bookingCanceledPush, bookingConfirmedPush, lessonAssignedPush, lessonCanceledPush, lessonChangedPush, lessonCreatedPush, lessonReassignedPush } from '@/lib/push-messages'
 import { tutorCanTeachStudent } from '@/lib/school-years'
 
 import type {
@@ -1046,6 +1050,10 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
     }
   }
 
+  const bookedLesson = { lessonId: lesson.id, subjectName: lessonDetails?.subjectName ?? 'Lezione', startAt: new Date(lesson.startAt) }
+  notifyUsers([studentUser.id], 'bookings', bookingConfirmedPush('student', bookedLesson))
+  notifyUsers([lesson.tutorId], 'bookings', bookingConfirmedPush('tutor', bookedLesson))
+
   const updatedConfirmedCount = confirmedCount + 1
   const updatedDailyBookings = dailyBookings + 1
   const availableSeats = Math.max(0, Math.min(
@@ -1251,6 +1259,13 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
     }
   }
 
+  const canceledBooking = { lessonId: lesson.id, subjectName: lessonDetails?.subjectName ?? 'Lezione', startAt: new Date(lesson.startAt) }
+  notifyUsers([booking.studentId], 'bookings', bookingCanceledPush('student', canceledBooking))
+  if (lateSameDayCancel) {
+    notifyLateCancellation({ lessonId: lesson.id, studentId: booking.studentId })
+  }
+  notifyUsers([lesson.tutorId], 'bookings', bookingCanceledPush('tutor', canceledBooking))
+
   const updated = await db.query.lessonBookings.findFirst({
     where(fields, operators) {
       return operators.eq(fields.id, bookingId)
@@ -1402,6 +1417,10 @@ export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
           html: tutorMessage.html
         }).catch(err => console.error('Failed to send tutor lesson canceled email:', err))
       }
+
+      const canceledLesson = { lessonId: lesson.id, subjectName: lessonDetails.subjectName, startAt: new Date(lesson.startAt) }
+      notifyUsers(confirmedStudentIds, 'bookings', lessonCanceledPush('student', canceledLesson))
+      notifyUsers([lesson.tutorId], 'bookings', lessonCanceledPush('tutor', canceledLesson))
     }
   }
 
@@ -1541,6 +1560,11 @@ export const setBookingPresence: AppRouteHandler<SetBookingPresenceRoute> = asyn
     await db.update(lessons)
       .set({ countsForTutor: true })
       .where(eq(lessons.id, lesson.id))
+  }
+
+  // Each absence once: marking an absent student absent again is not a new one.
+  if (payload.present === false && booking.studentPresence !== false) {
+    notifyAbsence({ lessonId: lesson.id, studentId: booking.studentId })
   }
 
   if (payload.present !== null) {
@@ -1787,9 +1811,15 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
   }
 
   const { newLesson, existingBookings } = outcome
+  const studentIds = existingBookings.map(booking => booking.studentId)
+  const tutorChanged = lesson.tutorId !== payload.tutorId
+  const changed = tutorChanged
+    || lesson.subjectId !== payload.subjectId
+    || new Date(lesson.startAt).getTime() !== newStartAt.getTime()
+    || lesson.durationMinutes !== payload.durationMinutes
 
-  if (existingBookings.length > 0) {
-    const studentIds = existingBookings.map(booking => booking.studentId)
+  // A tutor who loses or gains the lesson hears about it even when nobody booked it.
+  if (changed && (studentIds.length > 0 || tutorChanged)) {
     const studentsMap = await fetchStudentsDetails(studentIds)
     const oldDetails = await fetchLessonEmailDetails(lesson.id, lesson.tutorId, lesson.subjectId)
     const newDetails = await fetchLessonEmailDetails(newLesson.id, payload.tutorId, payload.subjectId)
@@ -1845,6 +1875,37 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
           html: tutorMessage.html
         }).catch(err => console.error('Failed to send tutor reschedule email:', err))
       }
+
+      if (tutorChanged && oldDetails.tutorEmail) {
+        const reassignedMessage = buildLessonReassignedMessage({
+          lessonStartAt: new Date(lesson.startAt),
+          subjectName: oldDetails.subjectName,
+          tutorName: oldDetails.tutorName
+        })
+        sendMail({
+          to: oldDetails.tutorEmail,
+          subject: reassignedMessage.subject,
+          text: reassignedMessage.text,
+          html: reassignedMessage.html
+        }).catch(err => console.error('Failed to send lesson reassigned email:', err))
+      }
+
+      const before = { lessonId: lesson.id, subjectName: oldDetails.subjectName, startAt: new Date(lesson.startAt), durationMinutes: lesson.durationMinutes }
+      const after = { lessonId: newLesson.id, subjectName: newDetails.subjectName, startAt: newStartAt, durationMinutes: payload.durationMinutes }
+      const studentPush = lessonChangedPush('student', before, after, tutorChanged)
+      if (studentPush) {
+        notifyUsers(studentIds, 'bookings', studentPush)
+      }
+      if (tutorChanged) {
+        notifyUsers([lesson.tutorId], 'bookings', lessonReassignedPush(before))
+        notifyUsers([payload.tutorId], 'bookings', lessonAssignedPush(after, studentIds.length))
+      }
+      else {
+        const tutorPush = lessonChangedPush('tutor', before, after, false)
+        if (tutorPush) {
+          notifyUsers([payload.tutorId], 'bookings', tutorPush)
+        }
+      }
     }
   }
 
@@ -1890,6 +1951,9 @@ export const createLesson: AppRouteHandler<CreateLessonRoute> = async (c) => {
       text: message.text,
       html: message.html
     }).catch(err => console.error('Failed to send lesson created email:', err))
+  }
+  if (details) {
+    notifyUsers([payload.tutorId], 'lessons', lessonCreatedPush({ lessonId: newLesson.id, subjectName: details.subjectName, startAt: newStartAt }))
   }
 
   return c.json(

@@ -1,0 +1,11 @@
+[Unit]
+Description=IEPF notify-admins schedule
+
+[Timer]
+OnCalendar=*-*-* 08:00:00 Europe/Rome
+Unit=iepf-job@notify-admins.service
+# A missed digest is not sent late: the next one covers its admins, not its requests.
+Persistent=false
+
+[Install]
+WantedBy=timers.target

@@ -31,6 +31,7 @@ import { logout } from '@/lib/auth-client'
 
 import { extractPayloadArray } from '@/lib/backend-response'
 import { Badge } from '@/components/ui/badge'
+import { NotificationSettings } from '@/components/notification-settings'
 function normalizeName(value: string) {
   const trimmed = value.trim()
   if (!trimmed) {
@@ -602,6 +603,9 @@ export default function ProfilePage() {
               </Button>
             </CardFooter>
           </Card>
+          {(profile?.role === 'student' || profile?.role === 'tutor' || profile?.role === 'admin') && (
+            <NotificationSettings role={profile.role} />
+          )}
         </div>
       </div>
 

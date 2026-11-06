@@ -13,7 +13,9 @@ import { globalSettings } from './schemas/global-settings.schema'
 import { lessonBookings } from './schemas/lesson-bookings.schema'
 import { lessonFeedback } from './schemas/lesson-feedback.schema'
 import { lessons } from './schemas/lessons.schema'
+import { notificationPreferences } from './schemas/notification-preferences.schema'
 import { passwordResetTokens } from './schemas/password-reset-tokens.schema'
+import { pushSubscriptions } from './schemas/push-subscriptions.schema'
 import { refreshTokens } from './schemas/refresh-tokens.schema'
 import { reminderDeliveries } from './schemas/reminder-deliveries.schema'
 import { studentProfiles } from './schemas/student-profiles.schema'
@@ -49,7 +51,9 @@ const schema = {
   refreshTokens,
   reminderDeliveries,
   emailVerificationTokens,
-  passwordResetTokens
+  passwordResetTokens,
+  pushSubscriptions,
+  notificationPreferences
 }
 
 const pool = new Pool({

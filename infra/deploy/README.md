@@ -84,8 +84,8 @@ Prima attivazione:
    controlli di salute. La prima attivazione infra non esegue migrazioni.
 4. Dopo il successo eseguire `bash /opt/iepf/current/install-timers.sh` sulla VPS: installa i timer e
    rimuove solo i vecchi cron IEPF. Gli orari sono in Europe/Rome: backup 02:00,
-   pulizia dati 03:30, reminder lezioni oggi 12:00, domani 20:30, feedback 17:00;
-   generazione lezioni sabato 12:00. Non recupera automaticamente gli invii persi dopo un downtime.
+   pulizia dati 03:30, riepilogo admin 08:00, reminder lezioni oggi 12:00, domani 20:30,
+   feedback 17:00; generazione lezioni sabato 12:00. Non recupera automaticamente gli invii persi dopo un downtime.
 5. Rilasciare backend e frontend: le build e i successivi deploy sono automatici.
 
 Le immagini di manutenzione sono costruite dallo stesso commit del backend e
@@ -118,7 +118,8 @@ l'avviso: `systemctl start iepf-alert@prova.service`. `install-timers.sh` copia 
 `/opt/iepf/shared/alert.sh`, così funziona anche dopo un rollback: rieseguirlo se lo script cambia.
 
 Conservazione: ogni notte `iepf-job@cleanup-data` cancella gli `audit_logs` più vecchi di
-90 giorni e i token e gli inviti scaduti (`apps/backend/src/lib/data-retention.ts`).
+90 giorni, i token e gli inviti scaduti e le iscrizioni push silenziose da 120 giorni
+(`apps/backend/src/lib/data-retention.ts`).
 
 Diagnostica: `systemctl list-timers 'iepf-*'`,
 `journalctl -u iepf-job@remind-lessons-today`,
@@ -132,6 +133,50 @@ frontend usa l'hostname del container per supportare anche il binding delle
 vecchie immagini standalone. La disponibilità PostgreSQL viene controllata
 separatamente con `pg_isready`. Il probe HTTP non sostituisce un test funzionale
 completo delle operazioni applicative.
+
+## Notifiche push
+
+Le push sono spente finché `/opt/iepf/shared/backend.env` non contiene le chiavi VAPID.
+Il backend parte anche senza, e le email non cambiano. Per attivarle, una sola volta:
+
+Dopo il primo deploy del backend che contiene le push, sulla VPS:
+
+```bash
+cd /opt/iepf/current
+alias iepf-compose='docker compose --env-file /opt/iepf/shared/host.env --env-file images.env -f compose.yaml'
+iepf-compose run --rm --no-deps maintenance npm run push:vapid-keys
+```
+
+1. Aggiungere a `/opt/iepf/shared/backend.env` le due righe stampate e
+   `VAPID_SUBJECT=mailto:iepf@hensemberger.it`, un contatto per i servizi push. Deve
+   essere un dominio reale: Apple rifiuta ogni invio (403 `BadJwtToken`) con domini
+   come `example.test`, e il backend non parte con un valore del genere.
+   Così la chiave privata non lascia mai il server.
+2. Ricreare il backend perché rilegga il file:
+   `iepf-compose up -d --force-recreate --wait backend`. I job dei timer leggono il file
+   a ogni avvio.
+3. Dal profilo di un account studente o tutor, attivare le notifiche su un dispositivo,
+   poi mandare una notifica di prova:
+   `iepf-compose run --rm --no-deps maintenance npm run push:test -- EMAIL`.
+
+Le chiavi non vanno cambiate né perse: la chiave privata sta solo in `shared` e nei
+backup del server. Se cambiano, ogni dispositivo smette di ricevere in silenzio finché
+l'utente non riattiva le notifiche dal profilo. Una chiave privata esposta si sostituisce
+come sopra, accettando quella perdita.
+
+Avvisi agli admin attivi, per push e per email secondo le preferenze di ciascuno:
+feedback con voto 2 o meno, annullamenti dello studente nel giorno della lezione e assenze
+arrivano subito; la settimana senza lezioni arriva dal job del sabato, ma non se tutti i
+giorni da lunedì a venerdì sono di chiusura; admin in attesa di attivazione e richieste di
+materie delle ultime 24 ore arrivano dal riepilogo delle 08:00 (`iepf-job@notify-admins`).
+Un admin disattivato a mano non conta come in attesa. Dopo il deploy che introduce il
+riepilogo, rieseguire `install-timers.sh` per installare il nuovo timer.
+
+Ogni invio fallito con 404 o 410 elimina il dispositivo; gli altri errori finiscono nel
+log senza far fallire i job, perché l'email resta il canale di riferimento. La pulizia
+notturna elimina i dispositivi silenziosi da 120 giorni. I promemoria registrano la push
+in `reminder_deliveries` con la chiave `push:` più quella dell'email, così un job
+rilanciato non la manda due volte.
 
 ## Reset dell'anno scolastico
 

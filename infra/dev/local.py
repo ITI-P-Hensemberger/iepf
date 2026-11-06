@@ -46,6 +46,54 @@ def write_env(path, values):
     path.chmod(0o600)
 
 
+# NIST P-256 (FIPS 186-4, SEC 2): enough to derive a public key, so setup needs no Node.
+P256_P = 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+P256_N = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551
+P256_G = (0x6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296,
+          0x4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5)
+
+
+def p256_add(a, b):
+    if a is None:
+        return b
+    if b is None:
+        return a
+    if a[0] == b[0] and (a[1] + b[1]) % P256_P == 0:
+        return None
+    if a == b:
+        slope = (3 * a[0] * a[0] - 3) * pow(2 * a[1], -1, P256_P)
+    else:
+        slope = (b[1] - a[1]) * pow(b[0] - a[0], -1, P256_P)
+    x = (slope * slope - a[0] - b[0]) % P256_P
+    return x, (slope * (a[0] - x) - a[1]) % P256_P
+
+
+def vapid_keys():
+    """A Web Push key pair as base64url: uncompressed public point and private scalar."""
+    import base64
+    secret = secrets.randbelow(P256_N - 1) + 1
+    point, addend, k = None, P256_G, secret
+    while k:
+        if k & 1:
+            point = p256_add(point, addend)
+        addend = p256_add(addend, addend)
+        k >>= 1
+    encode = lambda raw: base64.urlsafe_b64encode(raw).rstrip(b'=').decode()
+    public = b'\x04' + point[0].to_bytes(32, 'big') + point[1].to_bytes(32, 'big')
+    return {'VAPID_PUBLIC_KEY': encode(public), 'VAPID_PRIVATE_KEY': encode(secret.to_bytes(32, 'big')),
+            # Apple rejects reserved domains such as example.test: use the project's contact.
+            'VAPID_SUBJECT': 'mailto:iepf@hensemberger.it'}
+
+
+def add_missing_env(path, values):
+    # Older local environments predate these keys: append them, never rewrite what is there.
+    present = read_env(path)
+    missing = {k: v for k, v in values.items() if k not in present}
+    if missing:
+        with path.open('a') as file:
+            file.write(''.join(f'{k}={v}\n' for k, v in missing.items()))
+
+
 def node_environment():
     env = dict(os.environ)
     candidates = []
@@ -92,7 +140,8 @@ def prepare():
         'SMTP_HOST': '127.0.0.1', 'SMTP_PORT': cfg['SMTP_PORT'],
         'SMTP_FROM': 'IEPF-local <no-reply@example.test>',
     }
-    write_env(HOME / 'backend.env', common)
+    write_env(HOME / 'backend.env', {**common, **vapid_keys()})
+    add_missing_env(HOME / 'backend.env', vapid_keys())
     write_env(HOME / 'frontend.env', {
         'NODE_ENV': 'development', 'PORT': cfg['FRONTEND_PORT'],
         'API_BASE_URL': f'http://127.0.0.1:{cfg["BACKEND_PORT"]}',
