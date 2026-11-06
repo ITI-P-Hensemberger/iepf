@@ -8,7 +8,7 @@ import db from '@/db'
 import { notificationPreferences } from '@/db/schemas/notification-preferences.schema'
 import { pushSubscriptions } from '@/db/schemas/push-subscriptions.schema'
 import env from '@/env'
-import { recordNotifications } from '@/lib/notification-inbox'
+import { recordNotifications, unreadCounts } from '@/lib/notification-inbox'
 import { createWebPushTransport } from '@/lib/web-push'
 
 export const USER_CATEGORIES = ['bookings', 'reminders', 'feedback', 'account', 'lessons'] as const
@@ -123,11 +123,16 @@ export async function deliverPush(userIds: string[], category: PushCategory, mes
       return result
     }
     const targets = await db.select().from(pushSubscriptions).where(inArray(pushSubscriptions.userId, recipients))
-    const payload = Buffer.from(JSON.stringify(message))
+    // Each user's unread count rides along, for the badge on the app icon.
+    const unread = await unreadCounts(recipients)
+    const payloads = new Map(recipients.map(userId => [
+      userId,
+      Buffer.from(JSON.stringify({ ...message, badge: unread.get(userId) ?? 0 }))
+    ]))
 
     await Promise.all(targets.map(async (target) => {
       try {
-        const { status } = await current.transport(target, payload, {
+        const { status } = await current.transport(target, payloads.get(target.userId)!, {
           ttlSeconds: TTL_SECONDS,
           urgency: category === 'reminders' ? 'high' : 'normal',
           topic: message.tag
@@ -161,11 +166,13 @@ const pendingPush = new Set<Promise<unknown>>()
 // For request handlers: like sendMail, it is not awaited, so shutdown has to wait for it.
 // The panel keeps every notification, so it is written even when push is off.
 export function notifyUsers(userIds: string[], category: PushCategory, message: PushMessage) {
-  trackNotificationTask(recordNotifications(userIds, category, message))
+  const recorded = recordNotifications(userIds, category, message)
+  trackNotificationTask(recorded)
   if (!config) {
     return
   }
-  const delivery = deliverPush(userIds, category, message)
+  // After the panel entry, so the badge count sent with the push already includes it.
+  const delivery = recorded.then(() => deliverPush(userIds, category, message))
   pendingPush.add(delivery)
   void delivery.finally(() => pendingPush.delete(delivery))
 }

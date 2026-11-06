@@ -23,6 +23,8 @@ import {
   NOTIFICATION_EVENT,
   safeNotificationPath
 } from '@/lib/notification-inbox'
+import { syncAppBadge } from '@/lib/app-badge'
+import { isImpersonating } from '@/lib/push-client'
 import { cn } from '@/lib/utils'
 
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
@@ -56,6 +58,8 @@ export function NotificationBell() {
   const router = useRouter()
   const [open, setOpen] = React.useState(false)
   const [unread, setUnread] = React.useState(0)
+  // False until the first real count: the initial 0 must not clear the icon badge.
+  const [countKnown, setCountKnown] = React.useState(false)
   const [items, setItems] = React.useState<InboxItem[]>([])
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)
   const [status, setStatus] = React.useState<'idle' | 'loading' | 'error'>('idle')
@@ -63,7 +67,10 @@ export function NotificationBell() {
 
   const refreshUnread = React.useCallback(async () => {
     const count = await fetchUnread().catch(() => null)
-    if (count !== null) setUnread(count)
+    if (count !== null) {
+      setUnread(count)
+      setCountKnown(true)
+    }
   }, [])
 
   // The counter follows the page being opened, a return to the tab and every push.
@@ -82,6 +89,12 @@ export function NotificationBell() {
       navigator.serviceWorker?.removeEventListener('message', onMessage)
     }
   }, [refreshUnread])
+
+  // The icon of the installed app shows the same count as the bell, but never the count of
+  // someone an admin is impersonating on the admin's own device.
+  React.useEffect(() => {
+    if (countKnown && !isImpersonating()) void syncAppBadge(unread)
+  }, [countKnown, unread])
 
   // Opening the panel reloads the first page; it never marks anything as read.
   async function handleOpenChange(next: boolean) {

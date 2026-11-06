@@ -14,6 +14,16 @@ function safePath(url) {
   return typeof url === 'string' && url.startsWith('/') && !url.startsWith('//') ? url : '/'
 }
 
+// The unread count on the app icon. Not every browser has it, and it must never stop
+// the notification itself.
+function updateBadge(count) {
+  if (typeof count !== 'number' || !('setAppBadge' in self.navigator)) {
+    return Promise.resolve()
+  }
+  const update = count > 0 ? self.navigator.setAppBadge(count) : self.navigator.clearAppBadge()
+  return update.catch(() => undefined)
+}
+
 self.addEventListener('push', (event) => {
   let data = {}
   try {
@@ -31,6 +41,7 @@ self.addEventListener('push', (event) => {
       lang: 'it',
       data: { url: safePath(data.url) }
     }),
+    updateBadge(data.badge),
     // Open pages refresh the notification panel's counter without polling.
     self.clients.matchAll({ type: 'window' }).then((windows) => {
       for (const client of windows) {
