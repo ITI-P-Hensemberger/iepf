@@ -21,11 +21,19 @@ import {
 import { ModeToggle } from './theme-mode-toggle'
 import { Button } from './ui/button'
 
-function MenuLink({ href, children }: { href: string, children: React.ReactNode }) {
+function MenuLink({
+  href,
+  children
+}: {
+  href: string
+  children: React.ReactNode
+}) {
   return (
     <DropdownMenuItem asChild className='cursor-pointer'>
       {/* Prefetching would call the proxy and the backend for every visible item. */}
-      <Link href={href} prefetch={false}>{children}</Link>
+      <Link href={href} prefetch={false}>
+        {children}
+      </Link>
     </DropdownMenuItem>
   )
 }
@@ -100,7 +108,10 @@ export default function Header() {
           <DropdownMenuContent className='w-auto' align='end'>
             <MenuLink href='/profile'>Profilo</MenuLink>
             {pushSetup && (
-              <DropdownMenuItem className='cursor-pointer text-amber-700 dark:text-amber-400' onSelect={() => openPushSetup()}>
+              <DropdownMenuItem
+                className='cursor-pointer text-amber-700 dark:text-amber-400'
+                onSelect={() => openPushSetup()}
+              >
                 <BellOff className='size-4' />
                 Notifiche spente
               </DropdownMenuItem>
@@ -111,7 +122,9 @@ export default function Header() {
             )}
             {profile?.role === 'tutor' && (
               <DropdownMenuGroup>
-                <MenuLink href='/tutor/settings/availability'>Disponibilità</MenuLink>
+                <MenuLink href='/tutor/settings/availability'>
+                  Disponibilità
+                </MenuLink>
                 <MenuLink href='/tutor/settings/subjects'>Materie</MenuLink>
               </DropdownMenuGroup>
             )}
@@ -125,7 +138,7 @@ export default function Header() {
                 <MenuLink href='/admin/feedback'>Gestione Feedback</MenuLink>
                 <DropdownMenuSeparator />
                 <MenuLink href='/admin/settings'>Impostazioni globali</MenuLink>
-                <MenuLink href='/admin/announcements'>Popup novità</MenuLink>
+                <MenuLink href='/admin/announcements'>Popup</MenuLink>
                 <MenuLink href='/admin/stats'>Statistiche</MenuLink>
               </DropdownMenuGroup>
             )}
