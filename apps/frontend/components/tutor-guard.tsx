@@ -131,8 +131,8 @@ export default function TutorGuard({ children }: TutorGuardProps) {
 
   return (
     <>
-      <Header />
-      <ServiceMessageBanner />
+      {!maintenanceActive && <Header />}
+      {!maintenanceActive && <ServiceMessageBanner />}
       {!maintenanceActive && <PopupStack profile={profile} />}
       {maintenanceActive ? (
         <MaintenanceBlock message={settings?.maintenance.message} />

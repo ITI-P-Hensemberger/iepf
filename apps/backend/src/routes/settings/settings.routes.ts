@@ -162,6 +162,23 @@ export const resetSchoolYear = createRoute({
   }
 })
 
+// Public: the site checks it before showing any page, also to visitors who are not signed in.
+export const publicMaintenanceSchema = z.object({
+  enabled: z.boolean(),
+  message: z.string().nullable(),
+  roles: z.array(roleSchema)
+})
+
+export const getPublicMaintenance = createRoute({
+  path: '/maintenance',
+  method: 'get',
+  tags,
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(publicMaintenanceSchema, 'Whether maintenance is on, and for which roles')
+  }
+})
+
+export type GetPublicMaintenanceRoute = typeof getPublicMaintenance
 export type GetAdminSettingsRoute = typeof getAdminSettings
 export type UpdateAdminSettingsRoute = typeof updateAdminSettings
 export type GetMySettingsRoute = typeof getMySettings
