@@ -1,4 +1,6 @@
 // Purpose: Server entrypoint that starts the Hono app.
+// Must come first: in local development it can move the clock before anything reads it.
+import './lib/fake-clock'
 import { serve } from '@hono/node-server'
 
 import app from './app'
