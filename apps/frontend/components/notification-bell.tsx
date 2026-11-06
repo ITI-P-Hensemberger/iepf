@@ -26,6 +26,7 @@ import {
 import { syncAppBadge } from '@/lib/app-badge'
 import { watchUnread } from '@/lib/notification-stream'
 import { isImpersonating } from '@/lib/push-client'
+import { track } from '@/lib/usage-analytics'
 import { cn } from '@/lib/utils'
 
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
@@ -126,6 +127,7 @@ export function NotificationBell() {
   async function handleOpenChange(next: boolean) {
     setOpen(next)
     if (!next) return
+    track('bell_open')
     setStatus('loading')
     try {
       const page = await fetchInbox(null)
@@ -164,6 +166,7 @@ export function NotificationBell() {
   }
 
   function openItem(item: InboxItem) {
+    track('inbox_click', item.category)
     if (!item.readAt) {
       markLocallyRead(item.id)
       setUnread(count => Math.max(0, count - 1))

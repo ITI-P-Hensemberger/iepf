@@ -47,6 +47,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
 import { PushInviteCard } from '@/components/push-prompt'
+import { track } from '@/lib/usage-analytics'
 import { useSession } from '@/lib/use-session'
 
 type LessonAvailable = {
@@ -1042,6 +1043,7 @@ export default function StudentBookPage() {
                                   setBookingTarget(lesson)
                                   setBookingTopic('')
                                   setBookingOpen(true)
+                                  track('book_dialog_open')
                                 }}
                               >
                                 Prenota

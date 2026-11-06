@@ -39,7 +39,7 @@ self.addEventListener('push', (event) => {
       badge: '/icons/icon-192.png',
       tag: typeof data.tag === 'string' ? data.tag : undefined,
       lang: 'it',
-      data: { url: safePath(data.url) }
+      data: { url: safePath(data.url), category: typeof data.category === 'string' ? data.category : '' }
     }),
     updateBadge(data.badge),
     // Open pages refresh the notification panel's counter without polling.
@@ -51,9 +51,27 @@ self.addEventListener('push', (event) => {
   ]))
 })
 
+// Counts the opening on our own server, by kind of notification only. The page's own
+// checks apply here too: nothing with Global Privacy Control, and /api/analytics drops it for
+// visitors and while impersonating. A failure is ignored: it must not stop the page opening.
+function countOpen(category) {
+  if (self.navigator.globalPrivacyControl === true || !category) {
+    return Promise.resolve()
+  }
+  return fetch('/api/analytics', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    keepalive: true,
+    body: JSON.stringify({ events: [{ event: 'push_open', detail: category, count: 1 }] })
+  }).catch(() => undefined)
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const target = new URL(safePath(event.notification.data && event.notification.data.url), self.location.origin)
+  const data = event.notification.data || {}
+  const target = new URL(safePath(data.url), self.location.origin)
+  event.waitUntil(countOpen(data.category))
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
     for (const client of windows) {
