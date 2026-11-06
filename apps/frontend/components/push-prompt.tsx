@@ -19,10 +19,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { fetchDeviceCount, isImpersonating, isPushConfigured, readPushEnvironment } from '@/lib/push-client'
 import { type PushSetupState, pushSetupState } from '@/lib/push-platform'
-import { readPromptState, shouldPrompt, snooze } from '@/lib/push-prompt'
+import { notifyPushSetupChanged, PUSH_SETUP_CHANGED_EVENT, readPromptState, shouldPrompt, snooze } from '@/lib/push-prompt'
 
 const OPEN_EVENT = 'iepf:open-push-setup'
-const CHANGED_EVENT = 'iepf:push-setup-changed'
 export const SETUP_PARAM = 'attiva-notifiche'
 // Set by the tutor onboarding right before the redirect to the tutor home.
 export const TUTOR_ONBOARDED_FLAG = 'iepf:push-invite:onboarded'
@@ -63,16 +62,14 @@ export function usePushSetup(role: string | null | undefined) {
   React.useEffect(() => {
     void evaluate()
     const handleChange = () => void evaluate()
-    window.addEventListener(CHANGED_EVENT, handleChange)
-    return () => window.removeEventListener(CHANGED_EVENT, handleChange)
+    window.addEventListener(PUSH_SETUP_CHANGED_EVENT, handleChange)
+    return () => window.removeEventListener(PUSH_SETUP_CHANGED_EVENT, handleChange)
   }, [evaluate])
 
   return state
 }
 
-export function notifyPushSetupChanged() {
-  window.dispatchEvent(new Event(CHANGED_EVENT))
-}
+export { notifyPushSetupChanged }
 
 // The system popup: always on, not editable, after the admin popups.
 export function PushPrompt({ userId, role }: { userId: string, role: PushRole }) {
@@ -104,13 +101,6 @@ export function PushPrompt({ userId, role }: { userId: string, role: PushRole })
     return () => window.removeEventListener(OPEN_EVENT, handleOpen)
   }, [available])
 
-  // Once done, close by itself after a moment.
-  React.useEffect(() => {
-    if (state !== 'done') return
-    const timer = window.setTimeout(() => setOpen(false), 3_000)
-    return () => window.clearTimeout(timer)
-  }, [state])
-
   const close = React.useCallback(() => {
     if (state !== 'done') {
       snooze(window.localStorage, userId)
@@ -123,6 +113,13 @@ export function PushPrompt({ userId, role }: { userId: string, role: PushRole })
       router.replace(`${url.pathname}${url.search}`)
     }
   }, [forced, router, state, userId])
+
+  // Once done, close by itself after a moment, the same way as the button: the pages hear it.
+  React.useEffect(() => {
+    if (state !== 'done') return
+    const timer = window.setTimeout(close, 3_000)
+    return () => window.clearTimeout(timer)
+  }, [close, state])
 
   if (!open || !state) {
     return null
@@ -168,10 +165,17 @@ export function PushInviteCard({
   const [state, setState] = React.useState<PushSetupState | 'done' | null>(null)
   const [hidden, setHidden] = React.useState(false)
 
+  // Checked again whenever push changes elsewhere: turned on from the popup or another card,
+  // the card goes away; put off with "Più tardi" in the popup, it waits too. Its own "done"
+  // message stays until it is closed.
   React.useEffect(() => {
-    if (available && userId && shouldPrompt(readPromptState(window.localStorage, userId))) {
-      setState(available)
+    const sync = () => {
+      const wanted = Boolean(available && userId && shouldPrompt(readPromptState(window.localStorage, userId)))
+      setState(current => current === 'done' ? current : wanted ? available : null)
     }
+    sync()
+    window.addEventListener(PUSH_SETUP_CHANGED_EVENT, sync)
+    return () => window.removeEventListener(PUSH_SETUP_CHANGED_EVENT, sync)
   }, [available, userId])
 
   if (!userId || !isPushRole(role) || !state || hidden) {

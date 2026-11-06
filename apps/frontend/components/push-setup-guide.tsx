@@ -14,7 +14,7 @@ import {
   showTestNotification
 } from '@/lib/push-client'
 import { detectPlatform, type PushSetupState, pushSetupState } from '@/lib/push-platform'
-import { readPromptState, rememberIosStep, setOptedOut } from '@/lib/push-prompt'
+import { notifyPushSetupChanged, readPromptState, rememberIosStep, setOptedOut } from '@/lib/push-prompt'
 import { cn } from '@/lib/utils'
 
 export type PushRole = 'student' | 'tutor' | 'admin'
@@ -286,6 +286,7 @@ export function PushSetupGuide({
   const markDone = React.useCallback(() => {
     setOptedOut(window.localStorage, userId, false)
     onStateChange('done')
+    notifyPushSetupChanged()
   }, [onStateChange, userId])
 
   const onPhoneDone = React.useCallback(() => {
