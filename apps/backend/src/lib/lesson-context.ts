@@ -1,13 +1,6 @@
 // Purpose: The few lesson and student details an admin notice needs.
 import db from '@/db'
-
-function classLabel(sectionName: string | null, year: number | null) {
-  const yearLabel = year ? `anno ${year}` : null
-  if (sectionName && yearLabel) {
-    return `${sectionName} - ${yearLabel}`
-  }
-  return sectionName ?? yearLabel
-}
+import { classLabel } from '@/lib/class-label'
 
 export async function lessonContext(lessonId: string, studentId: string) {
   const lesson = await db.query.lessons.findFirst({
@@ -45,6 +38,6 @@ export async function lessonContext(lessonId: string, studentId: string) {
     subjectName: subject.name,
     tutorName: `${tutor.firstName} ${tutor.lastName}`.trim(),
     studentName: `${student.firstName} ${student.lastName}`.trim(),
-    studentClass: classLabel(section?.name ?? null, profile?.year ?? null)
+    studentClass: classLabel(profile?.year ?? null, section?.name ?? null)
   }
 }

@@ -21,6 +21,7 @@ import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'
 import { notifyAbsence, notifyLateCancellation } from '@/lib/admin-notifications'
 import { countInBackground } from '@/lib/analytics'
+import { classLabel as schoolClassLabel } from '@/lib/class-label'
 import {
   buildLessonBookingCanceledMessage,
   buildLessonBookingConfirmedMessage,
@@ -75,15 +76,6 @@ function ensureAdmin(c: HandlerContext) {
     forbid()
   }
   return currentUser
-}
-
-function buildClassLabel(sectionName: string | null, sectionId: string | null, year: number | null) {
-  const sectionLabel = sectionName ?? sectionId
-  const yearLabel = year ? `anno ${year}` : null
-  if (sectionLabel && yearLabel) {
-    return `${sectionLabel} - ${yearLabel}`
-  }
-  return sectionLabel ?? yearLabel ?? null
 }
 
 // What an open lesson (no subject picked yet) is called in messages.
@@ -156,7 +148,7 @@ async function fetchStudentsDetails(studentIds: string[]) {
   return new Map(students.map((student) => {
     const profile = profileMap.get(student.id)
     const sectionName = profile?.sectionId ? sectionNameMap.get(profile.sectionId) ?? null : null
-    const classLabel = buildClassLabel(sectionName, profile?.sectionId ?? null, profile?.year ?? null)
+    const classLabel = schoolClassLabel(profile?.year ?? null, sectionName)
     return [
       student.id,
       {

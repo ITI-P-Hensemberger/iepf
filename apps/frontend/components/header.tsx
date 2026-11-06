@@ -11,6 +11,7 @@ import { isPushRole, openPushSetup, usePushSetup } from '@/components/push-promp
 import { logout } from '@/lib/auth-client'
 import { useSession } from '@/lib/use-session'
 import { Avatar, AvatarFallback } from './ui/avatar'
+import { avatarGradient } from '@/lib/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,22 +45,7 @@ export default function Header() {
   const { profile } = useSession()
   // Not null while this device could still turn push on: the popup is one click away.
   const pushSetup = usePushSetup(profile?.role)
-  const [avatarGradient, setAvatarGradient] = React.useState(
-    'linear-gradient(135deg, #0f172a, #64748b)'
-  )
-
-  React.useEffect(() => {
-    const gradients = [
-      'linear-gradient(135deg, #0f766e, #14b8a6)',
-      'linear-gradient(135deg, #1d4ed8, #38bdf8)',
-      'linear-gradient(135deg, #c2410c, #f97316)',
-      'linear-gradient(135deg, #7e22ce, #f472b6)',
-      'linear-gradient(135deg, #047857, #22c55e)',
-      'linear-gradient(135deg, #0f172a, #64748b)'
-    ]
-    const pick = gradients[Math.floor(Math.random() * gradients.length)]
-    setAvatarGradient(pick)
-  }, [])
+  const gradient = avatarGradient(profile?.email)
 
   const initials = profile
     ? `${profile?.firstName?.charAt(0)?.toUpperCase() ?? ''}${
@@ -101,7 +87,7 @@ export default function Header() {
             <Avatar
               className='flex justify-center items-center rounded-full text-white'
               style={{
-                backgroundImage: avatarGradient,
+                backgroundImage: gradient,
                 backgroundSize: 'cover',
                 backgroundRepeat: 'no-repeat'
               }}

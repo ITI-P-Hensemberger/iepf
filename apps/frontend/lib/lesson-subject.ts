@@ -1,16 +1,15 @@
 // A generated lesson is open until its first booking picks one of the tutor's subjects.
-export const OPEN_SUBJECT_LABEL = 'Materia a scelta'
 
 export type SubjectOption = {
   id: string
   name: string
 }
 
-// The lesson's subject, or a stand-in named for open lessons no booking has given a subject yet.
+// The lesson's subject; a lesson nobody booked yet has none and shows an empty name.
 export function lessonSubject<T extends SubjectOption>(
   subjectId: string | null | undefined,
   subjects: Map<string, T>
 ): SubjectOption | undefined {
-  if (!subjectId) return { id: '', name: OPEN_SUBJECT_LABEL }
+  if (!subjectId) return { id: '', name: '' }
   return subjects.get(subjectId)
 }

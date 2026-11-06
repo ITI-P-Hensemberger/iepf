@@ -25,14 +25,13 @@ import {
   subjectLabel,
   type ScheduleLesson
 } from '@/lib/lesson-schedule'
-import { OPEN_SUBJECT_LABEL } from '@/lib/lesson-subject'
 import { addDaysToKey, dateOfKey, dayKeyOf, dayRange } from '@/lib/school-week'
 import { cn } from '@/lib/utils'
 
 const timeFormat = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' })
 const dayFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })
 
-type Grouping = 'tutor' | 'subject'
+export type Grouping = 'tutor' | 'subject'
 
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1)
@@ -86,14 +85,6 @@ export default function AdminDayPage() {
     }
   }, [dayKey])
 
-  const summary = daySummary(lessons)
-  const groups = grouping === 'tutor'
-    ? [...groupBy(lessons, (lesson) => lesson.tutorId).values()]
-        .sort((a, b) => a[0].tutorName.localeCompare(b[0].tutorName, 'it'))
-    : [...groupBy(lessons, (lesson) => subjectLabel(lesson)).entries()]
-        .sort(([a], [b]) => (a === OPEN_SUBJECT_LABEL ? 1 : b === OPEN_SUBJECT_LABEL ? -1 : a.localeCompare(b, 'it')))
-        .map(([, list]) => list)
-
   return (
     <div className='space-y-4'>
       <div className='flex flex-wrap items-center gap-2'>
@@ -107,7 +98,7 @@ export default function AdminDayPage() {
         {dayKey !== firstSchoolDay(todayKey) && (
           <Button variant='ghost' size='sm' onClick={() => setParam('day', firstSchoolDay(todayKey))}>Oggi</Button>
         )}
-        <div className='ml-auto w-44'>
+        <div className='w-full sm:ml-auto sm:w-44'>
           <Select value={grouping} onValueChange={(value) => setParam('group', value)}>
             <SelectTrigger className='w-full' aria-label='Raggruppa'>
               <SelectValue />
@@ -120,13 +111,35 @@ export default function AdminDayPage() {
         </div>
       </div>
 
+      <DayOverview lessons={lessons} loading={loading} grouping={grouping} />
+      <p className='text-xs text-muted-foreground'>
+        Bordo tratteggiato: lezione ancora senza materia, la sceglie il primo studente che prenota.
+        Le lezioni mai prenotate vengono eliminate la notte dopo la chiusura delle prenotazioni.
+      </p>
+    </div>
+  )
+}
+
+// The figures and the lessons of one day, grouped by tutor or by subject: the day view and
+// the admin home both show it.
+// from: the page the lesson's details should lead back to, when it is not the day view.
+export function DayOverview({ lessons, loading, grouping, from }: { lessons: ScheduleLesson[], loading: boolean, grouping: Grouping, from?: 'home' }) {
+  const summary = daySummary(lessons)
+  const groups = grouping === 'tutor'
+    ? [...groupBy(lessons, (lesson) => lesson.tutorId).values()]
+        .sort((a, b) => a[0].tutorName.localeCompare(b[0].tutorName, 'it'))
+    : [...groupBy(lessons, (lesson) => subjectLabel(lesson)).entries()]
+        // Lessons nobody booked have no subject yet: they go last, together.
+        .sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b, 'it')))
+        .map(([, list]) => list)
+  return (
+    <>
       <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
         <Figure label='Lezioni' value={summary.slots} />
         <Figure label='Studenti prenotati' value={summary.booked} />
         <Figure label='Posti ancora prenotabili' value={summary.free} />
         <Figure label='Senza materia' value={summary.open} />
       </div>
-
       {loading ? (
         <div className='space-y-2'>
           <Skeleton className='h-16' />
@@ -138,15 +151,11 @@ export default function AdminDayPage() {
       ) : (
         <div className='divide-y rounded-lg border bg-card'>
           {groups.map((group) => (
-            <GroupRow key={grouping === 'tutor' ? group[0].tutorId : subjectLabel(group[0])} lessons={group} grouping={grouping} />
+            <GroupRow key={grouping === 'tutor' ? group[0].tutorId : subjectLabel(group[0])} lessons={group} grouping={grouping} from={from} />
           ))}
         </div>
       )}
-      <p className='text-xs text-muted-foreground'>
-        Bordo tratteggiato: lezione ancora senza materia, la sceglie il primo studente che prenota.
-        Le lezioni mai prenotate vengono eliminate la notte dopo la chiusura delle prenotazioni.
-      </p>
-    </div>
+    </>
   )
 }
 
@@ -159,7 +168,7 @@ function Figure({ label, value }: { label: string, value: number }) {
   )
 }
 
-function GroupRow({ lessons, grouping }: { lessons: ScheduleLesson[], grouping: Grouping }) {
+function GroupRow({ lessons, grouping, from }: { lessons: ScheduleLesson[], grouping: Grouping, from?: 'home' }) {
   const first = lessons[0]
   const booked = lessons.filter((lesson) => !isCanceled(lesson)).reduce((sum, lesson) => sum + lesson.bookings.length, 0)
   return (
@@ -174,42 +183,41 @@ function GroupRow({ lessons, grouping }: { lessons: ScheduleLesson[], grouping: 
           </>
         ) : (
           <>
-            <div className={cn('font-medium', !first.subjectId && 'text-muted-foreground')}>{subjectLabel(first)}</div>
+            <div className={cn('font-medium', !first.subjectId && 'text-muted-foreground')}>{subjectLabel(first) || 'Non ancora prenotate'}</div>
             <div className='text-xs text-muted-foreground'>{booked} {booked === 1 ? 'studente' : 'studenti'}</div>
           </>
         )}
       </div>
-      <div className='flex flex-wrap gap-2'>
-        {lessons.map((lesson) => <LessonChip key={lesson.id} lesson={lesson} grouping={grouping} />)}
+      {/* The lessons share the whole row equally, wrapping when they get too narrow. */}
+      <div className='flex min-w-0 flex-1 flex-wrap gap-2'>
+        {lessons.map((lesson) => <LessonChip key={lesson.id} lesson={lesson} grouping={grouping} from={from} />)}
       </div>
     </div>
   )
 }
 
-function LessonChip({ lesson, grouping }: { lesson: ScheduleLesson, grouping: Grouping }) {
+function LessonChip({ lesson, grouping, from }: { lesson: ScheduleLesson, grouping: Grouping, from?: 'home' }) {
   const canceled = isCanceled(lesson)
   const count = lesson.bookings.length
   const open = !lesson.subjectId
   const students = lesson.bookings.map((booking) => `${booking.studentName}: ${booking.topic}`).join('\n')
   return (
     <Link
-      href={`/admin/lessons/${lesson.id}`}
+      href={`/admin/lessons/${lesson.id}${from ? `?from=${from}` : ''}`}
       title={students || undefined}
       className={cn(
-        'flex min-w-36 flex-col gap-0.5 rounded-md border px-3 py-2 text-sm transition-colors hover:border-primary',
+        'flex min-w-36 flex-1 basis-0 flex-col gap-0.5 rounded-md border px-3 py-2 text-sm transition-colors hover:border-primary',
         open && !canceled && 'border-dashed',
         canceled && 'text-muted-foreground line-through decoration-muted-foreground/60'
       )}
     >
-      <span className='text-xs text-muted-foreground'>
-        {timeFormat.format(new Date(lesson.startAt))}
-        {grouping === 'subject' && ` · ${lesson.tutorName}`}
+      <span className='flex items-baseline gap-1.5'>
+        <span className='text-base font-semibold tabular-nums text-foreground'>{timeFormat.format(new Date(lesson.startAt))}</span>
+        {grouping === 'subject' && <span className='truncate text-xs text-muted-foreground'>{lesson.tutorName}</span>}
       </span>
       <span className={cn(open && 'text-muted-foreground')}>
-        {grouping === 'tutor' ? subjectLabel(lesson) : null}
-        {canceled
-          ? (grouping === 'tutor' ? ' · annullata' : 'Annullata')
-          : `${grouping === 'tutor' ? ' · ' : ''}${count}/${lesson.seats}`}
+        {grouping === 'tutor' && lesson.subjectId ? `${subjectLabel(lesson)} · ` : ''}
+        {canceled ? 'Annullata' : `${count}/${lesson.seats}`}
       </span>
       {!canceled && count === 0 && !lesson.bookingsOpen && (
         <span className='text-xs text-muted-foreground'>prenotazioni chiuse</span>

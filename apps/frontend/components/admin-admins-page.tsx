@@ -4,7 +4,6 @@ import * as React from 'react'
 
 import { PushInviteCard } from '@/components/push-prompt'
 import { useSession } from '@/lib/use-session'
-import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   type ColumnDef,
@@ -13,7 +12,7 @@ import {
   getCoreRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { ArrowUpDown, ExternalLink, Search, Trash2 } from 'lucide-react'
+import { ArrowUpDown, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -58,6 +57,8 @@ type PendingInvite = {
 }
 
 type DataTableProps<TData> = {
+  // Opens the row's details: the whole row is the link.
+  rowHref?: (row: TData) => string
   data: TData[]
   columns: ColumnDef<TData>[]
   searchPlaceholder: string
@@ -121,6 +122,7 @@ function normalizePaged<T>(payload: unknown): { items: T[]; total: number } {
 
 function DataTable<TData>({
   data,
+  rowHref,
   columns,
   searchPlaceholder,
   isLoading,
@@ -317,7 +319,23 @@ function DataTable<TData>({
               </TableRow>
             ) : table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow
+                  key={row.id}
+                  className={rowHref ? 'cursor-pointer' : undefined}
+                  tabIndex={rowHref ? 0 : undefined}
+                  onClick={rowHref
+                    ? (event) => {
+                        // Buttons and links inside the row keep their own action.
+                        if ((event.target as HTMLElement).closest('a, button, input, [role="checkbox"]')) return
+                        router.push(rowHref(row.original))
+                      }
+                    : undefined}
+                  onKeyDown={rowHref
+                    ? (event) => {
+                        if (event.key === 'Enter' && event.target === event.currentTarget) router.push(rowHref(row.original))
+                      }
+                    : undefined}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(
@@ -725,25 +743,6 @@ export default function AdminAdminsPage() {
           </Button>
         ),
         cell: ({ row }) => row.original.firstName
-      },
-      {
-        id: 'actions',
-        header: () => <span className='sr-only'>Azioni</span>,
-        cell: ({ row }) => (
-          <div className='flex items-center justify-end gap-1'>
-            <Button
-              asChild
-              variant='ghost'
-              size='icon'
-              aria-label='Apri profilo tutor'
-              className='h-6 w-6 p-0'
-            >
-              <Link href={`/admin/admins/${row.original.id}`}>
-                <ExternalLink className='h-4 w-4' />
-              </Link>
-            </Button>
-          </div>
-        )
       }
     ]
 
@@ -903,6 +902,7 @@ export default function AdminAdminsPage() {
                 <DataTable
                   data={activeAdmins}
                   columns={activeColumns}
+                    rowHref={(row) => `/admin/admins/${row.id}`}
                   searchPlaceholder='Cerca admin'
                   isLoading={activeLoading}
                   emptyMessage='Nessun admin attivo.'
@@ -918,6 +918,7 @@ export default function AdminAdminsPage() {
                 <DataTable
                   data={inactiveAdmins}
                   columns={activeColumns}
+                    rowHref={(row) => `/admin/admins/${row.id}`}
                   searchPlaceholder='Cerca admin'
                   isLoading={inactiveLoading}
                   emptyMessage='Nessun admin non attivo.'

@@ -4,21 +4,13 @@ import { and, eq, gte, inArray, lt } from 'drizzle-orm'
 import db, { closeDb } from '@/db'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
+import { classLabel as schoolClassLabel } from '@/lib/class-label'
 import { buildLessonReminderStudentMessage, buildLessonReminderTutorMessage } from '@/lib/email-templates'
 import { createMailBatch } from '@/lib/mail-batch'
 import { closeMailer } from '@/lib/mailer'
 import { studentReminderPush, tutorReminderPush } from '@/lib/push-messages'
 import { createPushBatch, pruneReminderDeliveries, sendReminderOnce, sendReminderPushOnce } from '@/lib/reminder-delivery'
 import { addDays, schoolDayKey, schoolTime } from '@/lib/school-time'
-
-function buildClassLabel(sectionName: string | null, sectionId: string | null, year: number | null) {
-  const sectionLabel = sectionName ?? sectionId
-  const yearLabel = year ? `anno ${year}` : null
-  if (sectionLabel && yearLabel) {
-    return `${sectionLabel} - ${yearLabel}`
-  }
-  return sectionLabel ?? yearLabel ?? null
-}
 
 function parseTodayFlag() {
   const args = new Set(process.argv.slice(2))
@@ -146,7 +138,7 @@ async function main() {
     const subjectName = subjectMap.get(booking.subjectId)
     const profile = profileMap.get(booking.studentId)
     const sectionName = profile?.sectionId ? sectionNameMap.get(profile.sectionId) ?? null : null
-    const classLabel = buildClassLabel(sectionName, profile?.sectionId ?? null, profile?.year ?? null)
+    const classLabel = schoolClassLabel(profile?.year ?? null, sectionName)
 
     if (!tutor || !subjectName) {
       continue
@@ -192,7 +184,7 @@ async function main() {
     }
     const profile = profileMap.get(booking.studentId)
     const sectionName = profile?.sectionId ? sectionNameMap.get(profile.sectionId) ?? null : null
-    const classLabel = buildClassLabel(sectionName, profile?.sectionId ?? null, profile?.year ?? null)
+    const classLabel = schoolClassLabel(profile?.year ?? null, sectionName)
 
     if (!tutorLessonMap.has(lesson.tutorId)) {
       tutorLessonMap.set(lesson.tutorId, new Map())

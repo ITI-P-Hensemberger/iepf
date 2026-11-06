@@ -21,9 +21,9 @@ const WEEKDAYS = [
 ] as const
 
 const START_TIMES = [
-  { value: '14:00', label: '14 (1h)' },
-  { value: '15:00', label: '15 (1h)' },
-  { value: '14:00-16:00', label: '14-16 (2h)' }
+  { value: '14:00', label: '14:00 - 15:00 (1h)' },
+  { value: '15:00', label: '15:00 - 16:00 (1h)' },
+  { value: '14:00-16:00', label: '14:00 - 16:00 (2h)' }
 ] as const
 type StartTime = (typeof START_TIMES)[number]['value']
 
@@ -109,7 +109,7 @@ export function WeekdayAvailabilitySelector({
       </div>
 
       <p className='text-sm text-muted-foreground'>
-        Seleziona i giorni e scegli l&apos;orario di inizio della lezione (1h).
+        Seleziona i giorni e scegli l&apos;orario di inizio della lezione.
       </p>
 
       <div className='space-y-4 sm:space-y-2'>
@@ -157,7 +157,7 @@ export function WeekdayAvailabilitySelector({
               </div>
 
               {isSelected && (
-                <div className='w-full sm:w-40'>
+                <div className='w-full sm:w-56'>
                   <Select
                     value={startTime ?? undefined}
                     onValueChange={(value) =>
@@ -165,7 +165,7 @@ export function WeekdayAvailabilitySelector({
                     }
                     disabled={disabled}
                   >
-                    <SelectTrigger className='w-full h-full min-h-16 justify-between'>
+                    <SelectTrigger className='w-full h-full min-h-16 justify-between whitespace-nowrap'>
                       <SelectValue placeholder='Ora inizio' />
                     </SelectTrigger>
                     <SelectContent>

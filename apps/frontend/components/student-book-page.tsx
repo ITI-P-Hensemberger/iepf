@@ -359,7 +359,7 @@ export default function StudentBookPage() {
             <>
               <StepHeader
                 step={subjectId ? 2 : 1}
-                title={subjectId ? subjectName || 'Materia' : 'Cosa vuoi ripassare?'}
+                title={subjectId ? subjectName || 'Materia' : 'Cosa vuoi studiare?'}
               />
               <div className='mt-4 flex items-center gap-2'>
                 {thisWeekOpen && (
@@ -728,7 +728,7 @@ function ConfirmBody({
           id='booking-topic'
           value={topic}
           onChange={(event) => onTopic(event.target.value)}
-          placeholder='Equazioni di secondo grado: non capisco quando usare il discriminante'
+          placeholder='Equazioni di secondo grado...'
           maxLength={200}
           rows={3}
         />
@@ -764,13 +764,8 @@ function BookedStep({
       openPushSetup()
     }
   }, [pushSetup])
-  // The confirmation replaces a long list: bring its top into view instead of leaving it mid-page.
-  const top = React.useRef<HTMLDivElement>(null)
-  React.useEffect(() => {
-    top.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [])
   return (
-    <div ref={top} className='mt-6 scroll-mt-20 space-y-4'>
+    <div className='mt-6 space-y-4'>
       <StepHeader step={4} title='Prenotata' />
       <Card>
         <CardContent className='space-y-4 py-6'>

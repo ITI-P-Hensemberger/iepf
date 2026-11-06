@@ -1,5 +1,5 @@
 // Lessons with their bookings as GET /lessons/schedule returns them, and how the views group them.
-import { OPEN_SUBJECT_LABEL, type SubjectOption } from '@/lib/lesson-subject'
+import { type SubjectOption } from '@/lib/lesson-subject'
 import { dayKeyOf } from '@/lib/school-week'
 
 export type ScheduleBooking = {
@@ -31,7 +31,8 @@ export type ScheduleLesson = {
 }
 
 export function subjectLabel(lesson: Pick<ScheduleLesson, 'subjectName'>) {
-  return lesson.subjectName ?? OPEN_SUBJECT_LABEL
+  // A lesson nobody booked has no subject yet, and shows none.
+  return lesson.subjectName ?? ''
 }
 
 export function isCanceled(lesson: Pick<ScheduleLesson, 'status'>) {

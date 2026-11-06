@@ -6,6 +6,7 @@ import type { CellValue, ChartSpec, Column, Sheet, TableRef } from '@/lib/xlsx/w
 import type { ReportData, ReportPerson } from '@/lib/year-report-data'
 
 import { romeDay } from '@/lib/analytics'
+import { classLabel } from '@/lib/class-label'
 import { lessonState } from '@/lib/lesson-state'
 import { Workbook } from '@/lib/xlsx/workbook'
 
@@ -317,7 +318,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
       const classPresent = classBookings.filter(booking => booking.presence === true).length
       const classAbsent = classBookings.filter(booking => booking.presence === false).length
       return [
-        `${year ? `${year}ª` : '-'} ${sectionName || ''}`.trim(),
+        classLabel(year ? Number(year) : null, sectionName) ?? '-',
         year ? Number(year) : null,
         sectionName || null,
         members.length,

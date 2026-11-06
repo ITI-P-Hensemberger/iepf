@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import { canMarkPresence, daySummary, subjectLabel, type ScheduleLesson } from './lesson-schedule'
-import { OPEN_SUBJECT_LABEL } from './lesson-subject'
 
 function lesson(values: Partial<ScheduleLesson>): ScheduleLesson {
   return {
@@ -27,8 +26,8 @@ function lesson(values: Partial<ScheduleLesson>): ScheduleLesson {
 const booking = { id: 'b', studentId: 's', studentName: 'S', classLabel: null, subjectId: 'm', topic: 'x', studentPresence: null }
 
 describe('lesson schedule', () => {
-  it('names open lessons', () => {
-    expect(subjectLabel(lesson({}))).toBe(OPEN_SUBJECT_LABEL)
+  it('shows no subject for lessons nobody booked', () => {
+    expect(subjectLabel(lesson({}))).toBe('')
     expect(subjectLabel(lesson({ subjectName: 'Fisica' }))).toBe('Fisica')
   })
 

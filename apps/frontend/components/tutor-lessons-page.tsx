@@ -1,9 +1,8 @@
 'use client'
 
 import * as React from 'react'
-import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { CalendarIcon, ExternalLink } from 'lucide-react'
+import { CalendarIcon } from 'lucide-react'
 
 import {
   AlertDialog,
@@ -547,15 +546,12 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
                   <TableHead>Materia</TableHead>
                   <TableHead className='whitespace-nowrap'>Posti occupati</TableHead>
                   <TableHead>Stato</TableHead>
-                  <TableHead className='w-16'>
-                    <span className='sr-only'>Azioni</span>
-                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className='text-muted-foreground'>
+                    <TableCell colSpan={4} className='text-muted-foreground'>
                       Caricamento...
                     </TableCell>
                   </TableRow>
@@ -563,7 +559,15 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
                   lessons.map((lesson) => {
                     const subject = lessonSubject(lesson.subjectId, subjectMap)
                     return (
-                      <TableRow key={lesson.id}>
+                      <TableRow
+                        key={lesson.id}
+                        className='cursor-pointer'
+                        tabIndex={0}
+                        onClick={() => router.push(`/tutor/lessons/${lesson.id}`)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') router.push(`/tutor/lessons/${lesson.id}`)
+                        }}
+                      >
                         <TableCell>
                           {formatItalianDate(lesson.startAt)}
                         </TableCell>
@@ -583,27 +587,12 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
                             </div>
                           ) : null}
                         </TableCell>
-                        <TableCell className='w-16 text-right'>
-                          <div className='flex items-center justify-end gap-1'>
-                            <Button
-                              asChild
-                              variant='ghost'
-                              size='icon'
-                              aria-label='Apri dettagli lezione'
-                              className='h-6 w-6 p-0'
-                            >
-                              <Link href={`/tutor/lessons/${lesson.id}`}>
-                                <ExternalLink className='h-4 w-4' />
-                              </Link>
-                            </Button>
-                          </div>
-                        </TableCell>
                       </TableRow>
                     )
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className='text-muted-foreground'>
+                    <TableCell colSpan={4} className='text-muted-foreground'>
                       Nessuna lezione trovata.
                     </TableCell>
                   </TableRow>

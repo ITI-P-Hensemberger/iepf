@@ -1,324 +1,82 @@
 'use client'
 
+// The admin home: the way to every area, today's lessons at a glance and the bookings of
+// the coming days.
 import * as React from 'react'
 import Link from 'next/link'
-
-import { Button } from '@/components/ui/button'
-import { useSession } from '@/lib/use-session'
-import { lessonSubject } from '@/lib/lesson-subject'
-import { PushInviteCard } from '@/components/push-prompt'
-import { Card, CardContent, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '@/components/ui/table'
-import { extractPayloadArray } from '@/lib/backend-response'
-import { formatItalianDate } from '@/lib/format-date'
-import {
-  BookOpen,
-  ChevronRight,
-  CircleUserRound,
-  ExternalLink,
-  MessageSquare,
-  ShieldUser
-} from 'lucide-react'
+import { BookOpen, ChevronRight, GraduationCap, MessageSquare, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
-type Lesson = {
-  id: string
-  tutorId: string
-  subjectId: string | null
-  startAt: string
-  lessonCapacity: number
-  availableSeats: number
-  status: string
+import { DayOverview } from '@/components/admin-day-page'
+import { PushInviteCard } from '@/components/push-prompt'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { extractPayloadArray } from '@/lib/backend-response'
+import { isCanceled, subjectLabel, type ScheduleLesson } from '@/lib/lesson-schedule'
+import { addDaysToKey, dayKeyOf, dayRange } from '@/lib/school-week'
+import { useSession } from '@/lib/use-session'
+
+const timeFormat = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' })
+const dayFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })
+
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
-type Tutor = {
-  id: string
-  firstName: string
-  lastName: string
-  email?: string | null
-}
+const AREAS = [
+  { href: '/admin/students', label: 'Studenti', icon: GraduationCap },
+  { href: '/admin/tutors', label: 'Tutor', icon: Users },
+  { href: '/admin/lessons', label: 'Lezioni', icon: BookOpen },
+  { href: '/admin/feedback', label: 'Feedback', icon: MessageSquare }
+]
 
-type Subject = {
-  id: string
-  name: string
-}
-
-const lessonsLimit = 20
-
-function startOfTodayIso() {
-  const now = new Date()
-  now.setHours(0, 0, 0, 0)
-  return now.toISOString()
-}
-
-function endOfTodayIso() {
-  const now = new Date()
-  now.setHours(23, 59, 59, 999)
-  return now.toISOString()
-}
-
-function startOfTomorrowIso() {
-  const now = new Date()
-  now.setDate(now.getDate() + 1)
-  now.setHours(0, 0, 0, 0)
-  return now.toISOString()
-}
-
-function normalizeLessons(payload: unknown): Lesson[] {
-  if (!payload || typeof payload !== 'object') return []
-  const data = payload as Record<string, unknown>
-  if (Array.isArray(data.data)) return data.data as Lesson[]
-  if (Array.isArray(data.items)) return data.items as Lesson[]
-  if (Array.isArray(data.results)) return data.results as Lesson[]
-  if (Array.isArray(data.rows)) return data.rows as Lesson[]
-  return []
-}
-
-function normalizeTotal(payload: unknown, fallback: number) {
-  if (!payload || typeof payload !== 'object') return fallback
-  const data = payload as Record<string, unknown>
-  if (typeof data.total === 'number') return data.total
-  if (data.data && typeof data.data === 'object') {
-    const nested = data.data as Record<string, unknown>
-    if (typeof nested.total === 'number') return nested.total
-  }
-  return fallback
-}
-
-function lessonSeatsLabel(lesson: Lesson) {
-  const capacity = Number(lesson.lessonCapacity ?? 0)
-  const available = Number(lesson.availableSeats ?? 0)
-  if (!Number.isFinite(capacity) || !Number.isFinite(available)) {
-    return '-'
-  }
-  const occupied = Math.max(0, capacity - available)
-  return `${occupied}/${capacity}`
-}
-
-function tutorTableLabel(tutor?: Tutor) {
-  if (!tutor) return null
-  const fullName = `${tutor.lastName ?? ''} ${tutor.firstName ?? ''}`.trim()
-  if (fullName) return fullName
-  return tutor.email ?? null
+async function fetchSchedule(from: string, to: string) {
+  const response = await fetch(`/api/lessons/schedule?${new URLSearchParams({ from, to })}`)
+  if (!response.ok) throw new Error('Impossibile caricare le lezioni.')
+  return extractPayloadArray<ScheduleLesson>(await response.json())
 }
 
 export default function AdminPage() {
   const { profile, isLoading: isProfileLoading } = useSession()
-  const [lessons, setLessons] = React.useState<Lesson[]>([])
-  const [isLessonsLoading, setIsLessonsLoading] = React.useState(true)
-  const [searchQuery, setSearchQuery] = React.useState('')
-  const [page, setPage] = React.useState(1)
-  const [total, setTotal] = React.useState(0)
-  const [scheduledLessons, setScheduledLessons] = React.useState<Lesson[]>([])
-  const [isScheduledLoading, setIsScheduledLoading] = React.useState(true)
-  const [scheduledSearchQuery, setScheduledSearchQuery] = React.useState('')
-  const [scheduledPage, setScheduledPage] = React.useState(1)
-  const [scheduledTotal, setScheduledTotal] = React.useState(0)
-  const [tutors, setTutors] = React.useState<Tutor[]>([])
-  const [subjects, setSubjects] = React.useState<Subject[]>([])
-
-  const subjectMap = React.useMemo(() => {
-    const map = new Map<string, Subject>()
-    subjects.forEach((subject) => map.set(subject.id, subject))
-    return map
-  }, [subjects])
-
-  const tutorMap = React.useMemo(() => {
-    const map = new Map<string, Tutor>()
-    tutors.forEach((tutor) => map.set(tutor.id, tutor))
-    return map
-  }, [tutors])
+  const [today, setToday] = React.useState<ScheduleLesson[]>([])
+  const [coming, setComing] = React.useState<ScheduleLesson[]>([])
+  const [loading, setLoading] = React.useState(true)
 
   React.useEffect(() => {
-    let isMounted = true
-
-    async function loadSubjects() {
-      try {
-        const response = await fetch('/api/subjects')
-        if (!response.ok) {
-          throw new Error('Impossibile caricare le materie.')
-        }
-        const payload = await response.json()
-        if (isMounted) {
-          setSubjects(extractPayloadArray<Subject>(payload))
-        }
-      } catch (err) {
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : 'Impossibile caricare le materie.'
-        )
-      }
-    }
-
-    async function loadTutors() {
-      try {
-        const params = new URLSearchParams({
-          role: 'tutor',
-          limit: '200',
-          offset: '0'
-        })
-        const response = await fetch(`/api/users?${params.toString()}`)
-        if (!response.ok) {
-          throw new Error('Impossibile caricare i tutor.')
-        }
-        const payload = await response.json()
-        if (isMounted) {
-          setTutors(extractPayloadArray<Tutor>(payload))
-        }
-      } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : 'Impossibile caricare i tutor.'
-        )
-      }
-    }
-
-    void loadSubjects()
-    void loadTutors()
-
+    let active = true
+    const todayKey = dayKeyOf(new Date())
+    Promise.all([
+      fetchSchedule(dayRange(todayKey).from, dayRange(todayKey).to),
+      fetchSchedule(dayRange(addDaysToKey(todayKey, 1)).from, dayRange(addDaysToKey(todayKey, 7)).to)
+    ])
+      .then(([todayLessons, nextLessons]) => {
+        if (!active) return
+        setToday(todayLessons)
+        setComing(nextLessons)
+      })
+      .catch((err) => toast.error(err instanceof Error ? err.message : 'Impossibile caricare le lezioni.'))
+      .finally(() => {
+        if (active) setLoading(false)
+      })
     return () => {
-      isMounted = false
+      active = false
     }
   }, [])
 
-  const totalPages = Math.max(1, Math.ceil(total / lessonsLimit))
-  const scheduledTotalPages = Math.max(
-    1,
-    Math.ceil(scheduledTotal / lessonsLimit)
-  )
-
-  React.useEffect(() => {
-    if (page > totalPages) {
-      setPage(totalPages)
-    }
-  }, [page, totalPages])
-
-  React.useEffect(() => {
-    if (scheduledPage > scheduledTotalPages) {
-      setScheduledPage(scheduledTotalPages)
-    }
-  }, [scheduledPage, scheduledTotalPages])
-
-  React.useEffect(() => {
-    let isMounted = true
-    const timeout = setTimeout(() => {
-      void (async () => {
-        setIsLessonsLoading(true)
-        try {
-          const params = new URLSearchParams()
-          params.set('from', startOfTodayIso())
-          params.set('to', endOfTodayIso())
-          params.set('status', 'confirmed')
-          params.set('sortBy', 'startAt')
-          params.set('sortDir', 'asc')
-          params.set('limit', String(lessonsLimit))
-          params.set('offset', String((page - 1) * lessonsLimit))
-          if (searchQuery.trim()) {
-            params.set('q', searchQuery.trim())
-          }
-          const response = await fetch(`/api/lessons?${params.toString()}`)
-          if (!response.ok) {
-            throw new Error('Impossibile caricare le lezioni odierne.')
-          }
-          const payload = await response.json()
-          if (isMounted) {
-            const nextLessons = normalizeLessons(payload)
-            setLessons(nextLessons)
-            setTotal(normalizeTotal(payload, nextLessons.length))
-          }
-        } catch (err) {
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : 'Impossibile caricare le lezioni odierne.'
-          )
-          if (isMounted) {
-            setLessons([])
-            setTotal(0)
-          }
-        } finally {
-          if (isMounted) {
-            setIsLessonsLoading(false)
-          }
-        }
-      })()
-    }, 100)
-
-    return () => {
-      isMounted = false
-      clearTimeout(timeout)
-    }
-  }, [page, searchQuery])
-
-  React.useEffect(() => {
-    let isMounted = true
-    const timeout = setTimeout(() => {
-      void (async () => {
-        setIsScheduledLoading(true)
-        try {
-          const params = new URLSearchParams()
-          params.set('from', startOfTomorrowIso())
-          params.set('status', 'confirmed')
-          params.set('sortBy', 'startAt')
-          params.set('sortDir', 'asc')
-          params.set('limit', String(lessonsLimit))
-          params.set('offset', String((scheduledPage - 1) * lessonsLimit))
-          if (scheduledSearchQuery.trim()) {
-            params.set('q', scheduledSearchQuery.trim())
-          }
-          const response = await fetch(`/api/lessons?${params.toString()}`)
-          if (!response.ok) {
-            throw new Error('Impossibile caricare le lezioni programmate.')
-          }
-          const payload = await response.json()
-          if (isMounted) {
-            const nextLessons = normalizeLessons(payload)
-            setScheduledLessons(nextLessons)
-            setScheduledTotal(normalizeTotal(payload, nextLessons.length))
-          }
-        } catch (err) {
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : 'Impossibile caricare le lezioni programmate.'
-          )
-          if (isMounted) {
-            setScheduledLessons([])
-            setScheduledTotal(0)
-          }
-        } finally {
-          if (isMounted) {
-            setIsScheduledLoading(false)
-          }
-        }
-      })()
-    }, 100)
-
-    return () => {
-      isMounted = false
-      clearTimeout(timeout)
-    }
-  }, [scheduledPage, scheduledSearchQuery])
+  const booked = coming.filter((lesson) => !isCanceled(lesson) && lesson.bookings.length > 0)
+  // A slot nobody booked once bookings closed will not take place: today it is only noise.
+  const todayShown = today.filter((lesson) => lesson.bookings.length > 0 || lesson.bookingsOpen)
 
   return (
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10'>
-        <div className='max-w-6xl mx-auto'>
-          <h1 className='text-2xl font-bold mb-2'>
-            {!isProfileLoading && `Bentornatə, ${profile?.firstName}`}
-          </h1>
-          <p className='text-muted-foreground mb-8'>
-            Gestisci il progetto InsiemeÈ+Facile
-          </p>
-          <div className='mb-8 empty:hidden'>
+        <div className='mx-auto max-w-6xl space-y-8'>
+          <div>
+            <h1 className='text-2xl font-bold'>{!isProfileLoading && `Bentornatə, ${profile?.firstName}`}</h1>
+            <p className='text-muted-foreground'>Gestisci il progetto InsiemeÈ+Facile</p>
+          </div>
+          <div className='empty:hidden'>
             <PushInviteCard
               userId={profile?.id}
               role={profile?.role}
@@ -326,325 +84,54 @@ export default function AdminPage() {
               description='Ricevi subito gli avvisi su feedback bassi, assenze e richieste in attesa.'
             />
           </div>
-          <div className='grid gap-4 sm:gap-6 md:grid-cols-2'>
-            <Link href='/admin/students' className='group block'>
-              <Card className='border py-4 sm:py-6'>
-                <CardContent>
-                  <div className='flex items-center justify-between'>
-                    <div className='flex items-center gap-3'>
-                      <div className='rounded-lg bg-primary/10 p-2.5'>
-                        <CircleUserRound className='h-4 w-4 text-primary' />
-                      </div>
-                      <div>
-                        <CardTitle className='text-md'>Studenti</CardTitle>
-                      </div>
-                    </div>
-                    <ChevronRight className='h-5 w-5 text-muted-foreground' />
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-            <Link href='/admin/tutors' className='group block'>
-              <Card className='border py-4 sm:py-6'>
-                <CardContent>
-                  <div className='flex items-center justify-between'>
-                    <div className='flex items-center gap-3'>
-                      <div className='rounded-lg bg-primary/10 p-2.5'>
-                        <ShieldUser className='h-4 w-4 text-primary' />
-                      </div>
-                      <div>
-                        <CardTitle className='text-md'>Tutor</CardTitle>
-                      </div>
-                    </div>
-                    <ChevronRight className='h-5 w-5 text-muted-foreground' />
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-            <Link href='/admin/lessons/' className='group block'>
-              <Card className='border py-4 sm:py-6'>
-                <CardContent>
-                  <div className='flex items-center justify-between'>
-                    <div className='flex items-center gap-3'>
-                      <div className='rounded-lg bg-primary/10 p-2.5'>
-                        <BookOpen className='h-4 w-4 text-primary' />
-                      </div>
-                      <div>
-                        <CardTitle className='text-md'>Lezioni</CardTitle>
-                      </div>
-                    </div>
-                    <ChevronRight className='h-5 w-5 text-muted-foreground' />
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-            <Link href='/admin/feedback/' className='group block'>
-              <Card className='border py-4 sm:py-6'>
-                <CardContent>
-                  <div className='flex items-center justify-between'>
-                    <div className='flex items-center gap-3'>
-                      <div className='rounded-lg bg-primary/10 p-2.5'>
-                        <MessageSquare className='h-4 w-4 text-primary' />
-                      </div>
-                      <div>
-                        <CardTitle className='text-md'>Feedback</CardTitle>
-                      </div>
-                    </div>
-                    <ChevronRight className='h-5 w-5 text-muted-foreground' />
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
+
+          <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
+            {AREAS.map((area) => (
+              <Link key={area.href} href={area.href} className='flex items-center gap-3 rounded-lg border bg-card p-4 transition-colors hover:border-primary'>
+                <span className='rounded-lg bg-primary/10 p-2'><area.icon className='h-4 w-4 text-primary' /></span>
+                <span className='font-medium'>{area.label}</span>
+                <ChevronRight className='ml-auto h-4 w-4 text-muted-foreground' />
+              </Link>
+            ))}
           </div>
 
-          <div className='mt-10'>
-            <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-              <div>
-                <h2 className='text-xl font-semibold'>Lezioni odierne</h2>
-              </div>
-              <div className='w-full sm:w-72'>
-                <Input
-                  placeholder='Cerca per tutor o materia'
-                  value={searchQuery}
-                  onChange={(event) => {
-                    setSearchQuery(event.target.value)
-                    setPage(1)
-                  }}
-                />
-              </div>
+          <section className='space-y-3'>
+            <div className='flex items-center justify-between'>
+              <h2 className='flex items-center gap-2 text-lg font-semibold'>Oggi <Badge variant='secondary'>{capitalize(dayFormat.format(new Date()))}</Badge></h2>
+              <Button asChild variant='ghost' size='sm'>
+                <Link href='/admin/lessons'>Apri la giornata <ChevronRight className='h-4 w-4' /></Link>
+              </Button>
             </div>
+            <DayOverview lessons={todayShown} loading={loading} grouping='tutor' from='home' />
+          </section>
 
-            <div className='mt-4 rounded-lg border'>
-              <Table>
-                <TableHeader className='bg-muted/50'>
-                  <TableRow>
-                    <TableHead className='whitespace-nowrap'>Data e ora</TableHead>
-                    <TableHead>Tutor</TableHead>
-                    <TableHead>Materia</TableHead>
-                    <TableHead>Posti</TableHead>
-                    <TableHead className='w-16'>
-                      <span className='sr-only'>Azioni</span>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLessonsLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className='text-muted-foreground'>
-                        Caricamento...
-                      </TableCell>
-                    </TableRow>
-                  ) : lessons.length ? (
-                    lessons.map((lesson) => {
-                      const subject = lessonSubject(lesson.subjectId, subjectMap)
-                      const tutor = tutorMap.get(lesson.tutorId)
-                      return (
-                        <TableRow key={lesson.id}>
-                          <TableCell>
-                            {formatItalianDate(lesson.startAt)}
-                          </TableCell>
-                          <TableCell>{tutorTableLabel(tutor) ?? '-'}</TableCell>
-                          <TableCell>{subject?.name ?? '-'}</TableCell>
-                          <TableCell>{lessonSeatsLabel(lesson)}</TableCell>
-                          <TableCell className='w-16 text-right'>
-                            <div className='flex items-center justify-end gap-1'>
-                              <Button
-                                asChild
-                                variant='ghost'
-                                size='icon'
-                                aria-label='Apri dettagli lezione'
-                                className='h-6 w-6 p-0'
-                              >
-                                <Link href={`/admin/lessons/${lesson.id}`}>
-                                  <ExternalLink className='h-4 w-4' />
-                                </Link>
-                              </Button>
-                              <Button
-                                asChild
-                                variant='ghost'
-                                size='icon'
-                                aria-label='Gestione feedback lezione'
-                                className='h-6 w-6 p-0'
-                              >
-                                <Link
-                                  href={`/admin/feedback?feedbackLesson=${lesson.id}`}
-                                >
-                                  <MessageSquare className='h-4 w-4' />
-                                </Link>
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={5} className='text-muted-foreground'>
-                        Nessuna lezione oggi.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-            <div className='mt-4 flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between'>
-              <span>
-                Pagina {page} di {totalPages} · Totale {total}
-                {searchQuery.trim() ? ' risultati per la ricerca' : ''}
-              </span>
-              <div className='flex items-center gap-2'>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                  disabled={page <= 1 || isLessonsLoading}
-                >
-                  Precedente
-                </Button>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={() =>
-                    setPage((prev) => Math.min(totalPages, prev + 1))
-                  }
-                  disabled={page >= totalPages || isLessonsLoading}
-                >
-                  Successiva
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <div className='mt-12'>
-            <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-              <div>
-                <h2 className='text-xl font-semibold'>
-                  Lezioni programmate
-                </h2>
-              </div>
-              <div className='w-full sm:w-72'>
-                <Input
-                  placeholder='Cerca per tutor o materia'
-                  value={scheduledSearchQuery}
-                  onChange={(event) => {
-                    setScheduledSearchQuery(event.target.value)
-                    setScheduledPage(1)
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className='mt-4 rounded-lg border'>
-              <Table>
-                <TableHeader className='bg-muted/50'>
-                  <TableRow>
-                    <TableHead className='whitespace-nowrap'>
-                      Data e ora
-                    </TableHead>
-                    <TableHead>Tutor</TableHead>
-                    <TableHead>Materia</TableHead>
-                    <TableHead>Posti</TableHead>
-                    <TableHead className='w-16'>
-                      <span className='sr-only'>Azioni</span>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isScheduledLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className='text-muted-foreground'>
-                        Caricamento...
-                      </TableCell>
-                    </TableRow>
-                  ) : scheduledLessons.length ? (
-                    scheduledLessons.map((lesson) => {
-                      const subject = lessonSubject(lesson.subjectId, subjectMap)
-                      const tutor = tutorMap.get(lesson.tutorId)
-                      return (
-                        <TableRow key={lesson.id}>
-                          <TableCell>
-                            {formatItalianDate(lesson.startAt)}
-                          </TableCell>
-                          <TableCell>{tutorTableLabel(tutor) ?? '-'}</TableCell>
-                          <TableCell>{subject?.name ?? '-'}</TableCell>
-                          <TableCell>{lessonSeatsLabel(lesson)}</TableCell>
-                          <TableCell className='w-16 text-right'>
-                            <div className='flex items-center justify-end gap-1'>
-                              <Button
-                                asChild
-                                variant='ghost'
-                                size='icon'
-                                aria-label='Apri dettagli lezione'
-                                className='h-6 w-6 p-0'
-                              >
-                                <Link href={`/admin/lessons/${lesson.id}`}>
-                                  <ExternalLink className='h-4 w-4' />
-                                </Link>
-                              </Button>
-                              <Button
-                                asChild
-                                variant='ghost'
-                                size='icon'
-                                aria-label='Gestione feedback lezione'
-                                className='h-6 w-6 p-0'
-                              >
-                                <Link
-                                  href={`/admin/feedback?feedbackLesson=${lesson.id}`}
-                                >
-                                  <MessageSquare className='h-4 w-4' />
-                                </Link>
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={5} className='text-muted-foreground'>
-                        Nessuna lezione programmata.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-            <div className='mt-4 flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between'>
-              <span>
-                Pagina {scheduledPage} di {scheduledTotalPages} · Totale{' '}
-                {scheduledTotal}
-                {scheduledSearchQuery.trim()
-                  ? ' risultati per la ricerca'
-                  : ''}
-              </span>
-              <div className='flex items-center gap-2'>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={() =>
-                    setScheduledPage((prev) => Math.max(1, prev - 1))
-                  }
-                  disabled={scheduledPage <= 1 || isScheduledLoading}
-                >
-                  Precedente
-                </Button>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={() =>
-                    setScheduledPage((prev) =>
-                      Math.min(scheduledTotalPages, prev + 1)
-                    )
-                  }
-                  disabled={
-                    scheduledPage >= scheduledTotalPages || isScheduledLoading
-                  }
-                >
-                  Successiva
-                </Button>
-              </div>
-            </div>
-          </div>
+          <section className='space-y-3'>
+            <h2 className='text-lg font-semibold'>Prenotazioni dei prossimi 7 giorni</h2>
+            {loading ? (
+              <Skeleton className='h-24' />
+            ) : booked.length === 0 ? (
+              <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>Nessuna prenotazione nei prossimi 7 giorni.</p>
+            ) : (
+              <ul className='divide-y rounded-lg border bg-card'>
+                {booked.map((lesson) => (
+                  <li key={lesson.id}>
+                    <Link href={`/admin/lessons/${lesson.id}?from=home`} className='flex items-center gap-3 px-4 py-3 hover:bg-muted/50'>
+                      <div className='min-w-0 flex-1'>
+                        <div className='font-medium'>
+                          {capitalize(dayFormat.format(new Date(lesson.startAt)))} · {timeFormat.format(new Date(lesson.startAt))} · {subjectLabel(lesson)}
+                        </div>
+                        <div className='truncate text-sm text-muted-foreground'>
+                          {lesson.tutorName} con {lesson.bookings.map((booking) => booking.studentName).join(', ')}
+                        </div>
+                      </div>
+                      <Badge variant='secondary'>{lesson.bookings.length}/{lesson.seats}</Badge>
+                      <ChevronRight className='h-4 w-4 text-muted-foreground' />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         </div>
       </div>
     </main>
