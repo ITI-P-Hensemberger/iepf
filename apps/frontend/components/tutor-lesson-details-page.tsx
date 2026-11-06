@@ -491,13 +491,7 @@ export default function TutorLessonDetailsPage() {
               status={lesson.status}
               booked={filteredBookings.length}
               seats={lesson.lessonCapacity}
-              note={
-                !lesson.subjectId && lesson.subjectOptions?.length
-                  ? `La materia la sceglie il primo studente che prenota, tra: ${lesson.subjectOptions.map((option) => option.name).join(', ')}.`
-                  : isLessonNonBookable(lesson)
-                    ? 'Hai già raggiunto i posti del giorno: nessun altro può prenotarla.'
-                    : undefined
-              }
+              note={isLessonNonBookable(lesson) ? 'Hai già raggiunto i posti del giorno: nessun altro può prenotarla.' : undefined}
               actions={canCancelLesson && state === 'upcoming'
                 ? (
                     <Button variant='outline' className='text-destructive' onClick={() => setCancelOpen(true)}>

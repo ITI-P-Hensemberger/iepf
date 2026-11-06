@@ -687,10 +687,10 @@ export function buildLessonCreatedMessage(params: {
   const detailsUrl = buildLessonDetailsLink(params.lessonId)
   return {
     subject: 'Nuova lezione assegnata',
-    text: `Ti è stata assegnata una nuova lezione il ${dateLabel}.${params.subjectName ? ` Materia: ${params.subjectName}.` : ' La materia la sceglierà il primo studente che prenota.'} Tutor: ${params.tutorName}. Dettagli: ${detailsUrl}`,
+    text: `Ti è stata assegnata una nuova lezione il ${dateLabel}.${params.subjectName ? ` Materia: ${params.subjectName}.` : ''} Tutor: ${params.tutorName}. Dettagli: ${detailsUrl}`,
     html: buildEmailHtml(
       'Nuova lezione assegnata',
-      `Ti è stata assegnata una nuova lezione il <strong>${dateLabel}</strong>.<br />${params.subjectName ? `Materia: <strong>${escapeHtml(params.subjectName)}</strong>.` : 'La materia la sceglierà il primo studente che prenota.'}<br />Tutor: <strong>${escapeHtml(params.tutorName)}</strong>.`,
+      `Ti è stata assegnata una nuova lezione il <strong>${dateLabel}</strong>.<br />${params.subjectName ? `Materia: <strong>${escapeHtml(params.subjectName)}</strong>.<br />` : ''}Tutor: <strong>${escapeHtml(params.tutorName)}</strong>.`,
       { label: 'Vedi dettagli lezione', url: detailsUrl },
       { hideHomeButton: true }
     )

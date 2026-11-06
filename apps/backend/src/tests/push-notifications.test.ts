@@ -385,7 +385,8 @@ describe('reschedule texts', () => {
       expect(body).not.toMatch(/null|Materia a scelta|^,|^:/)
     }
     expect(lessonReassignedPush(open).body).toMatch(/^La lezione di /)
-    expect(lessonChangedPush('student', before, { ...before, subjectName: null }, false)?.body).toContain('la sceglierà il primo studente')
+    // Going back to no subject is not news for whoever stays on the lesson.
+    expect(lessonChangedPush('student', before, { ...before, subjectName: null }, false)).toBeNull()
   })
 })
 

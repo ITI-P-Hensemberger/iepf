@@ -62,7 +62,6 @@ export default function TutorWeekPage() {
   const running = lessons.filter((lesson) => !isCanceled(lesson))
   const students = running.reduce((sum, lesson) => sum + lesson.bookings.length, 0)
   const capacity = lessons[0]?.tutorDailyCapacity
-  const subjects = [...new Set(lessons.flatMap((lesson) => lesson.subjectOptions.map((option) => option.name)))]
 
   return (
     <div className='space-y-4'>
@@ -84,11 +83,6 @@ export default function TutorWeekPage() {
           {capacity ? ` · ${capacity} ${capacity === 1 ? 'posto' : 'posti'} al giorno` : ''}
         </span>
       </div>
-      {subjects.length > 0 && (
-        <p className='text-sm text-muted-foreground'>
-          Le lezioni senza materia la ricevono dal primo studente che prenota, tra: {subjects.join(', ')}.
-        </p>
-      )}
 
       {loading ? (
         <div className='space-y-3'>

@@ -73,7 +73,8 @@ function capitalize(value: string) {
 export function lessonChangedPush(role: Role, before: LessonVersion, after: LessonVersion, tutorChanged: boolean): PushMessage | null {
   const timeChanged = before.startAt.getTime() !== after.startAt.getTime()
   const durationChanged = before.durationMinutes !== after.durationMinutes
-  const subjectChanged = before.subjectName !== after.subjectName
+  // A lesson going back to no subject is not news for the people on it.
+  const subjectChanged = before.subjectName !== after.subjectName && after.subjectName !== null
   const tutorNews = tutorChanged && role === 'student'
   const changes = [timeChanged, durationChanged, subjectChanged, tutorNews].filter(Boolean).length
   if (changes === 0) {
@@ -112,9 +113,7 @@ export function lessonChangedPush(role: Role, before: LessonVersion, after: Less
     return {
       ...base,
       title: 'Materia cambiata',
-      body: after.subjectName
-        ? `Lezione di ${formatWhen(after.startAt)}: ora è ${after.subjectName}${before.subjectName ? ` (prima ${before.subjectName})` : ''}.`
-        : `Lezione di ${formatWhen(after.startAt)}: la materia la sceglierà il primo studente che prenota.`
+      body: `Lezione di ${formatWhen(after.startAt)}: ora è ${after.subjectName}${before.subjectName ? ` (prima ${before.subjectName})` : ''}.`
     }
   }
   return {
@@ -150,9 +149,7 @@ export function lessonAssignedPush(after: LessonVersion, bookedStudents: number)
 export function lessonCreatedPush(params: { lessonId: string, subjectName: string | null, startAt: Date }): PushMessage {
   return {
     title: 'Nuova lezione in calendario',
-    body: params.subjectName
-      ? `${params.subjectName}, ${formatWhen(params.startAt)}`
-      : `${capitalize(formatWhen(params.startAt))}: la materia la sceglie il primo studente che prenota.`,
+    body: params.subjectName ? `${params.subjectName}, ${formatWhen(params.startAt)}` : capitalize(formatWhen(params.startAt)),
     url: lessonsUrl('tutor', params.lessonId),
     tag: `lesson-${params.lessonId}`
   }
