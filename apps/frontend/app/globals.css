@@ -47,6 +47,8 @@
 }
 
 :root {
+  /* Where the sticky header ends (h-14 plus its border), below the impersonation banner. */
+  --app-header-bottom: calc(var(--impersonation-banner-height, 0px) + 3.5rem + 1px);
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);

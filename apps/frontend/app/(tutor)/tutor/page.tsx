@@ -93,10 +93,10 @@ export default function TutorPage() {
               <Link href='/tutor/lessons'><CalendarDays className='h-5 w-5' /> La mia settimana</Link>
             </Button>
             <Button asChild size='lg' variant='outline' className='h-12 w-full'>
-              <Link href='/tutor/settings/availability'><CalendarClock className='h-5 w-5' /> Disponibilità</Link>
+              <Link href='/tutor/settings'><CalendarClock className='h-5 w-5' /> Disponibilità</Link>
             </Button>
             <Button asChild size='lg' variant='outline' className='h-12 w-full'>
-              <Link href='/tutor/settings/subjects'><BookOpen className='h-5 w-5' /> Materie</Link>
+              <Link href='/tutor/settings?tab=subjects'><BookOpen className='h-5 w-5' /> Materie</Link>
             </Button>
           </div>
 

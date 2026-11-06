@@ -4,7 +4,7 @@ import * as React from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { notifyPushSetupChanged, openPushSetup } from '@/components/push-prompt'
 import { PushSetupGuide } from '@/components/push-setup-guide'
@@ -127,7 +127,10 @@ export function NotificationSettings({ role, userId }: { role: 'student' | 'tuto
       toast.error(response.status === 403
         ? 'Le preferenze si cambiano solo dal proprio account.'
         : 'Non è stato possibile salvare la preferenza.')
+      return
     }
+    // Saved at once: a short confirmation, no "Save" button.
+    toast.success('Preferenza salvata.', { id: 'notification-preference', duration: 1500 })
   }
 
   const userCategories = USER_LABELS
@@ -215,16 +218,17 @@ export function NotificationSettings({ role, userId }: { role: 'student' | 'tuto
           <div className='flex flex-col gap-3'>
             <p className='text-sm font-medium'>Cosa ricevere (su tutti i tuoi dispositivi)</p>
             {userCategories.map(category => (
-              <div key={category.key} className='flex items-start gap-3'>
-                <Checkbox
-                  id={`push-${category.key}`}
-                  checked={preferences[category.key]}
-                  onCheckedChange={value => void handleToggle(category.key, value === true)}
-                />
+              <div key={category.key} className='flex items-start justify-between gap-4'>
                 <div className='grid gap-1'>
                   <Label htmlFor={`push-${category.key}`}>{category.label}</Label>
                   <p className='text-sm text-muted-foreground'>{category.description}</p>
                 </div>
+                <Switch
+                  id={`push-${category.key}`}
+                  className='mt-0.5'
+                  checked={preferences[category.key]}
+                  onCheckedChange={value => void handleToggle(category.key, value)}
+                />
               </div>
             ))}
             {role === 'admin' && ADMIN_LABELS.map(category => (
@@ -233,20 +237,20 @@ export function NotificationSettings({ role, userId }: { role: 'student' | 'tuto
                   <p className='text-sm font-medium'>{category.label}</p>
                   <p className='text-sm text-muted-foreground'>{category.description}</p>
                 </div>
-                <div className='flex gap-4 sm:shrink-0'>
+                <div className='flex gap-5 sm:shrink-0'>
                   <div className='flex items-center gap-2'>
-                    <Checkbox
+                    <Switch
                       id={`push-${category.key}`}
                       checked={preferences[category.key]}
-                      onCheckedChange={value => void handleToggle(category.key, value === true)}
+                      onCheckedChange={value => void handleToggle(category.key, value)}
                     />
                     <Label htmlFor={`push-${category.key}`}>Notifica</Label>
                   </div>
                   <div className='flex items-center gap-2'>
-                    <Checkbox
+                    <Switch
                       id={`email-${category.key}`}
                       checked={preferences[emailPreference(category.key)]}
-                      onCheckedChange={value => void handleToggle(emailPreference(category.key), value === true)}
+                      onCheckedChange={value => void handleToggle(emailPreference(category.key), value)}
                     />
                     <Label htmlFor={`email-${category.key}`}>Email</Label>
                   </div>
