@@ -25,7 +25,7 @@ export const notificationPreferences = pgTable('notification_preferences', {
   emailAdminEmptyWeek: boolean().notNull().default(true),
   emailAdminPendingAdmins: boolean().notNull().default(true),
   emailAdminSubjectRequests: boolean().notNull().default(true),
-  updatedAt: timestamp({ mode: 'date' })
+  updatedAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull()
     .$onUpdate(() => new Date())

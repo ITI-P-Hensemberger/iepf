@@ -316,11 +316,13 @@ describe('daily digest', () => {
     await db.insert(subjectRequests).values([
       { studentId: ids.student, subjectId, createdAt: hoursAgo(2) },
       { studentId: ids.student, subjectId, createdAt: hoursAgo(3) },
-      { studentId: ids.student, subjectId, createdAt: hoursAgo(50) }
+      { studentId: ids.student, subjectId, createdAt: hoursAgo(50) },
+      // Left to the database default: a request of a moment ago counts too.
+      { studentId: ids.student, subjectId }
     ])
 
     expect(await runDigest(now)).toMatchObject({ subjectRequests: 1 })
-    expect(adminPushes().find(push => push.payload.title === 'Nuove richieste di materie')?.payload.body).toBe('Matematica demo (2)')
-    expect(adminMails().find(mail => mail.subject === 'Nuove richieste di materie')?.text).toContain('Matematica demo: 2 (3 in totale)')
+    expect(adminPushes().find(push => push.payload.title === 'Nuove richieste di materie')?.payload.body).toBe('Matematica demo (3)')
+    expect(adminMails().find(mail => mail.subject === 'Nuove richieste di materie')?.text).toContain('Matematica demo: 3 (4 in totale)')
   })
 })

@@ -14,13 +14,13 @@ export const lessonBookings = pgTable('lesson_bookings', {
   status: text().notNull().default('confirmed'),
   countsForStudent: boolean().notNull().default(true),
   studentPresence: boolean(),
-  studentPresenceAt: timestamp({ mode: 'date' }),
-  canceledAt: timestamp({ mode: 'date' }),
+  studentPresenceAt: timestamp({ mode: 'date', withTimezone: true }),
+  canceledAt: timestamp({ mode: 'date', withTimezone: true }),
   canceledBy: uuid(),
-  createdAt: timestamp({ mode: 'date' })
+  createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull(),
-  updatedAt: timestamp({ mode: 'date' })
+  updatedAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull()
     .$onUpdate(() => new Date())

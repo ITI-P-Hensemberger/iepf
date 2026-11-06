@@ -15,7 +15,7 @@ export const auditLogs = pgTable('audit_logs', {
   requestId: text(),
   durationMs: integer().notNull(),
   metadata: text(),
-  createdAt: timestamp({ mode: 'date' })
+  createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull()
 }, table => [

@@ -9,11 +9,11 @@ export const passwordResetTokens = pgTable('password_reset_tokens', {
   id: uuid().primaryKey().$defaultFn(() => randomUUID()),
   userId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),
   tokenHash: text().notNull(),
-  expiresAt: timestamp({ mode: 'date' }).notNull(),
-  createdAt: timestamp({ mode: 'date' })
+  expiresAt: timestamp({ mode: 'date', withTimezone: true }).notNull(),
+  createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull(),
-  updatedAt: timestamp({ mode: 'date' })
+  updatedAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull()
     .$onUpdate(() => new Date())

@@ -12,7 +12,7 @@ export const subjectRequests = pgTable('subject_requests', {
   id: uuid().primaryKey().$defaultFn(() => randomUUID()),
   studentId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),
   subjectId: uuid().notNull().references(() => subjects.id, { onDelete: 'cascade' }),
-  createdAt: timestamp({ mode: 'date' })
+  createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull()
 })

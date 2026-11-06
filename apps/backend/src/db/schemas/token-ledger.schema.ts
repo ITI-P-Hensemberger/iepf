@@ -12,7 +12,7 @@ export const tokenLedger = pgTable('token_ledger', {
   lessonId: uuid().references(() => lessons.id, { onDelete: 'set null' }),
   delta: integer().notNull(),
   reason: text().notNull(),
-  createdAt: timestamp({ mode: 'date' })
+  createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull()
 }, table => [

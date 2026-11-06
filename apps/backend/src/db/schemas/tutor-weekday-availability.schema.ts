@@ -13,10 +13,10 @@ export const tutorWeekdayAvailability = pgTable('tutor_weekday_availability', {
   weekday: smallint().notNull(), // 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri
   isAvailable: boolean().notNull().default(false),
   startTime: weekdayStartTime('start_time'),
-  createdAt: timestamp({ mode: 'date' })
+  createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull(),
-  updatedAt: timestamp({ mode: 'date' })
+  updatedAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull()
     .$onUpdate(() => new Date())

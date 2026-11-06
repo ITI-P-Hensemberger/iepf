@@ -9,13 +9,13 @@ export const refreshTokens = pgTable('refresh_tokens', {
   id: uuid().primaryKey().$defaultFn(() => randomUUID()),
   userId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),
   tokenHash: text().notNull(),
-  expiresAt: timestamp({ mode: 'date' }).notNull(),
+  expiresAt: timestamp({ mode: 'date', withTimezone: true }).notNull(),
   // Set by the first rotation; the token still works for a short grace period afterwards.
-  rotatedAt: timestamp({ mode: 'date' }),
-  createdAt: timestamp({ mode: 'date' })
+  rotatedAt: timestamp({ mode: 'date', withTimezone: true }),
+  createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull(),
-  updatedAt: timestamp({ mode: 'date' })
+  updatedAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull()
     .$onUpdate(() => new Date())

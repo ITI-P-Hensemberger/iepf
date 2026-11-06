@@ -16,10 +16,10 @@ export const lessonFeedback = pgTable('lesson_feedback', {
   authorRole: text().notNull(),
   rating: integer().notNull(),
   text: text(),
-  createdAt: timestamp({ mode: 'date' })
+  createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull(),
-  updatedAt: timestamp({ mode: 'date' })
+  updatedAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull()
     .$onUpdate(() => new Date())

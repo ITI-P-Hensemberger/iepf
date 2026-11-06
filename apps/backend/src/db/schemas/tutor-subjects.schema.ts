@@ -10,10 +10,10 @@ export const tutorSubjects = pgTable('tutor_subjects', {
   id: uuid().primaryKey().$defaultFn(() => randomUUID()),
   tutorId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),
   subjectId: uuid().notNull().references(() => subjects.id, { onDelete: 'cascade' }),
-  createdAt: timestamp({ mode: 'date' })
+  createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull(),
-  updatedAt: timestamp({ mode: 'date' })
+  updatedAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull()
     .$onUpdate(() => new Date())
