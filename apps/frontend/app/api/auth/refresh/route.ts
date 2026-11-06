@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 
 import { AUTH_COOKIES, isAuthRejected, refreshWithProfile } from '@/lib/auth'
 import { clearAuthCookies, setAuthCookies } from '@/lib/auth-cookies'
+import { NO_SESSION_HEADER } from '@/lib/session-refresh'
 
 export async function POST(request: Request) {
   const apiBaseUrl =
@@ -12,7 +13,12 @@ export async function POST(request: Request) {
   const remember = cookieStore.get(AUTH_COOKIES.remember)?.value === 'true'
 
   if (!refreshToken) {
-    const response = NextResponse.json({ message: 'Missing refresh token.' }, { status: 401 })
+    // Nobody is signed in on this browser: nothing was lost, so the client must not send
+    // the visitor to the login page (it would loop on the login page itself).
+    const response = NextResponse.json(
+      { message: 'Missing refresh token.' },
+      { status: 401, headers: { [NO_SESSION_HEADER]: 'none' } }
+    )
     clearAuthCookies(response)
     return response
   }
