@@ -11,6 +11,7 @@ import { classSections } from '@/db/schemas/class-sections.schema'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
 import { lessonFeedback } from '@/db/schemas/lesson-feedback.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
+import { pushSubscriptions } from '@/db/schemas/push-subscriptions.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { subjects } from '@/db/schemas/subjects.schema'
 import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
@@ -24,6 +25,7 @@ import type {
   GetConfirmedBookingsCountRoute,
   GetConfirmedLessonsCountRoute,
   GetFeedbackSummaryRoute,
+  GetPushCoverageRoute,
   GetStudentStatusCountsRoute,
   GetTutorStatusCountsRoute,
   ListStudentLessonCountsRoute,
@@ -417,6 +419,31 @@ export const getFeedbackSummary: AppRouteHandler<GetFeedbackSummaryRoute> = asyn
       tutorToStudentRating4: Number(row?.tutorToStudentRating4 ?? 0),
       tutorToStudentRating5: Number(row?.tutorToStudentRating5 ?? 0)
     },
+    HttpStatusCodes.OK
+  )
+}
+
+const PUSH_ROLES = ['student', 'tutor', 'admin'] as const
+
+export const getPushCoverage: AppRouteHandler<GetPushCoverageRoute> = async (c) => {
+  ensureAdmin(c)
+
+  const hasDevice = sql<boolean>`exists (select 1 from ${pushSubscriptions} where ${pushSubscriptions.userId} = ${users.id})`
+  const rows = await db
+    .select({
+      role: users.role,
+      users: sql<number>`count(*)`,
+      withPush: sql<number>`count(*) filter (where ${hasDevice})`
+    })
+    .from(users)
+    .where(sql`${users.emailVerifiedAt} is not null`)
+    .groupBy(users.role)
+
+  return c.json(
+    PUSH_ROLES.map((role) => {
+      const row = rows.find(item => item.role === role)
+      return { role, users: Number(row?.users ?? 0), withPush: Number(row?.withPush ?? 0) }
+    }),
     HttpStatusCodes.OK
   )
 }

@@ -5,6 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
+
+import { TUTOR_ONBOARDED_FLAG as ONBOARDED_FLAG } from '@/components/push-prompt'
 import { GraduationCap } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -119,6 +121,11 @@ export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
         )
       }
 
+      try {
+        window.sessionStorage.setItem(ONBOARDED_FLAG, '1')
+      } catch {
+        // Without storage the tutor home simply skips the push invite.
+      }
       // Redirect to tutor home with full page reload to refresh data.
       // Temporary: docs/TODO.md item 25 replaces this with invalidating the onboarding data.
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination

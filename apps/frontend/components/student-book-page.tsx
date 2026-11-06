@@ -46,6 +46,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
+import { PushInviteCard } from '@/components/push-prompt'
 import { useSession } from '@/lib/use-session'
 
 type LessonAvailable = {
@@ -209,6 +210,7 @@ export default function StudentBookPage() {
   const searchParams = useSearchParams()
   const searchParamsString = searchParams.toString()
   const { profile, refresh } = useSession()
+  const [justBooked, setJustBooked] = React.useState(false)
 
   const baseDate = React.useMemo(() => getDefaultWeekBaseDate(), [])
   const weekDates = React.useMemo(() => buildWeekDates(baseDate), [baseDate])
@@ -642,6 +644,7 @@ export default function StudentBookPage() {
         throw new Error(payload?.message || 'Impossibile prenotare la lezione.')
       }
       toast.success('Prenotazione completata.')
+      setJustBooked(true)
       setBookingOpen(false)
       setBookingTarget(null)
       setBookingTopic('')
@@ -712,6 +715,16 @@ export default function StudentBookPage() {
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <h1 className='text-2xl'>Prenota lezione</h1>
           </div>
+          {justBooked && (
+            <div className='mt-4'>
+              <PushInviteCard
+                userId={profile?.id}
+                role={profile?.role}
+                title='Vuoi un promemoria prima della lezione?'
+                description='Ti avvisiamo il giorno prima e se la lezione cambia o viene annullata.'
+              />
+            </div>
+          )}
 
           {isFriday && !nextAvailableDayKey ? (
             <Card className='mt-6'>

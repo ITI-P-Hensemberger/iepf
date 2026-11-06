@@ -20,6 +20,7 @@ import { users } from '@/db/schemas/users.schema'
 import env from '@/env'
 import { cleanDatabase } from '@/lib/db-cleanup'
 import { DEV_PASSWORD, seedDevelopmentData } from '@/lib/dev-seed'
+import { buildPushSetupLinkMessage } from '@/lib/email-templates'
 import { notifyStudentsOfNewLessons } from '@/lib/lessons-available'
 import { assertLocalDatabase } from '@/lib/local-database'
 import { closeMailer, waitForPendingMail } from '@/lib/mailer'
@@ -454,5 +455,54 @@ describe('reschedule notifications', () => {
     const lessonId = await bookedLesson('2031-06-23T12:00:00.000Z')
     await reschedule(lessonId, { startAt: '2031-06-23T12:00:00.000Z' })
     expect(sent).toHaveLength(0)
+  })
+})
+
+describe('phone setup from a computer', () => {
+  it('counts only the current user\'s devices', async () => {
+    expect(await (await call('/notifications/push/devices', { token: tokens.student })).json()).toEqual({ count: 0 })
+    await subscribe(tokens.student, 'phone')
+    await subscribe(tokens.student, 'tablet')
+    await subscribe(tokens.tutor, 'tutor-phone')
+    expect(await (await call('/notifications/push/devices', { token: tokens.student })).json()).toEqual({ count: 2 })
+    expect((await call('/notifications/push/devices')).status).toBe(401)
+  })
+
+  it('emails the link once every few minutes, only to the user in person', async () => {
+    resetRateLimiters()
+    expect((await call('/notifications/push/setup-link', { token: tokens.student, method: 'POST' })).status).toBe(204)
+    expect((await call('/notifications/push/setup-link', { token: tokens.student, method: 'POST' })).status).toBe(429)
+    expect((await call('/notifications/push/setup-link', { token: tokens.tutor, method: 'POST' })).status).toBe(204)
+    expect((await call('/notifications/push/setup-link', { token: tokens.activator, method: 'POST' })).status).toBe(403)
+
+    // The student is rate limited by now: start over to reach the impersonation check.
+    resetRateLimiters()
+    const impersonation = await call('/admin/impersonate', { token: tokens.admin, body: { userId: ids.student } })
+    const { token } = await impersonation.json()
+    expect((await call('/notifications/push/setup-link', { token, method: 'POST' })).status).toBe(403)
+    resetRateLimiters()
+  })
+
+  it('tells admins how many users per role receive push', async () => {
+    await subscribe(tokens.student, 'phone')
+    await subscribe(tokens.student, 'laptop')
+    await subscribe(tokens.admin, 'admin-phone')
+    expect((await call('/admin/stats/push/coverage', { token: tokens.student })).status).toBe(403)
+    const coverage = await (await call('/admin/stats/push/coverage', { token: tokens.admin })).json() as Array<{ role: string, users: number, withPush: number }>
+    expect(coverage.map(row => row.role)).toEqual(['student', 'tutor', 'admin'])
+    expect(coverage.find(row => row.role === 'student')!.withPush).toBe(1)
+    expect(coverage.find(row => row.role === 'tutor')!.withPush).toBe(0)
+    expect(coverage.find(row => row.role === 'admin')!.withPush).toBe(1)
+    for (const row of coverage) {
+      expect(row.users).toBeGreaterThanOrEqual(row.withPush)
+    }
+  })
+})
+
+describe('setup link email', () => {
+  it('points to the profile with the setup flag', () => {
+    const message = buildPushSetupLinkMessage()
+    expect(message.text).toContain('/profile?attiva-notifiche=1')
+    expect(message.html).toContain('attiva-notifiche=1')
   })
 })

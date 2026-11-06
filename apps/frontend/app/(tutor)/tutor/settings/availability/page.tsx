@@ -15,6 +15,7 @@ import {
   WeekdayAvailabilitySelector
 } from '@/components/weekday-availability-selector'
 import { useSession } from '@/lib/use-session'
+import { PushInviteCard } from '@/components/push-prompt'
 
 const availabilityItemSchema = z
   .object({
@@ -183,6 +184,7 @@ function AvailabilityForm({
   setIsSubmitting,
   setInitialWeekdays
 }: AvailabilityFormProps) {
+  const [justSaved, setJustSaved] = React.useState(false)
   const form = useForm<AvailabilityFormValues>({
     resolver: zodResolver(availabilitySchema),
     defaultValues: { weekdays: initialWeekdays },
@@ -238,6 +240,7 @@ function AvailabilityForm({
       setInitialWeekdays(normalizedWeekdays)
       form.reset({ weekdays: normalizedWeekdays })
       toast.success('Disponibilità aggiornata con successo.')
+      setJustSaved(true)
     } catch (err) {
       toast.error(
         err instanceof Error
@@ -257,6 +260,16 @@ function AvailabilityForm({
           <div className='mb-6'>
             <BackButton />
           </div>
+          {justSaved && (
+            <div className='mb-6'>
+              <PushInviteCard
+                userId={tutorId}
+                role='tutor'
+                title='Vuoi sapere subito se qualcuno prenota?'
+                description='Ti avvisiamo appena uno studente prenota negli orari che hai appena scelto.'
+              />
+            </div>
+          )}
           <Card>
             <CardContent>
               <form

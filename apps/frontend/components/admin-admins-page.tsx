@@ -1,6 +1,9 @@
 'use client'
 
 import * as React from 'react'
+
+import { PushInviteCard } from '@/components/push-prompt'
+import { useSession } from '@/lib/use-session'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -366,6 +369,7 @@ function DataTable<TData>({
 }
 
 export default function AdminAdminsPage() {
+  const { profile } = useSession()
   const searchParams = useSearchParams()
   const [activeAdmins, setActiveAdmins] = React.useState<Admin[]>([])
   const [inactiveAdmins, setInactiveAdmins] = React.useState<Admin[]>([])
@@ -862,6 +866,14 @@ export default function AdminAdminsPage() {
         <div className='w-full max-w-6xl'>
           <div className='mb-6 self-start'>
             <BackButton />
+          </div>
+          <div className='mb-6 empty:hidden'>
+            <PushInviteCard
+              userId={profile?.id}
+              role={profile?.role}
+              title='Ti avvisiamo quando un admin chiede l’accesso'
+              description='Attiva le notifiche per approvare le nuove richieste senza aspettare l’email.'
+            />
           </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <h1 className='text-2xl'>Gestione admin</h1>

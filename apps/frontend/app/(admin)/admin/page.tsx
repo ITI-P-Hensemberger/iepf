@@ -5,6 +5,7 @@ import Link from 'next/link'
 
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/lib/use-session'
+import { PushInviteCard } from '@/components/push-prompt'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
@@ -316,6 +317,14 @@ export default function AdminPage() {
           <p className='text-muted-foreground mb-8'>
             Gestisci il progetto InsiemeÈ+Facile
           </p>
+          <div className='mb-8 empty:hidden'>
+            <PushInviteCard
+              userId={profile?.id}
+              role={profile?.role}
+              title='Notifiche spente su questo dispositivo'
+              description='Ricevi subito gli avvisi su feedback bassi, assenze e richieste in attesa.'
+            />
+          </div>
           <div className='grid gap-4 sm:gap-6 md:grid-cols-2'>
             <Link href='/admin/students' className='group block'>
               <Card className='border py-4 sm:py-6'>
