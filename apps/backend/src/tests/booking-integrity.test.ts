@@ -636,6 +636,18 @@ describe('school year reset', () => {
     expect(after.lessons).toBe(before.lessons)
   })
 
+  it('checks the password and the report before the reset, deleting nothing', async () => {
+    const before = await counts()
+    const check = (password: string) => request(`${path}/check`, { token: adminToken, body: { password } })
+    expect((await request(`${path}/check`, { token: tutorToken, body: { password: DEV_PASSWORD } })).status).toBe(403)
+    await recordReportExport(ids.admin)
+    expect((await check('wrong')).status).toBe(403)
+    expect((await check(DEV_PASSWORD)).status).toBe(204)
+    await recordReportExport(ids.admin, new Date(Date.now() - (REPORT_VALID_MINUTES + 1) * 60 * 1000))
+    expect((await check(DEV_PASSWORD)).status).toBe(409)
+    expect(await counts()).toEqual(before)
+  })
+
   it('refuses the reset until the admin has just downloaded the year report', async () => {
     const before = await counts()
     const body = { confirmation: 'RESET', password: DEV_PASSWORD }

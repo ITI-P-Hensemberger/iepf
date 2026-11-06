@@ -50,6 +50,10 @@ export function SchoolYearReset() {
   const [finalOpen, setFinalOpen] = React.useState(false)
   const [finalPassword, setFinalPassword] = React.useState('')
   const [resetting, setResetting] = React.useState(false)
+  const [checking, setChecking] = React.useState(false)
+  const [passwordError, setPasswordError] = React.useState<string | null>(null)
+  const [finalError, setFinalError] = React.useState<string | null>(null)
+  const [reportExpired, setReportExpired] = React.useState(false)
 
   function startOver() {
     setReportReady(false)
@@ -57,13 +61,51 @@ export function SchoolYearReset() {
     setPassword('')
     setConfirmed(false)
     setFinalPassword('')
+    setPasswordError(null)
+    setFinalError(null)
+    setReportExpired(false)
+  }
+
+  // Only an expired report sends back to step 1; what was typed stays.
+  function reportTooOld() {
+    setReportReady(false)
+    setConfirmed(false)
+    setReportExpired(true)
+  }
+
+  // The first confirmation is checked by the backend too: a wrong password shows here.
+  async function confirm() {
+    setChecking(true)
+    setPasswordError(null)
+    try {
+      const response = await fetch('/api/settings/school-year/reset/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      })
+      if (response.status === 204) {
+        setConfirmed(true)
+        return
+      }
+      const payload = await response.json().catch(() => ({})) as { message?: string }
+      if (response.status === 409) reportTooOld()
+      else if (response.status === 403) setPasswordError(payload.message ?? 'Password non corretta')
+      else toast.error(payload.message ?? 'Verifica non riuscita.')
+    }
+    catch {
+      toast.error('Verifica non riuscita.')
+    }
+    finally {
+      setChecking(false)
+    }
   }
 
   async function reset() {
     if (finalPassword !== password) {
-      toast.error('Le due password non coincidono.')
+      setFinalError('Le due password non coincidono.')
       return
     }
+    setFinalError(null)
     setResetting(true)
     try {
       const response = await fetch('/api/settings/school-year/reset', {
@@ -72,11 +114,16 @@ export function SchoolYearReset() {
         body: JSON.stringify({ confirmation: 'RESET', password })
       })
       const payload = await response.json().catch(() => ({})) as { message?: string, deletedStudents?: number, deletedTutors?: number }
-      if (!response.ok) {
-        // A report older than 15 minutes, or a wrong password: start again from the top.
-        if (response.status === 409 || response.status === 403) startOver()
-        throw new Error(payload.message ?? 'Reset non riuscito.')
+      if (response.status === 403) {
+        setFinalError(payload.message ?? 'Password non corretta')
+        return
       }
+      if (response.status === 409) {
+        setFinalOpen(false)
+        reportTooOld()
+        return
+      }
+      if (!response.ok) throw new Error(payload.message ?? 'Reset non riuscito.')
       toast.success(`Anno scolastico azzerato: eliminati ${payload.deletedStudents ?? 0} studenti e ${payload.deletedTutors ?? 0} tutor.`)
       startOver()
       setFinalOpen(false)
@@ -117,6 +164,9 @@ export function SchoolYearReset() {
 
       <ol className='space-y-4'>
         <Step number={1} title={'Scarica il report dell\'anno'} done={reportReady} active>
+          {reportExpired && !reportReady && (
+            <p className='text-sm text-destructive' role='alert'>Il report è di più di 15 minuti fa: scaricalo di nuovo, poi premi Continua.</p>
+          )}
           {reportReady
             ? <p className='text-sm text-muted-foreground' role='status'>Salvato come <span className='font-medium text-foreground'>{report.saved}</span>. Vale 15 minuti per il reset.</p>
             : (
@@ -132,7 +182,7 @@ export function SchoolYearReset() {
             className='space-y-3'
             onSubmit={(event) => {
               event.preventDefault()
-              setConfirmed(true)
+              void confirm()
             }}
           >
             <fieldset disabled={!reportReady || confirmed} className='grid gap-3 sm:grid-cols-2'>
@@ -142,11 +192,23 @@ export function SchoolYearReset() {
               </Field>
               <Field className='gap-2'>
                 <FieldLabel htmlFor='school-year-reset-password'>La tua password</FieldLabel>
-                <Input id='school-year-reset-password' type='password' value={password} onChange={event => setPassword(event.target.value)} autoComplete='current-password' />
+                <Input
+                  id='school-year-reset-password'
+                  type='password'
+                  value={password}
+                  onChange={(event) => {
+                    setPassword(event.target.value)
+                    setPasswordError(null)
+                  }}
+                  autoComplete='current-password'
+                  aria-invalid={passwordError ? true : undefined}
+                  aria-describedby={passwordError ? 'school-year-reset-password-error' : undefined}
+                />
+                {passwordError && <p id='school-year-reset-password-error' className='text-sm text-destructive' role='alert'>{passwordError}</p>}
               </Field>
             </fieldset>
             {!confirmed && (
-              <Button type='submit' variant='outline' disabled={!reportReady || confirmation !== 'RESET' || !password}>Continua</Button>
+              <Button type='submit' variant='outline' disabled={!reportReady || confirmation !== 'RESET' || !password || checking}>{checking ? 'Verifica...' : 'Continua'}</Button>
             )}
           </form>
         </Step>
@@ -163,7 +225,10 @@ export function SchoolYearReset() {
         open={finalOpen}
         onOpenChange={(open) => {
           setFinalOpen(open)
-          if (!open) setFinalPassword('')
+          if (!open) {
+            setFinalPassword('')
+            setFinalError(null)
+          }
         }}
       >
         <AlertDialogContent>
@@ -176,7 +241,19 @@ export function SchoolYearReset() {
           </AlertDialogHeader>
           <Field className='gap-2'>
             <FieldLabel htmlFor='school-year-reset-final-password'>La tua password, di nuovo</FieldLabel>
-            <Input id='school-year-reset-final-password' type='password' value={finalPassword} onChange={event => setFinalPassword(event.target.value)} autoComplete='current-password' />
+            <Input
+              id='school-year-reset-final-password'
+              type='password'
+              value={finalPassword}
+              onChange={(event) => {
+                setFinalPassword(event.target.value)
+                setFinalError(null)
+              }}
+              autoComplete='current-password'
+              aria-invalid={finalError ? true : undefined}
+              aria-describedby={finalError ? 'school-year-reset-final-error' : undefined}
+            />
+            {finalError && <p id='school-year-reset-final-error' className='text-sm text-destructive' role='alert'>{finalError}</p>}
           </Field>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={resetting}>Annulla</AlertDialogCancel>

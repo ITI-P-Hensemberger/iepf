@@ -18,6 +18,7 @@ import { verifyPassword } from '@/lib/password'
 import { clearReportExport, hasRecentReportExport, REPORT_VALID_MINUTES } from '@/lib/year-report-export'
 
 import type {
+  CheckSchoolYearResetRoute,
   GetAdminSettingsRoute,
   GetMySettingsRoute,
   ResetSchoolYearRoute,
@@ -133,32 +134,42 @@ export const updateAdminSettings: AppRouteHandler<UpdateAdminSettingsRoute> = as
   )
 }
 
-export const resetSchoolYear: AppRouteHandler<ResetSchoolYearRoute> = async (c) => {
-  const admin = ensureAdmin(c)
-  const { password } = c.req.valid('json')
-
-  // The deletion cascades to all school-year data: require the real admin, re-authenticated.
+// Why the reset cannot go ahead, or null. The deletion cascades to all school-year data:
+// it needs the real admin, re-authenticated, who has just saved the year report.
+async function resetRefusal(c: HandlerContext, adminId: string, password: string) {
   if (c.get('impersonation')) {
-    return c.json(buildErrorResponse('Reset non consentito durante una sessione impersonata'), HttpStatusCodes.FORBIDDEN)
+    return { status: HttpStatusCodes.FORBIDDEN, message: 'Reset non consentito durante una sessione impersonata' } as const
   }
-
   const account = await db.query.users.findFirst({
     where(fields, operators) {
-      return operators.eq(fields.id, admin.id)
+      return operators.eq(fields.id, adminId)
     },
     columns: { passwordHash: true }
   })
-
   if (!account || !await verifyPassword(account.passwordHash, password)) {
-    return c.json(buildErrorResponse('Password non corretta'), HttpStatusCodes.FORBIDDEN)
+    return { status: HttpStatusCodes.FORBIDDEN, message: 'Password non corretta' } as const
   }
+  if (!await hasRecentReportExport(adminId)) {
+    return { status: HttpStatusCodes.CONFLICT, message: `Scarica il report dell'anno prima del reset (vale ${REPORT_VALID_MINUTES} minuti)` } as const
+  }
+  return null
+}
 
-  // Nothing of the year survives the reset except the report: it must have just been saved.
-  if (!await hasRecentReportExport(admin.id)) {
-    return c.json(
-      buildErrorResponse(`Scarica il report dell'anno prima del reset (vale ${REPORT_VALID_MINUTES} minuti)`),
-      HttpStatusCodes.CONFLICT
-    )
+// The first confirmation of the reset page: the same checks as the reset, deleting nothing.
+export const checkSchoolYearReset: AppRouteHandler<CheckSchoolYearResetRoute> = async (c) => {
+  const admin = ensureAdmin(c)
+  const refusal = await resetRefusal(c, admin.id, c.req.valid('json').password)
+  if (refusal) {
+    return c.json(buildErrorResponse(refusal.message), refusal.status)
+  }
+  return c.body(null, HttpStatusCodes.NO_CONTENT)
+}
+
+export const resetSchoolYear: AppRouteHandler<ResetSchoolYearRoute> = async (c) => {
+  const admin = ensureAdmin(c)
+  const refusal = await resetRefusal(c, admin.id, c.req.valid('json').password)
+  if (refusal) {
+    return c.json(buildErrorResponse(refusal.message), refusal.status)
   }
 
   const result = await db.transaction(async (tx) => {
