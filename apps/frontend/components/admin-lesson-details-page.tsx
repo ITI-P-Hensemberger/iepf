@@ -2,14 +2,15 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import {
+  CalendarClock,
   CalendarIcon,
-  ExternalLink,
+  Mail,
   MessageSquare,
   MoreHorizontal,
-  Save,
-  UserPlus
+  UserPlus,
+  XCircle
 } from 'lucide-react'
 
 import {
@@ -26,7 +27,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Calendar } from '@/components/ui/calendar'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { LessonSummary } from '@/components/lesson-summary'
+import { PresenceButtons } from '@/components/presence-buttons'
+import { usePresenceConfirm } from '@/components/presence-confirm'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,28 +48,26 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '@/components/ui/table'
 
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 
+import { classLabel } from '@/lib/class-label'
 import { formatItalianDate } from '@/lib/format-date'
+import { dayKeyOf } from '@/lib/school-week'
+import { cn } from '@/lib/utils'
+import { type SubjectOption } from '@/lib/lesson-subject'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { BackButton } from '@/components/back-button'
 
 const AVAILABLE_TIMES = ['13:00', '14:00', '15:00', '16:00']
+// Reschedule choice that leaves the subject to the bookings, as on generated lessons.
+const OPEN_SUBJECT_VALUE = '__open__'
 
 type Lesson = {
   id: string
   tutorId: string
-  subjectId: string
+  subjectId: string | null
   startAt: string
   durationMinutes: number
   lessonCapacity: number
@@ -74,6 +76,9 @@ type Lesson = {
   availableSeats: number
   countsForTutor?: boolean | null
   status: string
+  // True when bookings choose the subject: subjectId stays null until the first one.
+  subjectFromBooking?: boolean
+  subjectOptions?: SubjectOption[]
 }
 
 type Booking = {
@@ -91,6 +96,9 @@ type Tutor = {
   id: string
   firstName: string
   lastName: string
+  email?: string | null
+  year?: number | null
+  sectionName?: string | null
 }
 
 type Student = {
@@ -155,20 +163,6 @@ function normalizePaged<T>(payload: unknown): { items: T[]; total: number } {
   return { items: items as T[], total }
 }
 
-function formatStatusLabel(status?: string | null) {
-  if (!status) {
-    return '-'
-  }
-  const normalized = status.toLowerCase()
-  const mapping: Record<string, string> = {
-    confirmed: 'Confermata',
-    canceled: 'Annullata',
-    cancelled: 'Annullata',
-    scheduled: 'Programmata'
-  }
-  return mapping[normalized] ?? 'Programmata'
-}
-
 function formatBookingStatus(status?: string | null) {
   if (!status) {
     return '-'
@@ -194,22 +188,6 @@ function countsBadgeLabel(value?: boolean | null) {
 
 function countsBadgeVariant(value?: boolean | null): 'default' | 'secondary' {
   return value ? 'default' : 'secondary'
-}
-
-function statusVariant(
-  status?: string | null
-): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (!status) {
-    return 'secondary'
-  }
-  const normalized = status.toLowerCase()
-  if (normalized === 'canceled' || normalized === 'cancelled') {
-    return 'destructive'
-  }
-  if (normalized === 'confirmed') {
-    return 'default'
-  }
-  return 'secondary'
 }
 
 function isCanceledStatus(status?: string | null) {
@@ -248,20 +226,6 @@ function isCanceledBooking(status?: string | null) {
   return normalized === 'canceled' || normalized === 'cancelled'
 }
 
-type PresenceOption = 'none' | 'present' | 'absent'
-
-function presenceToOption(value: boolean | null | undefined): PresenceOption {
-  if (value === true) return 'present'
-  if (value === false) return 'absent'
-  return 'none'
-}
-
-function optionToPresence(option: PresenceOption): boolean | null {
-  if (option === 'present') return true
-  if (option === 'absent') return false
-  return null
-}
-
 function lessonOccupiedSeats(lesson?: Lesson | null) {
   if (!lesson || typeof lesson.availableSeats !== 'number') {
     return 0
@@ -292,6 +256,10 @@ function lessonDailySeatsLabel(lesson?: Lesson | null) {
   return `${Math.max(0, occupancy)}/${availability}`
 }
 
+function tutorClassLabel(tutor: Tutor) {
+  return classLabel(tutor.year, tutor.sectionName)
+}
+
 function tutorLabel(tutor?: Tutor | null) {
   if (!tutor) {
     return null
@@ -309,18 +277,7 @@ function studentLabel(student?: Student) {
 }
 
 function studentClassLabel(student?: Student) {
-  if (!student) {
-    return ''
-  }
-  const year =
-    typeof student.year === 'number' && Number.isFinite(student.year)
-      ? String(student.year)
-      : ''
-  const section =
-    typeof student.sectionName === 'string'
-      ? student.sectionName.replace(/\s+/g, '')
-      : ''
-  return `${year}${section}`.trim()
+  return student ? classLabel(student.year, student.sectionName) ?? '' : ''
 }
 
 function extractErrorMessage(payload: unknown, fallback: string) {
@@ -341,6 +298,7 @@ function extractErrorMessage(payload: unknown, fallback: string) {
 
 export default function AdminLessonDetailsPage() {
   const params = useParams()
+  const fromHome = useSearchParams().get('from') === 'home'
   const lessonId = params?.id as string
 
   const [lesson, setLesson] = React.useState<Lesson | null>(null)
@@ -354,6 +312,10 @@ export default function AdminLessonDetailsPage() {
 
   const [subject, setSubject] = React.useState<Subject | null>(null)
   const [subjectLoading, setSubjectLoading] = React.useState(false)
+  // An open lesson has no subject until a booking picks one of its tutor's.
+  const subjectLabel =
+    lesson && !lesson.subjectId ? '-' : (subject?.name ?? '-')
+  const bookingSubjectOptions = lesson?.subjectOptions ?? []
   const [tutor, setTutor] = React.useState<Tutor | null>(null)
   const [tutorLoading, setTutorLoading] = React.useState(false)
   const [studentMap, setStudentMap] = React.useState<Map<string, Student>>(
@@ -363,9 +325,6 @@ export default function AdminLessonDetailsPage() {
   const [selectedBooking, setSelectedBooking] = React.useState<Booking | null>(
     null
   )
-  const [presenceDrafts, setPresenceDrafts] = React.useState<
-    Record<string, boolean | null>
-  >({})
   const [presenceSaving, setPresenceSaving] = React.useState<
     Record<string, boolean>
   >({})
@@ -421,6 +380,7 @@ export default function AdminLessonDetailsPage() {
   const [studentSearch, setStudentSearch] = React.useState('')
   const [selectedStudentId, setSelectedStudentId] = React.useState('')
   const [bookingTopic, setBookingTopic] = React.useState('')
+  const [bookingSubjectId, setBookingSubjectId] = React.useState('')
   const [isCreatingBooking, setIsCreatingBooking] = React.useState(false)
 
   const loadLesson = React.useCallback(async () => {
@@ -770,11 +730,6 @@ export default function AdminLessonDetailsPage() {
           throw new Error(message)
         }
         toast.success('Presenza aggiornata.')
-        setPresenceDrafts((prev) => {
-          const next = { ...prev }
-          delete next[booking.id]
-          return next
-        })
         await loadBookings()
         await loadLesson()
       } catch (err) {
@@ -803,7 +758,8 @@ export default function AdminLessonDetailsPage() {
         },
         body: JSON.stringify({
           studentId: selectedStudentId,
-          topic: bookingTopic.trim() ? bookingTopic.trim() : undefined
+          topic: bookingTopic.trim() ? bookingTopic.trim() : undefined,
+          subjectId: bookingSubjectId || undefined
         })
       })
       if (!response.ok) {
@@ -820,6 +776,7 @@ export default function AdminLessonDetailsPage() {
       setBookStudentOpen(false)
       setSelectedStudentId('')
       setBookingTopic('')
+      setBookingSubjectId('')
       setStudentSearch('')
       await loadBookings()
       await loadLesson()
@@ -832,7 +789,7 @@ export default function AdminLessonDetailsPage() {
     } finally {
       setIsCreatingBooking(false)
     }
-  }, [bookingTopic, lessonId, loadBookings, loadLesson, selectedStudentId])
+  }, [bookingSubjectId, bookingTopic, lessonId, loadBookings, loadLesson, selectedStudentId])
 
   const handleTopicUpdate = React.useCallback(async () => {
     if (!topicTarget) {
@@ -1075,7 +1032,9 @@ export default function AdminLessonDetailsPage() {
         : '15:00'
     setRescheduleForm({
       tutorId: lesson.tutorId,
-      subjectId: lesson.subjectId,
+      subjectId: lesson.subjectFromBooking
+        ? OPEN_SUBJECT_VALUE
+        : (lesson.subjectId ?? ''),
       date: new Date(lesson.startAt),
       time: timeValue
     })
@@ -1117,7 +1076,10 @@ export default function AdminLessonDetailsPage() {
         },
         body: JSON.stringify({
           tutorId: rescheduleForm.tutorId,
-          subjectId: rescheduleForm.subjectId,
+          subjectId:
+            rescheduleForm.subjectId === OPEN_SUBJECT_VALUE
+              ? null
+              : rescheduleForm.subjectId,
           startAt: startAtIso,
           durationMinutes: 60
         })
@@ -1157,413 +1119,208 @@ export default function AdminLessonDetailsPage() {
     return bookings.filter((booking) => !isCanceledBooking(booking.status))
   }, [bookingFilter, bookings])
 
+  const bookedCount = bookings.filter((booking) => !isCanceledBooking(booking.status)).length
+  const lessonCanceled = isCanceledStatus(lesson?.status)
+  const presence = usePresenceConfirm()
+
   return (
     <main className='flex-1'>
-      <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
-        <div className='w-full max-w-6xl space-y-6'>
-          <div className='mb-6 self-start'>
-            <BackButton />
-          </div>
-          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-            <div>
-              <h1 className='text-2xl'>Dettagli lezione</h1>
-              <p className='text-sm text-muted-foreground'>
-                Gestisci prenotazioni e presenze.
-              </p>
-            </div>
+      <div className='container mx-auto px-4 py-10'>
+        <div className='mx-auto max-w-4xl space-y-6'>
+          <div>
+            {/* Back to the home when the admin came from there, else to the day of this lesson. */}
+            <BackButton href={fromHome ? '/admin' : lesson ? `/admin/lessons?day=${dayKeyOf(new Date(lesson.startAt))}` : '/admin/lessons'} />
           </div>
 
-          <Card>
-            <CardHeader>
-              <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-                <CardTitle>
-                  Lezione <br />
-                  <span className='text-sm text-muted-foreground'>
-                    Riepilogo della lezione selezionata.
-                  </span>
-                </CardTitle>
-                <div className='flex flex-col gap-2 sm:flex-row sm:items-center mt-2 sm:mt-0'>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={handleOpenReschedule}
-                    disabled={!lesson}
-                  >
-                    Riprogramma
-                  </Button>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={() => {
-                      setLessonCountsValue(Boolean(lesson?.countsForTutor))
-                      setLessonCountsOpen(true)
-                    }}
-                    disabled={!lesson}
-                  >
-                    Modifica conteggio tutor
-                  </Button>
-                  <Button
-                    variant='destructive'
-                    size='sm'
-                    onClick={() => {
-                      setCancelLessonCountsForTutor(
-                        Boolean(lesson?.countsForTutor)
-                      )
-                      setCancelLessonOpen(true)
-                    }}
-                    disabled={!lesson || isCanceledStatus(lesson?.status)}
-                  >
-                    Annulla lezione
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {lessonLoading ? (
-                <p className='text-sm text-muted-foreground'>Caricamento...</p>
-              ) : lesson ? (
-                <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-                  <div>
-                    <p className='text-xs text-muted-foreground'>Data</p>
-                    <p className='text-sm'>
-                      {formatItalianDate(lesson.startAt)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className='text-xs text-muted-foreground'>Tutor</p>
-                    <p className='text-sm'>
-                      {tutorLoading ? (
-                        'Caricamento...'
-                      ) : tutor ? (
-                        <Link
-                          className='inline-flex items-center gap-1 text-primary hover:underline'
-                          href={`/admin/tutors/${tutor.id}`}
-                          target='_blank'
-                          rel='noopener noreferrer'
-                          title='Apri il profilo tutor in una nuova scheda'
-                        >
-                          <span>{tutorLabel(tutor) ?? '-'}</span>
-                          <ExternalLink className='h-4 w-4 shrink-0' />
-                          <span className='sr-only'>Apri in nuova scheda</span>
-                        </Link>
-                      ) : (
-                        '-'
-                      )}
-                    </p>
-                  </div>
-                  <div>
-                    <p className='text-xs text-muted-foreground'>Materia</p>
-                    <p className='text-sm'>
-                      {subjectLoading
-                        ? 'Caricamento...'
-                        : (subject?.name ?? '-')}
-                    </p>
-                  </div>
-                  <div>
-                    <p className='text-xs text-muted-foreground'>
-                      Posti occupati
-                    </p>
-                    <p className='text-sm'>
-                      {lessonOccupiedSeats(lesson)}/{lesson.lessonCapacity}
-                    </p>
-                  </div>
-                  <div>
-                    <p className='text-xs text-muted-foreground'>
-                      Capienza giornaliera tutor
-                    </p>
-                    <p className='text-sm'>{lessonDailySeatsLabel(lesson)}</p>
-                  </div>
-                  <div>
-                    <p className='text-xs text-muted-foreground'>
-                      Conteggio tutor
-                    </p>
-                    <Badge variant={countsBadgeVariant(lesson.countsForTutor)}>
-                      {countsBadgeLabel(lesson.countsForTutor)}
-                    </Badge>
-                  </div>
-                  <div>
-                    <p className='text-xs text-muted-foreground'>Stato</p>
-                    <Badge variant={statusVariant(lesson.status)}>
-                      {formatStatusLabel(lesson.status)}
-                    </Badge>
-                  </div>
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-                <div>
-                  <CardTitle>Prenotazioni</CardTitle>
-                  <span className='text-sm text-muted-foreground'>
-                    {bookingsLoading
-                      ? 'Caricamento prenotazioni...'
-                      : `Totale ${bookings.length} prenotazioni`}
-                  </span>
-                </div>
-                <div className='flex flex-wrap gap-2'>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={() => setBookStudentOpen(true)}
-                    disabled={!lesson}
-                    className='w-full sm:w-auto'
-                  >
-                    <UserPlus className='mr-2 h-4 w-4' />
-                    Prenota per studente
-                  </Button>
-                  <Button
-                    asChild
-                    variant='outline'
-                    size='sm'
-                    disabled={!lesson}
-                    className='w-full sm:w-auto'
-                  >
-                    <Link
-                      href={`/admin/feedback?feedbackLesson=${lesson?.id}&feedbackRole=tutor`}
-                    >
-                      <MessageSquare className='mr-2 h-4 w-4' />
-                      Feedback
+          {lessonLoading && !lesson ? (
+            <Skeleton className='h-40' />
+          ) : !lesson ? (
+            <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>Lezione non disponibile.</p>
+          ) : (
+            <LessonSummary
+              subjectName={lesson.subjectId ? (subjectLoading ? '…' : subject?.name ?? null) : null}
+              startAt={lesson.startAt}
+              durationMinutes={lesson.durationMinutes}
+              status={lesson.status}
+              booked={bookedCount}
+              seats={lesson.lessonCapacity}
+              note={!lesson.subjectId && bookingSubjectOptions.length > 0
+                ? `La materia la sceglie il primo studente che prenota, tra: ${bookingSubjectOptions.map((option) => option.name).join(', ')}.`
+                : undefined}
+              actions={(
+                <>
+                  {!lessonCanceled && (
+                    <Button onClick={() => setBookStudentOpen(true)}>
+                      <UserPlus className='h-4 w-4' /> Prenota per uno studente
+                    </Button>
+                  )}
+                  {!lessonCanceled && (
+                    <Button variant='outline' onClick={handleOpenReschedule}>
+                      <CalendarClock className='h-4 w-4' /> Riprogramma
+                    </Button>
+                  )}
+                  <Button asChild variant='outline'>
+                    <Link href={`/admin/feedback?feedbackLesson=${lesson.id}&feedbackRole=tutor`}>
+                      <MessageSquare className='h-4 w-4' /> Feedback
                     </Link>
                   </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className='mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-                <div className='text-sm text-muted-foreground'>
-                  {bookingsLoading
-                    ? ' '
-                    : `Mostrando ${filteredBookings.length} prenotazioni`}
-                </div>
-                <div className='w-full sm:w-56'>
-                  <Select
-                    value={bookingFilter}
-                    onValueChange={(value) =>
-                      setBookingFilter(
-                        value === 'all' || value === 'canceled'
-                          ? value
-                          : 'confirmed'
-                      )
-                    }
-                  >
-                    <SelectTrigger className='w-full'>
-                      <SelectValue placeholder='Filtra prenotazioni' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='confirmed'>Confermate</SelectItem>
-                      <SelectItem value='canceled'>Annullate</SelectItem>
-                      <SelectItem value='all'>Tutte</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className='rounded-lg border'>
-                <Table>
-                  <TableHeader className='bg-muted/50'>
-                    <TableRow>
-                      <TableHead className='w-[35%]'>Studente</TableHead>
-                      <TableHead className='w-[45%]'>Argomento</TableHead>
-                      <TableHead className='w-40'>Presenza</TableHead>
-                      <TableHead>Conteggio</TableHead>
-                      <TableHead>Stato</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {bookingsLoading ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={6}
-                          className='text-muted-foreground'
-                        >
-                          Caricamento...
-                        </TableCell>
-                      </TableRow>
-                    ) : filteredBookings.length ? (
-                      filteredBookings.map((booking) => {
-                        const student = studentMap.get(booking.studentId)
-                        const draftValue = presenceDrafts[booking.id]
-                        const effectiveValue =
-                          draftValue !== undefined
-                            ? draftValue
-                            : booking.studentPresence
-                        const isDirty =
-                          draftValue !== undefined &&
-                          draftValue !== booking.studentPresence
-                        const isSaving = Boolean(presenceSaving[booking.id])
-                        return (
-                          <TableRow key={booking.id}>
-                            <TableCell className='w-[35%]'>
-                              {student ? (
-                                <div className='flex flex-col'>
-                                  <Link
-                                    className='inline-flex items-center gap-1 text-primary hover:underline'
-                                    href={`/admin/students/${student.id}`}
-                                    target='_blank'
-                                    rel='noopener noreferrer'
-                                    title='Apri il profilo studente in una nuova scheda'
-                                  >
-                                    <span className='whitespace-nowrap'>
-                                      {studentLabel(student)}
-                                    </span>
-                                    <ExternalLink className='h-4 w-4 shrink-0' />
-                                    <span className='sr-only'>
-                                      Apri in nuova scheda
-                                    </span>
-                                  </Link>
-                                  {studentClassLabel(student) && (
-                                    <span className='text-xs text-muted-foreground'>
-                                      {studentClassLabel(student)}
-                                    </span>
-                                  )}
-                                </div>
-                              ) : (
-                                'Caricamento...'
-                              )}
-                            </TableCell>
-                            <TableCell className='w-[45%] max-w-[24rem] truncate'>
-                              {booking.topic}
-                            </TableCell>
-                            <TableCell className='w-40'>
-                              <div className='flex items-center gap-2'>
-                                <Select
-                                  value={presenceToOption(effectiveValue)}
-                                  onValueChange={(value) => {
-                                    const nextValue = optionToPresence(
-                                      value as PresenceOption
-                                    )
-                                    setPresenceDrafts((prev) => {
-                                      const next = { ...prev }
-                                      if (nextValue === booking.studentPresence) {
-                                        delete next[booking.id]
-                                      } else {
-                                        next[booking.id] = nextValue
-                                      }
-                                      return next
-                                    })
-                                  }}
-                                  disabled={
-                                    isCanceledBooking(booking.status) ||
-                                    isCanceledStatus(lesson?.status)
-                                  }
-                                >
-                                  <SelectTrigger className='w-28'>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value='none'>-</SelectItem>
-                                    <SelectItem value='present'>
-                                      Presente
-                                    </SelectItem>
-                                    <SelectItem value='absent'>
-                                      Assente
-                                    </SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <Button
-                                  variant='outline'
-                                  size='icon'
-                                  className='h-8 w-8'
-                                  disabled={
-                                    isCanceledBooking(booking.status) ||
-                                    isCanceledStatus(lesson?.status) ||
-                                    isSaving ||
-                                    !isDirty
-                                  }
-                                  onClick={() =>
-                                    void handlePresenceSave(
-                                      booking,
-                                      effectiveValue
-                                    )
-                                  }
-                                >
-                                  <Save className='h-4 w-4' />
-                                  <span className='sr-only'>Salva</span>
-                                </Button>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={countsBadgeVariant(
-                                  booking.countsForStudent
-                                )}
-                              >
-                                {countsBadgeLabel(booking.countsForStudent)}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={statusVariant(booking.status)}>
-                                {formatBookingStatus(booking.status)}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className='text-right'>
-                              <DropdownMenu
-                                open={selectedBooking?.id === booking.id}
-                                onOpenChange={(open) =>
-                                  setSelectedBooking(open ? booking : null)
-                                }
-                              >
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant='ghost'
-                                    size='icon'
-                                    className='h-6 w-6 p-0'
-                                    aria-label='Azioni'
-                                  >
-                                    <MoreHorizontal className='h-4 w-4' />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align='end'>
-                                  <DropdownMenuItem
-                                    onSelect={() =>
-                                      handleOpenTopicDialog(booking)
-                                    }
-                                  >
-                                    Modifica argomento
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onSelect={() =>
-                                      handleOpenCountsDialog(booking)
-                                    }
-                                  >
-                                    Modifica conteggio
-                                  </DropdownMenuItem>
-                                  {!isCanceledBooking(booking.status) &&
-                                    !isCanceledStatus(lesson?.status) && (
-                                      <DropdownMenuItem
-                                        onSelect={() =>
-                                          handleOpenCancelDialog(booking)
-                                        }
-                                      >
-                                        Annulla prenotazione
-                                      </DropdownMenuItem>
-                                    )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })
-                    ) : (
-                      <TableRow>
-                        <TableCell
-                          colSpan={6}
-                          className='text-muted-foreground'
-                        >
-                          Nessuna prenotazione.
-                        </TableCell>
-                      </TableRow>
+                  {!lessonCanceled && (
+                    <Button
+                      variant='outline'
+                      className='border-destructive/50 text-destructive hover:text-destructive'
+                      onClick={() => {
+                        setCancelLessonCountsForTutor(Boolean(lesson.countsForTutor))
+                        setCancelLessonOpen(true)
+                      }}
+                    >
+                      <XCircle className='h-4 w-4' /> Annulla lezione
+                    </Button>
+                  )}
+                </>
+              )}
+            />
+          )}
+
+          {lesson && (
+            <section className='space-y-3 rounded-lg border bg-card p-4 sm:p-6'>
+              <h2 className='text-lg font-semibold'>Tutor</h2>
+              {tutorLoading && !tutor ? (
+                <Skeleton className='h-12' />
+              ) : tutor ? (
+                <div className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between'>
+                  <div className='space-y-1'>
+                    <Link className='font-medium text-primary hover:underline' href={`/admin/tutors/${tutor.id}`}>
+                      {tutor.firstName} {tutor.lastName}
+                    </Link>
+                    {tutorClassLabel(tutor) && <div className='text-sm text-muted-foreground'>{tutorClassLabel(tutor)}</div>}
+                    <div className='text-sm text-muted-foreground'>Posti del giorno: {lessonDailySeatsLabel(lesson)}</div>
+                    <div className='flex items-center gap-2 text-sm text-muted-foreground'>
+                      Lezione conteggiata per il tutor:
+                      <Badge variant={countsBadgeVariant(lesson.countsForTutor)}>{countsBadgeLabel(lesson.countsForTutor)}</Badge>
+                    </div>
+                  </div>
+                  <div className='flex flex-wrap gap-2'>
+                    {tutor.email && (
+                      <Button asChild variant='outline' size='sm'>
+                        <a href={`mailto:${tutor.email}`}><Mail className='h-4 w-4' /> Scrivi</a>
+                      </Button>
                     )}
-                  </TableBody>
-                </Table>
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      onClick={() => {
+                        setLessonCountsValue(Boolean(lesson.countsForTutor))
+                        setLessonCountsOpen(true)
+                      }}
+                    >
+                      Modifica conteggio
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className='text-sm text-muted-foreground'>Tutor non trovato.</p>
+              )}
+            </section>
+          )}
+
+          <section className='space-y-3'>
+            <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+              <h2 className='text-lg font-semibold'>Studenti</h2>
+              <div className='flex rounded-lg border p-0.5' role='tablist'>
+                {([['confirmed', 'Confermate'], ['canceled', 'Annullate'], ['all', 'Tutte']] as const).map(([value, label]) => (
+                  <Button
+                    key={value}
+                    role='tab'
+                    aria-selected={bookingFilter === value}
+                    size='sm'
+                    variant={bookingFilter === value ? 'secondary' : 'ghost'}
+                    className='flex-1'
+                    onClick={() => setBookingFilter(value)}
+                  >
+                    {label}
+                  </Button>
+                ))}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+            {bookingsLoading ? (
+              <Skeleton className='h-24' />
+            ) : filteredBookings.length === 0 ? (
+              <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>
+                {bookingFilter === 'canceled' ? 'Nessuna prenotazione annullata.' : 'Nessuno ha prenotato questa lezione.'}
+              </p>
+            ) : (
+              filteredBookings.map((booking) => {
+                const student = studentMap.get(booking.studentId)
+                const bookingCanceled = isCanceledBooking(booking.status)
+                const locked = bookingCanceled || lessonCanceled
+                const isSaving = Boolean(presenceSaving[booking.id])
+                return (
+                  <div key={booking.id} className={cn('space-y-3 rounded-lg border bg-card p-4', bookingCanceled && 'opacity-70')}>
+                    <div className='flex items-start justify-between gap-2'>
+                      <div className='min-w-0'>
+                        {student ? (
+                          <Link className='inline-flex items-center gap-1 font-medium text-primary hover:underline' href={`/admin/students/${student.id}`}>
+                            {studentLabel(student)}
+                          </Link>
+                        ) : (
+                          <span className='text-muted-foreground'>Caricamento...</span>
+                        )}
+                        {studentClassLabel(student) && <div className='text-sm text-muted-foreground'>{studentClassLabel(student)}</div>}
+                      </div>
+                      <div className='flex shrink-0 flex-wrap items-center justify-end gap-2'>
+                        {bookingCanceled && <Badge variant='outline'>{formatBookingStatus(booking.status)}</Badge>}
+                        <Badge variant={countsBadgeVariant(booking.countsForStudent)}>Ora: {countsBadgeLabel(booking.countsForStudent).toLowerCase()}</Badge>
+                        {student?.email && (
+                          <Button asChild size='sm' variant='outline'>
+                            <a href={`mailto:${student.email}`}><Mail className='h-4 w-4' /> Scrivi</a>
+                          </Button>
+                        )}
+                        <DropdownMenu
+                          open={selectedBooking?.id === booking.id}
+                          onOpenChange={(open) => setSelectedBooking(open ? booking : null)}
+                        >
+                          <DropdownMenuTrigger asChild>
+                            <Button variant='ghost' size='icon' className='h-8 w-8' aria-label='Altre azioni'>
+                              <MoreHorizontal className='h-4 w-4' />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align='end'>
+                            <DropdownMenuItem onSelect={() => handleOpenTopicDialog(booking)}>Modifica argomento</DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => handleOpenCountsDialog(booking)}>Modifica conteggio ora</DropdownMenuItem>
+                            {!locked && (
+                              <DropdownMenuItem className='text-destructive' onSelect={() => handleOpenCancelDialog(booking)}>
+                                Annulla prenotazione
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                    {(booking.topic || !locked) && (
+                      // The topic stretches down to the presence buttons, its text staying at the top.
+                      <div className='flex flex-col gap-4 sm:flex-row sm:items-stretch'>
+                        <div className='flex min-w-0 flex-1 flex-col'>
+                          {booking.topic && <p className='flex-1 rounded-md bg-muted/50 px-3 py-2 text-sm whitespace-pre-wrap'>{booking.topic}</p>}
+                        </div>
+                        {!locked && (
+                          <PresenceButtons
+                            value={booking.studentPresence}
+                            disabled={isSaving}
+                            onPresent={() => presence.ask({ studentName: studentLabel(student) ?? 'lo studente', present: booking.studentPresence === true ? null : true, run: () => handlePresenceSave(booking, booking.studentPresence === true ? null : true) })}
+                            onAbsent={() => presence.ask({ studentName: studentLabel(student) ?? 'lo studente', present: booking.studentPresence === false ? null : false, run: () => handlePresenceSave(booking, booking.studentPresence === false ? null : false) })}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            )}
+          </section>
         </div>
       </div>
+
+      {presence.dialog}
 
       <AlertDialog
         open={bookStudentOpen}
@@ -1628,6 +1385,33 @@ export default function AdminLessonDetailsPage() {
                 </SelectContent>
               </Select>
             </div>
+            {!lesson?.subjectId && bookingSubjectOptions.length > 0 ? (
+              <div className='space-y-2'>
+                <FieldLabel htmlFor='booking-subject'>Materia</FieldLabel>
+                <Select
+                  value={bookingSubjectId || '__none__'}
+                  onValueChange={(value) =>
+                    setBookingSubjectId(value === '__none__' ? '' : value)
+                  }
+                >
+                  <SelectTrigger id='booking-subject' className='w-full'>
+                    <SelectValue placeholder='Seleziona materia' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='__none__'>Seleziona materia</SelectItem>
+                    {bookingSubjectOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className='text-xs text-muted-foreground'>
+                  La lezione non ha ancora una materia: la sceglie questa
+                  prenotazione.
+                </p>
+              </div>
+            ) : null}
             <div className='space-y-2'>
               <FieldLabel htmlFor='booking-topic'>Argomento</FieldLabel>
               <Input
@@ -1645,7 +1429,11 @@ export default function AdminLessonDetailsPage() {
                 event.preventDefault()
                 void handleCreateBooking()
               }}
-              disabled={isCreatingBooking || !selectedStudentId}
+              disabled={
+                isCreatingBooking ||
+                !selectedStudentId ||
+                (!lesson?.subjectId && !bookingSubjectId)
+              }
             >
               {isCreatingBooking ? 'Salvataggio...' : 'Prenota'}
             </AlertDialogAction>
@@ -1719,7 +1507,7 @@ export default function AdminLessonDetailsPage() {
                 {lesson ? formatItalianDate(lesson.startAt) : 'Caricamento...'}
               </div>
               <div>Tutor: {tutorLabel(tutor) ?? '-'}</div>
-              <div>Materia: {subject?.name ?? '-'}</div>
+              <div>Materia: {subjectLabel}</div>
               <div>Argomento: {cancelTarget.topic || '-'}</div>
               <div>Stato: {formatBookingStatus(cancelTarget.status)}</div>
             </div>
@@ -1768,7 +1556,7 @@ export default function AdminLessonDetailsPage() {
             <div className='rounded-md border p-3 text-sm text-muted-foreground space-y-1'>
               <div>Data: {formatItalianDate(lesson.startAt)}</div>
               <div>Tutor: {tutorLabel(tutor) ?? '-'}</div>
-              <div>Materia: {subject?.name ?? '-'}</div>
+              <div>Materia: {subjectLabel}</div>
               <div>
                 Posti occupati: {lessonOccupiedSeats(lesson)}/
                 {lesson.lessonCapacity}
@@ -1947,6 +1735,11 @@ export default function AdminLessonDetailsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value='__none__'>Seleziona materia</SelectItem>
+                    {lesson?.subjectFromBooking ? (
+                      <SelectItem value={OPEN_SUBJECT_VALUE}>
+                        Nessuna: la sceglie la prima prenotazione
+                      </SelectItem>
+                    ) : null}
                     {rescheduleSubjectSplit.preferred.length > 0 ? (
                       <SelectItem value='__preferred__' disabled>
                         Materie del tutor

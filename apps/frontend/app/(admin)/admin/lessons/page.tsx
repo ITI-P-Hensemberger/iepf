@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 
-import AdminLessonsPage from '@/components/admin-lessons-page'
+import { AdminLessonViews } from '@/components/lesson-views'
 
 export default function AdminLessonsRoute() {
   return (
@@ -11,7 +11,7 @@ export default function AdminLessonsRoute() {
         </div>
       }
     >
-      <AdminLessonsPage />
+      <AdminLessonViews />
     </Suspense>
   )
 }

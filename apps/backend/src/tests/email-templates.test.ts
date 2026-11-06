@@ -76,3 +76,18 @@ describe('email templates escape user-written values in HTML', () => {
     expect(message.text).toContain('Anna D\'Amico')
   })
 })
+
+describe('lesson messages without a subject yet', () => {
+  it('leave the subject out instead of naming a placeholder', () => {
+    const reassigned = buildLessonReassignedMessage({ lessonStartAt: startAt, subjectName: null, tutorName: 'Sara' })
+    expect(reassigned.text).toContain('Ciao Sara, la lezione del ')
+    for (const recipientRole of ['student', 'tutor'] as const) {
+      const moved = buildLessonRescheduledMessage({ recipientRole, oldStartAt: startAt, newStartAt: startAt, oldSubjectName: null, newSubjectName: null, oldTutorName: 'Sara', newTutorName: 'Luca', students: [] })
+      expect(moved.text).not.toContain('Materia')
+      expect(moved.html).not.toContain('Materia')
+      expect(moved.text).not.toContain('null')
+    }
+    const named = buildLessonRescheduledMessage({ recipientRole: 'tutor', oldStartAt: startAt, newStartAt: startAt, oldSubjectName: null, newSubjectName: 'Fisica', oldTutorName: 'Sara', newTutorName: 'Luca', students: [] })
+    expect(named.text).toContain('Materia: Fisica.')
+  })
+})

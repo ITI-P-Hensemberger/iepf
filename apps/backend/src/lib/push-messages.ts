@@ -54,16 +54,27 @@ export function lessonCanceledPush(role: Role, params: { lessonId: string, subje
 
 export interface LessonVersion {
   lessonId: string
-  subjectName: string
+  // null while the lesson waits for its first booking to choose the subject.
+  subjectName: string | null
   startAt: Date
   durationMinutes: number
+}
+
+// "Matematica, mercoledì 12 novembre alle 14:00", or just the moment when there is no subject yet.
+function lessonLead(lesson: LessonVersion, when = formatWhen(lesson.startAt)) {
+  return lesson.subjectName ? `${lesson.subjectName}, ${when}` : capitalize(when)
+}
+
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
 // What an admin's reschedule changed, as seen by someone who stays on the lesson.
 export function lessonChangedPush(role: Role, before: LessonVersion, after: LessonVersion, tutorChanged: boolean): PushMessage | null {
   const timeChanged = before.startAt.getTime() !== after.startAt.getTime()
   const durationChanged = before.durationMinutes !== after.durationMinutes
-  const subjectChanged = before.subjectName !== after.subjectName
+  // A lesson going back to no subject is not news for the people on it.
+  const subjectChanged = before.subjectName !== after.subjectName && after.subjectName !== null
   const tutorNews = tutorChanged && role === 'student'
   const changes = [timeChanged, durationChanged, subjectChanged, tutorNews].filter(Boolean).length
   if (changes === 0) {
@@ -79,41 +90,45 @@ export function lessonChangedPush(role: Role, before: LessonVersion, after: Less
     return {
       ...base,
       title: 'Lezione modificata',
-      body: `Ora: ${after.subjectName}, ${formatWhen(after.startAt)}${extras.length ? `, ${extras.join(', ')}` : ''}.`
+      body: `Ora: ${after.subjectName ? `${after.subjectName}, ` : ''}${formatWhen(after.startAt)}${extras.length ? `, ${extras.join(', ')}` : ''}.`
     }
   }
   if (timeChanged) {
     return {
       ...base,
       title: 'Lezione spostata',
-      body: `${after.subjectName}: da ${formatWhen(before.startAt)} a ${formatWhen(after.startAt)}`
+      body: after.subjectName
+        ? `${after.subjectName}: da ${formatWhen(before.startAt)} a ${formatWhen(after.startAt)}`
+        : `Da ${formatWhen(before.startAt)} a ${formatWhen(after.startAt)}`
     }
   }
   if (durationChanged) {
     return {
       ...base,
       title: 'Durata cambiata',
-      body: `${after.subjectName}, ${formatWhen(after.startAt)}: ora dura ${after.durationMinutes} minuti.`
+      body: `${lessonLead(after)}: ora dura ${after.durationMinutes} minuti.`
     }
   }
   if (subjectChanged) {
     return {
       ...base,
       title: 'Materia cambiata',
-      body: `Lezione di ${formatWhen(after.startAt)}: ora è ${after.subjectName} (prima ${before.subjectName}).`
+      body: `Lezione di ${formatWhen(after.startAt)}: ora è ${after.subjectName}${before.subjectName ? ` (prima ${before.subjectName})` : ''}.`
     }
   }
   return {
     ...base,
     title: 'Tutor cambiato',
-    body: `${after.subjectName}, ${formatWhen(after.startAt)}: cambia il tutor. Trovi i dettagli nell'email.`
+    body: `${lessonLead(after)}: cambia il tutor. Trovi i dettagli nell'email.`
   }
 }
 
 export function lessonReassignedPush(before: LessonVersion): PushMessage {
   return {
     title: 'Lezione riassegnata',
-    body: `${before.subjectName}, ${formatWhen(before.startAt)} è stata affidata a un altro tutor.`,
+    body: before.subjectName
+      ? `${before.subjectName}, ${formatWhen(before.startAt)} è stata affidata a un altro tutor.`
+      : `La lezione di ${formatWhen(before.startAt)} è stata affidata a un altro tutor.`,
     url: lessonsUrl('tutor'),
     tag: `lesson-${before.lessonId}`
   }
@@ -125,16 +140,16 @@ export function lessonAssignedPush(after: LessonVersion, bookedStudents: number)
     : bookedStudents === 1 ? ' (1 studente prenotato)' : ` (${bookedStudents} studenti prenotati)`
   return {
     title: 'Nuova lezione assegnata',
-    body: `${after.subjectName}, ${formatWhen(after.startAt)}${booked}.`,
+    body: `${lessonLead(after)}${booked}.`,
     url: lessonsUrl('tutor', after.lessonId),
     tag: `lesson-${after.lessonId}`
   }
 }
 
-export function lessonCreatedPush(params: { lessonId: string, subjectName: string, startAt: Date }): PushMessage {
+export function lessonCreatedPush(params: { lessonId: string, subjectName: string | null, startAt: Date }): PushMessage {
   return {
     title: 'Nuova lezione in calendario',
-    body: `${params.subjectName}, ${formatWhen(params.startAt)}`,
+    body: params.subjectName ? `${params.subjectName}, ${formatWhen(params.startAt)}` : capitalize(formatWhen(params.startAt)),
     url: lessonsUrl('tutor', params.lessonId),
     tag: `lesson-${params.lessonId}`
   }

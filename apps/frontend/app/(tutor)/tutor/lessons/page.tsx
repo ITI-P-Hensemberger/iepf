@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 
-import TutorLessonsPage from '@/components/tutor-lessons-page'
+import { TutorLessonViews } from '@/components/lesson-views'
 
 export default function TutorLessonsRoute() {
   return (
@@ -11,7 +11,7 @@ export default function TutorLessonsRoute() {
         </div>
       }
     >
-      <TutorLessonsPage />
+      <TutorLessonViews />
     </Suspense>
   )
 }

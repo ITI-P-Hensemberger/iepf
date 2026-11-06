@@ -15,16 +15,19 @@ import { subjects } from '@/db/schemas/subjects.schema'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
+import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'
 import env from '@/env'
 import { issueAdminInviteToken } from '@/lib/admin-invite'
 import { cleanDatabase } from '@/lib/db-cleanup'
 import { isUniqueConstraintError } from '@/lib/db-errors'
 import { DEV_PASSWORD, seedDevelopmentData } from '@/lib/dev-seed'
+import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { getStudentTokenBalance } from '@/lib/lesson-tokens'
 import { assertLocalDatabase } from '@/lib/local-database'
 import { closeMailer } from '@/lib/mailer'
 import { hashPassword } from '@/lib/password'
+import { addDays, schoolDayKey, schoolTime } from '@/lib/school-time'
 import { issueTutorInviteToken } from '@/lib/tutor-invite'
 import { hasRecentReportExport, recordReportExport, REPORT_VALID_MINUTES } from '@/lib/year-report-export'
 import { resetRateLimiters } from '@/middlewares/rate-limit'
@@ -245,7 +248,7 @@ describe('booking integrity', () => {
   it('does not refund a cancellation after the cutoff', async () => {
     const student = await createStudent(2)
     const lessonId = await createLesson(1, new Date(Date.now() + 60 * 60 * 1000))
-    const [booking] = await db.insert(lessonBookings).values({ lessonId, studentId: student.id, topic: 'Tardi' }).returning()
+    const [booking] = await db.insert(lessonBookings).values({ lessonId, studentId: student.id, subjectId, topic: 'Tardi' }).returning()
     await db.insert(tokenLedger).values({ studentId: student.id, lessonId, delta: -1, reason: 'lesson_booking' })
     const response = await request(`/lessons/${lessonId}/bookings/${booking.id}/cancel`, { method: 'PATCH', token: student.token })
     expect(response.status).toBe(200)
@@ -296,7 +299,7 @@ describe('booking integrity', () => {
   it('rejects a duplicate confirmed booking at database level but allows rebooking', async () => {
     const student = await createStudent(0)
     const lessonId = await createLesson(3)
-    const values = { lessonId, studentId: student.id, topic: 'Doppia' }
+    const values = { lessonId, studentId: student.id, subjectId, topic: 'Doppia' }
     const [first] = await db.insert(lessonBookings).values(values).returning()
     await expect(db.insert(lessonBookings).values(values)).rejects.toThrow()
     await db.update(lessonBookings).set({ status: 'canceled' }).where(eq(lessonBookings.id, first.id))
@@ -311,6 +314,222 @@ describe('booking integrity', () => {
     })))
     expect(responses.every(response => response.status === 200)).toBe(true)
     expect(await getStudentTokenBalance(student.id)).toBe(0)
+  })
+})
+
+describe('one open lesson per time slot', () => {
+  let math: string
+  let physics: string
+  let untaught: string
+
+  async function createOpenLesson(seats = 3, startAt = nextLessonDay()) {
+    const [lesson] = await db.insert(lessons).values({
+      tutorId: ids.tutor,
+      subjectId: null,
+      subjectFromBooking: true,
+      startAt,
+      durationMinutes: 60,
+      seats
+    }).returning({ id: lessons.id })
+    return lesson.id
+  }
+
+  function bookSubject(lessonId: string, token: string, subject?: string) {
+    return request(`/lessons/${lessonId}/book`, { token, body: { topic: 'Ripasso', subjectId: subject } })
+  }
+
+  async function lessonRow(lessonId: string) {
+    const [row] = await db.select().from(lessons).where(eq(lessons.id, lessonId))
+    return row
+  }
+
+  beforeAll(async () => {
+    const created = await db.insert(subjects).values([
+      { name: 'Fisica slot', canonicalName: 'slot_physics' },
+      { name: 'Latino slot', canonicalName: 'slot_latin' }
+    ]).returning({ id: subjects.id })
+    physics = created[0].id
+    untaught = created[1].id
+    const [taught] = await db.select({ subjectId: tutorSubjects.subjectId }).from(tutorSubjects).where(eq(tutorSubjects.tutorId, ids.tutor))
+    math = taught.subjectId
+    await db.insert(tutorSubjects).values({ tutorId: ids.tutor, subjectId: physics })
+  })
+
+  it('asks a booking on an open lesson for one of the tutor\'s subjects', async () => {
+    const student = await createStudent(3)
+    const lessonId = await createOpenLesson()
+    expect((await bookSubject(lessonId, student.token)).status).toBe(400)
+    expect((await bookSubject(lessonId, student.token, untaught)).status).toBe(400)
+    expect(await getStudentTokenBalance(student.id)).toBe(3)
+
+    const response = await bookSubject(lessonId, student.token, physics)
+    expect(response.status).toBe(201)
+    const body = await response.json()
+    expect(body.booking.subjectId).toBe(physics)
+    expect(body.lesson.subjectId).toBe(physics)
+    expect(body.lesson.status).toBe('confirmed')
+    expect((await lessonRow(lessonId)).subjectId).toBe(physics)
+  })
+
+  it('keeps later bookings to the subject the first one picked', async () => {
+    const lessonId = await createOpenLesson()
+    const [first, second, third] = [await createStudent(2), await createStudent(2), await createStudent(2)]
+    expect((await bookSubject(lessonId, first.token, math)).status).toBe(201)
+    const other = await bookSubject(lessonId, second.token, physics)
+    expect(other.status).toBe(409)
+    expect((await other.json()).error.message).toBe(HttpStatusPhrases.LESSON_SUBJECT_TAKEN)
+    // Naming no subject joins the one already picked.
+    const joined = await bookSubject(lessonId, third.token)
+    expect(joined.status).toBe(201)
+    expect((await joined.json()).booking.subjectId).toBe(math)
+  })
+
+  it('lets only one subject win when the first bookings race', async () => {
+    const lessonId = await createOpenLesson()
+    const [first, second] = [await createStudent(2), await createStudent(2)]
+    const responses = await Promise.all([
+      bookSubject(lessonId, first.token, math),
+      bookSubject(lessonId, second.token, physics)
+    ])
+    expect(statuses(responses)).toEqual([201, 409])
+    const booked = await confirmedBookings(lessonId)
+    expect(booked).toHaveLength(1)
+    expect((await lessonRow(lessonId)).subjectId).toBe(booked[0].subjectId)
+  })
+
+  it('opens the subject again when the last booking is canceled, keeping it on the booking', async () => {
+    const lessonId = await createOpenLesson()
+    const [first, second] = [await createStudent(2), await createStudent(2)]
+    const booked = await bookSubject(lessonId, first.token, math)
+    const { booking } = await booked.json()
+    const cancel = await request(`/lessons/${lessonId}/bookings/${booking.id}/cancel`, { method: 'PATCH', token: first.token })
+    expect(cancel.status).toBe(200)
+    const reopened = await lessonRow(lessonId)
+    expect(reopened.subjectId).toBeNull()
+    expect(reopened.status).toBe('scheduled')
+    const [canceled] = await db.select().from(lessonBookings).where(eq(lessonBookings.id, booking.id))
+    expect(canceled.subjectId).toBe(math)
+
+    expect((await bookSubject(lessonId, second.token, physics)).status).toBe(201)
+    expect((await lessonRow(lessonId)).subjectId).toBe(physics)
+  })
+
+  it('keeps the subject an admin set when its bookings are canceled', async () => {
+    const student = await createStudent(2)
+    const lessonId = await createLesson(2)
+    const booked = await book(lessonId, student.token)
+    const { booking } = await booked.json()
+    expect(booking.subjectId).toBe(subjectId)
+    await request(`/lessons/${lessonId}/bookings/${booking.id}/cancel`, { method: 'PATCH', token: student.token })
+    expect((await lessonRow(lessonId)).subjectId).toBe(subjectId)
+    expect((await bookSubject(lessonId, (await createStudent(1)).token, physics)).status).toBe(409)
+  })
+
+  it('lists an open lesson under each subject its tutor teaches, with the choices', async () => {
+    const student = await createStudent(2)
+    const startAt = nextLessonDay()
+    const lessonId = await createOpenLesson(3, startAt)
+    const from = new Date(startAt.getTime() - 60 * 1000).toISOString()
+    const to = new Date(startAt.getTime() + 60 * 1000).toISOString()
+    const list = async (subject: string) => {
+      const response = await request(`/lessons/available?subjectId=${subject}&from=${from}&to=${to}`, { method: 'GET', token: student.token })
+      expect(response.status).toBe(200)
+      return (await response.json()).data as Array<{ id: string, subjectId: string | null, subjectOptions: Array<{ id: string }>, canBook: boolean }>
+    }
+    for (const subject of [math, physics]) {
+      const [item] = (await list(subject)).filter(row => row.id === lessonId)
+      expect(item.subjectId).toBeNull()
+      expect(item.subjectOptions.map(option => option.id).sort()).toEqual([math, physics].sort())
+      expect(item.canBook).toBe(true)
+    }
+    expect((await list(untaught)).some(row => row.id === lessonId)).toBe(false)
+
+    await bookSubject(lessonId, (await createStudent(1)).token, math)
+    expect((await list(physics)).some(row => row.id === lessonId)).toBe(false)
+    const [locked] = (await list(math)).filter(row => row.id === lessonId)
+    expect(locked.subjectOptions.map(option => option.id)).toEqual([math])
+  })
+
+  it('sums up bookable lessons per subject and per day for the booking page', async () => {
+    const student = await createStudent(3)
+    const startAt = nextLessonDay()
+    const dayKey = schoolDayKey(startAt)
+    const range = new URLSearchParams({ from: schoolTime(dayKey).toISOString(), to: schoolTime(addDays(dayKey, 1)).toISOString() })
+    await createOpenLesson(3, startAt)
+    const summary = async (query: URLSearchParams) => {
+      const response = await request(`/lessons/available/summary?${query}`, { method: 'GET', token: student.token })
+      expect(response.status).toBe(200)
+      return response.json() as Promise<{ subjects: Array<{ id: string, count: number }>, days: Array<{ day: string, count: number, booked: boolean }> }>
+    }
+    const before = await summary(range)
+    // One open lesson counts for each subject its tutor teaches.
+    expect(before.subjects.find(subject => subject.id === math)?.count).toBe(1)
+    expect(before.subjects.find(subject => subject.id === physics)?.count).toBe(1)
+    expect(before.days).toEqual([{ day: dayKey, count: 1, booked: false }])
+
+    const later = new Date(startAt)
+    later.setHours(later.getHours() + 1)
+    const bookedLesson = await createOpenLesson(3, later)
+    expect((await bookSubject(bookedLesson, student.token, math)).status).toBe(201)
+    const after = await summary(new URLSearchParams({ ...Object.fromEntries(range), subjectId: physics }))
+    // One lesson a day: the rest of that day is no longer bookable for this student.
+    expect(after.days).toEqual([{ day: dayKey, count: 0, booked: true }])
+    expect(after.subjects).toEqual([])
+  })
+
+  it('shows a tutor their own schedule with bookings, and admins anyone\'s', async () => {
+    const student = await createStudent(2)
+    const startAt = nextLessonDay()
+    const lessonId = await createOpenLesson(3, startAt)
+    await bookSubject(lessonId, student.token, math)
+    const query = new URLSearchParams({ from: new Date(startAt.getTime() - 60_000).toISOString(), to: new Date(startAt.getTime() + 60_000).toISOString() })
+    const schedule = async (token: string, extra: Record<string, string> = {}) => {
+      return request(`/lessons/schedule?${new URLSearchParams({ ...Object.fromEntries(query), ...extra })}`, { method: 'GET', token })
+    }
+
+    const mine = await schedule(tutorToken)
+    expect(mine.status).toBe(200)
+    const [item] = (await mine.json()).data as Array<{ id: string, subjectId: string, bookings: Array<{ studentId: string, topic: string, subjectId: string }> }>
+    expect(item).toMatchObject({ id: lessonId, subjectId: math })
+    expect(item.bookings).toEqual([expect.objectContaining({ studentId: student.id, topic: 'Ripasso', subjectId: math })])
+
+    // A tutor asking for someone else's lessons still gets only their own.
+    const otherTutor = await createTutor(5)
+    const other = await schedule(tutorToken, { tutorId: otherTutor })
+    expect((await other.json()).data.map((row: { id: string }) => row.id)).toEqual([lessonId])
+    const forAdmin = await schedule(adminToken, { tutorId: otherTutor })
+    expect((await forAdmin.json()).data).toEqual([])
+
+    expect((await schedule(student.token)).status).toBe(403)
+    const tooLong = new URLSearchParams({ from: startAt.toISOString(), to: new Date(startAt.getTime() + 20 * 24 * 60 * 60 * 1000).toISOString() })
+    expect((await request(`/lessons/schedule?${tooLong}`, { method: 'GET', token: adminToken })).status).toBe(400)
+  })
+
+  it('opens an admin lesson created without a subject, like a generated one', async () => {
+    for (const subject of [undefined, null]) {
+      const created = await request('/lessons', { token: adminToken, body: { tutorId: ids.tutor, subjectId: subject, startAt: nextLessonDay().toISOString(), durationMinutes: 60 } })
+      expect(created.status).toBe(201)
+      const { lessonId } = await created.json()
+      expect(await lessonRow(lessonId)).toMatchObject({ subjectId: null, subjectFromBooking: true, status: 'scheduled' })
+      // The first booking picks the subject; once nobody holds a seat it opens again.
+      const student = await createStudent(1)
+      const booked = await bookSubject(lessonId, student.token, physics)
+      expect(booked.status).toBe(201)
+      expect((await lessonRow(lessonId)).subjectId).toBe(physics)
+      const { booking } = await booked.json()
+      await request(`/lessons/${lessonId}/bookings/${booking.id}/cancel`, { method: 'PATCH', token: student.token })
+      expect((await lessonRow(lessonId)).subjectId).toBeNull()
+    }
+  })
+
+  it('lists open lessons for admins without dropping them for a missing subject', async () => {
+    const startAt = nextLessonDay()
+    const lessonId = await createOpenLesson(3, startAt)
+    const query = new URLSearchParams({ tutorId: ids.tutor, subjectId: physics, from: startAt.toISOString(), to: startAt.toISOString() })
+    const response = await request(`/lessons?${query}`, { method: 'GET', token: adminToken })
+    const { data } = await response.json() as { data: Array<{ id: string, subjectId: string | null, subjectFromBooking: boolean }> }
+    const [item] = data.filter(row => row.id === lessonId)
+    expect(item).toMatchObject({ subjectId: null, subjectFromBooking: true })
   })
 })
 

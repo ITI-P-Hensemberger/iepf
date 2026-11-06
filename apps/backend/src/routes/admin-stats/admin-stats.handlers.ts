@@ -122,8 +122,6 @@ export const listTutorLessonCounts: AppRouteHandler<ListTutorLessonCountsRoute> 
   const lessonsConfirmedNotCountedExpr = sql<number>`count(case when ${lessons.status} = 'confirmed' and ${lessons.countsForTutor} = false then 1 end)`
   const lessonsCancelledCountedExpr = sql<number>`count(case when ${lessons.status} = 'canceled' and ${lessons.countsForTutor} = true then 1 end)`
   const lessonsCancelledNotCountedExpr = sql<number>`count(case when ${lessons.status} = 'canceled' and ${lessons.countsForTutor} = false then 1 end)`
-  const lessonsCompletedCountedExpr = sql<number>`count(case when ${lessons.status} = 'completed' and ${lessons.countsForTutor} = true then 1 end)`
-  const lessonsCompletedNotCountedExpr = sql<number>`count(case when ${lessons.status} = 'completed' and ${lessons.countsForTutor} = false then 1 end)`
   const tutorConditions = [eq(users.role, 'tutor')]
   if (q) {
     const searchCondition = or(
@@ -175,11 +173,8 @@ export const listTutorLessonCounts: AppRouteHandler<ListTutorLessonCountsRoute> 
       lessonsConfirmedNotCounted: lessonsConfirmedNotCountedExpr,
       lessonsCancelledCounted: lessonsCancelledCountedExpr,
       lessonsCancelledNotCounted: lessonsCancelledNotCountedExpr,
-      lessonsCompletedCounted: lessonsCompletedCountedExpr,
-      lessonsCompletedNotCounted: lessonsCompletedNotCountedExpr,
       lessonsDone: sql<number>`count(${lessons.id}) filter (where ${LESSON_STATE_SQL.done})::int`,
       lessonsUpcoming: sql<number>`count(${lessons.id}) filter (where ${LESSON_STATE_SQL.upcoming})::int`,
-      lessonsExpired: sql<number>`count(${lessons.id}) filter (where ${LESSON_STATE_SQL.expired})::int`,
       lessonsCanceled: sql<number>`count(${lessons.id}) filter (where ${LESSON_STATE_SQL.canceled})::int`
     })
     .from(users)
@@ -494,7 +489,6 @@ export const getOverview: AppRouteHandler<GetOverviewRoute> = async (c) => {
     db.select({
       done: sql<number>`count(*) filter (where ${LESSON_STATE_SQL.done})::int`,
       upcoming: sql<number>`count(*) filter (where ${LESSON_STATE_SQL.upcoming})::int`,
-      expired: sql<number>`count(*) filter (where ${LESSON_STATE_SQL.expired})::int`,
       canceled: sql<number>`count(*) filter (where ${LESSON_STATE_SQL.canceled})::int`
     }).from(lessons),
     db.select({
@@ -517,7 +511,7 @@ export const getOverview: AppRouteHandler<GetOverviewRoute> = async (c) => {
       .orderBy(month)
   ])
   return c.json({
-    lessonsByState: statusRows[0] ?? { done: 0, upcoming: 0, expired: 0, canceled: 0 },
+    lessonsByState: statusRows[0] ?? { done: 0, upcoming: 0, canceled: 0 },
     attendance: attendanceRows[0] ?? { present: 0, absent: 0, unrecorded: 0 },
     months: monthRows
   }, HttpStatusCodes.OK)

@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   type ColumnDef,
@@ -9,7 +8,7 @@ import {
   getCoreRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { ExternalLink, MessageSquare, Search, Trash2 } from 'lucide-react'
+import { Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -44,6 +43,7 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatItalianDate } from '@/lib/format-date'
+import { classLabel } from '@/lib/class-label'
 
 const pageSize = 20
 
@@ -67,6 +67,8 @@ type PendingInvite = {
 }
 
 type DataTableProps<TData> = {
+  // Opens the row's details: the whole row is the link.
+  rowHref?: (row: TData) => string
   data: TData[]
   columns: ColumnDef<TData>[]
   isLoading: boolean
@@ -127,6 +129,7 @@ function normalizePaged<T>(payload: unknown): { items: T[]; total: number } {
 
 function DataTable<TData>({
   data,
+  rowHref,
   columns,
   isLoading,
   emptyMessage,
@@ -201,7 +204,23 @@ function DataTable<TData>({
               </TableRow>
             ) : table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow
+                  key={row.id}
+                  className={rowHref ? 'cursor-pointer' : undefined}
+                  tabIndex={rowHref ? 0 : undefined}
+                  onClick={rowHref
+                    ? (event) => {
+                        // Buttons and links inside the row keep their own action.
+                        if ((event.target as HTMLElement).closest('a, button, input, [role="checkbox"]')) return
+                        router.push(rowHref(row.original))
+                      }
+                    : undefined}
+                  onKeyDown={rowHref
+                    ? (event) => {
+                        if (event.key === 'Enter' && event.target === event.currentTarget) router.push(rowHref(row.original))
+                      }
+                    : undefined}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
@@ -862,13 +881,6 @@ export default function AdminTutorsPage() {
     loadPendingInvites
   ])
 
-  const getSectionLabel = React.useCallback((tutor: Tutor) => {
-    if (tutor.sectionName) {
-      return tutor.sectionName
-    }
-    return tutor.sectionId ?? '-'
-  }, [])
-
   const makeColumns = React.useCallback(() => {
     const columns: ColumnDef<Tutor>[] = [
       {
@@ -885,48 +897,13 @@ export default function AdminTutorsPage() {
         accessorKey: 'year',
         header: 'Classe',
         cell: ({ row }) => (
-          <span>
-            {row.original.year ?? ''}
-            {getSectionLabel(row.original)}
-          </span>
-        )
-      },
-      {
-        id: 'actions',
-        header: () => <span className='sr-only'>Azioni</span>,
-        cell: ({ row }) => (
-          <div className='flex items-center justify-end gap-1'>
-            <Button
-              asChild
-              variant='ghost'
-              size='icon'
-              aria-label='Apri profilo tutor'
-              className='h-6 w-6 p-0'
-            >
-              <Link href={`/admin/tutors/${row.original.id}`}>
-                <ExternalLink className='h-4 w-4' />
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant='ghost'
-              size='icon'
-              aria-label='Gestione feedback tutor'
-              className='h-6 w-6 p-0'
-            >
-              <Link
-                href={`/admin/feedback?feedbackAuthor=${row.original.id}&feedbackRole=tutor`}
-              >
-                <MessageSquare className='h-4 w-4' />
-              </Link>
-            </Button>
-          </div>
+          <span>{classLabel(row.original.year, row.original.sectionName) ?? '-'}</span>
         )
       }
     ]
 
     return columns
-  }, [getSectionLabel])
+  }, [])
 
   const columns = React.useMemo(() => makeColumns(), [makeColumns])
 
@@ -979,7 +956,7 @@ export default function AdminTutorsPage() {
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
           <div className='mb-6 self-start'>
-            <BackButton />
+            <BackButton href='/admin' />
           </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <h1 className='text-2xl'>Gestione tutor</h1>
@@ -1106,6 +1083,7 @@ export default function AdminTutorsPage() {
                   <DataTable
                     data={activeTutors}
                     columns={columns}
+                    rowHref={(row) => `/admin/tutors/${row.id}`}
                     isLoading={activeLoading}
                     emptyMessage='Nessun tutor attivo.'
                     pageKey='activeTutorPage'
@@ -1216,6 +1194,7 @@ export default function AdminTutorsPage() {
                   <DataTable
                     data={inactiveTutors}
                     columns={columns}
+                    rowHref={(row) => `/admin/tutors/${row.id}`}
                     isLoading={inactiveLoading}
                     emptyMessage='Nessun tutor non attivo.'
                     pageKey='inactiveTutorPage'

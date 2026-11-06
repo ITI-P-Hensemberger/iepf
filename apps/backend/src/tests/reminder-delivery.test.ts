@@ -8,7 +8,7 @@ import env from '@/env'
 import { cleanDatabase } from '@/lib/db-cleanup'
 import { assertLocalDatabase } from '@/lib/local-database'
 import { createMailBatch } from '@/lib/mail-batch'
-import { localDayKey, pruneReminderDeliveries, sendReminderOnce } from '@/lib/reminder-delivery'
+import { pruneReminderDeliveries, sendReminderOnce } from '@/lib/reminder-delivery'
 
 const payload = { to: 'a@example.test', subject: 's', text: 't', html: 'h' }
 
@@ -72,11 +72,5 @@ describe('pruneReminderDeliveries', () => {
     await pruneReminderDeliveries(now)
     expect(await db.select().from(reminderDeliveries).where(eq(reminderDeliveries.key, 'old'))).toHaveLength(0)
     expect(await db.select().from(reminderDeliveries).where(eq(reminderDeliveries.key, 'new'))).toHaveLength(1)
-  })
-})
-
-describe('localDayKey', () => {
-  it('uses the local calendar day', () => {
-    expect(localDayKey(new Date(2026, 0, 5, 23, 59))).toBe('2026-01-05')
   })
 })

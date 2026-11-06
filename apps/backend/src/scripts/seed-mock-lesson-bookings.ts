@@ -134,10 +134,32 @@ async function main() {
     }
   }
 
+  const tutorSubjectRows = await db
+    .select({
+      tutorId: tutorSubjects.tutorId,
+      subjectId: tutorSubjects.subjectId
+    })
+    .from(tutorSubjects)
+    .where(inArray(tutorSubjects.tutorId, activeTutors.map(tutor => tutor.id)))
+
+  // An open lesson takes the subject of its first booking, as a real booking would set it.
+  const lessonSubjects = new Map<string, string>()
+  for (const lesson of scheduledLessons) {
+    const subjectId = lesson.subjectId
+      ?? randomPick(tutorSubjectRows.filter(row => row.tutorId === lesson.tutorId), 1)[0]?.subjectId
+    if (subjectId) {
+      lessonSubjects.set(lesson.id, subjectId)
+    }
+  }
+
   let createdBookings = 0
   const bookingRows: Array<typeof lessonBookings.$inferInsert> = []
 
   for (const lesson of scheduledLessons) {
+    const subjectId = lessonSubjects.get(lesson.id)
+    if (!subjectId) {
+      continue
+    }
     const existing = bookingByLesson.get(lesson.id) ?? new Set<string>()
     const availableSeats = Math.max(0, lesson.seats - existing.size)
     const dailyCapacity = tutorDailyCapacities.get(lesson.tutorId) ?? 1
@@ -161,6 +183,7 @@ async function main() {
         id: randomUUID(),
         lessonId: lesson.id,
         studentId: student.id,
+        subjectId,
         topic: 'Esercitazione',
         status: 'confirmed'
       })
@@ -242,6 +265,7 @@ async function main() {
         id: randomUUID(),
         lessonId: row.lessonId!,
         studentId: row.studentId!,
+        subjectId: row.subjectId,
         topic: 'Rebooking',
         status: 'confirmed'
       })
@@ -268,20 +292,12 @@ async function main() {
   for (const booking of bookingRows) {
     lessonsToConfirm.add(booking.lessonId)
   }
-  if (lessonsToConfirm.size > 0) {
+  for (const lessonId of lessonsToConfirm) {
     await db
       .update(lessons)
-      .set({ status: 'confirmed' })
-      .where(inArray(lessons.id, Array.from(lessonsToConfirm)))
+      .set({ status: 'confirmed', subjectId: lessonSubjects.get(lessonId) })
+      .where(eq(lessons.id, lessonId))
   }
-
-  const tutorSubjectRows = await db
-    .select({
-      tutorId: tutorSubjects.tutorId,
-      subjectId: tutorSubjects.subjectId
-    })
-    .from(tutorSubjects)
-    .where(inArray(tutorSubjects.tutorId, activeTutors.map(tutor => tutor.id)))
 
   const combos: Array<{ tutorId: string, subjectId: string }> = tutorSubjectRows.length
     ? tutorSubjectRows
@@ -319,6 +335,7 @@ async function main() {
       id: randomUUID(),
       lessonId: lesson.id!,
       studentId: student.id,
+      subjectId: lesson.subjectId!,
       topic: 'Ripasso',
       status: 'confirmed'
     })

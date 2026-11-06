@@ -6,7 +6,7 @@ export default function NotFound() {
     <main className='flex-1'>
       <div className='container mx-auto px-8 py-10 flex flex-col items-center text-center'>
         <div className='mb-6 self-start'>
-          <BackButton />
+          <BackButton href='/' />
         </div>
         <Image
           src='/logo.png'

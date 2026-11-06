@@ -409,7 +409,7 @@ export default function AdminStudentDetailPage() {
     }
 
     if (!Number.isInteger(amount) || amount <= 0) {
-      toast.error('Inserisci un numero di crediti valido.')
+      toast.error('Inserisci un numero di ore valido.')
       return
     }
 
@@ -433,12 +433,12 @@ export default function AdminStudentDetailPage() {
       })
 
       if (!response.ok) {
-        let message = 'Impossibile aggiornare i crediti lezione.'
+        let message = 'Impossibile aggiornare le ore di lezione.'
         try {
           const payload = (await response.json()) as { message?: string }
           message = payload.message ?? message
         } catch {
-          message = 'Impossibile aggiornare i crediti lezione.'
+          message = 'Impossibile aggiornare le ore di lezione.'
         }
         throw new Error(message)
       }
@@ -458,14 +458,14 @@ export default function AdminStudentDetailPage() {
       setTokenReason('')
       toast.success(
         direction === 'add'
-          ? 'Crediti aggiunti con successo.'
-          : 'Crediti rimossi con successo.'
+          ? 'Ore di lezione aggiunte.'
+          : 'Ore di lezione tolte.'
       )
     } catch (err) {
       toast.error(
         err instanceof Error
           ? err.message
-          : 'Impossibile aggiornare i crediti lezione.'
+          : 'Impossibile aggiornare le ore di lezione.'
       )
     } finally {
       setIsAdjustingTokens(false)
@@ -477,7 +477,7 @@ export default function AdminStudentDetailPage() {
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
           <div className='mb-6'>
-            <BackButton />
+            <BackButton href='/admin/students' />
           </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <div>
@@ -755,7 +755,7 @@ export default function AdminStudentDetailPage() {
                       )}
                     />
                     <Field>
-                      <FieldLabel>Crediti lezione</FieldLabel>
+                      <FieldLabel>Ore di lezione rimanenti</FieldLabel>
                       <div className='text-sm text-muted-foreground'>
                         {student.lessonTokens ?? '-'}
                       </div>
@@ -816,7 +816,7 @@ export default function AdminStudentDetailPage() {
                           </div>
                           <div>
                             <span className='font-medium text-foreground'>
-                              Crediti lezione:
+                              Ore di lezione rimanenti:
                             </span>{' '}
                             {student?.lessonTokens ?? '-'}
                           </div>
@@ -850,16 +850,16 @@ export default function AdminStudentDetailPage() {
               <CardContent className='space-y-4 pt-6'>
                 <div>
                   <h2 className='text-base font-medium'>
-                    Modifica crediti lezione
+                    Modifica ore di lezione
                   </h2>
                   <p className='text-sm text-muted-foreground'>
-                    Aggiungi o rimuovi un numero preciso di crediti.
+                    Aggiungi o togli un numero preciso di ore di lezione.
                   </p>
                 </div>
                 <div className='grid gap-4 md:grid-cols-[180px_minmax(0,1fr)]'>
                   <Field>
                     <FieldLabel htmlFor='student-token-amount'>
-                      Numero crediti
+                      Numero di ore
                     </FieldLabel>
                     <Input
                       id='student-token-amount'
@@ -892,7 +892,7 @@ export default function AdminStudentDetailPage() {
                     onClick={() => void handleAdjustTokens('add')}
                     disabled={isAdjustingTokens}
                   >
-                    {isAdjustingTokens ? 'Aggiornamento...' : 'Aggiungi crediti'}
+                    {isAdjustingTokens ? 'Aggiornamento...' : 'Aggiungi ore'}
                   </Button>
                   <Button
                     type='button'
@@ -900,7 +900,7 @@ export default function AdminStudentDetailPage() {
                     onClick={() => void handleAdjustTokens('remove')}
                     disabled={isAdjustingTokens}
                   >
-                    {isAdjustingTokens ? 'Aggiornamento...' : 'Rimuovi crediti'}
+                    {isAdjustingTokens ? 'Aggiornamento...' : 'Togli ore'}
                   </Button>
                 </div>
               </CardContent>

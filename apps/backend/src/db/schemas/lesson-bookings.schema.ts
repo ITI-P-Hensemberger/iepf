@@ -4,12 +4,15 @@ import { boolean, index, pgTable, text, timestamp, uniqueIndex, uuid } from 'dri
 import { randomUUID } from 'node:crypto'
 
 import { lessons } from './lessons.schema'
+import { subjects } from './subjects.schema'
 import { users } from './users.schema'
 
 export const lessonBookings = pgTable('lesson_bookings', {
   id: uuid().primaryKey().$defaultFn(() => randomUUID()),
   lessonId: uuid().notNull().references(() => lessons.id, { onDelete: 'cascade' }),
   studentId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // The subject the student booked, kept even after the lesson's own subject opens again.
+  subjectId: uuid().notNull().references(() => subjects.id, { onDelete: 'restrict' }),
   topic: text().notNull(),
   status: text().notNull().default('confirmed'),
   countsForStudent: boolean().notNull().default(true),
@@ -39,5 +42,9 @@ export const lessonBookingsRelations = relations(lessonBookings, ({ one }) => ({
   student: one(users, {
     fields: [lessonBookings.studentId],
     references: [users.id]
+  }),
+  subject: one(subjects, {
+    fields: [lessonBookings.subjectId],
+    references: [subjects.id]
   })
 }))

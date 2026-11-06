@@ -39,10 +39,16 @@ const bookingTopicSchema = z.object({
   topic: z.string().min(1).max(200)
 })
 
+const subjectOptionSchema = z.object({
+  id: z.string(),
+  name: z.string()
+})
+
 export const lessonSchema = z.object({
   id: z.string(),
   tutorId: z.string(),
-  subjectId: z.string(),
+  // null while the lesson is open: the first booking picks one of the tutor's subjects.
+  subjectId: z.string().nullable(),
   startAt: z.string(),
   durationMinutes: z.number().int(),
   lessonCapacity: z.number().int(),
@@ -50,13 +56,16 @@ export const lessonSchema = z.object({
   dailyOccupancy: z.number().int(),
   availableSeats: z.number().int(),
   countsForTutor: z.boolean(),
-  status: z.string()
+  status: z.string(),
+  subjectFromBooking: z.boolean(),
+  subjectOptions: z.array(subjectOptionSchema).optional()
 })
 
 export const bookingSchema = z.object({
   id: z.string(),
   lessonId: z.string(),
   studentId: z.string(),
+  subjectId: z.string(),
   topic: z.string(),
   status: z.string(),
   countsForStudent: z.boolean(),
@@ -64,9 +73,18 @@ export const bookingSchema = z.object({
   studentPresenceAt: z.string().nullable()
 })
 
+// Without a subject an admin's lesson starts open, like a generated one: the first booking picks it.
+const createLessonSchema = z.object({
+  tutorId: z.uuid(),
+  subjectId: z.uuid().nullable().optional(),
+  startAt: z.iso.datetime(),
+  durationMinutes: z.number().int()
+})
+
 const rescheduleLessonSchema = z.object({
   tutorId: z.uuid(),
-  subjectId: z.uuid(),
+  // null keeps the subject open for bookings to choose.
+  subjectId: z.uuid().nullable(),
   startAt: z.iso.datetime(),
   durationMinutes: z.number().int()
 })
@@ -93,6 +111,8 @@ const presenceSchema = z.object({
 
 const bookGeneratedLessonSchema = z.object({
   topic: z.string().min(1).max(200),
+  // Required on an open lesson; on a lesson with a subject it must match it.
+  subjectId: z.uuid().optional(),
   studentId: z.uuid().optional()
 })
 
@@ -133,7 +153,7 @@ const listLessonsQuerySchema = z.object({
 const lessonListItemSchema = z.object({
   id: z.string(),
   tutorId: z.string(),
-  subjectId: z.string(),
+  subjectId: z.string().nullable(),
   startAt: z.string(),
   durationMinutes: z.number().int(),
   lessonCapacity: z.number().int(),
@@ -141,7 +161,8 @@ const lessonListItemSchema = z.object({
   dailyOccupancy: z.number().int(),
   availableSeats: z.number().int(),
   countsForTutor: z.boolean(),
-  status: z.string()
+  status: z.string(),
+  subjectFromBooking: z.boolean()
 })
 
 const myLessonItemSchema = z.object({
@@ -168,8 +189,9 @@ const availableLessonItemSchema = z.object({
   tutorId: z.string(),
   tutorFirstName: z.string(),
   tutorLastName: z.string(),
-  subjectId: z.string(),
-  subjectName: z.string(),
+  tutorYear: z.number().int().nullable(),
+  subjectId: z.string().nullable(),
+  subjectName: z.string().nullable(),
   startAt: z.string(),
   durationMinutes: z.number().int(),
   lessonCapacity: z.number().int(),
@@ -177,6 +199,10 @@ const availableLessonItemSchema = z.object({
   dailyOccupancy: z.number().int(),
   availableSeats: z.number().int(),
   status: z.string(),
+  // Students book until 20:00 of the day before.
+  bookingCutoff: z.string(),
+  // What a booking may pick: the tutor's subjects while the lesson is open, else its subject.
+  subjectOptions: z.array(subjectOptionSchema),
   canBook: z.boolean()
 })
 
@@ -255,6 +281,107 @@ export const listAvailableLessons = createRoute({
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
       createErrorSchema(availableLessonsQuerySchema),
+      'Validation error(s)'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
+const availableSummaryQuerySchema = z.object({
+  from: z.iso.datetime(),
+  to: z.iso.datetime(),
+  subjectId: z.uuid().optional()
+})
+
+const availableSummarySchema = z.object({
+  // Bookable lessons per subject: an open lesson counts once for each subject its tutor teaches.
+  subjects: z.array(z.object({ id: z.string(), name: z.string(), count: z.number().int() })),
+  // Per school day (YYYY-MM-DD): bookable lessons for the subject, and whether the student already has one.
+  days: z.array(z.object({ day: z.string(), count: z.number().int(), booked: z.boolean() }))
+})
+
+export const getAvailableSummary = createRoute({
+  path: '/lessons/available/summary',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  request: {
+    query: availableSummaryQuerySchema
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(availableSummarySchema, 'Bookable lesson counts per subject and day'),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Student access required'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(availableSummaryQuerySchema),
+      'Validation error(s)'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
+const scheduleQuerySchema = z.object({
+  from: z.iso.datetime(),
+  to: z.iso.datetime(),
+  tutorId: z.uuid().optional(),
+  subjectId: z.uuid().optional()
+})
+
+const scheduleItemSchema = z.object({
+  id: z.string(),
+  tutorId: z.string(),
+  tutorName: z.string(),
+  tutorYear: z.number().int().nullable(),
+  tutorDailyCapacity: z.number().int(),
+  subjectId: z.string().nullable(),
+  subjectName: z.string().nullable(),
+  subjectFromBooking: z.boolean(),
+  // The tutor's subjects while the lesson is still open.
+  subjectOptions: z.array(subjectOptionSchema),
+  startAt: z.string(),
+  durationMinutes: z.number().int(),
+  seats: z.number().int(),
+  status: z.string(),
+  bookingsOpen: z.boolean(),
+  bookings: z.array(z.object({
+    id: z.string(),
+    studentId: z.string(),
+    studentName: z.string(),
+    classLabel: z.string().nullable(),
+    subjectId: z.string(),
+    topic: z.string(),
+    studentPresence: z.boolean().nullable()
+  }))
+})
+
+export const listSchedule = createRoute({
+  path: '/lessons/schedule',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  request: {
+    query: scheduleQuerySchema
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(z.object({ data: z.array(scheduleItemSchema) }), 'Lessons with their confirmed bookings, for up to 15 days'),
+    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
+      'Range longer than 15 days'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Admin or tutor access required'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(scheduleQuerySchema),
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
@@ -531,7 +658,7 @@ export const createLesson = createRoute({
   security: bearerAuth,
   request: {
     body: jsonContentRequired(
-      rescheduleLessonSchema,
+      createLessonSchema,
       'Admin lesson payload'
     )
   },
@@ -552,7 +679,7 @@ export const createLesson = createRoute({
       'Admin access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
-      createErrorSchema(rescheduleLessonSchema),
+      createErrorSchema(createLessonSchema),
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
@@ -692,3 +819,5 @@ export type UpdateBookingTopicRoute = typeof updateBookingTopic
 export type UpdateLessonCountsRoute = typeof updateLessonCounts
 export type UpdateBookingCountsRoute = typeof updateBookingCounts
 export type CreateLessonRoute = typeof createLesson
+export type GetAvailableSummaryRoute = typeof getAvailableSummary
+export type ListScheduleRoute = typeof listSchedule

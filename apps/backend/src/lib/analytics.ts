@@ -8,6 +8,7 @@ import { analyticsDaily } from '@/db/schemas/analytics-daily.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { PUSH_CATEGORIES } from '@/lib/push'
+import { schoolDayKey } from '@/lib/school-time'
 
 // Events the browser may send. Everything else is counted on the server.
 export const CLIENT_EVENTS = [
@@ -72,7 +73,9 @@ export const BOOKING_OUTCOMES = [
   'already_booked',
   'daily_limit',
   'tutor_full',
-  'lesson_full'
+  'lesson_full',
+  'subject_invalid',
+  'subject_taken'
 ] as const
 export type BookingOutcome = typeof BOOKING_OUTCOMES[number]
 
@@ -80,16 +83,9 @@ export const ANALYTICS_RETENTION_MONTHS = 13
 const ERROR_NAME = /^[A-Z][A-Za-z]{0,39}$/
 const PAGES = new Set<string>(PAGE_TEMPLATES)
 
-const romeDayFormat = new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'Europe/Rome',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit'
-})
-
 // YYYY-MM-DD in the school's time zone.
 export function romeDay(date: Date) {
-  return romeDayFormat.format(date)
+  return schoolDayKey(date)
 }
 
 function page(detail: string) {

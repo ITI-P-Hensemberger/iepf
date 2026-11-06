@@ -26,7 +26,7 @@ import { notifyStudentsOfNewLessons } from '@/lib/lessons-available'
 import { assertLocalDatabase } from '@/lib/local-database'
 import { closeMailer, waitForPendingMail } from '@/lib/mailer'
 import { deleteStaleSubscriptions, deliverPush, MAX_SUBSCRIPTIONS_PER_USER, notifyUsers, saveSubscription, setPushConfig, STALE_SUBSCRIPTION_DAYS, waitForPendingPush } from '@/lib/push'
-import { lessonChangedPush } from '@/lib/push-messages'
+import { lessonAssignedPush, lessonChangedPush, lessonReassignedPush } from '@/lib/push-messages'
 import { createPushBatch, sendReminderPushOnce } from '@/lib/reminder-delivery'
 import { isAllowedPushEndpoint, isValidSubscriptionKeys, isValidVapidSubject } from '@/lib/web-push'
 import { resetRateLimiters } from '@/middlewares/rate-limit'
@@ -369,6 +369,25 @@ describe('reschedule texts', () => {
     // The tutor hears about a change of tutor from the reassignment messages instead.
     expect(lessonChangedPush('tutor', before, before, true)).toBeNull()
   })
+  it('leave the subject out of a lesson nobody booked yet', () => {
+    const open = { ...before, subjectName: null }
+    const later = { ...open, lessonId: 'new', startAt: new Date('2031-05-07T13:00:00Z') }
+    const bodies = [
+      lessonChangedPush('student', open, later, false)?.body,
+      lessonChangedPush('student', open, { ...open, durationMinutes: 90 }, false)?.body,
+      lessonChangedPush('student', open, open, true)?.body,
+      lessonChangedPush('student', open, { ...later, durationMinutes: 90 }, true)?.body,
+      lessonReassignedPush(open).body,
+      lessonAssignedPush(later, 0).body
+    ]
+    for (const body of bodies) {
+      expect(body).toBeTruthy()
+      expect(body).not.toMatch(/null|Materia a scelta|^,|^:/)
+    }
+    expect(lessonReassignedPush(open).body).toMatch(/^La lezione di /)
+    // Going back to no subject is not news for whoever stays on the lesson.
+    expect(lessonChangedPush('student', before, { ...before, subjectName: null }, false)).toBeNull()
+  })
 })
 
 describe('new lessons of the week', () => {
@@ -423,7 +442,7 @@ describe('reschedule notifications', () => {
 
   async function bookedLesson(startAt: string) {
     const [lesson] = await db.insert(lessons).values({ tutorId: ids.tutor, subjectId, startAt: new Date(startAt), durationMinutes: 60, seats: 2, status: 'confirmed' }).returning({ id: lessons.id })
-    await db.insert(lessonBookings).values({ lessonId: lesson.id, studentId: ids.student, topic: 'Argomento privato' })
+    await db.insert(lessonBookings).values({ lessonId: lesson.id, studentId: ids.student, subjectId, topic: 'Argomento privato' })
     return lesson.id
   }
 

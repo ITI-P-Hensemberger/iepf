@@ -6,14 +6,16 @@ import type { CellValue, ChartSpec, Column, Sheet, TableRef } from '@/lib/xlsx/w
 import type { ReportData, ReportPerson } from '@/lib/year-report-data'
 
 import { romeDay } from '@/lib/analytics'
+import { classLabel } from '@/lib/class-label'
 import { lessonState } from '@/lib/lesson-state'
 import { Workbook } from '@/lib/xlsx/workbook'
 
-// Lessons are never marked completed: whether one took place is read from its time.
+// Whether a lesson took place is read from its time, not from a status.
 const LESSON_STATE: Record<LessonState, string> = {
   done: 'Svolta',
   upcoming: 'In programma',
-  expired: 'Scaduta senza prenotazioni',
+  // Over with only canceled bookings: listed with its lesson, left out of the counts.
+  expired: 'Non svolta',
   canceled: 'Annullata'
 }
 
@@ -48,7 +50,9 @@ const BOOKING_OUTCOME: Record<string, string> = {
   already_booked: 'Già prenotata',
   daily_limit: 'Limite giornaliero',
   tutor_full: 'Tutor al completo',
-  lesson_full: 'Posti esauriti'
+  lesson_full: 'Posti esauriti',
+  subject_invalid: 'Materia non valida',
+  subject_taken: 'Materia già scelta'
 }
 
 export function schoolYearLabel(now: Date) {
@@ -189,8 +193,8 @@ export function buildYearReport(data: ReportData, now = new Date()) {
 
   section('Lezioni')
   const statusRow = summary.nextRow
-  const plural: Record<LessonState, string> = { done: 'Svolte', upcoming: 'In programma', expired: 'Scadute senza prenotazioni', canceled: 'Annullate' }
-  for (const state of ['done', 'upcoming', 'expired', 'canceled'] as const) {
+  const plural: Record<Exclude<LessonState, 'expired'>, string> = { done: 'Svolte', upcoming: 'In programma', canceled: 'Annullate' }
+  for (const state of ['done', 'upcoming', 'canceled'] as const) {
     kpi(plural[state], data.lessons.filter(lesson => stateOf(lesson) === state).length)
   }
   const statusLastRow = summary.nextRow - 1
@@ -314,7 +318,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
       const classPresent = classBookings.filter(booking => booking.presence === true).length
       const classAbsent = classBookings.filter(booking => booking.presence === false).length
       return [
-        `${year ? `${year}ª` : '-'} ${sectionName || ''}`.trim(),
+        classLabel(year ? Number(year) : null, sectionName) ?? '-',
         year ? Number(year) : null,
         sectionName || null,
         members.length,
@@ -350,7 +354,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
 
   // ---- Studenti --------------------------------------------------------------------------
   const studentSheet = workbook.addSheet('Studenti')
-  studentSheet.addHeading('Studenti', 'Una riga per studente. "Ore residue" sono le ore ancora prenotabili al momento del report.')
+  studentSheet.addHeading('Studenti', 'Una riga per studente. "Ore di lezione rimanenti" sono le ore ancora prenotabili al momento del report.')
   const studentTable = studentSheet.addTable('Studenti', [
     { header: 'Cognome' },
     { header: 'Nome' },
@@ -365,7 +369,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     { header: 'Presenze' },
     { header: 'Assenze' },
     { header: 'Presenza (%)', ...PERCENT },
-    { header: 'Ore residue' },
+    { header: 'Ore di lezione rimanenti' },
     { header: 'Feedback lasciati' },
     { header: 'Voto medio dato', ...DECIMAL },
     { header: 'Voto medio ricevuto', ...DECIMAL },
@@ -454,7 +458,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
 
   // ---- Lezioni ---------------------------------------------------------------------------
   const lessonSheet = workbook.addSheet('Lezioni')
-  lessonSheet.addHeading('Lezioni', 'Tutte le lezioni, in ordine di data. "Svolta": con prenotazioni e già finita; "Scaduta": finita senza prenotazioni. Prenotati, presenti e assenti contano solo le prenotazioni confermate.')
+  lessonSheet.addHeading('Lezioni', 'Tutte le lezioni, in ordine di data. "Svolta": con prenotazioni e già finita; "Non svolta": finita con le sole prenotazioni annullate. Prenotati, presenti e assenti contano solo le prenotazioni confermate.')
   const lessonTable = lessonSheet.addTable('Lezioni', [
     { header: 'Data e ora', style: 'datetime', width: 17 },
     { header: 'Materia' },
@@ -471,7 +475,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     const lessonBookings = bookingsByLesson.get(lesson.id) ?? []
     return [
       lesson.startAt,
-      subjectName.get(lesson.subjectId) ?? '',
+      lesson.subjectId ? subjectName.get(lesson.subjectId) ?? '' : '',
       fullName(people.get(lesson.tutorId)),
       lesson.durationMinutes,
       LESSON_STATE[stateOf(lesson)],
@@ -508,7 +512,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     const student = people.get(booking.studentId)
     return [
       lesson?.startAt ?? null,
-      lesson ? subjectName.get(lesson.subjectId) ?? '' : '',
+      subjectName.get(booking.subjectId) ?? '',
       lesson ? fullName(people.get(lesson.tutorId)) : '',
       fullName(student),
       student?.year ?? null,
@@ -540,7 +544,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     return [
       item.createdAt,
       lesson?.startAt ?? null,
-      lesson ? subjectName.get(lesson.subjectId) ?? '' : '',
+      lesson?.subjectId ? subjectName.get(lesson.subjectId) ?? '' : '',
       fullName(people.get(item.authorUserId)),
       ROLE_LABEL[item.authorRole] ?? item.authorRole,
       fullName(people.get(item.targetUserId)),
@@ -553,10 +557,12 @@ export function buildYearReport(data: ReportData, now = new Date()) {
   // ---- Materie ---------------------------------------------------------------------------
   const tutorsPerSubject = countBy(data.tutorSubjects, row => row.subjectId)
   const requestsPerSubject = countBy(data.subjectRequests, row => row.subjectId)
-  const lessonsBySubject = groupBy(data.lessons, lesson => lesson.subjectId)
+  // A lesson still open has no subject yet; bookings always name the one they were made for.
+  const lessonsBySubject = groupBy(data.lessons, lesson => lesson.subjectId ?? '')
+  const bookingsBySubject = groupBy(data.bookings, booking => booking.subjectId)
   const subjectRows = data.subjects.map((subject) => {
     const subjectLessons = lessonsBySubject.get(subject.id) ?? []
-    const subjectBookings = subjectLessons.flatMap(lesson => bookingsByLesson.get(lesson.id) ?? [])
+    const subjectBookings = bookingsBySubject.get(subject.id) ?? []
     const lessonIds = new Set(subjectLessons.map(lesson => lesson.id))
     return [
       subject.name,

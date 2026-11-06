@@ -1,13 +1,6 @@
 // Purpose: The few lesson and student details an admin notice needs.
 import db from '@/db'
-
-function classLabel(sectionName: string | null, year: number | null) {
-  const yearLabel = year ? `anno ${year}` : null
-  if (sectionName && yearLabel) {
-    return `${sectionName} - ${yearLabel}`
-  }
-  return sectionName ?? yearLabel
-}
+import { classLabel } from '@/lib/class-label'
 
 export async function lessonContext(lessonId: string, studentId: string) {
   const lesson = await db.query.lessons.findFirst({
@@ -17,8 +10,18 @@ export async function lessonContext(lessonId: string, studentId: string) {
   if (!lesson) {
     return null
   }
+  // The student's booking names the subject even when the lesson's own subject has opened again.
+  const booking = await db.query.lessonBookings.findFirst({
+    where: (fields, operators) => operators.and(operators.eq(fields.lessonId, lessonId), operators.eq(fields.studentId, studentId)),
+    orderBy: (fields, operators) => operators.desc(fields.createdAt),
+    columns: { subjectId: true }
+  })
+  const subjectId = booking?.subjectId ?? lesson.subjectId
+  if (!subjectId) {
+    return null
+  }
   const [subject, tutor, student, profile] = await Promise.all([
-    db.query.subjects.findFirst({ where: (fields, operators) => operators.eq(fields.id, lesson.subjectId), columns: { name: true } }),
+    db.query.subjects.findFirst({ where: (fields, operators) => operators.eq(fields.id, subjectId), columns: { name: true } }),
     db.query.users.findFirst({ where: (fields, operators) => operators.eq(fields.id, lesson.tutorId), columns: { firstName: true, lastName: true } }),
     db.query.users.findFirst({ where: (fields, operators) => operators.eq(fields.id, studentId), columns: { firstName: true, lastName: true } }),
     db.query.studentProfiles.findFirst({ where: (fields, operators) => operators.eq(fields.userId, studentId), columns: { sectionId: true, year: true } })
@@ -35,6 +38,6 @@ export async function lessonContext(lessonId: string, studentId: string) {
     subjectName: subject.name,
     tutorName: `${tutor.firstName} ${tutor.lastName}`.trim(),
     studentName: `${student.firstName} ${student.lastName}`.trim(),
-    studentClass: classLabel(section?.name ?? null, profile?.year ?? null)
+    studentClass: classLabel(profile?.year ?? null, section?.name ?? null)
   }
 }

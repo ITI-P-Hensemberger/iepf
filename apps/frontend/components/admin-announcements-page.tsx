@@ -609,7 +609,7 @@ export default function AdminAnnouncementsPage() {
     <main className='flex-1'>
       <div className='container mx-auto flex flex-col items-center px-4 py-10'>
         <div className='w-full max-w-6xl space-y-6'>
-          <BackButton />
+          <BackButton href='/admin' />
           <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
             <div>
               <h1 className='text-2xl'>Popup</h1>

@@ -43,6 +43,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from './ui/checkbox'
 import { logout } from '@/lib/auth-client'
+import { classLabel } from '@/lib/class-label'
 
 const pageSize = 20
 
@@ -570,13 +571,6 @@ export default function ActivatorStudentsPage() {
     loadStudents
   ])
 
-  const getSectionLabel = React.useCallback((user: User) => {
-    if (user.sectionName) {
-      return user.sectionName
-    }
-    return user.sectionId ?? '-'
-  }, [])
-
   async function activateStudent(studentId: string, value: true | false) {
     setIsSubmitting(true)
 
@@ -671,10 +665,7 @@ export default function ActivatorStudentsPage() {
         accessorKey: 'year',
         header: 'Classe',
         cell: ({ row }) => (
-          <span>
-            {row.original.year ?? ''}
-            {getSectionLabel(row.original)}
-          </span>
+          <span>{classLabel(row.original.year, row.original.sectionName) ?? '-'}</span>
         )
       },
       {
@@ -704,7 +695,7 @@ export default function ActivatorStudentsPage() {
     ]
 
     return columns
-  }, [getSectionLabel, isSubmitting])
+  }, [isSubmitting])
 
   const activeColumns = React.useMemo(() => makeColumns(), [makeColumns])
   const inactiveColumns = React.useMemo(() => makeColumns(), [makeColumns])
@@ -980,8 +971,7 @@ export default function ActivatorStudentsPage() {
                   {student.lastName} {student.firstName}
                 </div>
                 <div className='text-xs text-muted-foreground'>
-                  {student.year ?? ''}
-                  {getSectionLabel(student)} · {student.email}
+                  {classLabel(student.year, student.sectionName) ?? '-'} · {student.email}
                 </div>
               </li>
             ))}

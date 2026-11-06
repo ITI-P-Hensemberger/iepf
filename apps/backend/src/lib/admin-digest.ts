@@ -12,7 +12,7 @@ import { users } from '@/db/schemas/users.schema'
 import { notifyAdminsOnce } from '@/lib/admin-notifications'
 import { buildPendingAdminsMessage, buildSubjectRequestsAdminMessage } from '@/lib/email-templates'
 import { pendingAdminsPush, subjectRequestsPush } from '@/lib/push-messages'
-import { localDayKey } from '@/lib/reminder-delivery'
+import { schoolDayKey } from '@/lib/school-time'
 
 // Accepted the invite and never activated: an admin switched off by hand is not waiting.
 export async function pendingAdmins() {
@@ -44,7 +44,7 @@ export async function recentSubjectRequests() {
 }
 
 export async function sendAdminDigest(batches: { mail: MailBatch, push: PushBatch }, now = new Date()) {
-  const day = localDayKey(now)
+  const day = schoolDayKey(now)
   const waiting = await pendingAdmins()
   if (waiting.length > 0) {
     await notifyAdminsOnce(batches, `pending-admins:${day}`, 'adminPendingAdmins', {

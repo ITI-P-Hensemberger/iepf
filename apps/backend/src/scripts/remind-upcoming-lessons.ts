@@ -1,23 +1,16 @@
 // Purpose: Send reminder emails for confirmed lessons scheduled for today.
-import { and, eq, gte, inArray, lte } from 'drizzle-orm'
+import { and, eq, gte, inArray, lt } from 'drizzle-orm'
 
 import db, { closeDb } from '@/db'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
+import { classLabel as schoolClassLabel } from '@/lib/class-label'
 import { buildLessonReminderStudentMessage, buildLessonReminderTutorMessage } from '@/lib/email-templates'
 import { createMailBatch } from '@/lib/mail-batch'
 import { closeMailer } from '@/lib/mailer'
 import { studentReminderPush, tutorReminderPush } from '@/lib/push-messages'
-import { createPushBatch, localDayKey, pruneReminderDeliveries, sendReminderOnce, sendReminderPushOnce } from '@/lib/reminder-delivery'
-
-function buildClassLabel(sectionName: string | null, sectionId: string | null, year: number | null) {
-  const sectionLabel = sectionName ?? sectionId
-  const yearLabel = year ? `anno ${year}` : null
-  if (sectionLabel && yearLabel) {
-    return `${sectionLabel} - ${yearLabel}`
-  }
-  return sectionLabel ?? yearLabel ?? null
-}
+import { createPushBatch, pruneReminderDeliveries, sendReminderOnce, sendReminderPushOnce } from '@/lib/reminder-delivery'
+import { addDays, schoolDayKey, schoolTime } from '@/lib/school-time'
 
 function parseTodayFlag() {
   const args = new Set(process.argv.slice(2))
@@ -36,17 +29,9 @@ function parseTodayFlag() {
 
 async function main() {
   const today = parseTodayFlag()
-  const now = new Date()
-  const start = new Date(now)
-  if (!today) {
-    start.setDate(now.getDate() + 1)
-  }
-  else {
-    start.setDate(now.getDate())
-  }
-  start.setHours(0, 0, 0, 0)
-  const end = new Date(start)
-  end.setHours(23, 59, 59, 999)
+  const dayKey = addDays(schoolDayKey(new Date()), today ? 0 : 1)
+  const start = schoolTime(dayKey)
+  const end = schoolTime(addDays(dayKey, 1))
 
   const lessonsRows = await db
     .select({
@@ -59,7 +44,7 @@ async function main() {
     .where(and(
       eq(lessons.status, 'confirmed'),
       gte(lessons.startAt, start),
-      lte(lessons.startAt, end)
+      lt(lessons.startAt, end)
     ))
 
   if (lessonsRows.length === 0) {
@@ -73,6 +58,7 @@ async function main() {
       id: lessonBookings.id,
       lessonId: lessonBookings.lessonId,
       studentId: lessonBookings.studentId,
+      subjectId: lessonBookings.subjectId,
       topic: lessonBookings.topic
     })
     .from(lessonBookings)
@@ -87,7 +73,8 @@ async function main() {
   }
 
   const tutorIds = Array.from(new Set(lessonsRows.map(lesson => lesson.tutorId)))
-  const subjectIds = Array.from(new Set(lessonsRows.map(lesson => lesson.subjectId)))
+  // Each booking carries its subject, the same one its confirmed lesson has.
+  const subjectIds = Array.from(new Set(bookings.map(booking => booking.subjectId)))
   const studentIds = Array.from(new Set(bookings.map(booking => booking.studentId)))
 
   const [tutors, subjectsList, students, profiles] = await Promise.all([
@@ -138,7 +125,7 @@ async function main() {
   const mailBatch = createMailBatch()
   const pushBatch = createPushBatch()
   // today and tomorrow are separate reminders for the same lesson, both wanted.
-  const reminderPrefix = `lessons-${today ? 'today' : 'tomorrow'}:${localDayKey(start)}`
+  const reminderPrefix = `lessons-${today ? 'today' : 'tomorrow'}:${dayKey}`
   let sent = 0
 
   for (const booking of bookings) {
@@ -148,10 +135,10 @@ async function main() {
       continue
     }
     const tutor = tutorMap.get(lesson.tutorId)
-    const subjectName = subjectMap.get(lesson.subjectId)
+    const subjectName = subjectMap.get(booking.subjectId)
     const profile = profileMap.get(booking.studentId)
     const sectionName = profile?.sectionId ? sectionNameMap.get(profile.sectionId) ?? null : null
-    const classLabel = buildClassLabel(sectionName, profile?.sectionId ?? null, profile?.year ?? null)
+    const classLabel = schoolClassLabel(profile?.year ?? null, sectionName)
 
     if (!tutor || !subjectName) {
       continue
@@ -191,13 +178,13 @@ async function main() {
     if (!lesson || !student) {
       continue
     }
-    const subjectName = subjectMap.get(lesson.subjectId)
+    const subjectName = subjectMap.get(booking.subjectId)
     if (!subjectName) {
       continue
     }
     const profile = profileMap.get(booking.studentId)
     const sectionName = profile?.sectionId ? sectionNameMap.get(profile.sectionId) ?? null : null
-    const classLabel = buildClassLabel(sectionName, profile?.sectionId ?? null, profile?.year ?? null)
+    const classLabel = schoolClassLabel(profile?.year ?? null, sectionName)
 
     if (!tutorLessonMap.has(lesson.tutorId)) {
       tutorLessonMap.set(lesson.tutorId, new Map())

@@ -32,6 +32,7 @@
     "remind:lessons": "tsx src/scripts/remind-upcoming-lessons.ts",
     "test:watch": "cross-env NODE_ENV=test vitest",
     "seed:dev": "tsx src/scripts/seed-dev.ts",
+    "seed:lesson-scenarios": "tsx src/scripts/seed-lesson-scenarios.ts",
     "push:vapid-keys": "tsx src/scripts/generate-vapid-keys.ts",
     "push:test": "tsx src/scripts/send-test-push.ts",
     "notify:admins": "tsx src/scripts/notify-admins.ts"

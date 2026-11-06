@@ -4,7 +4,6 @@ import * as React from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { notifyPushSetupChanged, openPushSetup } from '@/components/push-prompt'
@@ -139,16 +138,16 @@ export function NotificationSettings({ role, userId }: { role: 'student' | 'tuto
     }))
 
   return (
-    <Card className='mt-6'>
-      <CardHeader>
-        <CardTitle>Notifiche</CardTitle>
-        <CardDescription>
+    <section className='space-y-4 rounded-lg border bg-card p-4 sm:p-6'>
+      <div className='space-y-1'>
+        <h2 className='text-lg font-semibold'>Notifiche</h2>
+        <p className='text-sm text-muted-foreground'>
           {role === 'admin'
             ? 'Scegli per ogni avviso se riceverlo come notifica, per email o in entrambi i modi. Le notifiche non mostrano nomi: i dettagli sono nell\'email e nell\'app.'
             : 'Ricevi sul telefono o sul computer gli avvisi che oggi arrivano per email. Le email continuano ad arrivare comunque. Le notifiche mostrano solo materia e orario.'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className='flex flex-col gap-6'>
+        </p>
+      </div>
+      <div className='flex flex-col gap-6'>
         <div className='flex flex-col gap-3'>
           <p className='text-sm font-medium'>Questo dispositivo</p>
           {device === 'unsupported' && (
@@ -256,7 +255,7 @@ export function NotificationSettings({ role, userId }: { role: 'student' | 'tuto
             ))}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   )
 }

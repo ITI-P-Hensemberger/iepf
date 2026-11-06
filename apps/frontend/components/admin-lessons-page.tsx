@@ -1,9 +1,8 @@
 'use client'
 
 import * as React from 'react'
-import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { CalendarIcon, ExternalLink, MessageSquare } from 'lucide-react'
+import { CalendarIcon } from 'lucide-react'
 
 import {
   AlertDialog,
@@ -42,6 +41,7 @@ import { format } from 'date-fns'
 import { toast } from 'sonner'
 
 import { formatItalianDate } from '@/lib/format-date'
+import { lessonSubject } from '@/lib/lesson-subject'
 import { type DateRange } from 'react-day-picker'
 
 import { extractPayloadArray } from '@/lib/backend-response'
@@ -52,7 +52,7 @@ const AVAILABLE_TIMES = ['13:00', '14:00', '15:00', '16:00']
 type Lesson = {
   id: string
   tutorId: string
-  subjectId: string
+  subjectId: string | null
   startAt: string
   durationMinutes: number
   lessonCapacity: number
@@ -190,7 +190,7 @@ function buildTutorOptionLabel(tutor: Tutor): string {
   return tutorLabel(tutor) ?? tutor.id
 }
 
-export default function AdminLessonsPage() {
+export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.ReactNode } = {}) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -621,10 +621,6 @@ export default function AdminLessonsPage() {
       toast.error('Seleziona un tutor valido.')
       return
     }
-    if (!createForm.subjectId.trim()) {
-      toast.error('Seleziona una materia valida.')
-      return
-    }
     if (!createForm.date) {
       toast.error('Inserisci una data valida.')
       return
@@ -647,7 +643,8 @@ export default function AdminLessonsPage() {
         },
         body: JSON.stringify({
           tutorId: createForm.tutorId,
-          subjectId: createForm.subjectId,
+          // No subject: an open lesson, whose first booking picks one of the tutor's subjects.
+          subjectId: createForm.subjectId || null,
           startAt: startAtIso,
           durationMinutes: 60
         })
@@ -702,11 +699,14 @@ export default function AdminLessonsPage() {
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
           <div className='mb-6 self-start'>
-            <BackButton />
+            <BackButton href='/admin' />
           </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <h1 className='text-2xl'>Gestione lezioni</h1>
-            <Button onClick={handleOpenCreate}>Crea lezione</Button>
+            <div className='flex flex-wrap items-center gap-2'>
+              {viewSwitch}
+              <Button onClick={handleOpenCreate}>Crea lezione</Button>
+            </div>
           </div>
 
           <form
@@ -882,24 +882,29 @@ export default function AdminLessonsPage() {
                     Posti occupati
                   </TableHead>
                   <TableHead>Stato</TableHead>
-                  <TableHead className='w-16'>
-                    <span className='sr-only'>Azioni</span>
-                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className='text-muted-foreground'>
+                    <TableCell colSpan={5} className='text-muted-foreground'>
                       Caricamento...
                     </TableCell>
                   </TableRow>
                 ) : lessons.length ? (
                   lessons.map((lesson) => {
-                    const subject = subjectMap.get(lesson.subjectId)
+                    const subject = lessonSubject(lesson.subjectId, subjectMap)
                     const tutor = tutorMap.get(lesson.tutorId)
                     return (
-                      <TableRow key={lesson.id}>
+                      <TableRow
+                        key={lesson.id}
+                        className='cursor-pointer'
+                        tabIndex={0}
+                        onClick={() => router.push(`/admin/lessons/${lesson.id}`)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') router.push(`/admin/lessons/${lesson.id}`)
+                        }}
+                      >
                         <TableCell>
                           {formatItalianDate(lesson.startAt)}
                         </TableCell>
@@ -921,40 +926,12 @@ export default function AdminLessonsPage() {
                             {formatStatusLabel(lesson.status)}
                           </Badge>
                         </TableCell>
-                        <TableCell className='w-16 text-right'>
-                          <div className='flex items-center justify-end gap-1'>
-                            <Button
-                              asChild
-                              variant='ghost'
-                              size='icon'
-                              aria-label='Apri dettagli lezione'
-                              className='h-6 w-6 p-0'
-                            >
-                              <Link href={`/admin/lessons/${lesson.id}`}>
-                                <ExternalLink className='h-4 w-4' />
-                              </Link>
-                            </Button>
-                            <Button
-                              asChild
-                              variant='ghost'
-                              size='icon'
-                              aria-label='Gestione feedback lezione'
-                              className='h-6 w-6 p-0'
-                            >
-                              <Link
-                                href={`/admin/feedback?feedbackLesson=${lesson.id}`}
-                              >
-                                <MessageSquare className='h-4 w-4' />
-                              </Link>
-                            </Button>
-                          </div>
-                        </TableCell>
                       </TableRow>
                     )
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className='text-muted-foreground'>
+                    <TableCell colSpan={5} className='text-muted-foreground'>
                       Nessuna lezione trovata.
                     </TableCell>
                   </TableRow>
@@ -1099,7 +1076,7 @@ export default function AdminLessonsPage() {
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value='__none__'>Seleziona materia</SelectItem>
+                    <SelectItem value='__none__'>Nessuna: la sceglie la prima prenotazione</SelectItem>
                     {createSubjectSplit.preferred.length > 0 ? (
                       <SelectItem value='__preferred__' disabled>
                         Materie del tutor

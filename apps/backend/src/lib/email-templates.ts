@@ -532,12 +532,22 @@ export function buildLessonCanceledMessage(params: {
   } satisfies EmailTemplate
 }
 
+// " Materia: X." when the lesson has a subject; nothing while the first booking still has to pick it.
+function subjectText(subjectName: string | null) {
+  return subjectName ? ` Materia: ${subjectName}.` : ''
+}
+
+function subjectHtml(subjectName: string | null) {
+  return subjectName ? `<br />Materia: <strong>${escapeHtml(subjectName)}</strong>.` : ''
+}
+
 export function buildLessonRescheduledMessage(params: {
   recipientRole: 'student' | 'tutor'
   oldStartAt: Date
   newStartAt: Date
-  oldSubjectName: string
-  newSubjectName: string
+  // null while the lesson waits for its first booking to choose the subject.
+  oldSubjectName: string | null
+  newSubjectName: string | null
   oldTutorName: string
   newTutorName: string
   students: Array<{ name: string, classLabel?: string | null }>
@@ -550,10 +560,10 @@ export function buildLessonRescheduledMessage(params: {
   if (params.recipientRole === 'student') {
     return {
       subject: 'Lezione riprogrammata',
-      text: `La lezione del ${oldDate} è stata riprogrammata al ${newDate}. Materia: ${params.newSubjectName}. Tutor: ${params.newTutorName}.${adminSuffix}`,
+      text: `La lezione del ${oldDate} è stata riprogrammata al ${newDate}.${subjectText(params.newSubjectName)} Tutor: ${params.newTutorName}.${adminSuffix}`,
       html: buildEmailHtml(
         'Lezione riprogrammata',
-        `La lezione del <strong>${oldDate}</strong> è stata riprogrammata al <strong>${newDate}</strong>.<br />Materia: <strong>${escapeHtml(params.newSubjectName)}</strong>.<br />Tutor: <strong>${escapeHtml(params.newTutorName)}</strong>.${params.rescheduledByAdmin ? '<br />Operazione effettuata da un amministratore.' : ''}`
+        `La lezione del <strong>${oldDate}</strong> è stata riprogrammata al <strong>${newDate}</strong>.${subjectHtml(params.newSubjectName)}<br />Tutor: <strong>${escapeHtml(params.newTutorName)}</strong>.${params.rescheduledByAdmin ? '<br />Operazione effettuata da un amministratore.' : ''}`
       )
     } satisfies EmailTemplate
   }
@@ -566,10 +576,10 @@ export function buildLessonRescheduledMessage(params: {
 
   return {
     subject: 'Lezione riprogrammata',
-    text: `La lezione del ${oldDate} è stata riprogrammata al ${newDate}. Materia: ${params.newSubjectName}. Studenti: ${params.students.map(student => buildStudentLabel(student.name, student.classLabel)).join(', ') || 'nessuno'}.${adminSuffix}`,
+    text: `La lezione del ${oldDate} è stata riprogrammata al ${newDate}.${subjectText(params.newSubjectName)} Studenti: ${params.students.map(student => buildStudentLabel(student.name, student.classLabel)).join(', ') || 'nessuno'}.${adminSuffix}`,
     html: buildEmailHtml(
       'Lezione riprogrammata',
-      `La lezione del <strong>${oldDate}</strong> è stata riprogrammata al <strong>${newDate}</strong>.<br />Materia: <strong>${escapeHtml(params.newSubjectName)}</strong>.<br />Studenti:${studentItems}${params.rescheduledByAdmin ? '<br />Operazione effettuata da un amministratore.' : ''}`
+      `La lezione del <strong>${oldDate}</strong> è stata riprogrammata al <strong>${newDate}</strong>.${subjectHtml(params.newSubjectName)}<br />Studenti:${studentItems}${params.rescheduledByAdmin ? '<br />Operazione effettuata da un amministratore.' : ''}`
     )
   } satisfies EmailTemplate
 }
@@ -670,17 +680,17 @@ export function buildLessonReminderTutorMessage(params: {
 export function buildLessonCreatedMessage(params: {
   lessonId: string
   lessonStartAt: Date
-  subjectName: string
+  subjectName: string | null
   tutorName: string
 }) {
   const dateLabel = formatLessonDate(params.lessonStartAt)
   const detailsUrl = buildLessonDetailsLink(params.lessonId)
   return {
     subject: 'Nuova lezione assegnata',
-    text: `Ti è stata assegnata una nuova lezione il ${dateLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}. Dettagli: ${detailsUrl}`,
+    text: `Ti è stata assegnata una nuova lezione il ${dateLabel}.${params.subjectName ? ` Materia: ${params.subjectName}.` : ''} Tutor: ${params.tutorName}. Dettagli: ${detailsUrl}`,
     html: buildEmailHtml(
       'Nuova lezione assegnata',
-      `Ti è stata assegnata una nuova lezione il <strong>${dateLabel}</strong>.<br />Materia: <strong>${escapeHtml(params.subjectName)}</strong>.<br />Tutor: <strong>${escapeHtml(params.tutorName)}</strong>.`,
+      `Ti è stata assegnata una nuova lezione il <strong>${dateLabel}</strong>.<br />${params.subjectName ? `Materia: <strong>${escapeHtml(params.subjectName)}</strong>.<br />` : ''}Tutor: <strong>${escapeHtml(params.tutorName)}</strong>.`,
       { label: 'Vedi dettagli lezione', url: detailsUrl },
       { hideHomeButton: true }
     )
@@ -690,16 +700,18 @@ export function buildLessonCreatedMessage(params: {
 // The previous tutor of a lesson an admin moved to someone else.
 export function buildLessonReassignedMessage(params: {
   lessonStartAt: Date
-  subjectName: string
+  subjectName: string | null
   tutorName: string
 }) {
   const dateLabel = formatLessonDate(params.lessonStartAt)
+  const lessonText = params.subjectName ? `la lezione di ${params.subjectName}` : 'la lezione'
+  const lessonHtml = params.subjectName ? `la lezione di <strong>${escapeHtml(params.subjectName)}</strong>` : 'la lezione'
   return {
     subject: 'Lezione riassegnata',
-    text: `Ciao ${params.tutorName}, la lezione di ${params.subjectName} del ${dateLabel} è stata affidata a un altro tutor da un amministratore. Non devi più tenerla.`,
+    text: `Ciao ${params.tutorName}, ${lessonText} del ${dateLabel} è stata affidata a un altro tutor da un amministratore. Non devi più tenerla.`,
     html: buildEmailHtml(
       'Lezione riassegnata',
-      `Ciao ${escapeHtml(params.tutorName)}, la lezione di <strong>${escapeHtml(params.subjectName)}</strong> del <strong>${dateLabel}</strong> è stata affidata a un altro tutor da un amministratore.<br />Non devi più tenerla.`
+      `Ciao ${escapeHtml(params.tutorName)}, ${lessonHtml} del <strong>${dateLabel}</strong> è stata affidata a un altro tutor da un amministratore.<br />Non devi più tenerla.`
     )
   } satisfies EmailTemplate
 }

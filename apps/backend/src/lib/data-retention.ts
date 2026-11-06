@@ -1,15 +1,18 @@
 // Purpose: Delete data that is no longer needed: old audit logs, expired tokens and push
 // subscriptions of devices that have been silent for months, who closed long-expired popups,
-// notifications older than the panel keeps, and usage counts older than 13 months.
+// notifications older than the panel keeps, usage counts older than 13 months, and lessons
+// nobody booked once their bookings have closed.
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 
-import { and, inArray, isNotNull, lt } from 'drizzle-orm'
+import { and, inArray, isNotNull, lt, notExists, sql } from 'drizzle-orm'
 
 import db from '@/db'
 import { adminInviteTokens } from '@/db/schemas/admin-invite-tokens.schema'
 import { announcementDismissals, announcements } from '@/db/schemas/announcements.schema'
 import { auditLogs } from '@/db/schemas/audit-logs.schema'
 import { emailVerificationTokens } from '@/db/schemas/email-verification-tokens.schema'
+import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
+import { lessons } from '@/db/schemas/lessons.schema'
 import { notifications } from '@/db/schemas/notifications.schema'
 import { passwordResetTokens } from '@/db/schemas/password-reset-tokens.schema'
 import { refreshTokens } from '@/db/schemas/refresh-tokens.schema'
@@ -17,6 +20,7 @@ import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
 import { deleteOldAnalytics, rollUpActiveUsers } from '@/lib/analytics'
 import { KEEP_NOTIFICATIONS_DAYS } from '@/lib/notification-inbox'
 import { deleteStaleSubscriptions } from '@/lib/push'
+import { addDays, schoolDayKey, schoolTime } from '@/lib/school-time'
 
 export const AUDIT_LOG_RETENTION_DAYS = 90
 // Long enough that an admin who extends a popup just after it expired keeps who closed it.
@@ -48,6 +52,22 @@ async function deleteExpiredPopupDismissals(now: Date) {
   return result.rowCount ?? 0
 }
 
+// Bookings close at 20:00 the day before a lesson: the first day a student can still book.
+export function firstBookableDay(now: Date) {
+  const today = schoolDayKey(now)
+  return schoolTime(addDays(today, now >= schoolTime(today, 20) ? 2 : 1))
+}
+
+// A lesson that never had a booking, not even one later canceled, has nothing worth keeping
+// once bookings for it have closed. Lessons with canceled bookings stay for the year report.
+export async function deleteUnbookedLessons(now: Date) {
+  const result = await db.delete(lessons).where(and(
+    lt(lessons.startAt, firstBookableDay(now)),
+    notExists(db.select({ one: sql`1` }).from(lessonBookings).where(sql`${lessonBookings.lessonId} = ${lessons.id}`))
+  ))
+  return result.rowCount ?? 0
+}
+
 export async function cleanUpExpiredData(now = new Date()) {
   const auditCutoff = new Date(now.getTime() - AUDIT_LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000)
   const notificationsCutoff = new Date(now.getTime() - KEEP_NOTIFICATIONS_DAYS * 24 * 60 * 60 * 1000)
@@ -66,6 +86,7 @@ export async function cleanUpExpiredData(now = new Date()) {
     tutorInviteTokens: await deleteOlderThan(tutorInviteTokens, tutorInviteTokens.id, tutorInviteTokens.expiresAt, now),
     pushSubscriptions: await deleteStaleSubscriptions(now),
     announcementDismissals: await deleteExpiredPopupDismissals(now),
-    notifications: await deleteOlderThan(notifications, notifications.id, notifications.createdAt, notificationsCutoff)
+    notifications: await deleteOlderThan(notifications, notifications.id, notifications.createdAt, notificationsCutoff),
+    unbookedLessons: await deleteUnbookedLessons(now)
   }
 }

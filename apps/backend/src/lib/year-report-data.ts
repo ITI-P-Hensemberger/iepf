@@ -40,8 +40,8 @@ export interface ReportData {
   subjects: Array<{ id: string, name: string }>
   tutorSubjects: Array<{ tutorId: string, subjectId: string }>
   tutorCapacity: Map<string, number>
-  lessons: Array<{ id: string, tutorId: string, subjectId: string, startAt: Date, durationMinutes: number, seats: number, status: string, countsForTutor: boolean, generatedByJob: boolean }>
-  bookings: Array<{ id: string, lessonId: string, studentId: string, topic: string, status: string, countsForStudent: boolean, presence: boolean | null, createdAt: Date, canceledAt: Date | null }>
+  lessons: Array<{ id: string, tutorId: string, subjectId: string | null, startAt: Date, durationMinutes: number, seats: number, status: string, countsForTutor: boolean, generatedByJob: boolean }>
+  bookings: Array<{ id: string, lessonId: string, studentId: string, subjectId: string, topic: string, status: string, countsForStudent: boolean, presence: boolean | null, createdAt: Date, canceledAt: Date | null }>
   feedback: Array<{ lessonId: string, authorUserId: string, targetUserId: string, authorRole: string, rating: number, text: string | null, createdAt: Date }>
   tokenBalances: Map<string, number>
   subjectRequests: Array<{ studentId: string, subjectId: string, createdAt: Date }>
@@ -89,6 +89,7 @@ export async function loadReportData(): Promise<ReportData> {
       id: lessonBookings.id,
       lessonId: lessonBookings.lessonId,
       studentId: lessonBookings.studentId,
+      subjectId: lessonBookings.subjectId,
       topic: lessonBookings.topic,
       status: lessonBookings.status,
       countsForStudent: lessonBookings.countsForStudent,
