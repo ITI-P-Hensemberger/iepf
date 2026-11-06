@@ -243,6 +243,33 @@ export const getStudentStatusCounts = createRoute({
   }
 })
 
+const pushCoverageSchema = z.array(z.object({
+  role: z.enum(['student', 'tutor', 'admin']),
+  users: z.number().int().min(0),
+  withPush: z.number().int().min(0)
+}))
+
+export const getPushCoverage = createRoute({
+  path: '/admin/stats/push/coverage',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      pushCoverageSchema,
+      'Per role: verified users, and how many receive push on at least one device'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Admin access required'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
 export const getTutorStatusCounts = createRoute({
   path: '/admin/stats/tutors/status-counts',
   method: 'get',
@@ -293,3 +320,4 @@ export type GetConfirmedBookingsCountRoute = typeof getConfirmedBookingsCount
 export type GetStudentStatusCountsRoute = typeof getStudentStatusCounts
 export type GetTutorStatusCountsRoute = typeof getTutorStatusCounts
 export type GetFeedbackSummaryRoute = typeof getFeedbackSummary
+export type GetPushCoverageRoute = typeof getPushCoverage

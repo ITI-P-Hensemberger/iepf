@@ -839,3 +839,23 @@ export function buildSubjectRequestsAdminMessage(requests: Array<{ subjectName: 
     ...requests.map(request => `${request.subjectName}: ${request.count} (${request.total} in totale)`)
   ], { label: 'Vedi le richieste', path: '/admin/stats?tab=subject-requests' })
 }
+
+// Sent from a computer: the user opens it on the phone, where push is worth turning on.
+export function buildPushSetupLinkMessage() {
+  const baseUrl = env.SITE_URL ?? 'http://localhost:3000'
+  // The profile is behind login: a phone that is not signed in goes through login and back here.
+  const url = new URL('/profile', baseUrl)
+  url.searchParams.set('attiva-notifiche', '1')
+  const link = url.toString()
+
+  return {
+    subject: 'Attiva le notifiche di IEPF sul telefono',
+    text: `Apri questo link dal telefono per attivare le notifiche di IEPF: ${link}`,
+    html: buildEmailHtml(
+      'Attiva le notifiche sul telefono',
+      'Apri questa email dal telefono e tocca il pulsante: IEPF ti guiderà ad attivare le notifiche.',
+      { label: 'Apri IEPF sul telefono', url: link },
+      { hideHomeButton: true }
+    )
+  } satisfies EmailTemplate
+}

@@ -1,17 +1,22 @@
 // Purpose: Push subscription and notification preference handlers.
 import type { Context } from 'hono'
 
+import { count, eq } from 'drizzle-orm'
+
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
 import { notificationPreferences } from '@/db/schemas/notification-preferences.schema'
+import { pushSubscriptions } from '@/db/schemas/push-subscriptions.schema'
+import { buildPushSetupLinkMessage } from '@/lib/email-templates'
 import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { sendMail } from '@/lib/mailer'
 import { getPushPublicKey, isPushEnabled, getPreferences as readPreferences, removeSubscription, saveSubscription } from '@/lib/push'
 import { isAllowedPushEndpoint, isValidSubscriptionKeys } from '@/lib/web-push'
 
-import type { GetPreferencesRoute, GetPushConfigRoute, SubscribeRoute, UnsubscribeRoute, UpdatePreferencesRoute } from './notifications.routes'
+import type { GetDevicesRoute, GetPreferencesRoute, GetPushConfigRoute, SendSetupLinkRoute, SubscribeRoute, UnsubscribeRoute, UpdatePreferencesRoute } from './notifications.routes'
 
 // Activators get no notifications.
 const RECIPIENT_ROLES = new Set(['student', 'tutor', 'admin'])
@@ -77,4 +82,24 @@ export const updatePreferences: AppRouteHandler<UpdatePreferencesRoute> = async 
     .values({ userId: user.id, ...merged })
     .onConflictDoUpdate({ target: notificationPreferences.userId, set: merged })
   return c.json(merged, HttpStatusCodes.OK)
+}
+
+// Lets a computer know whether the user already receives push on some device, the phone above all.
+export const getDevices: AppRouteHandler<GetDevicesRoute> = async (c) => {
+  const currentUser = c.get('currentUser')!
+  const [row] = await db.select({ count: count() })
+    .from(pushSubscriptions)
+    .where(eq(pushSubscriptions.userId, currentUser.id))
+  return c.json({ count: row?.count ?? 0 }, HttpStatusCodes.OK)
+}
+
+// The link goes only to the user's own address, which already holds their account.
+export const sendSetupLink: AppRouteHandler<SendSetupLinkRoute> = async (c) => {
+  const user = personalUser(c)
+  if (!user) {
+    return forbidden(c)
+  }
+  const message = buildPushSetupLinkMessage()
+  void sendMail({ to: user.email, ...message }).catch(() => undefined)
+  return c.body(null, HttpStatusCodes.NO_CONTENT)
 }

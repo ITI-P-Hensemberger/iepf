@@ -1,6 +1,8 @@
 'use client'
 
 import * as React from 'react'
+
+import { PushCoverageCard } from '@/components/push-coverage-card'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   type ColumnDef,
@@ -1680,6 +1682,7 @@ export default function AdminStatsPage() {
             </TabsList>
 
             <TabsContent value='overview' className='mt-6 space-y-6'>
+              <PushCoverageCard />
               <div className='grid gap-4 md:grid-cols-2'>
                 <Card>
                   <CardHeader>

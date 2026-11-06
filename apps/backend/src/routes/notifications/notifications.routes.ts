@@ -55,6 +55,10 @@ export const preferencesSchema = z.object({
 
 export const updatePreferencesSchema = preferencesSchema.partial()
 
+export const devicesSchema = z.object({
+  count: z.number().int().min(0)
+})
+
 export const getPushConfig = createRoute({
   path: '/notifications/push/config',
   method: 'get',
@@ -132,6 +136,35 @@ export const updatePreferences = createRoute({
   }
 })
 
+export const getDevices = createRoute({
+  path: '/notifications/push/devices',
+  method: 'get',
+  tags,
+  security,
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(devicesSchema, 'How many devices of the current user receive push'),
+    [HttpStatusCodes.UNAUTHORIZED]: unauthorized
+  }
+})
+
+export const sendSetupLink = createRoute({
+  path: '/notifications/push/setup-link',
+  method: 'post',
+  tags,
+  security,
+  responses: {
+    [HttpStatusCodes.NO_CONTENT]: { description: 'Email sent to the user with the link to open IEPF on the phone' },
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
+      'One email every few minutes'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: forbidden,
+    [HttpStatusCodes.UNAUTHORIZED]: unauthorized
+  }
+})
+
+export type GetDevicesRoute = typeof getDevices
+export type SendSetupLinkRoute = typeof sendSetupLink
 export type GetPushConfigRoute = typeof getPushConfig
 export type SubscribeRoute = typeof subscribe
 export type UnsubscribeRoute = typeof unsubscribe

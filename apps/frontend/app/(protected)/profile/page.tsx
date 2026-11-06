@@ -603,8 +603,8 @@ export default function ProfilePage() {
               </Button>
             </CardFooter>
           </Card>
-          {(profile?.role === 'student' || profile?.role === 'tutor' || profile?.role === 'admin') && (
-            <NotificationSettings role={profile.role} />
+          {profile?.id && (profile.role === 'student' || profile.role === 'tutor' || profile.role === 'admin') && (
+            <NotificationSettings role={profile.role} userId={profile.id} />
           )}
         </div>
       </div>

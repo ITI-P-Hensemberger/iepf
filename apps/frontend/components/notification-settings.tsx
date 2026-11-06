@@ -7,19 +7,22 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import { notifyPushSetupChanged, openPushSetup } from '@/components/push-prompt'
+import { PushSetupGuide } from '@/components/push-setup-guide'
 import {
-  currentSubscription,
-  detectPushSupport,
   disablePush,
   enablePush,
+  fetchDeviceCount,
+  readPushEnvironment,
   refreshPushSubscription,
   emailPreference,
   type AdminCategory,
   type PreferenceKey,
   type PushPreferences,
-  type PushSupport,
   type UserCategory
 } from '@/lib/push-client'
+import { type PushSetupState, pushSetupState } from '@/lib/push-platform'
+import { setOptedOut } from '@/lib/push-prompt'
 
 const USER_LABELS: Array<{ key: UserCategory, label: string, description: string, tutorDescription?: string }> = [
   { key: 'bookings', label: 'Prenotazioni', description: 'Conferme, annullamenti e spostamenti delle lezioni.' },
@@ -43,31 +46,25 @@ const ADMIN_LABELS: Array<{ key: AdminCategory, label: string, description: stri
   { key: 'adminSubjectRequests', label: 'Richieste di materie', description: 'Ogni mattina, le richieste delle ultime 24 ore.' }
 ]
 
-type DeviceState = 'loading' | 'off' | 'on' | 'blocked'
-
-export function NotificationSettings({ role }: { role: 'student' | 'tutor' | 'admin' }) {
-  const [support, setSupport] = React.useState<PushSupport | null>(null)
-  const [device, setDevice] = React.useState<DeviceState>('loading')
+export function NotificationSettings({ role, userId }: { role: 'student' | 'tutor' | 'admin', userId: string }) {
+  const [device, setDevice] = React.useState<PushSetupState | 'done' | 'loading'>('loading')
+  const [deviceCount, setDeviceCount] = React.useState<number | null>(null)
   const [preferences, setPreferences] = React.useState<PushPreferences | null>(null)
   const [busy, setBusy] = React.useState(false)
 
-  React.useEffect(() => {
+  const evaluate = React.useCallback(async () => {
     // Nothing is asked here: the permission prompt only follows a click on "Attiva".
-    void (async () => {
-      const detected = detectPushSupport()
-      const usable = detected === 'supported' && Notification.permission !== 'denied'
-      const subscribed = usable ? Boolean(await currentSubscription().catch(() => null)) : false
-      if (subscribed) {
-        await refreshPushSubscription().catch(() => undefined)
-      }
-      setSupport(detected)
-      if (detected === 'supported' && Notification.permission === 'denied') {
-        setDevice('blocked')
-      } else {
-        setDevice(subscribed && Notification.permission === 'granted' ? 'on' : 'off')
-      }
-    })()
+    const state = pushSetupState(await readPushEnvironment())
+    if (state === 'enabled') {
+      await refreshPushSubscription().catch(() => undefined)
+    }
+    setDevice(state)
+    setDeviceCount(await fetchDeviceCount())
   }, [])
+
+  React.useEffect(() => {
+    void evaluate()
+  }, [evaluate])
 
   React.useEffect(() => {
     void (async () => {
@@ -78,16 +75,20 @@ export function NotificationSettings({ role }: { role: 'student' | 'tutor' | 'ad
     })()
   }, [])
 
-  async function handleEnable() {
+  const changed = React.useCallback(() => {
+    notifyPushSetupChanged()
+    void evaluate()
+  }, [evaluate])
+
+  // Computers only: phones go through PushSetupGuide.
+  async function handleEnableHere() {
     setBusy(true)
     try {
       await enablePush()
-      setDevice('on')
-      toast.success('Notifiche attivate su questo dispositivo.')
+      setOptedOut(window.localStorage, userId, false)
+      toast.success('Notifiche attivate su questo computer.')
+      changed()
     } catch (error) {
-      if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
-        setDevice('blocked')
-      }
       toast.error(error instanceof Error ? error.message : 'Non è stato possibile attivare le notifiche.')
     } finally {
       setBusy(false)
@@ -98,14 +99,21 @@ export function NotificationSettings({ role }: { role: 'student' | 'tutor' | 'ad
     setBusy(true)
     try {
       await disablePush()
-      setDevice('off')
+      // Off on purpose: no more requests on this device.
+      setOptedOut(window.localStorage, userId, true)
       toast.success('Notifiche disattivate su questo dispositivo.')
+      changed()
     } catch {
       toast.error('Non è stato possibile disattivare le notifiche.')
     } finally {
       setBusy(false)
     }
   }
+
+  // Avvisi admin che non arriverebbero da nessuna parte: email spenta e nessun dispositivo.
+  const unreachable = role === 'admin' && preferences && deviceCount === 0
+    ? ADMIN_LABELS.filter(category => !preferences[emailPreference(category.key)])
+    : []
 
   async function handleToggle(key: PreferenceKey, value: boolean) {
     const previous = preferences
@@ -143,35 +151,12 @@ export function NotificationSettings({ role }: { role: 'student' | 'tutor' | 'ad
       <CardContent className='flex flex-col gap-6'>
         <div className='flex flex-col gap-3'>
           <p className='text-sm font-medium'>Questo dispositivo</p>
-          {support === 'ios-needs-install' && (
-            <p className='text-sm text-muted-foreground'>
-              Su iPhone e iPad le notifiche funzionano solo dall&apos;app nella schermata Home: in Safari
-              tocca <strong>Condividi</strong>, poi <strong>Aggiungi alla schermata Home</strong>, apri IEPF
-              da lì e torna su questa pagina. Serve iOS 16.4 o successivo.
-            </p>
-          )}
-          {support === 'unsupported' && (
+          {device === 'unsupported' && (
             <p className='text-sm text-muted-foreground'>
               Questo browser non supporta le notifiche push.
             </p>
           )}
-          {support === 'supported' && device === 'blocked' && (
-            <p className='text-sm text-muted-foreground'>
-              Le notifiche sono bloccate per questo sito. Per riceverle, consentile dalle impostazioni
-              del browser e ricarica la pagina.
-            </p>
-          )}
-          {support === 'supported' && (device === 'off' || device === 'loading') && (
-            <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-              <p className='text-sm text-muted-foreground'>
-                Le notifiche non sono attive su questo dispositivo.
-              </p>
-              <Button type='button' onClick={handleEnable} disabled={busy || device === 'loading'}>
-                {busy ? 'Attivazione...' : 'Attiva le notifiche'}
-              </Button>
-            </div>
-          )}
-          {support === 'supported' && device === 'on' && (
+          {(device === 'enabled' || device === 'done') && (
             <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
               <p className='text-sm text-muted-foreground'>
                 Le notifiche sono attive su questo dispositivo, anche quando esci dall&apos;account.
@@ -181,7 +166,51 @@ export function NotificationSettings({ role }: { role: 'student' | 'tutor' | 'ad
               </Button>
             </div>
           )}
+          {device === 'desktop' && (
+            <div className='flex flex-col gap-3'>
+              <p className='text-sm text-muted-foreground'>
+                {deviceCount && deviceCount > 0
+                  ? `Le notifiche arrivano già su ${deviceCount === 1 ? 'un tuo dispositivo' : `${deviceCount} tuoi dispositivi`}. Su questo computer non sono attive.`
+                  : 'Le notifiche non sono attive su nessun tuo dispositivo. Ti consigliamo di attivarle sul telefono.'}
+              </p>
+              <div className='flex flex-col gap-2 sm:flex-row'>
+                {deviceCount === 0 && (
+                  <Button type='button' onClick={openPushSetup}>Attivale sul telefono</Button>
+                )}
+                <Button type='button' variant='outline' onClick={() => void handleEnableHere()} disabled={busy}>
+                  {busy ? 'Attivazione...' : 'Attiva su questo computer'}
+                </Button>
+              </div>
+            </div>
+          )}
+          {device !== 'loading' && device !== 'unsupported' && device !== 'enabled' && device !== 'done' && device !== 'desktop' && (
+            <PushSetupGuide
+              state={device}
+              userId={userId}
+              role={role}
+              showReason={false}
+              onStateChange={next => {
+                setDevice(next)
+                if (next === 'done') changed()
+              }}
+            />
+          )}
         </div>
+
+        {unreachable.length > 0 && (
+          <div className='rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100'>
+            <p className='font-medium'>Questi avvisi non ti arrivano da nessuna parte</p>
+            <p className='mt-1'>
+              Hai spento l&apos;email per {unreachable.map(category => category.label.toLowerCase()).join(', ')} e
+              non hai le notifiche attive su nessun dispositivo.
+            </p>
+            {device !== 'unsupported' && (
+              <Button type='button' size='sm' className='mt-3' onClick={openPushSetup}>
+                Attiva le notifiche
+              </Button>
+            )}
+          </div>
+        )}
 
         {preferences && (
           <div className='flex flex-col gap-3'>

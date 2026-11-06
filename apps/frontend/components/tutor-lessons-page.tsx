@@ -44,6 +44,7 @@ import { type DateRange } from 'react-day-picker'
 
 import { extractPayloadArray } from '@/lib/backend-response'
 import { useSession } from '@/lib/use-session'
+import { PushInviteCard } from '@/components/push-prompt'
 
 const pageSize = 20
 
@@ -435,6 +436,14 @@ export default function TutorLessonsPage() {
           </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <h1 className='text-2xl'>Lezioni</h1>
+          </div>
+          <div className='mt-4 empty:hidden'>
+            <PushInviteCard
+              userId={profile?.id}
+              role={profile?.role}
+              title='Ricevi un avviso se una lezione cambia'
+              description='Ti avvisiamo quando uno studente prenota o annulla, e quando una tua lezione viene spostata.'
+            />
           </div>
 
           <form

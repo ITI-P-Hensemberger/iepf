@@ -1,5 +1,7 @@
 'use client'
 
+import type { PushEnvironment } from '@/lib/push-platform'
+
 export type PushSupport =
   | 'supported'
   // iPhone and iPad: push only once the site is added to the Home Screen.
@@ -137,4 +139,83 @@ export async function disablePush() {
     body: JSON.stringify({ endpoint: subscription.endpoint })
   })
   await subscription.unsubscribe()
+}
+
+// --- Guided setup: the popup, the cards and the profile all read the device the same way.
+
+export function isImpersonating() {
+  return typeof document !== 'undefined'
+    && document.cookie.split(';').some(cookie => cookie.trim() === 'iepf_impersonating=true')
+}
+
+export async function readPushEnvironment(): Promise<PushEnvironment> {
+  const hasPushApi = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+  const permission = 'Notification' in window ? Notification.permission : null
+  const hasSubscription = hasPushApi && permission === 'granted'
+    ? Boolean(await currentSubscription().catch(() => null))
+    : false
+  return {
+    userAgent: navigator.userAgent,
+    maxTouchPoints: navigator.maxTouchPoints ?? 0,
+    standalone: isStandalone(),
+    hasPushApi,
+    permission,
+    hasSubscription
+  }
+}
+
+// The header, the popup and the cards all ask: one request per page load is enough.
+let configured: Promise<boolean> | null = null
+
+export function isPushConfigured() {
+  configured ??= (async () => {
+    try {
+      const response = await fetch('/api/notifications/push/config', { cache: 'no-store' })
+      if (!response.ok) return false
+      const config = await response.json() as { enabled?: boolean }
+      return config.enabled === true
+    } catch {
+      return false
+    }
+  })()
+  return configured
+}
+
+// Callers asking at the same moment share one request; the next call asks again.
+let devicesInFlight: Promise<number | null> | null = null
+
+export function fetchDeviceCount(): Promise<number | null> {
+  devicesInFlight ??= (async () => {
+    try {
+      const response = await fetch('/api/notifications/push/devices', { cache: 'no-store' })
+      if (!response.ok) return null
+      const payload = await response.json() as { count?: number }
+      return typeof payload.count === 'number' ? payload.count : null
+    } catch {
+      return null
+    } finally {
+      devicesInFlight = null
+    }
+  })()
+  return devicesInFlight
+}
+
+export async function emailSetupLink() {
+  const response = await fetch('/api/notifications/push/setup-link', { method: 'POST' })
+  if (response.status === 429) {
+    throw new Error('Ti abbiamo appena mandato il link: controlla la posta, o riprova tra qualche minuto.')
+  }
+  if (!response.ok) {
+    throw new Error('Non è stato possibile mandare l\'email.')
+  }
+}
+
+// A local notification right after enabling: proof that it works, with nothing sent by the server.
+export async function showTestNotification() {
+  const registration = await currentRegistration()
+  await registration?.showNotification('Notifiche attive', {
+    body: 'Da ora gli avvisi di IEPF arrivano anche qui.',
+    icon: '/icons/icon-192.png',
+    tag: 'iepf-push-test'
+  })
 }
