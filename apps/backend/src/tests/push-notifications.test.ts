@@ -294,7 +294,8 @@ describe('reminder pushes', () => {
 
     expect(sent).toHaveLength(1)
     const keys = await db.select().from(reminderDeliveries).where(like(reminderDeliveries.key, '%booking:1'))
-    expect(keys.map(row => row.key)).toEqual(['push:lessons-today:x:booking:1'])
+    // The panel entry has its own claim, so it is never repeated by a push retry.
+    expect(keys.map(row => row.key).sort()).toEqual(['inbox:lessons-today:x:booking:1', 'push:lessons-today:x:booking:1'])
   })
 
   it('give the claim back when no device could be reached', async () => {

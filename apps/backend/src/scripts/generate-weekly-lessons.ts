@@ -12,6 +12,7 @@ import { notifyStudentsOfNewLessons } from '@/lib/lessons-available'
 import { createMailBatch } from '@/lib/mail-batch'
 import { closeMailer } from '@/lib/mailer'
 import { assertMockEnvironment, MOCK_TUTOR_PATTERN } from '@/lib/mock-data'
+import { recordNotifications } from '@/lib/notification-inbox'
 import { lessonsGeneratedPush } from '@/lib/push-messages'
 import { createPushBatch } from '@/lib/reminder-delivery'
 
@@ -242,7 +243,10 @@ async function main() {
     }
     if (createdForTutor > 0) {
       teachingYears.push(tutor.year)
-      pushBatch.send(tutor.id, 'lessons', lessonsGeneratedPush({ count: createdForTutor, weekStart: targetMonday }))
+      const generatedPush = lessonsGeneratedPush({ count: createdForTutor, weekStart: targetMonday })
+      // Only lessons created by this run reach here, so a rerun adds no second entry.
+      await recordNotifications([tutor.id], 'lessons', generatedPush)
+      pushBatch.send(tutor.id, 'lessons', generatedPush)
     }
   }
 

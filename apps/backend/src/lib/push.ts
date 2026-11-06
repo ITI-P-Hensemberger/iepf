@@ -8,6 +8,7 @@ import db from '@/db'
 import { notificationPreferences } from '@/db/schemas/notification-preferences.schema'
 import { pushSubscriptions } from '@/db/schemas/push-subscriptions.schema'
 import env from '@/env'
+import { recordNotifications } from '@/lib/notification-inbox'
 import { createWebPushTransport } from '@/lib/web-push'
 
 export const USER_CATEGORIES = ['bookings', 'reminders', 'feedback', 'account', 'lessons'] as const
@@ -158,7 +159,9 @@ export async function deliverPush(userIds: string[], category: PushCategory, mes
 const pendingPush = new Set<Promise<unknown>>()
 
 // For request handlers: like sendMail, it is not awaited, so shutdown has to wait for it.
+// The panel keeps every notification, so it is written even when push is off.
 export function notifyUsers(userIds: string[], category: PushCategory, message: PushMessage) {
+  trackNotificationTask(recordNotifications(userIds, category, message))
   if (!config) {
     return
   }

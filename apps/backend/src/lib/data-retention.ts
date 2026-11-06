@@ -1,5 +1,6 @@
 // Purpose: Delete data that is no longer needed: old audit logs, expired tokens and push
-// subscriptions of devices that have been silent for months, and who closed long-expired popups.
+// subscriptions of devices that have been silent for months, who closed long-expired popups,
+// and notifications older than the panel keeps.
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 
 import { and, inArray, isNotNull, lt } from 'drizzle-orm'
@@ -9,9 +10,11 @@ import { adminInviteTokens } from '@/db/schemas/admin-invite-tokens.schema'
 import { announcementDismissals, announcements } from '@/db/schemas/announcements.schema'
 import { auditLogs } from '@/db/schemas/audit-logs.schema'
 import { emailVerificationTokens } from '@/db/schemas/email-verification-tokens.schema'
+import { notifications } from '@/db/schemas/notifications.schema'
 import { passwordResetTokens } from '@/db/schemas/password-reset-tokens.schema'
 import { refreshTokens } from '@/db/schemas/refresh-tokens.schema'
 import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
+import { KEEP_NOTIFICATIONS_DAYS } from '@/lib/notification-inbox'
 import { deleteStaleSubscriptions } from '@/lib/push'
 
 export const AUDIT_LOG_RETENTION_DAYS = 90
@@ -46,6 +49,7 @@ async function deleteExpiredPopupDismissals(now: Date) {
 
 export async function cleanUpExpiredData(now = new Date()) {
   const auditCutoff = new Date(now.getTime() - AUDIT_LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000)
+  const notificationsCutoff = new Date(now.getTime() - KEEP_NOTIFICATIONS_DAYS * 24 * 60 * 60 * 1000)
 
   return {
     auditLogs: await deleteOlderThan(auditLogs, auditLogs.id, auditLogs.createdAt, auditCutoff),
@@ -55,6 +59,7 @@ export async function cleanUpExpiredData(now = new Date()) {
     adminInviteTokens: await deleteOlderThan(adminInviteTokens, adminInviteTokens.id, adminInviteTokens.expiresAt, now),
     tutorInviteTokens: await deleteOlderThan(tutorInviteTokens, tutorInviteTokens.id, tutorInviteTokens.expiresAt, now),
     pushSubscriptions: await deleteStaleSubscriptions(now),
-    announcementDismissals: await deleteExpiredPopupDismissals(now)
+    announcementDismissals: await deleteExpiredPopupDismissals(now),
+    notifications: await deleteOlderThan(notifications, notifications.id, notifications.createdAt, notificationsCutoff)
   }
 }
