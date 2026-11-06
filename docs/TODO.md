@@ -459,6 +459,26 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Stima:** L (S per la sola valutazione)
   - **Dipendenze:** 22, 23, 24
 
+- [ ] **26. Azzerare i warning lint del frontend**
+  - **Problema:** su `main` (`39e38ab`, 2026-11-06) `npx eslint .` in `apps/frontend` dà
+    **73 warning** (0 errori) in 31 file, tutti dalle regole React Compiler di
+    `eslint-plugin-react-hooks`: `set-state-in-effect` 63, `incompatible-library` 4,
+    `preserve-manual-memoization` 3, `purity` 2, `immutability` 1. Non bloccano CI né build,
+    ma nascondono i warning nuovi di ogni PR. Il backend è già pulito.
+  - **File:** i più colpiti sono `components/admin-tutors-page.tsx` (6),
+    `components/admin-lesson-details-page.tsx` (5) e varie pagine admin e studente (4 ciascuna).
+    Elenco completo con `npx eslint . -f json`.
+  - **Evidenza:** `Verificato`.
+  - **Fatto quando:** `npx eslint .` in `apps/frontend` non dà warning, senza cambi di
+    comportamento e con le pagine toccate provate in locale. I 4 `incompatible-library` vengono da
+    `useReactTable` di TanStack Table e non si correggono: si silenziano con un commento che dice
+    perché. I casi che richiedono un refactor grande restano silenziati con il motivo e passano al
+    punto 25. Da quel momento conviene far fallire la CI sui warning (`--max-warnings 0`).
+  - **Stima:** M
+  - **PR:** dedicata, anche più di una, divise per tipo di correzione.
+  - **Dipendenze:** 25 (molti `set-state-in-effect` sono caricamenti dati che TanStack Query
+    eliminerebbe: se si fa prima il 25, questo punto si riduce)
+
 ---
 
 ## Corrispondenza con la lista iniziale
