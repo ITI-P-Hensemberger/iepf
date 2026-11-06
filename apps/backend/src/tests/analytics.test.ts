@@ -79,7 +79,7 @@ describe('sanitizeDetail', () => {
   })
 })
 
-describe('pOST /analytics/events', () => {
+describe('collecting usage counts', () => {
   it('adds counts per day, role and school year, without anything about the person', async () => {
     const response = await send(tokens.student, [
       { event: 'page_view', detail: '/student/book', count: 2 },

@@ -22,7 +22,7 @@ import { axisProps, ChartCard, ChartTooltip, DataView, EmptyChart, formatNumber,
 import { useJson } from '@/components/admin-stats/use-json'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-const RANGES = [
+export const RANGES = [
   { days: 7, label: 'Ultimi 7 giorni' },
   { days: 30, label: 'Ultimi 30 giorni' },
   { days: 90, label: 'Ultimi 90 giorni' },
@@ -32,8 +32,8 @@ const RANGES = [
 const dayFormat = new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 const formatDay = (day: string) => dayFormat.format(new Date(`${day}T00:00:00Z`))
 
-function HorizontalBars({ rows, label, color = 'var(--viz-1)' }: { rows: Array<{ name: string, count: number }>, label: string, color?: string }) {
-  if (rows.length === 0) return <EmptyChart />
+export function HorizontalBars({ rows, label, color = 'var(--viz-1)', empty }: { rows: Array<{ name: string, count: number }>, label: string, color?: string, empty?: string }) {
+  if (rows.length === 0) return <EmptyChart>{empty}</EmptyChart>
   return (
     <div style={{ height: Math.max(120, rows.length * 32 + 24) }}>
       <ResponsiveContainer width='100%' height='100%'>
@@ -141,7 +141,7 @@ function Funnel({ payload }: { payload: AnalyticsPayload }) {
   )
 }
 
-function PushChart({ payload }: { payload: AnalyticsPayload }) {
+export function PushChart({ payload }: { payload: AnalyticsPayload }) {
   const rows = pushByCategory(payload)
   if (rows.length === 0) return <EmptyChart />
   const series = [
@@ -177,15 +177,27 @@ function PushChart({ payload }: { payload: AnalyticsPayload }) {
   )
 }
 
+export function RangeSelect({ days, onChange }: { days: number, onChange: (days: number) => void }) {
+  return (
+    <Select value={String(days)} onValueChange={value => onChange(Number(value))}>
+      <SelectTrigger className='w-full sm:w-48' aria-label='Periodo'>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {RANGES.map(range => <SelectItem key={range.days} value={String(range.days)}>{range.label}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  )
+}
+
 export function AnalyticsTab() {
   const [days, setDays] = React.useState(30)
   const { data: payload, loading } = useJson<AnalyticsPayload>(`/api/admin/stats/analytics?days=${days}`, 'Impossibile caricare le statistiche d\'uso.')
 
   const pages = payload ? detailCounts(payload, 'page_view').slice(0, 12).map(row => ({ name: pageLabel(row.detail), count: row.count })) : []
   const errors = payload ? detailCounts(payload, 'client_error').slice(0, 10) : []
-  const pushSent = payload ? eventTotal(payload, 'push_sent') : 0
-  const pushOpened = payload ? eventTotal(payload, 'push_open') : 0
-  const openRate = percent(pushOpened, pushSent)
+  const funnel = payload ? bookingFunnel(payload) : null
+  const bookedRate = funnel ? percent(funnel.booked, funnel.attempts) : null
 
   return (
     <div className='space-y-6'>
@@ -194,14 +206,7 @@ export function AnalyticsTab() {
           Conteggi giornalieri per ruolo e anno, senza nomi, email, IP o identificativi. Niente durante l&apos;impersonazione
           e niente da chi ha attivato &quot;Do Not Track&quot; o Global Privacy Control. Conservati 13 mesi.
         </p>
-        <Select value={String(days)} onValueChange={value => setDays(Number(value))}>
-          <SelectTrigger className='w-full sm:w-48' aria-label='Periodo'>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {RANGES.map(range => <SelectItem key={range.days} value={String(range.days)}>{range.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <RangeSelect days={days} onChange={setDays} />
       </div>
 
       {!payload
@@ -211,7 +216,7 @@ export function AnalyticsTab() {
               <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-4'>
                 <StatTile label='Utenti attivi al giorno' value={formatNumber(averageDailyActive(payload))} hint='Media dei giorni conteggiati' />
                 <StatTile label='Pagine viste' value={formatNumber(eventTotal(payload, 'page_view'))} />
-                <StatTile label='Push aperte' value={openRate == null ? '-' : `${openRate}%`} hint={`${formatNumber(pushOpened)} su ${formatNumber(pushSent)} inviate`} />
+                <StatTile label='Prenotazioni riuscite' value={bookedRate == null ? '-' : `${bookedRate}%`} hint={funnel ? `${formatNumber(funnel.booked)} su ${formatNumber(funnel.attempts)} tentativi` : undefined} />
                 <StatTile label='Errori nel browser' value={formatNumber(eventTotal(payload, 'client_error'))} />
               </div>
 
@@ -237,41 +242,23 @@ export function AnalyticsTab() {
                 </ChartCard>
               </div>
 
-              <ChartCard title='Notifiche push per tipo' description='Inviate ai dispositivi e aperte toccando la notifica.'>
-                <PushChart payload={payload} />
+              <ChartCard title='Errori nel browser' description='Tipo di errore e pagina; il messaggio non viene salvato.'>
+                {errors.length === 0
+                  ? <EmptyChart>Nessun errore nel periodo.</EmptyChart>
+                  : (
+                      <ul className='divide-y text-sm'>
+                        {errors.map(row => {
+                          const [name, page] = row.detail.split('@')
+                          return (
+                            <li key={row.detail} className='flex items-center justify-between gap-3 py-2'>
+                              <span><span className='font-medium'>{name}</span> <span className='text-muted-foreground'>su {pageLabel(page ?? 'other')}</span></span>
+                              <span className='tabular-nums'>{formatNumber(row.count)}</span>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
               </ChartCard>
-
-              <div className='grid gap-6 lg:grid-cols-2'>
-                <ChartCard title='Campanella'>
-                  <dl className='grid grid-cols-2 gap-4'>
-                    <div>
-                      <dt className='text-sm text-muted-foreground'>Pannello aperto</dt>
-                      <dd className='text-2xl font-semibold tabular-nums'>{formatNumber(eventTotal(payload, 'bell_open'))}</dd>
-                    </div>
-                    <div>
-                      <dt className='text-sm text-muted-foreground'>Notifiche toccate</dt>
-                      <dd className='text-2xl font-semibold tabular-nums'>{formatNumber(eventTotal(payload, 'inbox_click'))}</dd>
-                    </div>
-                  </dl>
-                </ChartCard>
-                <ChartCard title='Errori nel browser' description='Tipo di errore e pagina; il messaggio non viene salvato.'>
-                  {errors.length === 0
-                    ? <EmptyChart>Nessun errore nel periodo.</EmptyChart>
-                    : (
-                        <ul className='divide-y text-sm'>
-                          {errors.map(row => {
-                            const [name, page] = row.detail.split('@')
-                            return (
-                              <li key={row.detail} className='flex items-center justify-between gap-3 py-2'>
-                                <span><span className='font-medium'>{name}</span> <span className='text-muted-foreground'>su {pageLabel(page ?? 'other')}</span></span>
-                                <span className='tabular-nums'>{formatNumber(row.count)}</span>
-                              </li>
-                            )
-                          })}
-                        </ul>
-                      )}
-                </ChartCard>
-              </div>
             </div>
           )}
     </div>

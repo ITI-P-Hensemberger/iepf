@@ -1,109 +1,161 @@
 'use client'
 
-import type { ColumnDef } from '@tanstack/react-table'
-
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
+import type { StatsColumn } from '@/components/admin-stats/data-table'
 import type { StatsListConfig } from '@/components/admin-stats/stats-list'
 
 import { AnalyticsTab } from '@/components/admin-stats/analytics-tab'
+import { ExportsTab } from '@/components/admin-stats/exports-tab'
 import { FeedbackTab } from '@/components/admin-stats/feedback-tab'
+import { NotificationsTab } from '@/components/admin-stats/notifications-tab'
 import { OverviewTab } from '@/components/admin-stats/overview-tab'
 import { StatsList } from '@/components/admin-stats/stats-list'
 import { BackButton } from '@/components/back-button'
+import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 type SubjectTutorCount = { subjectId: string, name: string, tutorCount: number }
-type SubjectRequestSummary = { subjectName: string, requestCount: number }
-type LessonCountRow = { firstName: string, lastName: string, sectionName: string | null, countedLessons: number }
+type SubjectRequestSummary = { subjectName: string, canonicalName: string, requestCount: number }
+type Person = { email: string, firstName: string, lastName: string, sectionName: string | null, countedLessons: number }
+type TutorRow = Person & {
+  tutorId: string
+  lessonsScheduledCounted: number
+  lessonsScheduledNotCounted: number
+  lessonsConfirmedCounted: number
+  lessonsConfirmedNotCounted: number
+  lessonsCancelledCounted: number
+  lessonsCancelledNotCounted: number
+  lessonsCompletedCounted: number
+  lessonsCompletedNotCounted: number
+}
+type StudentRow = Person & {
+  studentId: string
+  lessonsPresentCounted: number
+  lessonsPresentNotCounted: number
+  lessonsAbsentCounted: number
+  lessonsAbsentNotCounted: number
+  lessonsWithoutPresenceCounted: number
+  lessonsWithoutPresenceNotCounted: number
+}
 
-function numberColumn<T>(key: keyof T & string, header: string): ColumnDef<T> {
+// Some counts arrive as strings (Postgres bigint): add them as numbers.
+const n = (value: number | string | null | undefined) => Number(value ?? 0)
+
+function nameColumn<T extends Person>(header: string): StatsColumn<T> {
   return {
-    accessorKey: key,
-    header: () => <div className='text-right'>{header}</div>,
-    cell: ({ row }) => <div className='text-right tabular-nums'>{String(row.original[key])}</div>
+    key: 'name',
+    header,
+    sortKey: 'lastName',
+    cell: row => (
+      <div className='min-w-0'>
+        <div className='font-medium'>{row.lastName} {row.firstName}</div>
+        <div className='truncate text-xs text-muted-foreground'>{row.email}</div>
+      </div>
+    )
   }
 }
 
-function peopleColumns(header: string): ColumnDef<LessonCountRow>[] {
-  return [
-    { accessorKey: 'lastName', header, cell: ({ row }) => `${row.original.lastName} ${row.original.firstName}` },
-    { accessorKey: 'sectionName', header: 'Sezione', cell: ({ row }) => row.original.sectionName ?? '-' },
-    numberColumn<LessonCountRow>('countedLessons', 'Lezioni')
-  ]
+function numberColumn<T>(key: string, header: string, value: (row: T) => number, sortKey?: string): StatsColumn<T> {
+  return { key, header, sortKey, numeric: true, cell: value }
 }
 
-const PEOPLE_SORT = [
-  { value: 'lastName', label: 'Cognome' },
-  { value: 'firstName', label: 'Nome' },
-  { value: 'email', label: 'Email' },
-  { value: 'sectionName', label: 'Sezione' },
-  { value: 'countedLessons', label: 'Lezioni' }
-]
+const sectionColumn = <T extends Person>(): StatsColumn<T> => ({ key: 'section', header: 'Sezione', sortKey: 'sectionName', cell: row => row.sectionName ?? '–' })
+
+const TUTORS: StatsListConfig<TutorRow> = {
+  key: 'tutors',
+  title: 'Tutor',
+  description: 'Lezioni per tutor. "Conteggiate" sono quelle valide per le ore del tutor.',
+  endpoint: '/api/admin/stats/lessons-counts/tutors',
+  searchPlaceholder: 'Nome, cognome, email o sezione',
+  defaultSort: { sortBy: 'lastName', sortDir: 'asc' },
+  descendingFirst: ['countedLessons'],
+  columns: [
+    nameColumn('Tutor'),
+    sectionColumn(),
+    numberColumn('counted', 'Conteggiate', row => n(row.countedLessons), 'countedLessons'),
+    numberColumn('completed', 'Completate', row => n(row.lessonsCompletedCounted) + n(row.lessonsCompletedNotCounted)),
+    numberColumn('upcoming', 'In programma', row => n(row.lessonsScheduledCounted) + n(row.lessonsScheduledNotCounted) + n(row.lessonsConfirmedCounted) + n(row.lessonsConfirmedNotCounted)),
+    numberColumn('canceled', 'Annullate', row => n(row.lessonsCancelledCounted) + n(row.lessonsCancelledNotCounted))
+  ],
+  rowKey: row => row.tutorId,
+  emptyMessage: 'Nessun tutor.',
+  errorMessage: 'Impossibile caricare le statistiche tutor.'
+}
+
+const STUDENTS: StatsListConfig<StudentRow> = {
+  key: 'students',
+  title: 'Studenti',
+  description: 'Lezioni prenotate per studente e presenze registrate dai tutor.',
+  endpoint: '/api/admin/stats/lessons-counts/students',
+  searchPlaceholder: 'Nome, cognome, email o sezione',
+  defaultSort: { sortBy: 'lastName', sortDir: 'asc' },
+  descendingFirst: ['countedLessons'],
+  columns: [
+    nameColumn('Studente'),
+    sectionColumn(),
+    numberColumn('counted', 'Conteggiate', row => n(row.countedLessons), 'countedLessons'),
+    numberColumn('present', 'Presenze', row => n(row.lessonsPresentCounted) + n(row.lessonsPresentNotCounted)),
+    numberColumn('absent', 'Assenze', row => n(row.lessonsAbsentCounted) + n(row.lessonsAbsentNotCounted)),
+    numberColumn('unrecorded', 'Da registrare', row => n(row.lessonsWithoutPresenceCounted) + n(row.lessonsWithoutPresenceNotCounted))
+  ],
+  rowKey: row => row.studentId,
+  emptyMessage: 'Nessuno studente.',
+  errorMessage: 'Impossibile caricare le statistiche studenti.'
+}
 
 const SUBJECTS: StatsListConfig<SubjectTutorCount> = {
   key: 'subjects',
-  title: 'Tutor per materia',
+  title: 'Materie',
+  description: 'Quanti tutor insegnano ogni materia. Le materie senza tutor non sono prenotabili.',
   endpoint: '/api/admin/stats/subjects-tutor-counts',
-  searchPlaceholder: 'Nome materia',
-  sortOptions: [
-    { value: 'name', label: 'Nome' },
-    { value: 'canonicalName', label: 'Nome canonico' },
-    { value: 'tutorCount', label: 'Tutor' }
-  ],
+  searchPlaceholder: 'Nome della materia',
   defaultSort: { sortBy: 'name', sortDir: 'asc' },
-  columns: [{ accessorKey: 'name', header: 'Materia' }, numberColumn<SubjectTutorCount>('tutorCount', 'Tutor')],
-  emptyMessage: 'Nessun risultato trovato.',
+  descendingFirst: ['tutorCount'],
+  columns: [
+    { key: 'name', header: 'Materia', sortKey: 'name', cell: row => row.name },
+    {
+      key: 'tutors',
+      header: 'Tutor',
+      sortKey: 'tutorCount',
+      numeric: true,
+      cell: row => n(row.tutorCount) > 0 ? n(row.tutorCount) : <Badge variant='outline'>Nessun tutor</Badge>
+    }
+  ],
+  rowKey: row => row.subjectId,
+  emptyMessage: 'Nessuna materia.',
   errorMessage: 'Impossibile caricare le statistiche materie.'
 }
 
 const SUBJECT_REQUESTS: StatsListConfig<SubjectRequestSummary> = {
   key: 'subjectRequests',
   title: 'Richieste di nuove materie',
+  description: 'Materie che gli studenti hanno chiesto e che nessun tutor insegna ancora.',
   endpoint: '/api/subject-requests',
   extraParams: { mode: 'summary' },
-  searchPlaceholder: 'Nome materia',
-  sortOptions: [
-    { value: 'subjectName', label: 'Materia' },
-    { value: 'requestCount', label: 'Richieste' }
-  ],
+  searchPlaceholder: 'Nome della materia',
   defaultSort: { sortBy: 'requestCount', sortDir: 'desc' },
-  columns: [{ accessorKey: 'subjectName', header: 'Materia' }, numberColumn<SubjectRequestSummary>('requestCount', 'Richieste')],
-  emptyMessage: 'Nessuna richiesta trovata.',
+  descendingFirst: ['requestCount'],
+  columns: [
+    { key: 'subject', header: 'Materia', sortKey: 'subjectName', cell: row => row.subjectName },
+    numberColumn('requests', 'Studenti che la chiedono', row => n(row.requestCount), 'requestCount')
+  ],
+  rowKey: row => row.canonicalName ?? row.subjectName,
+  emptyMessage: 'Nessuna richiesta.',
   errorMessage: 'Impossibile caricare le richieste materia.'
 }
 
-const TUTORS: StatsListConfig<LessonCountRow> = {
-  key: 'tutors',
-  title: 'Lezioni conteggiate per tutor',
-  endpoint: '/api/admin/stats/lessons-counts/tutors',
-  searchPlaceholder: 'Nome o cognome',
-  sortOptions: PEOPLE_SORT,
-  defaultSort: { sortBy: 'lastName', sortDir: 'asc' },
-  columns: peopleColumns('Tutor'),
-  emptyMessage: 'Nessun risultato trovato.',
-  errorMessage: 'Impossibile caricare le statistiche tutor.'
-}
-
-const STUDENTS: StatsListConfig<LessonCountRow> = {
-  ...TUTORS,
-  key: 'students',
-  title: 'Lezioni conteggiate per studente',
-  endpoint: '/api/admin/stats/lessons-counts/students',
-  columns: peopleColumns('Studente'),
-  errorMessage: 'Impossibile caricare le statistiche studenti.'
-}
-
-// Analytics sits right after the overview: it answers "is the site being used?".
 const TABS = [
   { value: 'overview', label: 'Panoramica', content: () => <OverviewTab /> },
   { value: 'usage', label: 'Utilizzo', content: () => <AnalyticsTab /> },
+  { value: 'notifications', label: 'Notifiche', content: () => <NotificationsTab /> },
   { value: 'tutors', label: 'Tutor', content: () => <StatsList config={TUTORS} /> },
   { value: 'students', label: 'Studenti', content: () => <StatsList config={STUDENTS} /> },
   { value: 'subjects', label: 'Materie', content: () => <StatsList config={SUBJECTS} /> },
-  { value: 'subject-requests', label: 'Richieste materie', content: () => <StatsList config={SUBJECT_REQUESTS} /> },
-  { value: 'feedback', label: 'Feedback', content: () => <FeedbackTab /> }
+  { value: 'subject-requests', label: 'Richieste', content: () => <StatsList config={SUBJECT_REQUESTS} /> },
+  { value: 'feedback', label: 'Feedback', content: () => <FeedbackTab /> },
+  { value: 'exports', label: 'Esportazioni', content: () => <ExportsTab /> }
 ] as const
 
 export default function AdminStatsPage() {
@@ -114,6 +166,7 @@ export default function AdminStatsPage() {
   const activeTab = TABS.some(tab => tab.value === requested) ? requested! : 'overview'
 
   const changeTab = (value: string) => {
+    // Each tab keeps its own filters in the URL; switching tab only changes `tab`.
     const params = new URLSearchParams(searchParams.toString())
     if (value === 'overview') params.delete('tab')
     else params.set('tab', value)
@@ -139,7 +192,7 @@ export default function AdminStatsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <TabsList className='hidden w-full md:grid md:grid-cols-7'>
+            <TabsList className='hidden w-full md:grid md:grid-cols-9'>
               {TABS.map(tab => <TabsTrigger key={tab.value} value={tab.value} className='w-full'>{tab.label}</TabsTrigger>)}
             </TabsList>
 

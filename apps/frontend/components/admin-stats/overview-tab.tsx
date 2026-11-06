@@ -1,84 +1,46 @@
 'use client'
 
-import * as React from 'react'
-import { toast } from 'sonner'
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
-import { csvFilename, downloadCsv, fetchAllPages, STUDENT_CSV_HEADERS, toCsv, TUTOR_CSV_HEADERS } from '@/components/admin-stats/csv'
+import { axisProps, ChartCard, ChartTooltip, DataView, EmptyChart, formatNumber, gridProps, Legend, StatTile } from '@/components/admin-stats/charts'
 import { useJson } from '@/components/admin-stats/use-json'
-import { PushCoverageCard } from '@/components/push-coverage-card'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 type Total = { total?: number }
 type StudentStatus = { active?: number, inactive?: number, pendingEmailVerification?: number }
 type TutorStatus = { active?: number, inactive?: number, invites?: number }
-
-export type UserRow = {
-  id?: string
-  firstName: string
-  lastName: string
-  email: string
-  sectionName?: string | null
-  year?: number | null
-  isActive?: boolean | null
-  lessonTokens?: number | null
+type Overview = {
+  lessonsByStatus: { scheduled: number, confirmed: number, completed: number, canceled: number }
+  attendance: { present: number, absent: number, unrecorded: number }
+  months: Array<{ month: string, lessons: number, completed: number, bookings: number, present: number, absent: number }>
 }
 
-type LessonStats = Record<string, number | string | null> & { studentId?: string, tutorId?: string }
+const monthFormat = new Intl.DateTimeFormat('it-IT', { month: 'short', year: '2-digit', timeZone: 'UTC' })
+const monthLabel = (month: string) => monthFormat.format(new Date(`${month}-01T00:00:00Z`))
 
-export function fetchAllUsers(role: 'student' | 'tutor') {
-  return fetchAllPages<UserRow>(
-    (offset, limit) => `/api/users?${new URLSearchParams({ role, sortBy: 'lastName', sortDir: 'asc', limit: String(limit), offset: String(offset) })}`,
-    'Impossibile scaricare gli utenti.'
-  )
-}
+const value = (n: number | undefined) => (n === undefined ? '-' : formatNumber(Number(n)))
 
-// Every user of the role with their lesson counts, as one CSV.
-async function exportUsersCsv(role: 'student' | 'tutor') {
-  const [users, stats] = await Promise.all([
-    fetchAllUsers(role),
-    fetchAllPages<LessonStats>(
-      (offset, limit) => `/api/admin/stats/lessons-counts/${role}s?${new URLSearchParams({ sortBy: 'lastName', sortDir: 'asc', limit: String(limit), offset: String(offset) })}`,
-      'Impossibile scaricare gli utenti.'
-    )
-  ])
-  const statsById = new Map(stats.map(row => [row.studentId ?? row.tutorId, row]))
-  const headers = role === 'student' ? STUDENT_CSV_HEADERS : TUTOR_CSV_HEADERS
-  const rows = users.map((user) => {
-    const userStats = statsById.get(user.id) ?? {}
-    // Lesson counts default to 0 for users who never had a lesson.
-    const counts = Object.fromEntries(headers.filter(header => header.startsWith('lessons')).map(header => [header, userStats[header] ?? 0]))
-    return { ...user, ...counts }
-  })
-  downloadCsv(csvFilename(`${role}s`), toCsv<string>(headers, rows))
-}
-
-function Stat({ label, value }: { label: string, value: number | undefined }) {
+function Breakdown({ rows }: { rows: Array<{ label: string, count: number | undefined, color: string }> }) {
+  const total = rows.reduce((sum, row) => sum + Number(row.count ?? 0), 0)
   return (
-    <div className='flex items-center justify-between'>
-      <span className='text-sm text-muted-foreground'>{label}</span>
-      <span className='font-semibold tabular-nums'>{value ?? '-'}</span>
+    <div className='space-y-3'>
+      {/* One bar split by share: each part keeps its colour, labels carry the numbers. */}
+      <div className='flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-muted' aria-hidden>
+        {total > 0 && rows.map(row => (
+          <div key={row.label} style={{ width: `${(Number(row.count ?? 0) / total) * 100}%`, background: row.color }} />
+        ))}
+      </div>
+      <dl className='grid gap-2'>
+        {rows.map(row => (
+          <div key={row.label} className='flex items-center justify-between gap-3 text-sm'>
+            <dt className='flex items-center gap-2 text-muted-foreground'>
+              <span className='size-2.5 rounded-sm' style={{ background: row.color }} aria-hidden />
+              {row.label}
+            </dt>
+            <dd className='font-semibold tabular-nums'>{value(row.count)}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
-  )
-}
-
-function ExportButton({ role }: { role: 'student' | 'tutor' }) {
-  const [busy, setBusy] = React.useState(false)
-  return (
-    <Button
-      type='button'
-      variant='outline'
-      size='sm'
-      disabled={busy}
-      onClick={() => {
-        setBusy(true)
-        exportUsersCsv(role)
-          .catch(error => toast.error(error instanceof Error ? error.message : 'Impossibile scaricare gli utenti.'))
-          .finally(() => setBusy(false))
-      }}
-    >
-      {busy ? 'Download...' : 'Download CSV'}
-    </Button>
   )
 }
 
@@ -87,50 +49,86 @@ export function OverviewTab() {
   const bookings = useJson<Total>('/api/admin/stats/bookings-confirmed/count', 'Impossibile caricare i conteggi delle lezioni.')
   const students = useJson<StudentStatus>('/api/admin/stats/students/status-counts', 'Impossibile caricare i conteggi utenti.')
   const tutors = useJson<TutorStatus>('/api/admin/stats/tutors/status-counts', 'Impossibile caricare i conteggi utenti.')
+  const overview = useJson<Overview>('/api/admin/stats/overview', 'Impossibile caricare l\'andamento.')
+
+  const attendance = overview.data?.attendance
+  const recorded = attendance ? attendance.present + attendance.absent : 0
+  const months = (overview.data?.months ?? []).map(row => ({ ...row, label: monthLabel(row.month) }))
 
   return (
     <div className='space-y-6'>
-      <div className='grid gap-4 md:grid-cols-2'>
-        <Card>
-          <CardHeader><CardTitle>Lezioni confermate</CardTitle></CardHeader>
-          <CardContent><div className='text-3xl font-semibold tabular-nums'>{lessons.data?.total ?? '-'}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle>Prenotazioni confermate</CardTitle></CardHeader>
-          <CardContent><div className='text-3xl font-semibold tabular-nums'>{bookings.data?.total ?? '-'}</div></CardContent>
-        </Card>
+      <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-4'>
+        <StatTile label='Studenti attivi' value={value(students.data?.active)} />
+        <StatTile label='Tutor attivi' value={value(tutors.data?.active)} />
+        <StatTile label='Lezioni confermate' value={value(lessons.data?.total)} hint='Con almeno una prenotazione' />
+        <StatTile
+          label='Presenza'
+          value={attendance && recorded > 0 ? `${Math.round((attendance.present / recorded) * 100)}%` : '-'}
+          hint={attendance ? `${formatNumber(attendance.present)} presenze su ${formatNumber(recorded)} registrate` : undefined}
+        />
       </div>
 
-      <div className='grid gap-4 md:grid-cols-2'>
-        <Card>
-          <CardHeader>
-            <div className='flex items-center justify-between gap-3'>
-              <CardTitle>Studenti</CardTitle>
-              <ExportButton role='student' />
-            </div>
-          </CardHeader>
-          <CardContent className='space-y-2'>
-            <Stat label='Attivi' value={students.data?.active} />
-            <Stat label='Inattivi' value={students.data?.inactive} />
-            <Stat label='Email da verificare' value={students.data?.pendingEmailVerification} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <div className='flex items-center justify-between gap-3'>
-              <CardTitle>Tutor</CardTitle>
-              <ExportButton role='tutor' />
-            </div>
-          </CardHeader>
-          <CardContent className='space-y-2'>
-            <Stat label='Attivi' value={tutors.data?.active} />
-            <Stat label='Inattivi' value={tutors.data?.inactive} />
-            <Stat label='Inviti' value={tutors.data?.invites} />
-          </CardContent>
-        </Card>
-      </div>
+      <ChartCard title='Lezioni e prenotazioni per mese' description='Negli ultimi 12 mesi, nel mese in cui si svolge la lezione.'>
+        {months.length === 0
+          ? <EmptyChart>{overview.loading ? 'Caricamento...' : 'Nessuna lezione negli ultimi 12 mesi.'}</EmptyChart>
+          : (
+              <>
+                <Legend items={[{ label: 'Lezioni', color: 'var(--viz-1)' }, { label: 'Prenotazioni', color: 'var(--viz-2)' }]} />
+                <div className='h-72'>
+                  <ResponsiveContainer width='100%' height='100%'>
+                    <BarChart data={months} barGap={2} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+                      <CartesianGrid {...gridProps} />
+                      <XAxis dataKey='label' {...axisProps} />
+                      <YAxis allowDecimals={false} {...axisProps} />
+                      <Tooltip cursor={{ fill: 'var(--muted)', opacity: 0.5 }} content={<ChartTooltip />} />
+                      <Bar dataKey='lessons' name='Lezioni' fill='var(--viz-1)' radius={[4, 4, 0, 0]} maxBarSize={28} />
+                      <Bar dataKey='bookings' name='Prenotazioni' fill='var(--viz-2)' radius={[4, 4, 0, 0]} maxBarSize={28} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <DataView
+                  rows={months}
+                  columns={[
+                    { key: 'label', label: 'Mese' },
+                    { key: 'lessons', label: 'Lezioni', numeric: true },
+                    { key: 'completed', label: 'Completate', numeric: true },
+                    { key: 'bookings', label: 'Prenotazioni', numeric: true },
+                    { key: 'present', label: 'Presenze', numeric: true },
+                    { key: 'absent', label: 'Assenze', numeric: true }
+                  ]}
+                />
+              </>
+            )}
+      </ChartCard>
 
-      <PushCoverageCard />
+      <div className='grid gap-6 lg:grid-cols-3'>
+        <ChartCard title='Studenti'>
+          <Breakdown rows={[
+            { label: 'Attivi', count: students.data?.active, color: 'var(--viz-1)' },
+            { label: 'In attesa di attivazione', count: students.data?.inactive, color: 'var(--viz-2)' },
+            { label: 'Email da verificare', count: students.data?.pendingEmailVerification, color: 'var(--viz-4)' }
+          ]}
+          />
+        </ChartCard>
+        <ChartCard title='Tutor'>
+          <Breakdown rows={[
+            { label: 'Attivi', count: tutors.data?.active, color: 'var(--viz-1)' },
+            { label: 'In attesa di attivazione', count: tutors.data?.inactive, color: 'var(--viz-2)' },
+            { label: 'Inviti aperti', count: tutors.data?.invites, color: 'var(--viz-4)' }
+          ]}
+          />
+        </ChartCard>
+        <ChartCard title='Lezioni per stato'>
+          <Breakdown rows={[
+            { label: 'Completate', count: overview.data?.lessonsByStatus.completed, color: 'var(--viz-3)' },
+            { label: 'Confermate', count: overview.data?.lessonsByStatus.confirmed, color: 'var(--viz-1)' },
+            { label: 'Senza prenotazioni', count: overview.data?.lessonsByStatus.scheduled, color: 'var(--viz-4)' },
+            { label: 'Annullate', count: overview.data?.lessonsByStatus.canceled, color: 'var(--viz-2)' }
+          ]}
+          />
+          <p className='text-xs text-muted-foreground'>Prenotazioni confermate in tutto: {value(bookings.data?.total)}.</p>
+        </ChartCard>
+      </div>
     </div>
   )
 }

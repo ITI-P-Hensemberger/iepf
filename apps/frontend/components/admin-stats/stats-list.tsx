@@ -1,43 +1,37 @@
 'use client'
 
-import type { ColumnDef } from '@tanstack/react-table'
+import type { SortDir, StatsColumn } from '@/components/admin-stats/data-table'
 
-import { Search } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import * as React from 'react'
 
 import { DataTable } from '@/components/admin-stats/data-table'
-import { normalizePaged } from '@/components/admin-stats/csv'
+import { normalizePaged } from '@/components/admin-stats/paged'
 import { useJson } from '@/components/admin-stats/use-json'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Field, FieldLabel } from '@/components/ui/field'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 const PAGE_SIZE = 20
-
-type SortDir = 'asc' | 'desc'
-type Filters = { search: string, sortBy: string, sortDir: SortDir }
+const SEARCH_DELAY_MS = 350
 
 export type StatsListConfig<T> = {
   // URL keys are `${key}Search`, `${key}Sort` and `${key}Page`, so links keep working.
   key: string
   title: string
+  description?: string
   endpoint: string
   extraParams?: Record<string, string>
   searchPlaceholder: string
-  sortOptions: Array<{ value: string, label: string }>
   defaultSort: { sortBy: string, sortDir: SortDir }
-  columns: ColumnDef<T>[]
+  // Numbers read best largest first; names alphabetically.
+  descendingFirst?: string[]
+  columns: StatsColumn<T>[]
+  rowKey: (row: T, index: number) => string
   emptyMessage: string
   errorMessage: string
 }
-
-const SORT_DIRS = [
-  { value: 'asc', label: 'Crescente' },
-  { value: 'desc', label: 'Decrescente' }
-]
 
 function useUrlState() {
   const router = useRouter()
@@ -59,126 +53,115 @@ export function StatsList<T>({ config }: { config: StatsListConfig<T> }) {
   const { searchParams, update } = useUrlState()
   const { key, defaultSort } = config
 
-  const [sortBy, sortDirRaw] = (searchParams.get(`${key}Sort`) ?? '').split(':')
-  const applied: Filters = {
-    search: searchParams.get(`${key}Search`) ?? '',
-    sortBy: sortBy || defaultSort.sortBy,
-    sortDir: sortBy ? (sortDirRaw === 'desc' ? 'desc' : 'asc') : defaultSort.sortDir
-  }
+  const search = searchParams.get(`${key}Search`) ?? ''
+  const [sortParam, dirParam] = (searchParams.get(`${key}Sort`) ?? '').split(':')
+  const sort = sortParam
+    ? { sortBy: sortParam, sortDir: (dirParam === 'desc' ? 'desc' : 'asc') as SortDir }
+    : defaultSort
   const pageParam = Math.floor(Number(searchParams.get(`${key}Page`)))
   const page = Number.isFinite(pageParam) && pageParam >= 1 ? pageParam : 1
 
   const params = new URLSearchParams(config.extraParams)
-  if (applied.search.trim()) params.set('q', applied.search.trim())
-  params.set('sortBy', applied.sortBy)
-  params.set('sortDir', applied.sortDir)
+  if (search.trim()) params.set('q', search.trim())
+  params.set('sortBy', sort.sortBy)
+  params.set('sortDir', sort.sortDir)
   params.set('limit', String(PAGE_SIZE))
   params.set('offset', String((page - 1) * PAGE_SIZE))
   const { data, loading } = useJson<unknown>(`${config.endpoint}?${params.toString()}`, config.errorMessage)
   const { items, total } = normalizePaged<T>(data)
 
-  const apply = (filters: Filters) => update({
-    [`${key}Search`]: filters.search || null,
-    [`${key}Sort`]: `${filters.sortBy}:${filters.sortDir}`,
-    [`${key}Page`]: null
-  })
+  const changeSort = (sortKey: string) => {
+    const sortDir: SortDir = sort.sortBy === sortKey
+      ? (sort.sortDir === 'asc' ? 'desc' : 'asc')
+      : (config.descendingFirst?.includes(sortKey) ? 'desc' : 'asc')
+    update({ [`${key}Sort`]: `${sortKey}:${sortDir}`, [`${key}Page`]: null })
+  }
+  const isDefault = !search && sort.sortBy === defaultSort.sortBy && sort.sortDir === defaultSort.sortDir
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{config.title}</CardTitle>
+        <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+          <div className='space-y-1.5'>
+            <CardTitle>{config.title}</CardTitle>
+            {config.description && <CardDescription>{config.description}</CardDescription>}
+          </div>
+          <div className='flex items-center gap-2 sm:w-80'>
+            {/* Keyed by the URL value: the box starts again from it after a reset or a link. */}
+            <SearchBox
+              key={search}
+              id={`${key}-search`}
+              initial={search}
+              placeholder={config.searchPlaceholder}
+              onSearch={value => update({ [`${key}Search`]: value || null, [`${key}Page`]: null })}
+            />
+            {!isDefault && (
+              <Button
+                variant='ghost'
+                size='icon'
+                aria-label='Azzera ricerca e ordinamento'
+                title='Azzera ricerca e ordinamento'
+                onClick={() => update({ [`${key}Search`]: null, [`${key}Sort`]: null, [`${key}Page`]: null })}
+              >
+                <X className='size-4' aria-hidden />
+              </Button>
+            )}
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className='space-y-4'>
-        {/* Keyed by the applied filters: the form starts again from the URL when it changes. */}
-        <FilterForm
-          key={`${applied.search}|${applied.sortBy}|${applied.sortDir}`}
-          id={key}
-          initial={applied}
-          placeholder={config.searchPlaceholder}
-          sortOptions={config.sortOptions}
-          onApply={apply}
-          onReset={() => apply({ search: '', ...defaultSort })}
-        />
+      <CardContent>
         <DataTable
-          data={items}
+          rows={items}
+          rowKey={config.rowKey}
           columns={config.columns}
           isLoading={loading}
-          emptyMessage={config.emptyMessage}
+          emptyMessage={search ? `Nessun risultato per "${search}".` : config.emptyMessage}
           page={page}
           pageSize={PAGE_SIZE}
           total={total}
           onPageChange={next => update({ [`${key}Page`]: next > 1 ? String(next) : null })}
+          sort={sort}
+          onSort={changeSort}
         />
       </CardContent>
     </Card>
   )
 }
 
-type FilterFormProps = {
-  id: string
-  initial: Filters
-  placeholder: string
-  sortOptions: StatsListConfig<unknown>['sortOptions']
-  onApply: (filters: Filters) => void
-  onReset: () => void
-}
+// Searches by itself a moment after typing stops; Enter searches at once.
+function SearchBox({ id, initial, placeholder, onSearch }: { id: string, initial: string, placeholder: string, onSearch: (value: string) => void }) {
+  const [value, setValue] = React.useState(initial)
+  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
-function FilterForm({ id, initial, placeholder, sortOptions, onApply, onReset }: FilterFormProps) {
-  const [draft, setDraft] = React.useState(initial)
+  const schedule = (next: string, delay: number) => {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => {
+      if (next.trim() !== initial.trim()) onSearch(next.trim())
+    }, delay)
+  }
+
+  React.useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current)
+  }, [])
+
   return (
-    <form
-      className='rounded-lg border bg-card p-4 shadow-sm'
-      onSubmit={(event) => {
-        event.preventDefault()
-        onApply(draft)
-      }}
-    >
-      <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
-        <Field className='gap-2 lg:col-span-2'>
-          <FieldLabel htmlFor={`${id}-search`}>Cerca</FieldLabel>
-          <div className='relative'>
-            <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
-            <Input
-              id={`${id}-search`}
-              type='search'
-              placeholder={placeholder}
-              value={draft.search}
-              onChange={event => setDraft(prev => ({ ...prev, search: event.target.value }))}
-              className='pl-9'
-            />
-          </div>
-        </Field>
-        <Field className='gap-2'>
-          <FieldLabel>Ordina per</FieldLabel>
-          <Select value={draft.sortBy} onValueChange={value => setDraft(prev => ({ ...prev, sortBy: value }))}>
-            <SelectTrigger className='w-full'>
-              <SelectValue placeholder='Ordinamento' />
-            </SelectTrigger>
-            <SelectContent>
-              {sortOptions.map(option => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field className='gap-2'>
-          <FieldLabel>Direzione</FieldLabel>
-          <Select value={draft.sortDir} onValueChange={value => setDraft(prev => ({ ...prev, sortDir: value === 'desc' ? 'desc' : 'asc' }))}>
-            <SelectTrigger className='w-full'>
-              <SelectValue placeholder='Direzione' />
-            </SelectTrigger>
-            <SelectContent>
-              {SORT_DIRS.map(option => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      </div>
-      <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end'>
-        <Button variant='outline' type='button' onClick={onReset}>Reset filtri</Button>
-        <Button type='submit'>Applica filtri</Button>
-      </div>
-    </form>
+    <div className='relative flex-1'>
+      <Search className='pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground' aria-hidden />
+      <Input
+        id={id}
+        type='search'
+        aria-label='Cerca'
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => {
+          setValue(event.target.value)
+          schedule(event.target.value, SEARCH_DELAY_MS)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') schedule(value, 0)
+        }}
+        className='pl-9'
+      />
+    </div>
   )
 }

@@ -521,6 +521,23 @@ describe('phone setup from a computer', () => {
   })
 })
 
+describe('notification stats for admins', () => {
+  it('counts panel notifications, devices per push service and kinds turned off', async () => {
+    await db.delete(notifications)
+    await subscribe(tokens.student, 'phone')
+    await call('/notifications/preferences', { token: tokens.student, method: 'PUT', body: { reminders: false } })
+    notifyUsers([ids.student, ids.tutor], 'bookings', message)
+    await waitForPendingPush()
+    await call('/notifications/inbox/read-all', { token: tokens.student, method: 'POST' })
+
+    expect((await call('/admin/stats/notifications', { token: tokens.student })).status).toBe(403)
+    const stats = await (await call('/admin/stats/notifications', { token: tokens.admin })).json()
+    expect(stats.inbox).toEqual([{ category: 'bookings', total: 2, read: 1 }])
+    expect(stats.devices).toEqual([{ service: 'google', devices: 1, workingLast30Days: 1 }])
+    expect(stats.optOuts).toEqual([{ category: 'reminders', users: 1 }])
+  })
+})
+
 describe('setup link email', () => {
   it('points to the profile with the setup flag', () => {
     const message = buildPushSetupLinkMessage()

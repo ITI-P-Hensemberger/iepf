@@ -26,6 +26,7 @@ import { assertLocalDatabase } from '@/lib/local-database'
 import { closeMailer } from '@/lib/mailer'
 import { hashPassword } from '@/lib/password'
 import { issueTutorInviteToken } from '@/lib/tutor-invite'
+import { hasRecentReportExport, recordReportExport, REPORT_VALID_MINUTES } from '@/lib/year-report-export'
 import { resetRateLimiters } from '@/middlewares/rate-limit'
 
 let ids: Record<string, string>
@@ -634,11 +635,25 @@ describe('school year reset', () => {
     expect(after.lessons).toBe(before.lessons)
   })
 
+  it('refuses the reset until the admin has just downloaded the year report', async () => {
+    const before = await counts()
+    const body = { confirmation: 'RESET', password: DEV_PASSWORD }
+    expect((await request(path, { token: adminToken, body })).status).toBe(409)
+    // A report saved too long ago does not count.
+    await recordReportExport(ids.admin, new Date(Date.now() - (REPORT_VALID_MINUTES + 1) * 60 * 1000))
+    expect((await request(path, { token: adminToken, body })).status).toBe(409)
+    expect(await counts()).toEqual(before)
+  })
+
   it('deletes school-year data and keeps admins with the correct password', async () => {
     const before = await counts()
     expect(before.people).toBeGreaterThan(0)
+    const report = await request('/admin/stats/report', { method: 'GET', token: adminToken })
+    expect(report.status).toBe(200)
     const response = await request(path, { token: adminToken, body: { confirmation: 'RESET', password: DEV_PASSWORD } })
     expect(response.status).toBe(200)
+    // The next reset needs a new report.
+    expect(await hasRecentReportExport(ids.admin)).toBe(false)
     const body = await response.json()
     expect(body.deletedStudents + body.deletedTutors).toBe(before.people)
     const after = await counts()

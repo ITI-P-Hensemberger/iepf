@@ -14,6 +14,7 @@ import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { verifyPassword } from '@/lib/password'
+import { clearReportExport, hasRecentReportExport, REPORT_VALID_MINUTES } from '@/lib/year-report-export'
 
 import type {
   GetAdminSettingsRoute,
@@ -151,10 +152,19 @@ export const resetSchoolYear: AppRouteHandler<ResetSchoolYearRoute> = async (c) 
     return c.json(buildErrorResponse('Password non corretta'), HttpStatusCodes.FORBIDDEN)
   }
 
+  // Nothing of the year survives the reset except the report: it must have just been saved.
+  if (!await hasRecentReportExport(admin.id)) {
+    return c.json(
+      buildErrorResponse(`Scarica il report dell'anno prima del reset (vale ${REPORT_VALID_MINUTES} minuti)`),
+      HttpStatusCodes.CONFLICT
+    )
+  }
+
   const result = await db.transaction(async (tx) => {
     await tx.delete(tutorInviteTokens)
     const students = await tx.delete(users).where(eq(users.role, 'student')).returning({ id: users.id })
     const tutors = await tx.delete(users).where(eq(users.role, 'tutor')).returning({ id: users.id })
+    await clearReportExport(tx)
     return { deletedStudents: students.length, deletedTutors: tutors.length }
   })
 

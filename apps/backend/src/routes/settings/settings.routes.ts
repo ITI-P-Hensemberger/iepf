@@ -157,6 +157,7 @@ export const resetSchoolYear = createRoute({
   responses: {
     [HttpStatusCodes.OK]: jsonContent(resetSchoolYearResultSchema, 'School year reset'),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN), 'Wrong password or impersonated session'),
+    [HttpStatusCodes.CONFLICT]: jsonContent(createErrorMessageSchema(HttpStatusPhrases.CONFLICT), 'The year report was not downloaded by this admin in the last 15 minutes'),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(createErrorSchema(resetSchoolYearSchema), 'Invalid confirmation')
   }
 })

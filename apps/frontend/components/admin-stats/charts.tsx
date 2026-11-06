@@ -103,12 +103,12 @@ export function EmptyChart({ children = 'Nessun dato nel periodo scelto.' }: { c
 
 export function StatTile({ label, value, hint }: { label: string, value: string, hint?: string }) {
   return (
-    <Card>
-      <CardHeader className='pb-2'>
-        <CardDescription>{label}</CardDescription>
-        <CardTitle className='text-3xl tabular-nums'>{value}</CardTitle>
-      </CardHeader>
-      {hint && <CardContent className='pt-0 text-xs text-muted-foreground'>{hint}</CardContent>}
+    <Card className='gap-0 py-4'>
+      <CardContent className='space-y-1'>
+        <p className='text-sm text-muted-foreground'>{label}</p>
+        <p className='text-3xl font-semibold tabular-nums'>{value}</p>
+        {hint && <p className='text-xs text-muted-foreground'>{hint}</p>}
+      </CardContent>
     </Card>
   )
 }
