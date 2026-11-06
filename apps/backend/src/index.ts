@@ -4,6 +4,7 @@ import { serve } from '@hono/node-server'
 import app from './app'
 import { closeDb } from './db'
 import env from './env'
+import { waitForPendingCounts } from './lib/analytics'
 import { createShutdown } from './lib/graceful-shutdown'
 import { closeMailer, waitForPendingMail } from './lib/mailer'
 import { closeNotificationStreams } from './lib/notification-stream'
@@ -37,6 +38,8 @@ const shutdown = createShutdown({
     },
     waitForPendingMail,
     waitForPendingPush,
+    // After push: each delivery adds to the count of notifications sent.
+    waitForPendingCounts,
     closeMailer,
     closeDb
   ]

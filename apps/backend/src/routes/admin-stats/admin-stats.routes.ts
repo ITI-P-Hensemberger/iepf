@@ -321,3 +321,118 @@ export type GetStudentStatusCountsRoute = typeof getStudentStatusCounts
 export type GetTutorStatusCountsRoute = typeof getTutorStatusCounts
 export type GetFeedbackSummaryRoute = typeof getFeedbackSummary
 export type GetPushCoverageRoute = typeof getPushCoverage
+
+const analyticsQuerySchema = z.object({
+  days: z.coerce.number().int().min(7).max(400).default(30)
+})
+
+const analyticsSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  days: z.number().int(),
+  daily: z.array(z.object({ day: z.string(), event: z.string(), role: z.string(), count: z.number().int() })),
+  byDetail: z.array(z.object({ event: z.string(), detail: z.string(), count: z.number().int() })),
+  byGroup: z.array(z.object({ event: z.string(), role: z.string(), year: z.number().int(), count: z.number().int() }))
+})
+
+export const getAnalytics = createRoute({
+  path: '/admin/stats/analytics',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  request: { query: analyticsQuerySchema },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      analyticsSchema,
+      'Usage counts of the last days: per day, per detail and per role and school year'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Admin access required'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
+export type GetAnalyticsRoute = typeof getAnalytics
+
+export const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+export const getYearReport = createRoute({
+  path: '/admin/stats/report',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: 'The year report as an Excel workbook; downloading it allows the school-year reset for 15 minutes',
+      content: { [XLSX_TYPE]: { schema: z.string().openapi({ format: 'binary' }) } }
+    },
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Admin access required, not while impersonating'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
+export type GetYearReportRoute = typeof getYearReport
+
+const overviewSchema = z.object({
+  lessonsByStatus: z.object({
+    scheduled: z.number().int(),
+    confirmed: z.number().int(),
+    completed: z.number().int(),
+    canceled: z.number().int()
+  }),
+  attendance: z.object({ present: z.number().int(), absent: z.number().int(), unrecorded: z.number().int() }),
+  months: z.array(z.object({
+    month: z.string(),
+    lessons: z.number().int(),
+    completed: z.number().int(),
+    bookings: z.number().int(),
+    present: z.number().int(),
+    absent: z.number().int()
+  }))
+})
+
+export const getOverview = createRoute({
+  path: '/admin/stats/overview',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(overviewSchema, 'Lessons by status, attendance and the last 12 months, by the month lessons take place'),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN), 'Admin access required'),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED), 'Invalid credentials')
+  }
+})
+
+export type GetOverviewRoute = typeof getOverview
+
+const notificationStatsSchema = z.object({
+  keepDays: z.number().int(),
+  inbox: z.array(z.object({ category: z.string(), total: z.number().int(), read: z.number().int() })),
+  devices: z.array(z.object({ service: z.string(), devices: z.number().int(), workingLast30Days: z.number().int() })),
+  optOuts: z.array(z.object({ category: z.string(), users: z.number().int() }))
+})
+
+export const getNotificationStats = createRoute({
+  path: '/admin/stats/notifications',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(notificationStatsSchema, 'Panel notifications by category, push devices by service, push kinds users turned off'),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN), 'Admin access required'),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED), 'Invalid credentials')
+  }
+})
+
+export type GetNotificationStatsRoute = typeof getNotificationStats

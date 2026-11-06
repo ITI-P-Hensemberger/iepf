@@ -26,6 +26,7 @@ import { assertLocalDatabase } from '@/lib/local-database'
 import { closeMailer } from '@/lib/mailer'
 import { hashPassword } from '@/lib/password'
 import { issueTutorInviteToken } from '@/lib/tutor-invite'
+import { hasRecentReportExport, recordReportExport, REPORT_VALID_MINUTES } from '@/lib/year-report-export'
 import { resetRateLimiters } from '@/middlewares/rate-limit'
 
 let ids: Record<string, string>
@@ -602,6 +603,7 @@ describe('school year reset', () => {
     (select count(*)::int from users where role in ('student', 'tutor')) as people,
     (select count(*)::int from lessons) as lessons,
     (select count(*)::int from token_ledger) as ledger,
+    (select count(*)::int from analytics_daily) as usage,
     (select count(*)::int from users where role = 'admin') as admins`)).rows[0]
 
   it('refuses non-admins, a missing confirmation and a wrong password', async () => {
@@ -634,14 +636,42 @@ describe('school year reset', () => {
     expect(after.lessons).toBe(before.lessons)
   })
 
+  it('checks the password and the report before the reset, deleting nothing', async () => {
+    const before = await counts()
+    const check = (password: string) => request(`${path}/check`, { token: adminToken, body: { password } })
+    expect((await request(`${path}/check`, { token: tutorToken, body: { password: DEV_PASSWORD } })).status).toBe(403)
+    await recordReportExport(ids.admin)
+    expect((await check('wrong')).status).toBe(403)
+    expect((await check(DEV_PASSWORD)).status).toBe(204)
+    await recordReportExport(ids.admin, new Date(Date.now() - (REPORT_VALID_MINUTES + 1) * 60 * 1000))
+    expect((await check(DEV_PASSWORD)).status).toBe(409)
+    expect(await counts()).toEqual(before)
+  })
+
+  it('refuses the reset until the admin has just downloaded the year report', async () => {
+    const before = await counts()
+    const body = { confirmation: 'RESET', password: DEV_PASSWORD }
+    expect((await request(path, { token: adminToken, body })).status).toBe(409)
+    // A report saved too long ago does not count.
+    await recordReportExport(ids.admin, new Date(Date.now() - (REPORT_VALID_MINUTES + 1) * 60 * 1000))
+    expect((await request(path, { token: adminToken, body })).status).toBe(409)
+    expect(await counts()).toEqual(before)
+  })
+
   it('deletes school-year data and keeps admins with the correct password', async () => {
+    await db.execute(sql`insert into analytics_daily (day, event, detail, role, year, count) values ('2026-03-02', 'page_view', '/student', 'student', 2, 5)`)
     const before = await counts()
     expect(before.people).toBeGreaterThan(0)
+    expect(before.usage).toBeGreaterThan(0)
+    const report = await request('/admin/stats/report', { method: 'GET', token: adminToken })
+    expect(report.status).toBe(200)
     const response = await request(path, { token: adminToken, body: { confirmation: 'RESET', password: DEV_PASSWORD } })
     expect(response.status).toBe(200)
+    // The next reset needs a new report.
+    expect(await hasRecentReportExport(ids.admin)).toBe(false)
     const body = await response.json()
     expect(body.deletedStudents + body.deletedTutors).toBe(before.people)
     const after = await counts()
-    expect(after).toEqual({ people: 0, lessons: 0, ledger: 0, admins: before.admins })
+    expect(after).toEqual({ people: 0, lessons: 0, ledger: 0, usage: 0, admins: before.admins })
   })
 })

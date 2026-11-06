@@ -39,6 +39,12 @@ const SECTIONS = [
         'dati tecnici necessari al funzionamento del sito',
         'cookie tecnici necessari alla gestione della sessione di autenticazione'
       ],
+      'd) Statistiche di utilizzo',
+      [
+        "conteggi giornalieri di uso del Sito (pagine visitate, apertura delle notifiche, esito delle prenotazioni, errori tecnici), suddivisi solo per ruolo e anno di corso; non contengono nome, email, indirizzo IP né altri identificativi e non usano cookie;",
+        "non vengono raccolte durante l'accesso di un amministratore al posto di un utente, né dai browser che inviano il segnale Global Privacy Control o Do Not Track;",
+        'sono trattate esclusivamente sui server del Sito, senza servizi di analisi di terze parti.'
+      ],
       'Tali dati non vengono utilizzati per finalità di profilazione o marketing.'
     ]
   },
@@ -53,7 +59,8 @@ const SECTIONS = [
         'gestione delle prenotazioni tramite piattaforma online;',
         'invio di comunicazioni di servizio;',
         'adempimento di obblighi amministrativi e organizzativi interni;',
-        'sicurezza e corretto funzionamento del Sito.'
+        'sicurezza e corretto funzionamento del Sito;',
+        'miglioramento del servizio attraverso statistiche di utilizzo aggregate.'
       ]
     ]
   },
@@ -87,7 +94,8 @@ const SECTIONS = [
         "per il tempo strettamente necessario all'adempimento degli obblighi amministrativi e organizzativi;",
         'secondo i termini previsti dalla normativa scolastica e archivistica vigente.'
       ],
-      'Al termine, i dati saranno cancellati o anonimizzati.'
+      'Al termine, i dati saranno cancellati o anonimizzati.',
+      'Le statistiche di utilizzo aggregate sono conservate per 13 mesi e poi cancellate automaticamente.'
     ]
   },
   {

@@ -7,6 +7,7 @@ import { HTTPException } from 'hono/http-exception'
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
+import { analyticsDaily } from '@/db/schemas/analytics-daily.schema'
 import { globalSettings } from '@/db/schemas/global-settings.schema'
 import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
 import { users } from '@/db/schemas/users.schema'
@@ -14,8 +15,10 @@ import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { verifyPassword } from '@/lib/password'
+import { clearReportExport, hasRecentReportExport, REPORT_VALID_MINUTES } from '@/lib/year-report-export'
 
 import type {
+  CheckSchoolYearResetRoute,
   GetAdminSettingsRoute,
   GetMySettingsRoute,
   ResetSchoolYearRoute,
@@ -131,30 +134,51 @@ export const updateAdminSettings: AppRouteHandler<UpdateAdminSettingsRoute> = as
   )
 }
 
-export const resetSchoolYear: AppRouteHandler<ResetSchoolYearRoute> = async (c) => {
-  const admin = ensureAdmin(c)
-  const { password } = c.req.valid('json')
-
-  // The deletion cascades to all school-year data: require the real admin, re-authenticated.
+// Why the reset cannot go ahead, or null. The deletion cascades to all school-year data:
+// it needs the real admin, re-authenticated, who has just saved the year report.
+async function resetRefusal(c: HandlerContext, adminId: string, password: string) {
   if (c.get('impersonation')) {
-    return c.json(buildErrorResponse('Reset non consentito durante una sessione impersonata'), HttpStatusCodes.FORBIDDEN)
+    return { status: HttpStatusCodes.FORBIDDEN, message: 'Reset non consentito durante una sessione impersonata' } as const
   }
-
   const account = await db.query.users.findFirst({
     where(fields, operators) {
-      return operators.eq(fields.id, admin.id)
+      return operators.eq(fields.id, adminId)
     },
     columns: { passwordHash: true }
   })
-
   if (!account || !await verifyPassword(account.passwordHash, password)) {
-    return c.json(buildErrorResponse('Password non corretta'), HttpStatusCodes.FORBIDDEN)
+    return { status: HttpStatusCodes.FORBIDDEN, message: 'Password non corretta' } as const
+  }
+  if (!await hasRecentReportExport(adminId)) {
+    return { status: HttpStatusCodes.CONFLICT, message: `Scarica il report dell'anno prima del reset (vale ${REPORT_VALID_MINUTES} minuti)` } as const
+  }
+  return null
+}
+
+// The first confirmation of the reset page: the same checks as the reset, deleting nothing.
+export const checkSchoolYearReset: AppRouteHandler<CheckSchoolYearResetRoute> = async (c) => {
+  const admin = ensureAdmin(c)
+  const refusal = await resetRefusal(c, admin.id, c.req.valid('json').password)
+  if (refusal) {
+    return c.json(buildErrorResponse(refusal.message), refusal.status)
+  }
+  return c.body(null, HttpStatusCodes.NO_CONTENT)
+}
+
+export const resetSchoolYear: AppRouteHandler<ResetSchoolYearRoute> = async (c) => {
+  const admin = ensureAdmin(c)
+  const refusal = await resetRefusal(c, admin.id, c.req.valid('json').password)
+  if (refusal) {
+    return c.json(buildErrorResponse(refusal.message), refusal.status)
   }
 
   const result = await db.transaction(async (tx) => {
     await tx.delete(tutorInviteTokens)
     const students = await tx.delete(users).where(eq(users.role, 'student')).returning({ id: users.id })
     const tutors = await tx.delete(users).where(eq(users.role, 'tutor')).returning({ id: users.id })
+    // The usage counts leave with the year; the report keeps their monthly summaries.
+    await tx.delete(analyticsDaily)
+    await clearReportExport(tx)
     return { deletedStudents: students.length, deletedTutors: tutors.length }
   })
 

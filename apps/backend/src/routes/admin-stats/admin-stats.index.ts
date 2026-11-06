@@ -19,5 +19,9 @@ router.openapi(routes.getStudentStatusCounts, handlers.getStudentStatusCounts)
 router.openapi(routes.getTutorStatusCounts, handlers.getTutorStatusCounts)
 router.openapi(routes.getFeedbackSummary, handlers.getFeedbackSummary)
 router.openapi(routes.getPushCoverage, handlers.getPushCoverage)
+router.openapi(routes.getAnalytics, handlers.getAnalytics)
+router.openapi(routes.getYearReport, handlers.getYearReport)
+router.openapi(routes.getOverview, handlers.getOverview)
+router.openapi(routes.getNotificationStats, handlers.getNotificationStats)
 
 export default router

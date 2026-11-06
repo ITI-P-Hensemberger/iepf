@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { BellOff } from 'lucide-react'
 
 import { NotificationBell } from '@/components/notification-bell'
+import { UsageTracker } from '@/components/usage-tracker'
 import { isPushRole, openPushSetup, usePushSetup } from '@/components/push-prompt'
 import { logout } from '@/lib/auth-client'
 import { useSession } from '@/lib/use-session'
@@ -92,6 +93,7 @@ export default function Header() {
           </span>
         </Link>
         <div className='flex items-center gap-2'>
+        <UsageTracker signedIn={Boolean(profile)} />
         {/* Activators get no notifications, so they have no panel either. */}
         {isPushRole(profile?.role) && <NotificationBell />}
         <DropdownMenu>

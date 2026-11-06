@@ -157,6 +157,7 @@ export const resetSchoolYear = createRoute({
   responses: {
     [HttpStatusCodes.OK]: jsonContent(resetSchoolYearResultSchema, 'School year reset'),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN), 'Wrong password or impersonated session'),
+    [HttpStatusCodes.CONFLICT]: jsonContent(createErrorMessageSchema(HttpStatusPhrases.CONFLICT), 'The year report was not downloaded by this admin in the last 15 minutes'),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(createErrorSchema(resetSchoolYearSchema), 'Invalid confirmation')
   }
 })
@@ -165,3 +166,19 @@ export type GetAdminSettingsRoute = typeof getAdminSettings
 export type UpdateAdminSettingsRoute = typeof updateAdminSettings
 export type GetMySettingsRoute = typeof getMySettings
 export type ResetSchoolYearRoute = typeof resetSchoolYear
+
+export const checkSchoolYearReset = createRoute({
+  path: '/settings/school-year/reset/check',
+  method: 'post',
+  tags,
+  security: bearerAuth,
+  request: { body: jsonContentRequired(resetSchoolYearSchema.pick({ password: true }), 'The admin password') },
+  responses: {
+    [HttpStatusCodes.NO_CONTENT]: { description: 'The reset would be accepted now; nothing is deleted' },
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN), 'Wrong password or impersonated session'),
+    [HttpStatusCodes.CONFLICT]: jsonContent(createErrorMessageSchema(HttpStatusPhrases.CONFLICT), 'The year report was not downloaded by this admin in the last 15 minutes'),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(createErrorSchema(resetSchoolYearSchema.pick({ password: true })), 'Missing password')
+  }
+})
+
+export type CheckSchoolYearResetRoute = typeof checkSchoolYearReset

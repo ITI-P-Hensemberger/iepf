@@ -6,6 +6,7 @@ import { and, asc, desc, eq, gt, gte, ilike, inArray, lte, or, sql } from 'drizz
 import { HTTPException } from 'hono/http-exception'
 import { randomUUID } from 'node:crypto'
 
+import type { BookingOutcome } from '@/lib/analytics'
 import type { DbExecutor, DbTransaction } from '@/lib/lesson-tokens'
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
@@ -18,6 +19,7 @@ import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
 import { notifyAbsence, notifyLateCancellation } from '@/lib/admin-notifications'
+import { countInBackground } from '@/lib/analytics'
 import {
   buildLessonBookingCanceledMessage,
   buildLessonBookingConfirmedMessage,
@@ -171,8 +173,8 @@ function sameDay(a: Date, b: Date) {
     && a.getDate() === b.getDate()
 }
 
-function rejection<S extends number>(message: string, status: S) {
-  return { rejected: true as const, message, status }
+function rejection<S extends number>(message: string, status: S, reason?: BookingOutcome) {
+  return { rejected: true as const, message, status, reason }
 }
 
 async function getTutorDailyCapacity(tutorId: string, executor: DbExecutor = db): Promise<number> {
@@ -858,7 +860,15 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
+  // Only students booking for themselves: an admin booking for someone is not usage.
+  const countOutcome = (outcome: BookingOutcome) => {
+    if (!isAdmin && !c.get('impersonation')) {
+      countInBackground(currentUser, 'booking', outcome)
+    }
+  }
+
   if (!isAdmin && containsProfanity(payload.topic)) {
+    countOutcome('profanity')
     return c.json(buildErrorResponse(HttpStatusPhrases.PROFANITY_DETECTED), HttpStatusCodes.BAD_REQUEST)
   }
 
@@ -869,25 +879,25 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
     const [lesson] = await tx.select().from(lessons).where(eq(lessons.id, lessonId)).for('update')
 
     if (!lesson) {
-      return rejection(HttpStatusPhrases.NOT_FOUND, HttpStatusCodes.NOT_FOUND)
+      return rejection(HttpStatusPhrases.NOT_FOUND, HttpStatusCodes.NOT_FOUND, 'not_found')
     }
 
     if (!isAdmin) {
       // The first booking turns a lesson 'confirmed'; remaining seats stay bookable.
       if (lesson.status !== 'scheduled' && lesson.status !== 'confirmed') {
-        return rejection(HttpStatusPhrases.BAD_REQUEST, HttpStatusCodes.BAD_REQUEST)
+        return rejection(HttpStatusPhrases.BAD_REQUEST, HttpStatusCodes.BAD_REQUEST, 'closed')
       }
 
       const lessonStart = new Date(lesson.startAt)
       if (sameDayOrAfter(new Date(), lessonStart)) {
-        return rejection(HttpStatusPhrases.BAD_REQUEST, HttpStatusCodes.BAD_REQUEST)
+        return rejection(HttpStatusPhrases.BAD_REQUEST, HttpStatusCodes.BAD_REQUEST, 'too_late')
       }
 
       const bookingCutoff = new Date(lessonStart)
       bookingCutoff.setDate(lessonStart.getDate() - 1)
       bookingCutoff.setHours(20, 0, 0, 0)
       if (new Date() >= bookingCutoff) {
-        return rejection(HttpStatusPhrases.BAD_REQUEST, HttpStatusCodes.BAD_REQUEST)
+        return rejection(HttpStatusPhrases.BAD_REQUEST, HttpStatusCodes.BAD_REQUEST, 'too_late')
       }
     }
 
@@ -902,7 +912,7 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
     })
 
     if (!studentProfile?.isActive) {
-      return rejection(HttpStatusPhrases.FORBIDDEN, HttpStatusCodes.FORBIDDEN)
+      return rejection(HttpStatusPhrases.FORBIDDEN, HttpStatusCodes.FORBIDDEN, 'student_inactive')
     }
 
     if (!isAdmin) {
@@ -913,12 +923,12 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
         columns: { year: true }
       })
       if (!tutorProfile || !tutorCanTeachStudent(tutorProfile.year, studentProfile.year)) {
-        return rejection(HttpStatusPhrases.TUTOR_YEAR_NOT_HIGHER, HttpStatusCodes.FORBIDDEN)
+        return rejection(HttpStatusPhrases.TUTOR_YEAR_NOT_HIGHER, HttpStatusCodes.FORBIDDEN, 'tutor_year')
       }
 
       const tokenBalance = await getStudentTokenBalance(studentUser.id, tx)
       if (tokenBalance <= 0) {
-        return rejection(HttpStatusPhrases.FORBIDDEN, HttpStatusCodes.FORBIDDEN)
+        return rejection(HttpStatusPhrases.FORBIDDEN, HttpStatusCodes.FORBIDDEN, 'no_tokens')
       }
     }
 
@@ -935,13 +945,13 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
     })
 
     if (existingBooking) {
-      return rejection(HttpStatusPhrases.CONFLICT, HttpStatusCodes.CONFLICT)
+      return rejection(HttpStatusPhrases.CONFLICT, HttpStatusCodes.CONFLICT, 'already_booked')
     }
 
     if (!isAdmin) {
       const studentDailyBookings = await getStudentDailyBookingCount(studentUser.id, new Date(lesson.startAt), tx)
       if (studentDailyBookings >= 1) {
-        return rejection(HttpStatusPhrases.STUDENT_DAILY_BOOKING_LIMIT, HttpStatusCodes.CONFLICT)
+        return rejection(HttpStatusPhrases.STUDENT_DAILY_BOOKING_LIMIT, HttpStatusCodes.CONFLICT, 'daily_limit')
       }
     }
 
@@ -960,11 +970,11 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
 
     if (!isAdmin) {
       if (dailyBookings >= dailyCapacity) {
-        return rejection(HttpStatusPhrases.CONFLICT, HttpStatusCodes.CONFLICT)
+        return rejection(HttpStatusPhrases.CONFLICT, HttpStatusCodes.CONFLICT, 'tutor_full')
       }
 
       if (bookingCount.length >= lesson.seats) {
-        return rejection(HttpStatusPhrases.CONFLICT, HttpStatusCodes.CONFLICT)
+        return rejection(HttpStatusPhrases.CONFLICT, HttpStatusCodes.CONFLICT, 'lesson_full')
       }
     }
 
@@ -1002,8 +1012,12 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
   })
 
   if (outcome.rejected) {
+    if (outcome.reason) {
+      countOutcome(outcome.reason)
+    }
     return c.json(buildErrorResponse(outcome.message), outcome.status)
   }
+  countOutcome('ok')
 
   const { lesson, booking, dailyCapacity, dailyBookings, confirmedCount } = outcome
 

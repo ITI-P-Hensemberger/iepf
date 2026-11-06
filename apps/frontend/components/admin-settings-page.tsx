@@ -5,7 +5,6 @@ import { toast } from 'sonner'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { BackButton } from '@/components/back-button'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,6 +29,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { MarkdownEditor } from '@/components/markdown-editor'
+import { SchoolYearReset } from '@/components/school-year-reset'
 import { ServiceMessageCard } from '@/components/service-message-banner'
 import { Calendar } from '@/components/ui/calendar'
 import { extractPayloadArray } from '@/lib/backend-response'
@@ -165,23 +165,6 @@ export default function AdminSettingsPage() {
   const [editingSubjectCanonicalName, setEditingSubjectCanonicalName] =
     React.useState('')
   const [closureDates, setClosureDates] = React.useState<string[]>([])
-  const [resettingSchoolYear, setResettingSchoolYear] = React.useState(false)
-  const [schoolYearResetOpen, setSchoolYearResetOpen] = React.useState(false)
-  const [schoolYearResetConfirmation, setSchoolYearResetConfirmation] = React.useState('')
-  const [schoolYearResetPassword, setSchoolYearResetPassword] = React.useState('')
-
-  async function handleSchoolYearReset() {
-    setResettingSchoolYear(true)
-    try {
-      const response = await fetch('/api/settings/school-year/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmation: 'RESET', password: schoolYearResetPassword }) })
-      const payload = await response.json()
-      if (!response.ok) throw new Error(payload.message ?? 'Reset non riuscito.')
-      toast.success(`Eliminati ${payload.deletedStudents} studenti e ${payload.deletedTutors} tutor.`)
-      setSchoolYearResetOpen(false)
-      setSchoolYearResetConfirmation('')
-      setSchoolYearResetPassword('')
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Reset non riuscito.') } finally { setResettingSchoolYear(false) }
-  }
 
   React.useEffect(() => {
     let isMounted = true
@@ -677,7 +660,7 @@ export default function AdminSettingsPage() {
   )
 
   const availableTabs = React.useMemo(
-    () => ['info', 'maintenance', 'messages', 'closures', 'subjects'] as const,
+    () => ['info', 'maintenance', 'messages', 'closures', 'subjects', 'school-year'] as const,
     []
   )
   const tabLabels: Record<(typeof availableTabs)[number], string> = {
@@ -685,7 +668,8 @@ export default function AdminSettingsPage() {
     maintenance: 'Manutenzione',
     messages: 'Messaggi',
     closures: 'Chiusure',
-    subjects: 'Materie'
+    subjects: 'Materie',
+    'school-year': 'Anno scolastico'
   }
 
   const activeTab = React.useMemo(() => {
@@ -738,7 +722,7 @@ export default function AdminSettingsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <TabsList className='hidden sm:grid w-full grid-cols-5'>
+            <TabsList className='hidden sm:grid w-full grid-cols-6'>
               <TabsTrigger value='info' className='w-full'>
                 Info
               </TabsTrigger>
@@ -753,6 +737,9 @@ export default function AdminSettingsPage() {
               </TabsTrigger>
               <TabsTrigger value='subjects' className='w-full'>
                 Materie
+              </TabsTrigger>
+              <TabsTrigger value='school-year' className='w-full'>
+                Anno scolastico
               </TabsTrigger>
             </TabsList>
 
@@ -1193,34 +1180,11 @@ export default function AdminSettingsPage() {
               </Card>
             </TabsContent>
 
+            <TabsContent value='school-year' className='mt-6'>
+              {activeTab === 'school-year' && <SchoolYearReset />}
+            </TabsContent>
+
             <TabsContent value='info' className='mt-6 space-y-6'>
-              <Card className='border-destructive'>
-                <CardHeader><CardTitle>Nuovo anno scolastico</CardTitle></CardHeader>
-                <CardContent className='space-y-3'>
-                  <p className='text-sm text-muted-foreground'>Elimina definitivamente lezioni, studenti, tutor, feedback e inviti tutor. Admin e impostazioni globali restano.</p>
-                  <Button variant='destructive' onClick={() => setSchoolYearResetOpen(true)} disabled={resettingSchoolYear}>Resetta dati anno scolastico</Button>
-                  <AlertDialog open={schoolYearResetOpen} onOpenChange={setSchoolYearResetOpen}>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Resettare l&apos;anno scolastico?</AlertDialogTitle>
-                        <AlertDialogDescription>Questa operazione elimina definitivamente studenti, tutor, lezioni, prenotazioni, feedback e inviti tutor. Admin e impostazioni globali restano invariati. Si può recuperare solo da un backup: esportare prima i dati necessari e far eseguire un backup manuale, perché quello automatico risale alle 02:00.</AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <Field className='gap-2'>
-                        <FieldLabel htmlFor='school-year-reset-confirmation'>Digita RESET per confermare</FieldLabel>
-                        <Input id='school-year-reset-confirmation' value={schoolYearResetConfirmation} onChange={(event) => setSchoolYearResetConfirmation(event.target.value)} autoComplete='off' />
-                      </Field>
-                      <Field className='gap-2'>
-                        <FieldLabel htmlFor='school-year-reset-password'>La tua password admin</FieldLabel>
-                        <Input id='school-year-reset-password' type='password' value={schoolYearResetPassword} onChange={(event) => setSchoolYearResetPassword(event.target.value)} autoComplete='current-password' />
-                      </Field>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel disabled={resettingSchoolYear}>Annulla</AlertDialogCancel>
-                        <AlertDialogAction variant='destructive' onClick={(event) => { event.preventDefault(); void handleSchoolYearReset() }} disabled={schoolYearResetConfirmation !== 'RESET' || !schoolYearResetPassword || resettingSchoolYear}>{resettingSchoolYear ? 'Reset in corso...' : 'Elimina dati'}</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </CardContent>
-              </Card>
               <Card>
                 <CardHeader>
                   <CardTitle>Informazioni</CardTitle>

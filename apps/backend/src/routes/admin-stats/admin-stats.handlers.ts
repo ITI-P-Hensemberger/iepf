@@ -18,20 +18,31 @@ import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'
+import { readAnalytics } from '@/lib/analytics'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { readNotificationStats } from '@/lib/notification-stats'
+import { buildYearReport, reportFilename } from '@/lib/year-report'
+import { loadReportData } from '@/lib/year-report-data'
+import { recordReportExport } from '@/lib/year-report-export'
 
 import type {
+  GetAnalyticsRoute,
   GetConfirmedBookingsCountRoute,
   GetConfirmedLessonsCountRoute,
   GetFeedbackSummaryRoute,
+  GetNotificationStatsRoute,
+  GetOverviewRoute,
   GetPushCoverageRoute,
   GetStudentStatusCountsRoute,
   GetTutorStatusCountsRoute,
+  GetYearReportRoute,
   ListStudentLessonCountsRoute,
   ListSubjectTutorCountsRoute,
   ListTutorLessonCountsRoute
 } from './admin-stats.routes'
+
+import { XLSX_TYPE } from './admin-stats.routes'
 
 type HandlerContext = Context<AppBindings>
 
@@ -446,4 +457,64 @@ export const getPushCoverage: AppRouteHandler<GetPushCoverageRoute> = async (c) 
     }),
     HttpStatusCodes.OK
   )
+}
+
+export const getAnalytics: AppRouteHandler<GetAnalyticsRoute> = async (c) => {
+  ensureAdmin(c)
+  const { days } = c.req.valid('query')
+  return c.json(await readAnalytics(days), HttpStatusCodes.OK)
+}
+
+// The archive of the year, names included: never from an impersonated session.
+export const getYearReport: AppRouteHandler<GetYearReportRoute> = async (c) => {
+  const admin = ensureAdmin(c)
+  if (c.get('impersonation')) {
+    forbid()
+  }
+  const now = new Date()
+  const workbook = buildYearReport(await loadReportData(), now)
+  await recordReportExport(admin.id, now)
+  return c.body(new Uint8Array(workbook), HttpStatusCodes.OK, {
+    'Content-Type': XLSX_TYPE,
+    'Content-Disposition': `attachment; filename="${reportFilename(now)}"`,
+    'Cache-Control': 'no-store'
+  }) as never
+}
+
+export const getOverview: AppRouteHandler<GetOverviewRoute> = async (c) => {
+  ensureAdmin(c)
+  const month = sql<string>`to_char(${lessons.startAt} at time zone 'Europe/Rome', 'YYYY-MM')`
+  const confirmedBooking = sql`${lessonBookings.status} = 'confirmed'`
+  const [statusRows, attendanceRows, monthRows] = await Promise.all([
+    db.select({ status: lessons.status, count: sql<number>`count(*)::int` }).from(lessons).groupBy(lessons.status),
+    db.select({
+      present: sql<number>`count(*) filter (where ${lessonBookings.studentPresence} = true)::int`,
+      absent: sql<number>`count(*) filter (where ${lessonBookings.studentPresence} = false)::int`,
+      unrecorded: sql<number>`count(*) filter (where ${lessonBookings.studentPresence} is null)::int`
+    }).from(lessonBookings).where(confirmedBooking),
+    db.select({
+      month,
+      lessons: sql<number>`count(distinct ${lessons.id})::int`,
+      completed: sql<number>`count(distinct ${lessons.id}) filter (where ${lessons.status} = 'completed')::int`,
+      bookings: sql<number>`count(${lessonBookings.id})::int`,
+      present: sql<number>`count(${lessonBookings.id}) filter (where ${lessonBookings.studentPresence} = true)::int`,
+      absent: sql<number>`count(${lessonBookings.id}) filter (where ${lessonBookings.studentPresence} = false)::int`
+    })
+      .from(lessons)
+      .leftJoin(lessonBookings, and(eq(lessonBookings.lessonId, lessons.id), confirmedBooking))
+      .where(sql`${lessons.startAt} >= date_trunc('month', now() at time zone 'Europe/Rome') at time zone 'Europe/Rome' - interval '11 months'`)
+      .groupBy(month)
+      .orderBy(month)
+  ])
+  const byStatus = (status: string) => statusRows.find(row => row.status === status)?.count ?? 0
+  return c.json({
+    lessonsByStatus: { scheduled: byStatus('scheduled'), confirmed: byStatus('confirmed'), completed: byStatus('completed'), canceled: byStatus('canceled') },
+    attendance: attendanceRows[0] ?? { present: 0, absent: 0, unrecorded: 0 },
+    months: monthRows
+  }, HttpStatusCodes.OK)
+}
+
+export const getNotificationStats: AppRouteHandler<GetNotificationStatsRoute> = async (c) => {
+  ensureAdmin(c)
+  return c.json(await readNotificationStats(), HttpStatusCodes.OK)
 }
