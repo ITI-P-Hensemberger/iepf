@@ -23,7 +23,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { cn } from '@/lib/utils'
 import { capitalizeFirst } from '@/lib/capitalize'
-import { FeedbackHistoryToggle } from '@/components/feedback-history'
+import { FEEDBACK_LOCKED_NOTICE, FeedbackHistoryToggle } from '@/components/feedback-history'
 
 export type StudentLesson = {
   id: string
@@ -382,11 +382,11 @@ export function FeedbackDialog({
                 audience='author'
                 className='max-h-[40vh] overflow-y-auto'
               />
-              {canEdit && existing.editableUntil && (
-                <p className='text-xs text-muted-foreground'>
-                  Puoi modificarlo fino al {editableDateFormat.format(new Date(existing.editableUntil))}.
-                </p>
-              )}
+              <p className='text-xs text-muted-foreground'>
+                {canEdit && existing.editableUntil
+                  ? `Puoi modificarlo fino al ${editableDateFormat.format(new Date(existing.editableUntil))}.`
+                  : FEEDBACK_LOCKED_NOTICE}
+              </p>
             </>
           )}
         </div>

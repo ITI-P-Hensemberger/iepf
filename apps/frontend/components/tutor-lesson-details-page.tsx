@@ -31,7 +31,7 @@ import { canMarkPresence } from '@/lib/lesson-schedule'
 import { lessonSubject } from '@/lib/lesson-subject'
 import { dayKeyOf, mondayOf } from '@/lib/school-week'
 import { capitalizeFirst } from '@/lib/capitalize'
-import { FeedbackHistoryToggle } from '@/components/feedback-history'
+import { FEEDBACK_LOCKED_NOTICE, FeedbackHistoryToggle } from '@/components/feedback-history'
 
 type Lesson = {
   id: string
@@ -159,6 +159,8 @@ export default function TutorLessonDetailsPage() {
   const [cancelOpen, setCancelOpen] = React.useState(false)
   const [isCancelling, setIsCancelling] = React.useState(false)
   const [feedbackOpen, setFeedbackOpen] = React.useState(false)
+  // Past the week the tutor can still read what they wrote, no longer change it.
+  const [feedbackReadonly, setFeedbackReadonly] = React.useState(false)
   const [feedbackTarget, setFeedbackTarget] = React.useState<Booking | null>(
     null
   )
@@ -557,7 +559,7 @@ export default function TutorLessonDetailsPage() {
                         {booking.topic && <p className='flex-1 rounded-md bg-muted/50 px-3 py-2 text-sm whitespace-pre-wrap'>{booking.topic}</p>}
                         {(canGiveFeedback || existing) && (
                           <div className='flex flex-wrap items-center gap-2'>
-                            {canGiveFeedback && isFeedbackEditable(existing) && (
+                            {(existing || canGiveFeedback) && (
                               <Button
                                 size='sm'
                                 variant='outline'
@@ -566,10 +568,12 @@ export default function TutorLessonDetailsPage() {
                                   setFeedbackTargetId(existing?.id ?? null)
                                   setFeedbackText(existing?.text ?? '')
                                   setFeedbackRating(existing?.rating ?? 5)
+                                  setFeedbackReadonly(!isFeedbackEditable(existing))
                                   setFeedbackOpen(true)
                                 }}
                               >
-                                <MessageSquare className='h-4 w-4' /> {existing ? 'Modifica feedback' : 'Feedback'}
+                                <MessageSquare className='h-4 w-4' />
+                                {!existing ? 'Feedback' : isFeedbackEditable(existing) ? 'Modifica feedback' : 'Il tuo feedback'}
                               </Button>
                             )}
                             {existing && <StarRating value={existing.rating} size='sm' />}
@@ -641,22 +645,30 @@ export default function TutorLessonDetailsPage() {
       >
         <AlertDialogContent className='max-w-[calc(100%-2rem)] sm:max-w-lg'>
           <AlertDialogHeader className='text-left sm:text-left'>
-            <AlertDialogTitle>Com&apos;è andata con {feedbackTarget ? studentLabel(studentMap.get(feedbackTarget.studentId)) : 'lo studente'}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {feedbackReadonly
+                ? `Il tuo feedback per ${feedbackTarget ? studentLabel(studentMap.get(feedbackTarget.studentId)) : 'lo studente'}`
+                : <>Com&apos;è andata con {feedbackTarget ? studentLabel(studentMap.get(feedbackTarget.studentId)) : 'lo studente'}?</>}
+            </AlertDialogTitle>
             <AlertDialogDescription className='text-left'>Il feedback lo leggono gli organizzatori.</AlertDialogDescription>
           </AlertDialogHeader>
           <div className='space-y-3'>
-            <StarRating value={feedbackRating} onChange={setFeedbackRating} />
+            <StarRating value={feedbackRating} onChange={feedbackReadonly ? undefined : setFeedbackRating} />
             <Textarea
               value={feedbackText}
               onChange={(event) => setFeedbackText(capitalizeFirst(event.target.value))}
               placeholder='Era preparato? Su cosa avete lavorato?'
               maxLength={1000}
               rows={4}
+              readOnly={feedbackReadonly}
             />
-            <div className='text-right text-xs text-muted-foreground'>{feedbackText.length}/1000</div>
+            {feedbackReadonly
+              ? <p className='text-xs text-muted-foreground'>{FEEDBACK_LOCKED_NOTICE}</p>
+              : <div className='text-right text-xs text-muted-foreground'>{feedbackText.length}/1000</div>}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Chiudi</AlertDialogCancel>
+            {!feedbackReadonly && (
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
@@ -666,6 +678,7 @@ export default function TutorLessonDetailsPage() {
             >
               {isSavingFeedback ? 'Salvataggio...' : 'Salva'}
             </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

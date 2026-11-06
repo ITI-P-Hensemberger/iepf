@@ -25,6 +25,9 @@ type FeedbackHistoryPayload = {
   versions: FeedbackVersion[]
 }
 
+// Shown to an author whose feedback can no longer change.
+export const FEEDBACK_LOCKED_NOTICE = 'Non è più modificabile: sono passati 7 giorni dalla lezione.'
+
 function when(iso: string) {
   return format(new Date(iso), "d MMM yyyy', 'HH:mm", { locale: it })
 }
