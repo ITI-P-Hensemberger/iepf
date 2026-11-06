@@ -59,6 +59,7 @@ import { cn } from '@/lib/utils'
 import { type SubjectOption } from '@/lib/lesson-subject'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { BackButton } from '@/components/back-button'
+import { capitalizeFirst } from '@/lib/capitalize'
 
 const AVAILABLE_TIMES = ['13:00', '14:00', '15:00', '16:00']
 // Reschedule choice that leaves the subject to the bookings, as on generated lessons.
@@ -1417,7 +1418,7 @@ export default function AdminLessonDetailsPage() {
               <Input
                 id='booking-topic'
                 value={bookingTopic}
-                onChange={(event) => setBookingTopic(event.target.value)}
+                onChange={(event) => setBookingTopic(capitalizeFirst(event.target.value))}
                 placeholder="Inserisci l'argomento"
               />
             </div>
@@ -1460,7 +1461,7 @@ export default function AdminLessonDetailsPage() {
           <div className='space-y-2'>
             <Input
               value={topicValue}
-              onChange={(event) => setTopicValue(event.target.value)}
+              onChange={(event) => setTopicValue(capitalizeFirst(event.target.value))}
               placeholder="Inserisci l'argomento"
             />
           </div>

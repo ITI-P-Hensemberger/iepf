@@ -48,6 +48,7 @@ import {
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
 import { STUDENT_YEARS } from '@/lib/school-years'
+import { capitalizeFirst } from '@/lib/capitalize'
 
 function normalizeName(value: string) {
   const trimmed = value.trim()
@@ -880,7 +881,7 @@ export default function AdminStudentDetailPage() {
                       id='student-token-reason'
                       className='truncate'
                       value={tokenReason}
-                      onChange={(event) => setTokenReason(event.target.value)}
+                      onChange={(event) => setTokenReason(capitalizeFirst(event.target.value))}
                       placeholder='Es. accredito manuale per recupero lezione'
                       disabled={isAdjustingTokens}
                     />

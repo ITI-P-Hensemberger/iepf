@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Textarea } from '@/components/ui/textarea'
 import { safeHref } from '@/lib/markdown'
 import { applyFormat, type ToolbarFormat } from '@/lib/markdown-toolbar'
+import { capitalizeFirst } from '@/lib/capitalize'
 
 // A textarea with a toolbar that writes the markdown subset of lib/markdown.ts.
 const TOOLBAR: Array<{ format: ToolbarFormat, label: string, icon: React.ComponentType<{ className?: string }>, shortcut?: string }> = [
@@ -48,7 +49,7 @@ export function MarkdownEditor({
     const start = formatName === 'link' ? selection.current.start : textarea.selectionStart
     const end = formatName === 'link' ? selection.current.end : textarea.selectionEnd
     const next = applyFormat({ value, selectionStart: start, selectionEnd: end }, formatName, url)
-    onChange(next.value)
+    onChange(capitalizeFirst(next.value))
     requestAnimationFrame(() => {
       textarea.focus()
       textarea.setSelectionRange(next.selectionStart, next.selectionEnd)
@@ -123,7 +124,7 @@ export function MarkdownEditor({
         id={id}
         value={value}
         maxLength={maxLength}
-        onChange={event => onChange(event.target.value)}
+        onChange={event => onChange(capitalizeFirst(event.target.value))}
         onKeyDown={event => {
           if (!(event.metaKey || event.ctrlKey)) return
           const item = TOOLBAR.find(entry => entry.shortcut === event.key.toLowerCase())

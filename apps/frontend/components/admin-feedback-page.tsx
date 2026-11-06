@@ -42,6 +42,7 @@ import { formatItalianDate } from '@/lib/format-date'
 import { format } from 'date-fns'
 import { type DateRange } from 'react-day-picker'
 import { Label } from './ui/label'
+import { capitalizeFirst } from '@/lib/capitalize'
 
 const pageSize = 20
 const commentPreviewLimit = 90
@@ -1210,7 +1211,7 @@ export default function AdminFeedbackPage() {
                 id='edit-text'
                 value={editForm.text}
                 onChange={(event) =>
-                  setEditForm((prev) => ({ ...prev, text: event.target.value }))
+                  setEditForm((prev) => ({ ...prev, text: capitalizeFirst(event.target.value) }))
                 }
                 placeholder='Aggiorna il testo'
                 rows={4}

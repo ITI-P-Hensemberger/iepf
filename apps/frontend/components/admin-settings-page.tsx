@@ -35,6 +35,7 @@ import { Calendar } from '@/components/ui/calendar'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
 import { Pencil, Trash2, Save, X } from 'lucide-react'
+import { capitalizeFirst } from '@/lib/capitalize'
 
 type Role = 'student' | 'tutor' | 'admin' | 'activator'
 type MessageLevel = 'info' | 'warning' | 'error' | 'success'
@@ -789,7 +790,7 @@ export default function AdminSettingsPage() {
                           ...prev,
                           maintenance: {
                             ...prev.maintenance,
-                            message: event.target.value
+                            message: capitalizeFirst(event.target.value)
                           }
                         }))
                       }
@@ -910,7 +911,7 @@ export default function AdminSettingsPage() {
                                   ...prev,
                                   [role]: {
                                     ...prev[role],
-                                    title: event.target.value
+                                    title: capitalizeFirst(event.target.value)
                                   }
                                 }))
                               }
@@ -968,7 +969,7 @@ export default function AdminSettingsPage() {
                         <Input
                           value={newSubjectName}
                           onChange={(event) =>
-                            setNewSubjectName(event.target.value)
+                            setNewSubjectName(capitalizeFirst(event.target.value))
                           }
                           placeholder='Es. Matematica'
                           maxLength={120}
@@ -1028,7 +1029,7 @@ export default function AdminSettingsPage() {
                                   <Input
                                     value={editingSubjectName}
                                     onChange={(event) =>
-                                      setEditingSubjectName(event.target.value)
+                                      setEditingSubjectName(capitalizeFirst(event.target.value))
                                     }
                                     maxLength={120}
                                   />
