@@ -23,6 +23,12 @@ function buildLessonDetailsLink(lessonId: string) {
   return new URL(`/tutor/lessons/${lessonId}`, baseUrl).toString()
 }
 
+// Names, topics, classes and subjects are written by users: escape them before
+// they go into the HTML body. Plain-text bodies, subjects and URLs stay as they are.
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' })[char]!)
+}
+
 interface EmailTemplate {
   subject: string
   text: string
@@ -108,7 +114,7 @@ function buildEmailHtml(
 function buildInfoCard(title: string, lines: string[]) {
   return `
     <div style="margin:12px 0;padding:14px 16px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;text-align:left;">
-      <div style="font-weight:700;color:#0f172a;font-size:15px;">${title}</div>
+      <div style="font-weight:700;color:#0f172a;font-size:15px;">${escapeHtml(title)}</div>
       ${lines.map(line => `<div style="margin-top:6px;color:#475569;font-size:14px;">${line}</div>`).join('')}
     </div>
   `.trim()
@@ -117,7 +123,7 @@ function buildInfoCard(title: string, lines: string[]) {
 function buildLessonCardHtml(title: string, lines: string[]) {
   return `
     <div style="margin:12px 0;padding:14px 16px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;text-align:left;">
-      <div style="font-weight:700;color:#0f172a;font-size:15px;">${title}</div>
+      <div style="font-weight:700;color:#0f172a;font-size:15px;">${escapeHtml(title)}</div>
       ${lines.map((line, index) => `<div style="margin-top:${index === 0 ? 4 : 6}px;color:#475569;font-size:14px;">${line}</div>`).join('')}
     </div>
   `.trim()
@@ -349,8 +355,8 @@ export function buildLessonBookingConfirmedMessage(params: {
   if (params.recipientRole === 'student') {
     const cardLines = [
       dateLabel,
-      `Tutor: <strong>${params.tutorName}</strong>`,
-      ...(params.topic ? [`Argomento: <strong>${params.topic}</strong>`] : [])
+      `Tutor: <strong>${escapeHtml(params.tutorName)}</strong>`,
+      ...(params.topic ? [`Argomento: <strong>${escapeHtml(params.topic)}</strong>`] : [])
     ]
     return {
       subject: 'Prenotazione confermata',
@@ -369,8 +375,8 @@ export function buildLessonBookingConfirmedMessage(params: {
   const studentLabel = buildStudentLabel(params.studentName, params.studentClass)
   const cardLines = [
     dateLabel,
-    `Studente: <strong>${studentLabel}</strong>`,
-    ...(params.topic ? [`Argomento: <strong>${params.topic}</strong>`] : [])
+    `Studente: <strong>${escapeHtml(studentLabel)}</strong>`,
+    ...(params.topic ? [`Argomento: <strong>${escapeHtml(params.topic)}</strong>`] : [])
   ]
   return {
     subject: 'Nuova prenotazione',
@@ -413,8 +419,8 @@ export function buildLessonBookingCanceledMessage(params: {
   if (params.recipientRole === 'student') {
     const cardLines = [
       dateLabel,
-      `Tutor: <strong>${params.tutorName}</strong>`,
-      ...(params.topic ? [`Argomento: <strong>${params.topic}</strong>`] : [])
+      `Tutor: <strong>${escapeHtml(params.tutorName)}</strong>`,
+      ...(params.topic ? [`Argomento: <strong>${escapeHtml(params.topic)}</strong>`] : [])
     ]
     return {
       subject: 'Prenotazione annullata',
@@ -437,8 +443,8 @@ export function buildLessonBookingCanceledMessage(params: {
   const studentLabel = buildStudentLabel(params.studentName, params.studentClass)
   const cardLines = [
     dateLabel,
-    `Studente: <strong>${studentLabel}</strong>`,
-    ...(params.topic ? [`Argomento: <strong>${params.topic}</strong>`] : [])
+    `Studente: <strong>${escapeHtml(studentLabel)}</strong>`,
+    ...(params.topic ? [`Argomento: <strong>${escapeHtml(params.topic)}</strong>`] : [])
   ]
   return {
     subject: 'Prenotazione annullata',
@@ -448,10 +454,10 @@ export function buildLessonBookingCanceledMessage(params: {
     html: buildEmailHtml(
       'Prenotazione annullata',
       params.canceledBy === 'admin'
-        ? `La prenotazione di <strong>${studentLabel}</strong> del <strong>${dateLabel}</strong> è stata annullata.
+        ? `La prenotazione di <strong>${escapeHtml(studentLabel)}</strong> del <strong>${dateLabel}</strong> è stata annullata.
         <div style="margin-top:12px;">${buildLessonCardHtml(params.subjectName, cardLines)}</div>
         <div style="margin-top:12px;color:#64748b;font-size:13px;">Operazione effettuata da un amministratore.</div>`
-        : `La prenotazione di <strong>${studentLabel}</strong> del <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.
+        : `La prenotazione di <strong>${escapeHtml(studentLabel)}</strong> del <strong>${dateLabel}</strong> è stata annullata ${canceledByLabel}.
         <div style="margin-top:12px;">${buildLessonCardHtml(params.subjectName, cardLines)}</div>
         ${params.tutorPartialNotice ? '<div style="margin-top:12px;font-size:13px;color:#ea580c;">Lo studente ha annullato dopo le 8 del giorno stesso della lezione: la lezione verrà conteggiata parzialmente.</div>' : ''}`
     )
@@ -478,8 +484,8 @@ export function buildLessonCanceledMessage(params: {
   if (params.recipientRole === 'student') {
     const cardLines = [
       dateLabel,
-      `Tutor: <strong>${params.tutorName}</strong>`,
-      ...(params.topic ? [`Argomento: <strong>${params.topic}</strong>`] : [])
+      `Tutor: <strong>${escapeHtml(params.tutorName)}</strong>`,
+      ...(params.topic ? [`Argomento: <strong>${escapeHtml(params.topic)}</strong>`] : [])
     ]
     return {
       subject: 'Lezione annullata',
@@ -505,8 +511,8 @@ export function buildLessonCanceledMessage(params: {
   const topicsLine = topics.length > 0 ? `Argomenti: ${topics.join(', ')}` : null
   const cardLines = [
     dateLabel,
-    `Studenti: <strong>${studentLabelList}</strong>`,
-    ...(topicsLine ? [topicsLine] : [])
+    `Studenti: <strong>${escapeHtml(studentLabelList)}</strong>`,
+    ...(topicsLine ? [escapeHtml(topicsLine)] : [])
   ]
 
   return {
@@ -547,14 +553,14 @@ export function buildLessonRescheduledMessage(params: {
       text: `La lezione del ${oldDate} è stata riprogrammata al ${newDate}. Materia: ${params.newSubjectName}. Tutor: ${params.newTutorName}.${adminSuffix}`,
       html: buildEmailHtml(
         'Lezione riprogrammata',
-        `La lezione del <strong>${oldDate}</strong> è stata riprogrammata al <strong>${newDate}</strong>.<br />Materia: <strong>${params.newSubjectName}</strong>.<br />Tutor: <strong>${params.newTutorName}</strong>.${params.rescheduledByAdmin ? '<br />Operazione effettuata da un amministratore.' : ''}`
+        `La lezione del <strong>${oldDate}</strong> è stata riprogrammata al <strong>${newDate}</strong>.<br />Materia: <strong>${escapeHtml(params.newSubjectName)}</strong>.<br />Tutor: <strong>${escapeHtml(params.newTutorName)}</strong>.${params.rescheduledByAdmin ? '<br />Operazione effettuata da un amministratore.' : ''}`
       )
     } satisfies EmailTemplate
   }
 
   const studentItems = params.students.length > 0
     ? `<ul style="margin:12px 0 0;padding-left:20px;text-align:left;">${params.students
-      .map(student => `<li>${buildStudentLabel(student.name, student.classLabel)}</li>`)
+      .map(student => `<li>${escapeHtml(buildStudentLabel(student.name, student.classLabel))}</li>`)
       .join('')}</ul>`
     : '<p style="margin:12px 0 0;">Nessuno studente prenotato.</p>'
 
@@ -563,7 +569,7 @@ export function buildLessonRescheduledMessage(params: {
     text: `La lezione del ${oldDate} è stata riprogrammata al ${newDate}. Materia: ${params.newSubjectName}. Studenti: ${params.students.map(student => buildStudentLabel(student.name, student.classLabel)).join(', ') || 'nessuno'}.${adminSuffix}`,
     html: buildEmailHtml(
       'Lezione riprogrammata',
-      `La lezione del <strong>${oldDate}</strong> è stata riprogrammata al <strong>${newDate}</strong>.<br />Materia: <strong>${params.newSubjectName}</strong>.<br />Studenti:${studentItems}${params.rescheduledByAdmin ? '<br />Operazione effettuata da un amministratore.' : ''}`
+      `La lezione del <strong>${oldDate}</strong> è stata riprogrammata al <strong>${newDate}</strong>.<br />Materia: <strong>${escapeHtml(params.newSubjectName)}</strong>.<br />Studenti:${studentItems}${params.rescheduledByAdmin ? '<br />Operazione effettuata da un amministratore.' : ''}`
     )
   } satisfies EmailTemplate
 }
@@ -593,8 +599,8 @@ export function buildLessonReminderStudentMessage(params: {
   const topicText = params.topic ? ` Argomento: ${params.topic}.` : ''
   const cardLines = [
     dateLabel,
-    `Tutor: <strong>${params.tutorName}</strong>`,
-    ...(params.topic ? [`Argomento: <strong>${params.topic}</strong>`] : [])
+    `Tutor: <strong>${escapeHtml(params.tutorName)}</strong>`,
+    ...(params.topic ? [`Argomento: <strong>${escapeHtml(params.topic)}</strong>`] : [])
   ]
   return {
     subject: `Promemoria lezioni di ${whenLabel}`,
@@ -629,11 +635,11 @@ export function buildLessonReminderTutorMessage(params: {
           .join(', ')
       : null
     const studentsLine = studentsValue
-      ? `Studenti: <strong>${studentsValue}</strong>`
+      ? `Studenti: <strong>${escapeHtml(studentsValue)}</strong>`
       : '<span style="color:#64748b;">Nessuno studente prenotato.</span>'
     const lines = [
       dateLabel,
-      ...(topics.length > 0 ? [`Argomenti: <strong>${topics.join(', ')}</strong>`] : []),
+      ...(topics.length > 0 ? [`Argomenti: <strong>${escapeHtml(topics.join(', '))}</strong>`] : []),
       studentsLine
     ]
     return buildLessonCardHtml(lesson.subjectName, lines)
@@ -674,7 +680,7 @@ export function buildLessonCreatedMessage(params: {
     text: `Ti è stata assegnata una nuova lezione il ${dateLabel}. Materia: ${params.subjectName}. Tutor: ${params.tutorName}. Dettagli: ${detailsUrl}`,
     html: buildEmailHtml(
       'Nuova lezione assegnata',
-      `Ti è stata assegnata una nuova lezione il <strong>${dateLabel}</strong>.<br />Materia: <strong>${params.subjectName}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.`,
+      `Ti è stata assegnata una nuova lezione il <strong>${dateLabel}</strong>.<br />Materia: <strong>${escapeHtml(params.subjectName)}</strong>.<br />Tutor: <strong>${escapeHtml(params.tutorName)}</strong>.`,
       { label: 'Vedi dettagli lezione', url: detailsUrl },
       { hideHomeButton: true }
     )
@@ -693,7 +699,7 @@ export function buildLessonReassignedMessage(params: {
     text: `Ciao ${params.tutorName}, la lezione di ${params.subjectName} del ${dateLabel} è stata affidata a un altro tutor da un amministratore. Non devi più tenerla.`,
     html: buildEmailHtml(
       'Lezione riassegnata',
-      `Ciao ${params.tutorName}, la lezione di <strong>${params.subjectName}</strong> del <strong>${dateLabel}</strong> è stata affidata a un altro tutor da un amministratore.<br />Non devi più tenerla.`
+      `Ciao ${escapeHtml(params.tutorName)}, la lezione di <strong>${escapeHtml(params.subjectName)}</strong> del <strong>${dateLabel}</strong> è stata affidata a un altro tutor da un amministratore.<br />Non devi più tenerla.`
     )
   } satisfies EmailTemplate
 }
@@ -714,7 +720,7 @@ export function buildLessonPresenceUpdatedMessage(params: {
     text: `Sei stato ${params.present ? 'confermato' : 'registrato'} ${statusLabel} alla lezione di ${params.subjectName} del ${dateLabel}. Tutor: ${params.tutorName}.${disclaimer ? ` ${disclaimer}` : ''}`,
     html: buildEmailHtml(
       heading,
-      `Sei stato ${params.present ? 'confermato' : 'registrato'} <strong>${statusLabel}</strong> alla lezione di <strong>${params.subjectName}</strong> del <strong>${dateLabel}</strong>.<br />Tutor: <strong>${params.tutorName}</strong>.${disclaimerHtml}`
+      `Sei stato ${params.present ? 'confermato' : 'registrato'} <strong>${statusLabel}</strong> alla lezione di <strong>${escapeHtml(params.subjectName)}</strong> del <strong>${dateLabel}</strong>.<br />Tutor: <strong>${escapeHtml(params.tutorName)}</strong>.${disclaimerHtml}`
     )
   } satisfies EmailTemplate
 }
@@ -738,17 +744,14 @@ export function buildLessonsGeneratedMessage(params: {
     text: `Ciao ${params.tutorName}, ${message}`,
     html: buildEmailHtml(
       'Nuove lezioni assegnate',
-      `Ciao ${params.tutorName}, ${message}`,
+      `Ciao ${escapeHtml(params.tutorName)}, ${message}`,
       { label: 'Vai alle lezioni', url: new URL('/tutor/lessons', env.SITE_URL ?? 'http://localhost:3000').toString() },
       { hideHomeButton: true }
     )
   } satisfies EmailTemplate
 }
 
-// Admin notifications. Every value is escaped: names and subjects come from users.
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' })[char]!)
-}
+// Admin notifications.
 
 function adminLink(path: string) {
   return new URL(path, env.SITE_URL ?? 'http://localhost:3000').toString()
