@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { logout } from '@/lib/auth-client'
+import { ACTIVATION_FORM_URL, RELEASE_FORM_URL } from '@/lib/student-activation'
 
 export default function StudentPendingPage() {
   async function handleLogout() {
@@ -69,7 +70,7 @@ export default function StudentPendingPage() {
                     Lo trovi nella circolare di inizio progetto oppure al
                     seguente link:{' '}
                     <Link
-                      href='https://hensembergermonza-my.sharepoint.com/:b:/g/personal/iepf_hensemberger_it/IQA_QdT0Y57qRL3nYwkCsEw1ATbNluKV0Ba-nMZE4gSaHW8?e=6vwbjX'
+                      href={RELEASE_FORM_URL}
                       target='_blank'
                       className='underline underline-offset-4'
                     >
@@ -94,8 +95,9 @@ export default function StudentPendingPage() {
                     3
                   </span>
                   <p className='text-sm leading-relaxed text-muted-foreground'>
-                    Nel frattempo riceverai l&apos;avviso di pagamento di €50,00
-                    dalla Segreteria Scolastica. <br />
+                    Nel frattempo riceverai l&apos;avviso di pagamento dalla
+                    Segreteria Scolastica: l&apos;importo è indicato nella
+                    circolare dell&apos;anno scolastico in corso. <br />
                     Effettua il pagamento e conserva la ricevuta.
                     <span className='mt-2 flex items-start gap-2 text-sm font-medium uppercase text-yellow-600 bg-amber-100 p-2 rounded-lg'>
                       <AlertTriangle
@@ -125,7 +127,7 @@ export default function StudentPendingPage() {
                     Compila e allega la ricevuta di pagamento e la liberatoria
                     firmata al seguente form: <br />
                     <Link
-                      href='https://forms.cloud.microsoft/e/BzQUy21yt7'
+                      href={ACTIVATION_FORM_URL}
                       target='_blank'
                       className='underline underline-offset-4'
                     >

@@ -44,7 +44,7 @@ const TERMS = [
     body: [
       "L'Utente accetta le seguenti condizioni economiche:",
       [
-        'il costo di partecipazione è pari a € 50,00 per un pacchetto di 30 ore di lezione;',
+        "il costo di partecipazione e il numero di ore del pacchetto sono quelli indicati nella circolare dell'anno scolastico in corso, pubblicata nel registro elettronico;",
         'il pagamento deve essere effettuato anticipatamente tramite sistema PagoPA per poter accedere al servizio;',
         "il pacchetto di ore ha validità limitata all'anno scolastico in corso;",
         'le ore non usufruite entro la conclusione delle attività non sono in alcun caso rimborsabili, né parzialmente né totalmente.'
