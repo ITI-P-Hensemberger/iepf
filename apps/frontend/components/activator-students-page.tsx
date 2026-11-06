@@ -11,6 +11,16 @@ import {
 import { Search } from 'lucide-react'
 import { toast } from 'sonner'
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -61,6 +71,8 @@ type DataTableProps<TData> = {
   tab?: 'active' | 'inactive'
   isSubmitting?: boolean
   onActivateStudent: (studentId: string, value: true | false) => Promise<void>
+  // Activation always goes through the confirmation dialog.
+  onRequestActivation: (students: User[]) => void
 }
 
 type PagedPayloadObject<T> = {
@@ -122,7 +134,8 @@ function DataTable<TData>({
   total,
   tab,
   isSubmitting,
-  onActivateStudent
+  onActivateStudent,
+  onRequestActivation
 }: DataTableProps<TData>) {
   const router = useRouter()
   const pathname = usePathname()
@@ -166,8 +179,12 @@ function DataTable<TData>({
             const selectedRows = table
               .getFilteredSelectedRowModel()
               .rows.map((row) => row.original as unknown as User)
+            if (tab === 'inactive') {
+              onRequestActivation(selectedRows)
+              return
+            }
             for (const row of selectedRows) {
-              await onActivateStudent(row.id, tab === 'inactive' ? true : false)
+              await onActivateStudent(row.id, false)
             }
             location.reload()
           }}
@@ -286,6 +303,9 @@ export default function ActivatorStudentsPage() {
   const [activeLoading, setActiveLoading] = React.useState(true)
   const [inactiveLoading, setInactiveLoading] = React.useState(true)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [pendingActivation, setPendingActivation] = React.useState<
+    User[] | null
+  >(null)
   const [activeFilters, setActiveFilters] =
     React.useState<TableFilters>(defaultFilters)
   const [inactiveFilters, setInactiveFilters] =
@@ -577,6 +597,15 @@ export default function ActivatorStudentsPage() {
     }
   }
 
+  async function confirmActivation() {
+    if (!pendingActivation) return
+    for (const student of pendingActivation) {
+      await activateStudent(student.id, true)
+    }
+    setPendingActivation(null)
+    location.reload()
+  }
+
   const makeColumns = React.useCallback(() => {
     const columns: ColumnDef<User>[] = [
       {
@@ -638,7 +667,11 @@ export default function ActivatorStudentsPage() {
             variant={row.original.isActive ? 'destructive' : 'outline'}
             size='sm'
             onClick={async () => {
-              await activateStudent(row.original.id, !row.original.isActive)
+              if (!row.original.isActive) {
+                setPendingActivation([row.original])
+                return
+              }
+              await activateStudent(row.original.id, false)
               location.reload()
             }}
             disabled={isSubmitting}
@@ -783,6 +816,7 @@ export default function ActivatorStudentsPage() {
                     total={activeTotal}
                     isSubmitting={isSubmitting}
                     onActivateStudent={activateStudent}
+                    onRequestActivation={setPendingActivation}
                     tab='active'
                   />
                 </div>
@@ -897,6 +931,7 @@ export default function ActivatorStudentsPage() {
                     total={inactiveTotal}
                     isSubmitting={isSubmitting}
                     onActivateStudent={activateStudent}
+                    onRequestActivation={setPendingActivation}
                     tab='inactive'
                   />
                 </div>
@@ -905,6 +940,57 @@ export default function ActivatorStudentsPage() {
           </div>
         </div>
       </div>
+
+      <AlertDialog
+        open={pendingActivation !== null}
+        onOpenChange={(open) => {
+          if (!open && !isSubmitting) setPendingActivation(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingActivation?.length === 1
+                ? 'Attivare questo studente?'
+                : `Attivare ${pendingActivation?.length ?? 0} studenti?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingActivation?.length === 1
+                ? 'Controlla che sia la persona giusta: una volta attivo potrà accedere e prenotare lezioni.'
+                : 'Controlla che siano le persone giuste: una volta attivi potranno accedere e prenotare lezioni.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ul className='max-h-64 divide-y overflow-y-auto rounded-md border text-sm'>
+            {pendingActivation?.map((student) => (
+              <li key={student.id} className='px-3 py-2'>
+                <div className='font-medium'>
+                  {student.lastName} {student.firstName}
+                </div>
+                <div className='text-xs text-muted-foreground'>
+                  {student.year ?? ''}
+                  {getSectionLabel(student)} · {student.email}
+                </div>
+              </li>
+            ))}
+          </ul>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmitting}>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isSubmitting}
+              onClick={(event) => {
+                event.preventDefault()
+                void confirmActivation()
+              }}
+            >
+              {isSubmitting
+                ? 'Attivazione...'
+                : pendingActivation?.length === 1
+                  ? 'Attiva'
+                  : `Attiva ${pendingActivation?.length ?? 0} studenti`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   )
 }
