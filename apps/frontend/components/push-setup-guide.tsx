@@ -226,7 +226,7 @@ function DesktopToPhone({ onDone }: { onDone: () => void }) {
 
   return (
     <div className='space-y-4'>
-      <p className='text-center text-sm text-muted-foreground'>
+      <p className='text-sm text-muted-foreground'>
         Inquadra il codice con la fotocamera del telefono: IEPF si apre e ti guida passo passo.
       </p>
       <div className='flex justify-center'>
