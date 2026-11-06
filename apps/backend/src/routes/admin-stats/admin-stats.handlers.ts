@@ -18,10 +18,12 @@ import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'
+import { readAnalytics } from '@/lib/analytics'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 
 import type {
+  GetAnalyticsRoute,
   GetConfirmedBookingsCountRoute,
   GetConfirmedLessonsCountRoute,
   GetFeedbackSummaryRoute,
@@ -446,4 +448,10 @@ export const getPushCoverage: AppRouteHandler<GetPushCoverageRoute> = async (c) 
     }),
     HttpStatusCodes.OK
   )
+}
+
+export const getAnalytics: AppRouteHandler<GetAnalyticsRoute> = async (c) => {
+  ensureAdmin(c)
+  const { days } = c.req.valid('query')
+  return c.json(await readAnalytics(days), HttpStatusCodes.OK)
 }

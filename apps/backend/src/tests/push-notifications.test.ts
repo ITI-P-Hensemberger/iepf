@@ -213,7 +213,7 @@ describe('delivery', () => {
 
     expect(await deliverPush([ids.student], 'reminders', message)).toEqual({ delivered: 2, failed: 0 })
     expect(sent.map(({ target }) => target.endpoint).sort()).toEqual([endpoint('laptop'), endpoint('phone')])
-    expect(sent[0].payload).toEqual({ ...message, badge: 0 })
+    expect(sent[0].payload).toEqual({ ...message, category: 'reminders', badge: 0 })
 
     await call('/notifications/preferences', { token: tokens.student, method: 'PUT', body: { reminders: false } })
     sent = []

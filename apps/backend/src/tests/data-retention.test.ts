@@ -65,6 +65,8 @@ describe('cleanUpExpiredData', () => {
     }
 
     expect(await cleanUpExpiredData(now)).toEqual({
+      analyticsActiveUserRows: 0,
+      analytics: 0,
       auditLogs: 0,
       refreshTokens: 1,
       emailVerificationTokens: 1,

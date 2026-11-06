@@ -321,3 +321,40 @@ export type GetStudentStatusCountsRoute = typeof getStudentStatusCounts
 export type GetTutorStatusCountsRoute = typeof getTutorStatusCounts
 export type GetFeedbackSummaryRoute = typeof getFeedbackSummary
 export type GetPushCoverageRoute = typeof getPushCoverage
+
+const analyticsQuerySchema = z.object({
+  days: z.coerce.number().int().min(7).max(400).default(30)
+})
+
+const analyticsSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  days: z.number().int(),
+  daily: z.array(z.object({ day: z.string(), event: z.string(), role: z.string(), count: z.number().int() })),
+  byDetail: z.array(z.object({ event: z.string(), detail: z.string(), count: z.number().int() })),
+  byGroup: z.array(z.object({ event: z.string(), role: z.string(), year: z.number().int(), count: z.number().int() }))
+})
+
+export const getAnalytics = createRoute({
+  path: '/admin/stats/analytics',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  request: { query: analyticsQuerySchema },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      analyticsSchema,
+      'Usage counts of the last days: per day, per detail and per role and school year'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Admin access required'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
+export type GetAnalyticsRoute = typeof getAnalytics

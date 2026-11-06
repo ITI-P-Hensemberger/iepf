@@ -1,6 +1,6 @@
 // Purpose: Delete data that is no longer needed: old audit logs, expired tokens and push
 // subscriptions of devices that have been silent for months, who closed long-expired popups,
-// and notifications older than the panel keeps.
+// notifications older than the panel keeps, and usage counts older than 13 months.
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 
 import { and, inArray, isNotNull, lt } from 'drizzle-orm'
@@ -14,6 +14,7 @@ import { notifications } from '@/db/schemas/notifications.schema'
 import { passwordResetTokens } from '@/db/schemas/password-reset-tokens.schema'
 import { refreshTokens } from '@/db/schemas/refresh-tokens.schema'
 import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
+import { deleteOldAnalytics, rollUpActiveUsers } from '@/lib/analytics'
 import { KEEP_NOTIFICATIONS_DAYS } from '@/lib/notification-inbox'
 import { deleteStaleSubscriptions } from '@/lib/push'
 
@@ -51,7 +52,12 @@ export async function cleanUpExpiredData(now = new Date()) {
   const auditCutoff = new Date(now.getTime() - AUDIT_LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000)
   const notificationsCutoff = new Date(now.getTime() - KEEP_NOTIFICATIONS_DAYS * 24 * 60 * 60 * 1000)
 
+  // Before the audit log loses its oldest day: active users are counted from it.
+  const activeUserRows = await rollUpActiveUsers(now, AUDIT_LOG_RETENTION_DAYS)
+
   return {
+    analyticsActiveUserRows: activeUserRows,
+    analytics: await deleteOldAnalytics(now),
     auditLogs: await deleteOlderThan(auditLogs, auditLogs.id, auditLogs.createdAt, auditCutoff),
     refreshTokens: await deleteOlderThan(refreshTokens, refreshTokens.id, refreshTokens.expiresAt, now),
     emailVerificationTokens: await deleteOlderThan(emailVerificationTokens, emailVerificationTokens.id, emailVerificationTokens.expiresAt, now),

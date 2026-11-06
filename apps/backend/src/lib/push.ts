@@ -8,6 +8,7 @@ import db from '@/db'
 import { notificationPreferences } from '@/db/schemas/notification-preferences.schema'
 import { pushSubscriptions } from '@/db/schemas/push-subscriptions.schema'
 import env from '@/env'
+import { countInBackground } from '@/lib/analytics'
 import { recordNotifications, unreadCounts } from '@/lib/notification-inbox'
 import { createWebPushTransport } from '@/lib/web-push'
 
@@ -127,7 +128,8 @@ export async function deliverPush(userIds: string[], category: PushCategory, mes
     const unread = await unreadCounts(recipients)
     const payloads = new Map(recipients.map(userId => [
       userId,
-      Buffer.from(JSON.stringify({ ...message, badge: unread.get(userId) ?? 0 }))
+      // The category lets the service worker count opens per kind of notification.
+      Buffer.from(JSON.stringify({ ...message, category, badge: unread.get(userId) ?? 0 }))
     ]))
 
     await Promise.all(targets.map(async (target) => {
@@ -157,6 +159,9 @@ export async function deliverPush(userIds: string[], category: PushCategory, mes
   catch (error) {
     result.failed += 1
     console.error('Push delivery failed:', error)
+  }
+  if (result.delivered > 0) {
+    countInBackground(null, 'push_sent', category, result.delivered)
   }
   return result
 }
