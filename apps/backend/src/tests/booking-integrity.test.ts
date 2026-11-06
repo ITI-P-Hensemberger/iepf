@@ -603,6 +603,7 @@ describe('school year reset', () => {
     (select count(*)::int from users where role in ('student', 'tutor')) as people,
     (select count(*)::int from lessons) as lessons,
     (select count(*)::int from token_ledger) as ledger,
+    (select count(*)::int from analytics_daily) as usage,
     (select count(*)::int from users where role = 'admin') as admins`)).rows[0]
 
   it('refuses non-admins, a missing confirmation and a wrong password', async () => {
@@ -646,8 +647,10 @@ describe('school year reset', () => {
   })
 
   it('deletes school-year data and keeps admins with the correct password', async () => {
+    await db.execute(sql`insert into analytics_daily (day, event, detail, role, year, count) values ('2026-03-02', 'page_view', '/student', 'student', 2, 5)`)
     const before = await counts()
     expect(before.people).toBeGreaterThan(0)
+    expect(before.usage).toBeGreaterThan(0)
     const report = await request('/admin/stats/report', { method: 'GET', token: adminToken })
     expect(report.status).toBe(200)
     const response = await request(path, { token: adminToken, body: { confirmation: 'RESET', password: DEV_PASSWORD } })
@@ -657,6 +660,6 @@ describe('school year reset', () => {
     const body = await response.json()
     expect(body.deletedStudents + body.deletedTutors).toBe(before.people)
     const after = await counts()
-    expect(after).toEqual({ people: 0, lessons: 0, ledger: 0, admins: before.admins })
+    expect(after).toEqual({ people: 0, lessons: 0, ledger: 0, usage: 0, admins: before.admins })
   })
 })

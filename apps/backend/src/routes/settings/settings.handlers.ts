@@ -7,6 +7,7 @@ import { HTTPException } from 'hono/http-exception'
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
+import { analyticsDaily } from '@/db/schemas/analytics-daily.schema'
 import { globalSettings } from '@/db/schemas/global-settings.schema'
 import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
 import { users } from '@/db/schemas/users.schema'
@@ -164,6 +165,8 @@ export const resetSchoolYear: AppRouteHandler<ResetSchoolYearRoute> = async (c) 
     await tx.delete(tutorInviteTokens)
     const students = await tx.delete(users).where(eq(users.role, 'student')).returning({ id: users.id })
     const tutors = await tx.delete(users).where(eq(users.role, 'tutor')).returning({ id: users.id })
+    // The usage counts leave with the year; the report keeps their monthly summaries.
+    await tx.delete(analyticsDaily)
     await clearReportExport(tx)
     return { deletedStudents: students.length, deletedTutors: tutors.length }
   })
