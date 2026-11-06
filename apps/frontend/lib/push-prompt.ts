@@ -61,3 +61,11 @@ export function setOptedOut(storage: KeyValueStorage, userId: string, optedOut: 
 export function rememberIosStep(storage: KeyValueStorage, userId: string, step: number) {
   write(storage, userId, { ...readPromptState(storage, userId), iosStep: step })
 }
+
+// Every invitation (header entry, popup, cards in the pages) listens to this and checks again
+// what the device still needs: turning push on in one of them hides all the others.
+export const PUSH_SETUP_CHANGED_EVENT = 'iepf:push-setup-changed'
+
+export function notifyPushSetupChanged() {
+  window.dispatchEvent(new Event(PUSH_SETUP_CHANGED_EVENT))
+}
