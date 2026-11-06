@@ -215,7 +215,7 @@ export async function showTestNotification() {
   const registration = await currentRegistration()
   await registration?.showNotification('Notifiche attive', {
     body: 'Da ora gli avvisi di IEPF arrivano anche qui.',
-    icon: '/icons/icon-192.png',
+    icon: '/icons/notification-192.png',
     tag: 'iepf-push-test'
   })
 }
