@@ -28,10 +28,10 @@ export function FeedbackTab() {
   return (
     <div className='space-y-6'>
       <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-4'>
-        <StatTile label='Feedback totali' value={format(data?.total)} />
-        <StatTile label='Media valutazioni' value={format(data?.averageRating, 2)} />
-        <StatTile label='Studenti verso tutor' value={format(data?.studentToTutorTotal)} hint={`Media ${format(data?.studentToTutorAverageRating, 2)}`} />
-        <StatTile label='Tutor verso studenti' value={format(data?.tutorToStudentTotal)} hint={`Media ${format(data?.tutorToStudentAverageRating, 2)}`} />
+        <StatTile label='Voto medio degli studenti' value={format(data?.studentToTutorAverageRating, 2)} hint='Dato ai tutor, da 1 a 5' />
+        <StatTile label='Voto medio dei tutor' value={format(data?.tutorToStudentAverageRating, 2)} hint='Dato agli studenti, da 1 a 5' />
+        <StatTile label='Feedback degli studenti' value={format(data?.studentToTutorTotal)} />
+        <StatTile label='Feedback dei tutor' value={format(data?.tutorToStudentTotal)} />
       </div>
 
       <ChartCard title='Distribuzione delle valutazioni' description='Quanti feedback per numero di stelle, nei due sensi.'>
