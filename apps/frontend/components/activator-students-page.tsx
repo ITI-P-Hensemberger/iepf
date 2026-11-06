@@ -70,10 +70,11 @@ type DataTableProps<TData> = {
   total: number
   tab?: 'active' | 'inactive'
   isSubmitting?: boolean
-  onActivateStudent: (studentId: string, value: true | false) => Promise<void>
-  // Activation always goes through the confirmation dialog.
-  onRequestActivation: (students: User[]) => void
+  // Activating and deactivating always go through the confirmation dialog.
+  onRequestChange: (change: PendingChange) => void
 }
+
+type PendingChange = { students: User[]; activate: boolean }
 
 type PagedPayloadObject<T> = {
   items?: T[]
@@ -123,6 +124,35 @@ function normalizePaged<T>(payload: unknown): { items: T[]; total: number } {
   return { items: items as T[], total }
 }
 
+function confirmTitle(change: PendingChange | null) {
+  if (!change) return ''
+  const verb = change.activate ? 'Attivare' : 'Disattivare'
+  return change.students.length === 1
+    ? `${verb} questo studente?`
+    : `${verb} ${change.students.length} studenti?`
+}
+
+function confirmDescription(change: PendingChange | null) {
+  if (!change) return ''
+  const one = change.students.length === 1
+  if (change.activate) {
+    return one
+      ? 'Controlla che sia la persona giusta: una volta attivo potrà accedere e prenotare lezioni.'
+      : 'Controlla che siano le persone giuste: una volta attivi potranno accedere e prenotare lezioni.'
+  }
+  return one
+    ? 'Controlla che sia la persona giusta: una volta disattivato non potrà più prenotare lezioni finché non viene riattivato.'
+    : 'Controlla che siano le persone giuste: una volta disattivati non potranno più prenotare lezioni finché non vengono riattivati.'
+}
+
+function confirmAction(change: PendingChange | null) {
+  if (!change) return ''
+  const verb = change.activate ? 'Attiva' : 'Disattiva'
+  return change.students.length === 1
+    ? verb
+    : `${verb} ${change.students.length} studenti`
+}
+
 function DataTable<TData>({
   data,
   columns,
@@ -134,8 +164,7 @@ function DataTable<TData>({
   total,
   tab,
   isSubmitting,
-  onActivateStudent,
-  onRequestActivation
+  onRequestChange
 }: DataTableProps<TData>) {
   const router = useRouter()
   const pathname = usePathname()
@@ -175,19 +204,14 @@ function DataTable<TData>({
             table.getFilteredSelectedRowModel().rows.length === 0 ||
             isSubmitting
           }
-          onClick={async () => {
-            const selectedRows = table
-              .getFilteredSelectedRowModel()
-              .rows.map((row) => row.original as unknown as User)
-            if (tab === 'inactive') {
-              onRequestActivation(selectedRows)
-              return
-            }
-            for (const row of selectedRows) {
-              await onActivateStudent(row.id, false)
-            }
-            location.reload()
-          }}
+          onClick={() =>
+            onRequestChange({
+              students: table
+                .getFilteredSelectedRowModel()
+                .rows.map((row) => row.original as unknown as User),
+              activate: tab === 'inactive'
+            })
+          }
         >
           {isSubmitting
             ? 'Aggiornando...'
@@ -303,9 +327,8 @@ export default function ActivatorStudentsPage() {
   const [activeLoading, setActiveLoading] = React.useState(true)
   const [inactiveLoading, setInactiveLoading] = React.useState(true)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [pendingActivation, setPendingActivation] = React.useState<
-    User[] | null
-  >(null)
+  const [pendingChange, setPendingChange] =
+    React.useState<PendingChange | null>(null)
   const [activeFilters, setActiveFilters] =
     React.useState<TableFilters>(defaultFilters)
   const [inactiveFilters, setInactiveFilters] =
@@ -597,12 +620,12 @@ export default function ActivatorStudentsPage() {
     }
   }
 
-  async function confirmActivation() {
-    if (!pendingActivation) return
-    for (const student of pendingActivation) {
-      await activateStudent(student.id, true)
+  async function confirmChange() {
+    if (!pendingChange) return
+    for (const student of pendingChange.students) {
+      await activateStudent(student.id, pendingChange.activate)
     }
-    setPendingActivation(null)
+    setPendingChange(null)
     location.reload()
   }
 
@@ -666,14 +689,12 @@ export default function ActivatorStudentsPage() {
           <Button
             variant={row.original.isActive ? 'destructive' : 'outline'}
             size='sm'
-            onClick={async () => {
-              if (!row.original.isActive) {
-                setPendingActivation([row.original])
-                return
-              }
-              await activateStudent(row.original.id, false)
-              location.reload()
-            }}
+            onClick={() =>
+              setPendingChange({
+                students: [row.original],
+                activate: !row.original.isActive
+              })
+            }
             disabled={isSubmitting}
           >
             {row.original.isActive ? 'Disattiva' : 'Attiva'}
@@ -815,8 +836,7 @@ export default function ActivatorStudentsPage() {
                     pageSize={pageSize}
                     total={activeTotal}
                     isSubmitting={isSubmitting}
-                    onActivateStudent={activateStudent}
-                    onRequestActivation={setPendingActivation}
+                    onRequestChange={setPendingChange}
                     tab='active'
                   />
                 </div>
@@ -930,8 +950,7 @@ export default function ActivatorStudentsPage() {
                     pageSize={pageSize}
                     total={inactiveTotal}
                     isSubmitting={isSubmitting}
-                    onActivateStudent={activateStudent}
-                    onRequestActivation={setPendingActivation}
+                    onRequestChange={setPendingChange}
                     tab='inactive'
                   />
                 </div>
@@ -942,26 +961,20 @@ export default function ActivatorStudentsPage() {
       </div>
 
       <AlertDialog
-        open={pendingActivation !== null}
+        open={pendingChange !== null}
         onOpenChange={(open) => {
-          if (!open && !isSubmitting) setPendingActivation(null)
+          if (!open && !isSubmitting) setPendingChange(null)
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pendingActivation?.length === 1
-                ? 'Attivare questo studente?'
-                : `Attivare ${pendingActivation?.length ?? 0} studenti?`}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{confirmTitle(pendingChange)}</AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingActivation?.length === 1
-                ? 'Controlla che sia la persona giusta: una volta attivo potrà accedere e prenotare lezioni.'
-                : 'Controlla che siano le persone giuste: una volta attivi potranno accedere e prenotare lezioni.'}
+              {confirmDescription(pendingChange)}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <ul className='max-h-64 divide-y overflow-y-auto rounded-md border text-sm'>
-            {pendingActivation?.map((student) => (
+            {pendingChange?.students.map((student) => (
               <li key={student.id} className='px-3 py-2'>
                 <div className='font-medium'>
                   {student.lastName} {student.firstName}
@@ -976,17 +989,18 @@ export default function ActivatorStudentsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isSubmitting}>Annulla</AlertDialogCancel>
             <AlertDialogAction
+              variant={pendingChange?.activate ? 'default' : 'destructive'}
               disabled={isSubmitting}
               onClick={(event) => {
                 event.preventDefault()
-                void confirmActivation()
+                void confirmChange()
               }}
             >
               {isSubmitting
-                ? 'Attivazione...'
-                : pendingActivation?.length === 1
-                  ? 'Attiva'
-                  : `Attiva ${pendingActivation?.length ?? 0} studenti`}
+                ? pendingChange?.activate
+                  ? 'Attivazione...'
+                  : 'Disattivazione...'
+                : confirmAction(pendingChange)}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
