@@ -21,14 +21,10 @@ type SubjectRequestSummary = { subjectName: string, canonicalName: string, reque
 type Person = { email: string, firstName: string, lastName: string, sectionName: string | null, countedLessons: number }
 type TutorRow = Person & {
   tutorId: string
-  lessonsScheduledCounted: number
-  lessonsScheduledNotCounted: number
-  lessonsConfirmedCounted: number
-  lessonsConfirmedNotCounted: number
-  lessonsCancelledCounted: number
-  lessonsCancelledNotCounted: number
-  lessonsCompletedCounted: number
-  lessonsCompletedNotCounted: number
+  lessonsDone: number
+  lessonsUpcoming: number
+  lessonsExpired: number
+  lessonsCanceled: number
 }
 type StudentRow = Person & {
   studentId: string
@@ -66,7 +62,7 @@ const sectionColumn = <T extends Person>(): StatsColumn<T> => ({ key: 'section',
 const TUTORS: StatsListConfig<TutorRow> = {
   key: 'tutors',
   title: 'Tutor',
-  description: 'Lezioni per tutor. "Conteggiate" sono quelle valide per le ore del tutor.',
+  description: 'Lezioni per tutor. "Conteggiate" valgono per le ore del tutor; "Scadute" sono finite senza prenotazioni.',
   endpoint: '/api/admin/stats/lessons-counts/tutors',
   searchPlaceholder: 'Nome, cognome, email o sezione',
   defaultSort: { sortBy: 'lastName', sortDir: 'asc' },
@@ -75,9 +71,10 @@ const TUTORS: StatsListConfig<TutorRow> = {
     nameColumn('Tutor'),
     sectionColumn(),
     numberColumn('counted', 'Conteggiate', row => n(row.countedLessons), 'countedLessons'),
-    numberColumn('completed', 'Completate', row => n(row.lessonsCompletedCounted) + n(row.lessonsCompletedNotCounted)),
-    numberColumn('upcoming', 'In programma', row => n(row.lessonsScheduledCounted) + n(row.lessonsScheduledNotCounted) + n(row.lessonsConfirmedCounted) + n(row.lessonsConfirmedNotCounted)),
-    numberColumn('canceled', 'Annullate', row => n(row.lessonsCancelledCounted) + n(row.lessonsCancelledNotCounted))
+    numberColumn('done', 'Svolte', row => n(row.lessonsDone)),
+    numberColumn('upcoming', 'In programma', row => n(row.lessonsUpcoming)),
+    numberColumn('expired', 'Scadute', row => n(row.lessonsExpired)),
+    numberColumn('canceled', 'Annullate', row => n(row.lessonsCanceled))
   ],
   rowKey: row => row.tutorId,
   emptyMessage: 'Nessun tutor.',

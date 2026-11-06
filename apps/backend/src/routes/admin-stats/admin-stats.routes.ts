@@ -32,7 +32,12 @@ const tutorLessonCountSchema = z.object({
   lessonsCancelledCounted: z.number().int().min(0),
   lessonsCancelledNotCounted: z.number().int().min(0),
   lessonsCompletedCounted: z.number().int().min(0),
-  lessonsCompletedNotCounted: z.number().int().min(0)
+  lessonsCompletedNotCounted: z.number().int().min(0),
+  // By date: lessons are never marked completed, so these read the clock.
+  lessonsDone: z.number().int().min(0),
+  lessonsUpcoming: z.number().int().min(0),
+  lessonsExpired: z.number().int().min(0),
+  lessonsCanceled: z.number().int().min(0)
 })
 
 const studentLessonCountSchema = z.object({
@@ -385,17 +390,18 @@ export const getYearReport = createRoute({
 export type GetYearReportRoute = typeof getYearReport
 
 const overviewSchema = z.object({
-  lessonsByStatus: z.object({
-    scheduled: z.number().int(),
-    confirmed: z.number().int(),
-    completed: z.number().int(),
+  // Done: booked and over; upcoming: not over yet; expired: over without any booking.
+  lessonsByState: z.object({
+    done: z.number().int(),
+    upcoming: z.number().int(),
+    expired: z.number().int(),
     canceled: z.number().int()
   }),
   attendance: z.object({ present: z.number().int(), absent: z.number().int(), unrecorded: z.number().int() }),
   months: z.array(z.object({
     month: z.string(),
     lessons: z.number().int(),
-    completed: z.number().int(),
+    done: z.number().int(),
     bookings: z.number().int(),
     present: z.number().int(),
     absent: z.number().int()

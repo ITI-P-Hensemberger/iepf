@@ -1,3 +1,4 @@
+import type { LessonState } from '@/lib/lesson-state'
 import type { CellValue, ChartSpec, Column, Sheet, TableRef } from '@/lib/xlsx/workbook'
 // Purpose: The year report: one .xlsx with a summary, monthly trends, every student, tutor,
 // lesson, booking and feedback, and the usage statistics. Native Excel charts and tables, so
@@ -5,12 +6,14 @@ import type { CellValue, ChartSpec, Column, Sheet, TableRef } from '@/lib/xlsx/w
 import type { ReportData, ReportPerson } from '@/lib/year-report-data'
 
 import { romeDay } from '@/lib/analytics'
+import { lessonState } from '@/lib/lesson-state'
 import { Workbook } from '@/lib/xlsx/workbook'
 
-const LESSON_STATUS: Record<string, string> = {
-  scheduled: 'Programmata',
-  confirmed: 'Confermata',
-  completed: 'Completata',
+// Lessons are never marked completed: whether one took place is read from its time.
+const LESSON_STATE: Record<LessonState, string> = {
+  done: 'Svolta',
+  upcoming: 'In programma',
+  expired: 'Scaduta senza prenotazioni',
   canceled: 'Annullata'
 }
 
@@ -146,7 +149,8 @@ export function buildYearReport(data: ReportData, now = new Date()) {
   const requestsByStudent = countBy(data.subjectRequests, request => request.studentId)
   const present = confirmed.filter(booking => booking.presence === true).length
   const absent = confirmed.filter(booking => booking.presence === false).length
-  const completed = data.lessons.filter(lesson => lesson.status === 'completed')
+  const stateOf = (lesson: ReportData['lessons'][number]) => lessonState(lesson, now)
+  const done = data.lessons.filter(lesson => stateOf(lesson) === 'done')
   const ratingsOf = (role: string) => data.feedback.filter(item => item.authorRole === role).map(item => item.rating)
 
   const months = monthRange([...data.lessons.map(lesson => monthKey(lesson.startAt)), ...data.bookings.map(booking => monthKey(booking.createdAt))], now)
@@ -185,13 +189,13 @@ export function buildYearReport(data: ReportData, now = new Date()) {
 
   section('Lezioni')
   const statusRow = summary.nextRow
-  const plural: Record<string, string> = { completed: 'Completate', confirmed: 'Confermate (con prenotazioni)', scheduled: 'Programmate (senza prenotazioni)', canceled: 'Annullate' }
-  for (const status of ['completed', 'confirmed', 'scheduled', 'canceled']) {
-    kpi(plural[status], data.lessons.filter(lesson => lesson.status === status).length)
+  const plural: Record<LessonState, string> = { done: 'Svolte', upcoming: 'In programma', expired: 'Scadute senza prenotazioni', canceled: 'Annullate' }
+  for (const state of ['done', 'upcoming', 'expired', 'canceled'] as const) {
+    kpi(plural[state], data.lessons.filter(lesson => stateOf(lesson) === state).length)
   }
   const statusLastRow = summary.nextRow - 1
   kpi('Lezioni in totale', data.lessons.length)
-  kpi('Ore di tutoraggio svolte', Math.round(completed.reduce((sum, lesson) => sum + lesson.durationMinutes, 0) / 6) / 10, 'decimal')
+  kpi('Ore di tutoraggio svolte', Math.round(done.reduce((sum, lesson) => sum + lesson.durationMinutes, 0) / 6) / 10, 'decimal')
   summary.skip()
 
   section('Prenotazioni')
@@ -231,7 +235,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
   const trendColumns: Column[] = [
     { header: 'Mese' },
     { header: 'Lezioni' },
-    { header: 'Completate' },
+    { header: 'Svolte' },
     { header: 'Annullate' },
     { header: 'Prenotazioni' },
     { header: 'Presenze' },
@@ -250,8 +254,8 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     return [
       monthLabel(month),
       monthLessons.length,
-      monthLessons.filter(lesson => lesson.status === 'completed').length,
-      monthLessons.filter(lesson => lesson.status === 'canceled').length,
+      monthLessons.filter(lesson => stateOf(lesson) === 'done').length,
+      monthLessons.filter(lesson => stateOf(lesson) === 'canceled').length,
       monthBookings.length,
       monthPresent,
       monthAbsent,
@@ -408,7 +412,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     { header: 'Materie', width: 36 },
     { header: 'Lezioni al giorno' },
     { header: 'Lezioni' },
-    { header: 'Completate' },
+    { header: 'Svolte' },
     { header: 'In programma' },
     { header: 'Annullate' },
     { header: 'Conteggiate' },
@@ -434,11 +438,11 @@ export function buildYearReport(data: ReportData, now = new Date()) {
       (subjectsByTutor.get(tutor.id) ?? []).map(row => subjectName.get(row.subjectId) ?? '').filter(Boolean).sort().join(', '),
       data.tutorCapacity.get(tutor.id) ?? null,
       own.length,
-      own.filter(lesson => lesson.status === 'completed').length,
-      own.filter(lesson => lesson.status === 'scheduled' || lesson.status === 'confirmed').length,
-      own.filter(lesson => lesson.status === 'canceled').length,
+      own.filter(lesson => stateOf(lesson) === 'done').length,
+      own.filter(lesson => stateOf(lesson) === 'upcoming').length,
+      own.filter(lesson => stateOf(lesson) === 'canceled').length,
       own.filter(lesson => lesson.countsForTutor).length,
-      Math.round(own.filter(lesson => lesson.status === 'completed').reduce((sum, lesson) => sum + lesson.durationMinutes, 0) / 6) / 10,
+      Math.round(own.filter(lesson => stateOf(lesson) === 'done').reduce((sum, lesson) => sum + lesson.durationMinutes, 0) / 6) / 10,
       ownBookings.length,
       new Set(ownBookings.map(booking => booking.studentId)).size,
       ratio(ownPresent, ownPresent + ownAbsent),
@@ -450,7 +454,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
 
   // ---- Lezioni ---------------------------------------------------------------------------
   const lessonSheet = workbook.addSheet('Lezioni')
-  lessonSheet.addHeading('Lezioni', 'Tutte le lezioni, in ordine di data. Prenotati, presenti e assenti contano solo le prenotazioni confermate.')
+  lessonSheet.addHeading('Lezioni', 'Tutte le lezioni, in ordine di data. "Svolta": con prenotazioni e già finita; "Scaduta": finita senza prenotazioni. Prenotati, presenti e assenti contano solo le prenotazioni confermate.')
   const lessonTable = lessonSheet.addTable('Lezioni', [
     { header: 'Data e ora', style: 'datetime', width: 17 },
     { header: 'Materia' },
@@ -470,7 +474,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
       subjectName.get(lesson.subjectId) ?? '',
       fullName(people.get(lesson.tutorId)),
       lesson.durationMinutes,
-      LESSON_STATUS[lesson.status] ?? lesson.status,
+      LESSON_STATE[stateOf(lesson)],
       lesson.seats,
       lessonBookings.length,
       lessonBookings.filter(booking => booking.presence === true).length,
@@ -558,7 +562,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
       subject.name,
       tutorsPerSubject.get(subject.id) ?? 0,
       subjectLessons.length,
-      subjectLessons.filter(lesson => lesson.status === 'completed').length,
+      subjectLessons.filter(lesson => stateOf(lesson) === 'done').length,
       subjectBookings.length,
       subjectBookings.filter(booking => booking.presence === true).length,
       average(data.feedback.filter(item => lessonIds.has(item.lessonId) && item.authorRole === 'student').map(item => item.rating)),
@@ -571,7 +575,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     { header: 'Materia' },
     { header: 'Tutor' },
     { header: 'Lezioni' },
-    { header: 'Completate' },
+    { header: 'Svolte' },
     { header: 'Prenotazioni' },
     { header: 'Presenze' },
     { header: 'Voto medio dagli studenti', ...DECIMAL },

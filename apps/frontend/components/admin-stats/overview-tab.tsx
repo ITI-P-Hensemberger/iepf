@@ -9,9 +9,10 @@ type Total = { total?: number }
 type StudentStatus = { active?: number, inactive?: number, pendingEmailVerification?: number }
 type TutorStatus = { active?: number, inactive?: number, invites?: number }
 type Overview = {
-  lessonsByStatus: { scheduled: number, confirmed: number, completed: number, canceled: number }
+  // By date: lessons are never marked completed, so the backend reads the clock.
+  lessonsByState: { done: number, upcoming: number, expired: number, canceled: number }
   attendance: { present: number, absent: number, unrecorded: number }
-  months: Array<{ month: string, lessons: number, completed: number, bookings: number, present: number, absent: number }>
+  months: Array<{ month: string, lessons: number, done: number, bookings: number, present: number, absent: number }>
 }
 
 const monthFormat = new Intl.DateTimeFormat('it-IT', { month: 'short', year: '2-digit', timeZone: 'UTC' })
@@ -24,9 +25,10 @@ function Breakdown({ rows }: { rows: Array<{ label: string, count: number | unde
   return (
     <div className='space-y-3'>
       {/* One bar split by share: each part keeps its colour, labels carry the numbers. */}
+      {/* Empty parts are left out: a gap beside them would show as an empty slice. */}
       <div className='flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-muted' aria-hidden>
-        {total > 0 && rows.map(row => (
-          <div key={row.label} style={{ width: `${(Number(row.count ?? 0) / total) * 100}%`, background: row.color }} />
+        {total > 0 && rows.filter(row => Number(row.count ?? 0) > 0).map(row => (
+          <div key={row.label} style={{ flex: `${Number(row.count)} 1 0%`, background: row.color }} />
         ))}
       </div>
       <dl className='grid gap-2'>
@@ -45,7 +47,6 @@ function Breakdown({ rows }: { rows: Array<{ label: string, count: number | unde
 }
 
 export function OverviewTab() {
-  const lessons = useJson<Total>('/api/admin/stats/lessons-confirmed/count', 'Impossibile caricare i conteggi delle lezioni.')
   const bookings = useJson<Total>('/api/admin/stats/bookings-confirmed/count', 'Impossibile caricare i conteggi delle lezioni.')
   const students = useJson<StudentStatus>('/api/admin/stats/students/status-counts', 'Impossibile caricare i conteggi utenti.')
   const tutors = useJson<TutorStatus>('/api/admin/stats/tutors/status-counts', 'Impossibile caricare i conteggi utenti.')
@@ -60,7 +61,7 @@ export function OverviewTab() {
       <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-4'>
         <StatTile label='Studenti attivi' value={value(students.data?.active)} />
         <StatTile label='Tutor attivi' value={value(tutors.data?.active)} />
-        <StatTile label='Lezioni confermate' value={value(lessons.data?.total)} hint='Con almeno una prenotazione' />
+        <StatTile label='Lezioni svolte' value={value(overview.data?.lessonsByState.done)} hint='Con prenotazioni e già finite' />
         <StatTile
           label='Presenza'
           value={attendance && recorded > 0 ? `${Math.round((attendance.present / recorded) * 100)}%` : '-'}
@@ -91,7 +92,7 @@ export function OverviewTab() {
                   columns={[
                     { key: 'label', label: 'Mese' },
                     { key: 'lessons', label: 'Lezioni', numeric: true },
-                    { key: 'completed', label: 'Completate', numeric: true },
+                    { key: 'done', label: 'Svolte', numeric: true },
                     { key: 'bookings', label: 'Prenotazioni', numeric: true },
                     { key: 'present', label: 'Presenze', numeric: true },
                     { key: 'absent', label: 'Assenze', numeric: true }
@@ -120,10 +121,10 @@ export function OverviewTab() {
         </ChartCard>
         <ChartCard title='Lezioni per stato'>
           <Breakdown rows={[
-            { label: 'Completate', count: overview.data?.lessonsByStatus.completed, color: 'var(--viz-3)' },
-            { label: 'Confermate', count: overview.data?.lessonsByStatus.confirmed, color: 'var(--viz-1)' },
-            { label: 'Senza prenotazioni', count: overview.data?.lessonsByStatus.scheduled, color: 'var(--viz-4)' },
-            { label: 'Annullate', count: overview.data?.lessonsByStatus.canceled, color: 'var(--viz-2)' }
+            { label: 'Svolte', count: overview.data?.lessonsByState.done, color: 'var(--viz-3)' },
+            { label: 'In programma', count: overview.data?.lessonsByState.upcoming, color: 'var(--viz-1)' },
+            { label: 'Scadute senza prenotazioni', count: overview.data?.lessonsByState.expired, color: 'var(--viz-4)' },
+            { label: 'Annullate', count: overview.data?.lessonsByState.canceled, color: 'var(--viz-2)' }
           ]}
           />
           <p className='text-xs text-muted-foreground'>Prenotazioni confermate in tutto: {value(bookings.data?.total)}.</p>
