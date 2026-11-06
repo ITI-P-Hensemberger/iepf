@@ -109,7 +109,11 @@ describe('reading', () => {
     await insertMany(ids.student, 45)
 
     const first = await inbox(tokens.student)
-    expect(first.items.map(item => item.title).slice(0, 2).sort()).toEqual(['N43', 'N44'])
+    // N44 is alone in the newest instant; N42 and N43 share the next one, ordered by id.
+    const [newest, tieA, tieB] = first.items
+    expect(newest.title).toBe('N44')
+    expect([tieA.title, tieB.title].sort()).toEqual(['N42', 'N43'])
+    expect(tieA.id > tieB.id).toBe(true)
     expect(first.items).toHaveLength(20)
     expect(first.unread).toBe(45)
 
