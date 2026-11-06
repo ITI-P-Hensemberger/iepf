@@ -13,7 +13,7 @@ import { classSections } from './schemas/class-sections.schema'
 import { emailVerificationTokens } from './schemas/email-verification-tokens.schema'
 import { globalSettings } from './schemas/global-settings.schema'
 import { lessonBookings } from './schemas/lesson-bookings.schema'
-import { lessonFeedback } from './schemas/lesson-feedback.schema'
+import { lessonFeedback, lessonFeedbackVersions } from './schemas/lesson-feedback.schema'
 import { lessons } from './schemas/lessons.schema'
 import { notificationPreferences } from './schemas/notification-preferences.schema'
 import { notifications } from './schemas/notifications.schema'
@@ -51,6 +51,7 @@ const schema = {
   lessons,
   lessonBookings,
   lessonFeedback,
+  lessonFeedbackVersions,
   tokenLedger,
   refreshTokens,
   reminderDeliveries,

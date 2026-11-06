@@ -67,7 +67,12 @@ function sampleData(): ReportData {
       { id: 'b1', lessonId: 'l1', studentId: 's1', subjectId: 'm1', topic: 'Equazioni\u0007 di secondo grado', status: 'confirmed', countsForStudent: true, presence: true, createdAt: day('2025-10-01T10:00:00Z'), canceledAt: null },
       { id: 'b2', lessonId: 'l1', studentId: 's2', subjectId: 'm1', topic: 'Disequazioni', status: 'confirmed', countsForStudent: true, presence: false, createdAt: day('2025-10-02T10:00:00Z'), canceledAt: null }
     ],
-    feedback: [{ lessonId: 'l1', authorUserId: 's1', targetUserId: 't1', authorRole: 'student', rating: 5, text: 'Chiaro "e" utile', createdAt: day('2025-10-07T10:00:00Z') }],
+    feedback: [{ id: 'f1', lessonId: 'l1', authorUserId: 's1', targetUserId: 't1', authorRole: 'student', rating: 5, text: 'Chiaro "e" utile', createdAt: day('2025-10-07T10:00:00Z') }],
+    feedbackVersions: [
+      { feedbackId: 'f1', lessonId: 'l1', authorUserId: 's1', targetUserId: 't1', authorRole: 'student', deletedAt: null, deletedByUserId: null, rating: 4, text: 'Chiaro', editorUserId: 's1', editorRole: 'student', createdAt: day('2025-10-07T10:00:00Z') },
+      { feedbackId: 'f1', lessonId: 'l1', authorUserId: 's1', targetUserId: 't1', authorRole: 'student', deletedAt: null, deletedByUserId: null, rating: 5, text: 'Chiaro "e" utile', editorUserId: 'a1', editorRole: 'admin', createdAt: day('2025-10-08T10:00:00Z') },
+      { feedbackId: 'f2', lessonId: 'l1', authorUserId: 't1', targetUserId: 's2', authorRole: 'tutor', deletedAt: day('2025-10-09T10:00:00Z'), deletedByUserId: 'a1', rating: 1, text: 'Testo tolto', editorUserId: 't1', editorRole: 'tutor', createdAt: day('2025-10-07T11:00:00Z') }
+    ],
     tokenBalances: new Map([['s1', 9], ['s2', 10]]),
     subjectRequests: [{ studentId: 's2', subjectId: 'm2', createdAt: day('2025-10-05T10:00:00Z') }],
     analytics: [
@@ -124,6 +129,13 @@ describe('buildYearReport', () => {
     const bookings = files.get('xl/worksheets/sheet7.xml')!
     expect(bookings).toContain('Equazioni di secondo grado')
     expect(bookings).not.toContain('\u0007')
+  })
+
+  it('lists the history of edited and deleted feedback under the feedback list', () => {
+    const sheet = files.get('xl/worksheets/sheet8.xml')!
+    for (const text of ['Cronologia delle modifiche', 'Modifiche', '1 di 2', '2 di 2', 'Attuale', 'Precedente', 'Eliminato da Admin Nome', 'Testo tolto']) {
+      expect(sheet).toContain(text)
+    }
   })
 
   it('has a notifications sheet with coverage, push, panel and devices', () => {

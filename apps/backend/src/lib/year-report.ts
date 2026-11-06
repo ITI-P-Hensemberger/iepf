@@ -530,6 +530,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
   // ---- Feedback --------------------------------------------------------------------------
   const feedbackSheet = workbook.addSheet('Feedback')
   feedbackSheet.addHeading('Feedback', 'Voti da 1 a 5 lasciati dopo le lezioni, nei due sensi, con il commento quando c\'è.')
+  const versionsOf = groupBy(data.feedbackVersions, version => version.feedbackId)
   const feedbackTable = feedbackSheet.addTable('Feedback', [
     { header: 'Data', style: 'date' },
     { header: 'Lezione del', style: 'date' },
@@ -538,7 +539,8 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     { header: 'Ruolo' },
     { header: 'A' },
     { header: 'Voto' },
-    { header: 'Commento', width: 60, style: 'wrap' }
+    { header: 'Commento', width: 60, style: 'wrap' },
+    { header: 'Modifiche' }
   ], data.feedback.map((item) => {
     const lesson = lessonById.get(item.lessonId)
     return [
@@ -549,10 +551,46 @@ export function buildYearReport(data: ReportData, now = new Date()) {
       ROLE_LABEL[item.authorRole] ?? item.authorRole,
       fullName(people.get(item.targetUserId)),
       item.rating,
-      item.text
+      item.text,
+      Math.max(0, (versionsOf.get(item.id)?.length ?? 1) - 1)
     ]
   }))
   feedbackSheet.freezeAbove(feedbackTable.firstRow)
+
+  // Below the list: every version of the feedback that changed or was deleted, one row each,
+  // oldest first within each feedback, with who wrote it.
+  feedbackSheet.skip(2)
+  feedbackSheet.addHeading('Cronologia delle modifiche', 'Ogni versione dei feedback modificati o eliminati: chi l\'ha scritta, quando, il voto e il testo. I feedback eliminati non compaiono nell\'elenco sopra.')
+  const versionNumber = new Map<string, number>()
+  feedbackSheet.addTable('Cronologia feedback', [
+    { header: 'Lezione del', style: 'date' },
+    { header: 'Da' },
+    { header: 'A' },
+    { header: 'Versione' },
+    { header: 'Data versione', style: 'date' },
+    { header: 'Scritta da' },
+    { header: 'Come' },
+    { header: 'Voto' },
+    { header: 'Testo', width: 60, style: 'wrap' },
+    { header: 'Stato' }
+  ], data.feedbackVersions.map((version) => {
+    const number = (versionNumber.get(version.feedbackId) ?? 0) + 1
+    versionNumber.set(version.feedbackId, number)
+    const total = versionsOf.get(version.feedbackId)?.length ?? number
+    const deleter = version.deletedByUserId ? fullName(people.get(version.deletedByUserId)) : ''
+    return [
+      lessonById.get(version.lessonId)?.startAt ?? null,
+      fullName(people.get(version.authorUserId)),
+      fullName(people.get(version.targetUserId)),
+      `${number} di ${total}`,
+      version.createdAt,
+      version.editorUserId ? fullName(people.get(version.editorUserId)) : '',
+      version.editorRole === 'admin' ? 'Admin' : 'Autore',
+      version.rating,
+      version.text,
+      version.deletedAt ? `Eliminato${deleter ? ` da ${deleter}` : ''}` : number === total ? 'Attuale' : 'Precedente'
+    ]
+  }))
 
   // ---- Materie ---------------------------------------------------------------------------
   const tutorsPerSubject = countBy(data.tutorSubjects, row => row.subjectId)

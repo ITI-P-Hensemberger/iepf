@@ -1,6 +1,6 @@
 // Purpose: Everything the year report needs, read in one pass. The report is the archive of
 // the school year before the reset deletes students and tutors, so it is complete.
-import { eq, sql } from 'drizzle-orm'
+import { eq, isNull, sql } from 'drizzle-orm'
 
 import type { NotificationStats } from '@/lib/notification-stats'
 
@@ -8,7 +8,7 @@ import db from '@/db'
 import { analyticsDaily } from '@/db/schemas/analytics-daily.schema'
 import { classSections } from '@/db/schemas/class-sections.schema'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
-import { lessonFeedback } from '@/db/schemas/lesson-feedback.schema'
+import { lessonFeedback, lessonFeedbackVersions } from '@/db/schemas/lesson-feedback.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
 import { pushSubscriptions } from '@/db/schemas/push-subscriptions.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
@@ -42,7 +42,9 @@ export interface ReportData {
   tutorCapacity: Map<string, number>
   lessons: Array<{ id: string, tutorId: string, subjectId: string | null, startAt: Date, durationMinutes: number, seats: number, status: string, countsForTutor: boolean, generatedByJob: boolean }>
   bookings: Array<{ id: string, lessonId: string, studentId: string, subjectId: string, topic: string, status: string, countsForStudent: boolean, presence: boolean | null, createdAt: Date, canceledAt: Date | null }>
-  feedback: Array<{ lessonId: string, authorUserId: string, targetUserId: string, authorRole: string, rating: number, text: string | null, createdAt: Date }>
+  feedback: Array<{ id: string, lessonId: string, authorUserId: string, targetUserId: string, authorRole: string, rating: number, text: string | null, createdAt: Date }>
+  // Every version of the feedback that was edited or deleted, oldest first, deleted ones included.
+  feedbackVersions: Array<{ feedbackId: string, lessonId: string, authorUserId: string, targetUserId: string, authorRole: string, deletedAt: Date | null, deletedByUserId: string | null, rating: number, text: string | null, editorUserId: string | null, editorRole: string, createdAt: Date }>
   tokenBalances: Map<string, number>
   subjectRequests: Array<{ studentId: string, subjectId: string, createdAt: Date }>
   analytics: Array<{ day: string, event: string, detail: string, role: string, year: number, count: number }>
@@ -51,7 +53,7 @@ export interface ReportData {
 
 export async function loadReportData(): Promise<ReportData> {
   const hasPush = sql<boolean>`exists (select 1 from ${pushSubscriptions} where ${pushSubscriptions.userId} = ${users.id})`
-  const [people, subjectRows, tutorSubjectRows, capacityRows, lessonRows, bookingRows, feedbackRows, balanceRows, requestRows, analyticsRows, notificationStats] = await Promise.all([
+  const [people, subjectRows, tutorSubjectRows, capacityRows, lessonRows, bookingRows, feedbackRows, versionRows, balanceRows, requestRows, analyticsRows, notificationStats] = await Promise.all([
     db.select({
       id: users.id,
       role: users.role,
@@ -98,6 +100,7 @@ export async function loadReportData(): Promise<ReportData> {
       canceledAt: lessonBookings.canceledAt
     }).from(lessonBookings),
     db.select({
+      id: lessonFeedback.id,
       lessonId: lessonFeedback.lessonId,
       authorUserId: lessonFeedback.authorUserId,
       targetUserId: lessonFeedback.targetUserId,
@@ -105,7 +108,25 @@ export async function loadReportData(): Promise<ReportData> {
       rating: lessonFeedback.rating,
       text: lessonFeedback.text,
       createdAt: lessonFeedback.createdAt
-    }).from(lessonFeedback).orderBy(lessonFeedback.createdAt),
+    }).from(lessonFeedback).where(isNull(lessonFeedback.deletedAt)).orderBy(lessonFeedback.createdAt),
+    db.select({
+      feedbackId: lessonFeedbackVersions.feedbackId,
+      lessonId: lessonFeedback.lessonId,
+      authorUserId: lessonFeedback.authorUserId,
+      targetUserId: lessonFeedback.targetUserId,
+      authorRole: lessonFeedback.authorRole,
+      deletedAt: lessonFeedback.deletedAt,
+      deletedByUserId: lessonFeedback.deletedByUserId,
+      rating: lessonFeedbackVersions.rating,
+      text: lessonFeedbackVersions.text,
+      editorUserId: lessonFeedbackVersions.editorUserId,
+      editorRole: lessonFeedbackVersions.editorRole,
+      createdAt: lessonFeedbackVersions.createdAt
+    })
+      .from(lessonFeedbackVersions)
+      .innerJoin(lessonFeedback, eq(lessonFeedback.id, lessonFeedbackVersions.feedbackId))
+      .where(sql`${lessonFeedback.deletedAt} is not null or (select count(*) from ${lessonFeedbackVersions} v where v.feedback_id = ${lessonFeedback.id}) > 1`)
+      .orderBy(lessonFeedback.createdAt, lessonFeedbackVersions.feedbackId, lessonFeedbackVersions.createdAt),
     db.select({ studentId: tokenLedger.studentId, balance: sql<number>`sum(${tokenLedger.delta})::int` })
       .from(tokenLedger)
       .groupBy(tokenLedger.studentId),
@@ -134,6 +155,7 @@ export async function loadReportData(): Promise<ReportData> {
     lessons: lessonRows.map(row => ({ ...row, generatedByJob: row.generatedByJob === true })),
     bookings: bookingRows,
     feedback: feedbackRows,
+    feedbackVersions: versionRows,
     tokenBalances: new Map(balanceRows.map(row => [row.studentId, Number(row.balance)])),
     subjectRequests: requestRows,
     analytics: analyticsRows,

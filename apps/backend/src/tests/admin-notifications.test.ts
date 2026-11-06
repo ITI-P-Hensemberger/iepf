@@ -148,7 +148,6 @@ describe('low feedback', () => {
 
   it('stays quiet above 2, and speaks when an edit drops the rating', async () => {
     const { lessonId, bookingId } = await pastLessonWithBooking()
-    // Only tutors and admins edit feedback.
     const created = await call(`/lessons/${lessonId}/feedback`, { token: tokens.tutor, body: { bookingId, rating: 4, text: 'Bene' } })
     await settle()
     expect(adminPushes()).toHaveLength(0)

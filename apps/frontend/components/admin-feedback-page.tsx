@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { CalendarIcon, ExternalLink, Pencil, Trash2 } from 'lucide-react'
+import { CalendarIcon, History, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -43,9 +43,12 @@ import { format } from 'date-fns'
 import { type DateRange } from 'react-day-picker'
 import { Label } from './ui/label'
 import { capitalizeFirst } from '@/lib/capitalize'
+import { FeedbackHistory, FeedbackHistoryToggle } from '@/components/feedback-history'
+import { StarRating } from '@/components/star-rating'
+import { Checkbox } from '@/components/ui/checkbox'
+import { cn } from '@/lib/utils'
 
 const pageSize = 20
-const commentPreviewLimit = 90
 
 type Feedback = {
   id: string
@@ -58,6 +61,9 @@ type Feedback = {
   text?: string | null
   createdAt: string
   updatedAt: string
+  versionCount?: number
+  lastEditorRole?: string | null
+  deletedAt?: string | null
 }
 
 type User = {
@@ -225,6 +231,9 @@ export default function AdminFeedbackPage() {
 
   const [deleteTarget, setDeleteTarget] = React.useState<Feedback | null>(null)
   const [isDeleting, setIsDeleting] = React.useState(false)
+  const [detailTarget, setDetailTarget] = React.useState<Feedback | null>(null)
+  // Deleted feedback stays in the history: shown on request, marked, never editable.
+  const [showDeleted, setShowDeleted] = React.useState(false)
 
   const parsePage = React.useCallback(
     (key: string) => {
@@ -377,6 +386,9 @@ export default function AdminFeedbackPage() {
     }
     params.set('sortBy', currentFilters.sortBy)
     params.set('sortDir', currentFilters.sortDir)
+    if (showDeleted) {
+      params.set('includeDeleted', 'true')
+    }
     params.set('limit', String(pageSize))
     params.set('offset', String((currentFilters.page - 1) * pageSize))
 
@@ -396,7 +408,7 @@ export default function AdminFeedbackPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [currentFilters])
+  }, [currentFilters, showDeleted])
 
   React.useEffect(() => {
     void loadFeedback()
@@ -496,6 +508,11 @@ export default function AdminFeedbackPage() {
     tutors.forEach((user) => map.set(user.id, user))
     return map
   }, [students, tutors])
+
+  const personName = React.useCallback((id: string) => {
+    const user = userMap.get(id)
+    return user ? `${user.firstName} ${user.lastName}`.trim() || shortId(id) : shortId(id)
+  }, [userMap])
 
   const subjectMap = React.useMemo(() => {
     const map = new Map<string, Subject>()
@@ -979,109 +996,65 @@ export default function AdminFeedbackPage() {
               </form>
             </TabsContent>
           </Tabs>
-          <div className='mt-6 rounded-lg border'>
+          <label className='mt-4 flex items-center gap-2 text-sm text-muted-foreground'>
+            <Checkbox checked={showDeleted} onCheckedChange={(value) => setShowDeleted(Boolean(value))} />
+            Mostra anche i feedback eliminati
+          </label>
+          <div className='mt-3 rounded-lg border'>
             <Table>
               <TableHeader className='bg-muted/50'>
                 <TableRow>
                   <TableHead>Lezione</TableHead>
-                  <TableHead>Autore</TableHead>
-                  <TableHead>Destinatario</TableHead>
-                  <TableHead>Rating</TableHead>
-                  <TableHead className='w-80'>Testo</TableHead>
-                  <TableHead className='w-16'>
-                    <span className='sr-only'>Azioni</span>
-                  </TableHead>
+                  <TableHead>Da</TableHead>
+                  <TableHead>Per</TableHead>
+                  <TableHead>Valutazione</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className='text-muted-foreground'>
+                    <TableCell colSpan={4} className='text-muted-foreground'>
                       Caricamento...
                     </TableCell>
                   </TableRow>
                 ) : feedback.length ? (
                   feedback.map((item) => {
-                    const authorUser = userMap.get(item.authorUserId)
-                    const targetUser = userMap.get(item.targetUserId)
                     const lessonInfo = lessonMap[item.lessonId]
                     const subjectName = lessonInfo?.subjectId
                       ? subjectMap.get(lessonInfo.subjectId)?.name
                       : undefined
-                    const lessonDateLabel = lessonInfo?.startAt
-                      ? formatItalianDate(lessonInfo.startAt)
-                      : shortId(item.lessonId)
+                    const edits = (item.versionCount ?? 1) - 1
+                    // The whole row opens the feedback: text, history and actions live in the dialog.
                     return (
-                      <TableRow key={item.id}>
+                      <TableRow
+                        key={item.id}
+                        tabIndex={0}
+                        className={cn('cursor-pointer', item.deletedAt && 'opacity-60')}
+                        onClick={() => setDetailTarget(item)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setDetailTarget(item)
+                          }
+                        }}
+                      >
                         <TableCell>
-                          <div className='flex items-start gap-2'>
-                            <div className='space-y-1' title={item.lessonId}>
-                              <div className='text-sm'>{lessonDateLabel}</div>
-                              <div className='text-xs text-muted-foreground'>
-                                {subjectName ?? '-'}
-                              </div>
-                            </div>
-                            <Button
-                              asChild
-                              variant='ghost'
-                              size='icon'
-                              className='h-6 w-6 p-0'
-                              aria-label='Apri lezione'
-                            >
-                              <Link href={`/admin/lessons/${item.lessonId}`}>
-                                <ExternalLink className='h-4 w-4' />
-                              </Link>
-                            </Button>
-                          </div>
+                          <div className='text-sm'>{lessonInfo?.startAt ? formatItalianDate(lessonInfo.startAt) : shortId(item.lessonId)}</div>
+                          <div className='text-xs text-muted-foreground'>{subjectName ?? '-'}</div>
                         </TableCell>
+                        <TableCell>{personName(item.authorUserId)}</TableCell>
+                        <TableCell>{personName(item.targetUserId)}</TableCell>
                         <TableCell>
-                          <div className='flex items-center gap-2'>
-                            <span title={item.authorUserId}>
-                              {authorUser
-                                ? `${authorUser.lastName} ${authorUser.firstName}`.trim() ||
-                                  shortId(item.authorUserId)
-                                : shortId(item.authorUserId)}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className='flex items-center gap-2'>
-                            <span title={item.targetUserId}>
-                              {targetUser
-                                ? `${targetUser.lastName} ${targetUser.firstName}`.trim() ||
-                                  shortId(item.targetUserId)
-                                : shortId(item.targetUserId)}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>{item.rating}</TableCell>
-                        <TableCell className='w-80' title={item.text ?? ''}>
-                          {item.text
-                            ? item.text.length > commentPreviewLimit
-                              ? `${item.text.slice(0, commentPreviewLimit)}…`
-                              : item.text
-                            : '-'}
-                        </TableCell>
-                        <TableCell className='w-16 text-right'>
-                          <div className='flex items-center justify-end gap-1'>
-                            <Button
-                              variant='ghost'
-                              size='icon'
-                              className='h-6 w-6 p-0'
-                              aria-label='Modifica feedback'
-                              onClick={() => handleOpenEdit(item)}
-                            >
-                              <Pencil className='h-4 w-4' />
-                            </Button>
-                            <Button
-                              variant='ghost'
-                              size='icon'
-                              className='h-6 w-6 p-0 text-destructive'
-                              aria-label='Elimina feedback'
-                              onClick={() => setDeleteTarget(item)}
-                            >
-                              <Trash2 className='h-4 w-4' />
-                            </Button>
+                          <div className='flex flex-wrap items-center gap-2'>
+                            <StarRating value={item.rating} size='sm' />
+                            {item.deletedAt
+                              ? <span className='text-xs text-destructive'>Eliminato</span>
+                              : edits > 0 && (
+                                <span className='inline-flex items-center gap-1 text-xs text-muted-foreground' title={`${edits} ${edits === 1 ? 'modifica' : 'modifiche'}`}>
+                                  <History className='h-3 w-3' aria-hidden />
+                                  {edits}
+                                </span>
+                              )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1089,7 +1062,7 @@ export default function AdminFeedbackPage() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className='text-muted-foreground'>
+                    <TableCell colSpan={4} className='text-muted-foreground'>
                       Nessun feedback trovato.
                     </TableCell>
                   </TableRow>
@@ -1245,7 +1218,7 @@ export default function AdminFeedbackPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare il feedback?</AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azione è irreversibile.
+              Sparisce per l&apos;autore e dalle statistiche. Resta nella cronologia, che gli admin vedono con &quot;Mostra anche i feedback eliminati&quot;.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deleteTarget && (
@@ -1300,6 +1273,81 @@ export default function AdminFeedbackPage() {
               {isDeleting ? 'Eliminazione...' : 'Elimina'}
             </AlertDialogAction>
           </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={detailTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDetailTarget(null)
+        }}
+      >
+        <AlertDialogContent className='max-w-[calc(100%-2rem)] max-h-[calc(100dvh-3rem)] overflow-y-auto sm:max-w-xl'>
+          {detailTarget && (() => {
+            const lessonInfo = lessonMap[detailTarget.lessonId]
+            const subjectName = lessonInfo?.subjectId ? subjectMap.get(lessonInfo.subjectId)?.name : undefined
+            const roleLabel = detailTarget.authorRole === 'tutor' ? 'tutor' : 'studente'
+            return (
+              <>
+                <AlertDialogHeader className='text-left sm:text-left'>
+                  <AlertDialogTitle>
+                    Feedback di {personName(detailTarget.authorUserId)} per {personName(detailTarget.targetUserId)}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className='text-left'>
+                    Scritto dal {roleLabel}
+                    {lessonInfo?.startAt ? ` · lezione del ${formatItalianDate(lessonInfo.startAt)}` : ''}
+                    {subjectName ? ` · ${subjectName}` : ''}
+                    {' · '}
+                    <Link href={`/admin/lessons/${detailTarget.lessonId}`} className='underline underline-offset-4'>
+                      Apri lezione
+                    </Link>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className='space-y-3'>
+                  <StarRating value={detailTarget.rating} />
+                  <p className='rounded-md bg-muted/50 px-3 py-2 text-sm whitespace-pre-wrap'>
+                    {detailTarget.text || <span className='text-muted-foreground'>Nessun testo</span>}
+                  </p>
+                  {detailTarget.deletedAt
+                    ? <FeedbackHistory feedbackId={detailTarget.id} audience='admin' />
+                    : (
+                        <FeedbackHistoryToggle
+                          feedbackId={detailTarget.id}
+                          versionCount={detailTarget.versionCount ?? 1}
+                          lastEditorRole={detailTarget.lastEditorRole ?? null}
+                          audience='admin'
+                        />
+                      )}
+                </div>
+                <AlertDialogFooter className='gap-2'>
+                  <AlertDialogCancel>Chiudi</AlertDialogCancel>
+                  {!detailTarget.deletedAt && (
+                    <>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        className='text-destructive hover:text-destructive'
+                        onClick={() => {
+                          setDeleteTarget(detailTarget)
+                          setDetailTarget(null)
+                        }}
+                      >
+                        <Trash2 className='h-4 w-4' /> Elimina
+                      </Button>
+                      <Button
+                        type='button'
+                        onClick={() => {
+                          handleOpenEdit(detailTarget)
+                          setDetailTarget(null)
+                        }}
+                      >
+                        <Pencil className='h-4 w-4' /> Modifica
+                      </Button>
+                    </>
+                  )}
+                </AlertDialogFooter>
+              </>
+            )
+          })()}
         </AlertDialogContent>
       </AlertDialog>
     </main>

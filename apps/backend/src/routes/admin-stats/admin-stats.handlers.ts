@@ -403,6 +403,7 @@ export const getFeedbackSummary: AppRouteHandler<GetFeedbackSummaryRoute> = asyn
       tutorToStudentRating5: sql<number>`count(case when ${lessonFeedback.authorRole} = 'tutor' and ${lessonFeedback.rating} = 5 then 1 end)`
     })
     .from(lessonFeedback)
+    .where(isNull(lessonFeedback.deletedAt))
 
   return c.json(
     {

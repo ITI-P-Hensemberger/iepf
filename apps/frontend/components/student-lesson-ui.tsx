@@ -3,7 +3,7 @@
 // A student's booked lessons, the same way on the home and in "Le mie lezioni": one card per
 // lesson with what the student can do next, and the dialogs to cancel or rate it.
 import * as React from 'react'
-import { Mail, MessageSquare, Star, XCircle } from 'lucide-react'
+import { Mail, MessageSquare, Pencil, Star, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -23,6 +23,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { cn } from '@/lib/utils'
 import { capitalizeFirst } from '@/lib/capitalize'
+import { FEEDBACK_LOCKED_NOTICE, FeedbackHistoryToggle } from '@/components/feedback-history'
 
 export type StudentLesson = {
   id: string
@@ -49,7 +50,13 @@ export type StudentFeedback = {
   bookingId: string
   rating: number
   text?: string | null
+  versionCount?: number
+  lastEditorRole?: string | null
+  // Until when the student may still change it (a week after the lesson).
+  editableUntil?: string | null
 }
+
+const editableDateFormat = new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
 
 const timeFormat = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' })
 const dayFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -286,11 +293,14 @@ export function FeedbackDialog({
   const [rating, setRating] = React.useState(5)
   const [text, setText] = React.useState('')
   const [busy, setBusy] = React.useState(false)
-  const readonly = Boolean(existing)
+  const [editing, setEditing] = React.useState(false)
+  const canEdit = Boolean(existing?.editableUntil && new Date() <= new Date(existing.editableUntil))
+  const readonly = Boolean(existing) && !editing
 
   React.useEffect(() => {
     setRating(existing?.rating ?? 5)
     setText(existing?.text ?? '')
+    setEditing(false)
   }, [existing, lesson])
 
   const save = async () => {
@@ -302,17 +312,23 @@ export function FeedbackDialog({
     }
     setBusy(true)
     try {
-      const response = await fetch(`/api/lessons/${lesson.id}/feedback`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId: lesson.bookingId, rating, text: trimmed })
-      })
+      const response = existing
+        ? await fetch(`/api/lessons/${lesson.id}/feedback/${existing.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rating, text: trimmed })
+          })
+        : await fetch(`/api/lessons/${lesson.id}/feedback`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bookingId: lesson.bookingId, rating, text: trimmed })
+          })
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
         throw new Error(payload?.message || 'Impossibile salvare il feedback.')
       }
       const saved = (await response.json().catch(() => null)) as StudentFeedback | null
-      toast.success('Feedback inviato.')
+      toast.success(existing ? 'Feedback aggiornato.' : 'Feedback inviato.')
       if (saved?.bookingId) onSaved(saved)
       onClose()
     } catch (err) {
@@ -357,9 +373,30 @@ export function FeedbackDialog({
             readOnly={readonly}
           />
           {!readonly && <div className='text-right text-xs text-muted-foreground'>{text.length}/1000</div>}
+          {existing && !editing && (
+            <>
+              <FeedbackHistoryToggle
+                feedbackId={existing.id}
+                versionCount={existing.versionCount ?? 1}
+                lastEditorRole={existing.lastEditorRole ?? null}
+                audience='author'
+                className='max-h-[40vh] overflow-y-auto'
+              />
+              <p className='text-xs text-muted-foreground'>
+                {canEdit && existing.editableUntil
+                  ? `Puoi modificarlo fino al ${editableDateFormat.format(new Date(existing.editableUntil))}.`
+                  : FEEDBACK_LOCKED_NOTICE}
+              </p>
+            </>
+          )}
         </div>
         <AlertDialogFooter>
           <AlertDialogCancel>Chiudi</AlertDialogCancel>
+          {readonly && canEdit && (
+            <Button type='button' variant='outline' onClick={() => setEditing(true)}>
+              <Pencil className='h-4 w-4' /> Modifica
+            </Button>
+          )}
           {!readonly && (
             <AlertDialogAction
               disabled={busy}
@@ -368,7 +405,7 @@ export function FeedbackDialog({
                 void save()
               }}
             >
-              {busy ? 'Invio...' : 'Invia'}
+              {busy ? 'Salvataggio...' : existing ? 'Salva modifiche' : 'Invia'}
             </AlertDialogAction>
           )}
         </AlertDialogFooter>
