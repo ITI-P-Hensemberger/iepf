@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 
-import { createRefreshingFetch } from '@/lib/session-refresh'
+import { createRefreshingFetch, loginRedirect } from '@/lib/session-refresh'
 
 const INSTALLED = Symbol.for('iepf.session-refresh')
 
@@ -18,10 +18,11 @@ export function SessionRefresh() {
       origin: window.location.origin,
       isImpersonating: () => document.cookie.split('; ').includes('iepf_impersonating=true'),
       onSessionLost: () => {
-        const next = `${window.location.pathname}${window.location.search}`
+        const destination = loginRedirect(window.location.pathname, window.location.search)
+        if (!destination) return
         // A full load, like logout: nothing of the lost session stays in memory.
-        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-        window.location.assign(`/auth/login?next=${encodeURIComponent(next)}`)
+         
+        window.location.assign(destination)
       }
     })
   }, [])

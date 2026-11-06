@@ -11,6 +11,7 @@ import db, { closeDb } from '@/db'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
 import { notificationPreferences } from '@/db/schemas/notification-preferences.schema'
+import { notifications } from '@/db/schemas/notifications.schema'
 import { pushSubscriptions } from '@/db/schemas/push-subscriptions.schema'
 import { reminderDeliveries } from '@/db/schemas/reminder-deliveries.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
@@ -24,7 +25,7 @@ import { buildPushSetupLinkMessage } from '@/lib/email-templates'
 import { notifyStudentsOfNewLessons } from '@/lib/lessons-available'
 import { assertLocalDatabase } from '@/lib/local-database'
 import { closeMailer, waitForPendingMail } from '@/lib/mailer'
-import { deleteStaleSubscriptions, deliverPush, MAX_SUBSCRIPTIONS_PER_USER, saveSubscription, setPushConfig, STALE_SUBSCRIPTION_DAYS, waitForPendingPush } from '@/lib/push'
+import { deleteStaleSubscriptions, deliverPush, MAX_SUBSCRIPTIONS_PER_USER, notifyUsers, saveSubscription, setPushConfig, STALE_SUBSCRIPTION_DAYS, waitForPendingPush } from '@/lib/push'
 import { lessonChangedPush } from '@/lib/push-messages'
 import { createPushBatch, sendReminderPushOnce } from '@/lib/reminder-delivery'
 import { isAllowedPushEndpoint, isValidSubscriptionKeys, isValidVapidSubject } from '@/lib/web-push'
@@ -212,7 +213,7 @@ describe('delivery', () => {
 
     expect(await deliverPush([ids.student], 'reminders', message)).toEqual({ delivered: 2, failed: 0 })
     expect(sent.map(({ target }) => target.endpoint).sort()).toEqual([endpoint('laptop'), endpoint('phone')])
-    expect(sent[0].payload).toEqual(message)
+    expect(sent[0].payload).toEqual({ ...message, badge: 0 })
 
     await call('/notifications/preferences', { token: tokens.student, method: 'PUT', body: { reminders: false } })
     sent = []
@@ -278,6 +279,26 @@ describe('delivery', () => {
       expect(JSON.stringify(payload)).not.toContain('Demo')
       expect(JSON.stringify(payload)).not.toContain('Equazioni')
     }
+  })
+})
+
+describe('app icon badge', () => {
+  it('sends each user their own unread count, the new notification included', async () => {
+    await db.delete(notifications)
+    await subscribe(tokens.student, 'student-phone')
+    await subscribe(tokens.tutor, 'tutor-phone')
+    await db.insert(notifications).values([
+      { userId: ids.student, category: 'bookings', title: 'Old', body: 'B', url: '/' },
+      { userId: ids.student, category: 'bookings', title: 'Read', body: 'B', url: '/', readAt: new Date() }
+    ])
+
+    notifyUsers([ids.student, ids.tutor], 'bookings', message)
+    await waitForPendingPush()
+
+    const badges = Object.fromEntries(sent.map(item => [item.target.endpoint, item.payload.badge]))
+    expect(badges).toEqual({ [endpoint('student-phone')]: 2, [endpoint('tutor-phone')]: 1 })
+    expect(sent[0].payload).toMatchObject(message)
+    await db.delete(notifications)
   })
 })
 

@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { createRefreshingFetch, needsSessionRefresh } from './session-refresh'
+import { createRefreshingFetch, loginRedirect, needsSessionRefresh, NO_SESSION_HEADER } from './session-refresh'
 
 const origin = 'https://iepf.test'
 
 type Call = { url: string, method: string, body: string }
 
 // A fake server: answers 401 until the session is renewed, then 200 echoing the body.
-function fakeServer(refreshStatus = 200) {
+function fakeServer(refreshStatus = 200, visitor = false) {
   let renewed = false
   const calls: Call[] = []
   const baseFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -16,15 +16,18 @@ function fakeServer(refreshStatus = 200) {
     calls.push({ url: new URL(request.url).pathname, method: request.method, body })
     if (request.url.endsWith('/api/auth/refresh')) {
       renewed = refreshStatus === 200
-      return new Response(null, { status: refreshStatus })
+      return new Response(null, {
+        status: refreshStatus,
+        headers: visitor ? { [NO_SESSION_HEADER]: 'none' } : {}
+      })
     }
     return renewed ? new Response(body || 'ok', { status: 200 }) : new Response(null, { status: 401 })
   }) as unknown as typeof fetch
   return { baseFetch, calls }
 }
 
-function setup(refreshStatus = 200, impersonating = false) {
-  const server = fakeServer(refreshStatus)
+function setup(refreshStatus = 200, impersonating = false, visitor = false) {
+  const server = fakeServer(refreshStatus, visitor)
   const onSessionLost = vi.fn()
   const wrapped = createRefreshingFetch(server.baseFetch, {
     origin,
@@ -96,5 +99,22 @@ describe('createRefreshingFetch', () => {
     const auth = setup()
     expect((await auth.wrapped(`${origin}/api/auth/login`, { method: 'POST', body: '{}' })).status).toBe(401)
     expect(auth.calls).toHaveLength(1)
+  })
+
+  it('leaves a visitor without a session where they are, and stops asking', async () => {
+    const { wrapped, calls, onSessionLost } = setup(401, false, true)
+    expect((await wrapped(`${origin}/api/settings/me`)).status).toBe(401)
+    expect((await wrapped(`${origin}/api/settings/me`)).status).toBe(401)
+
+    expect(onSessionLost).not.toHaveBeenCalled()
+    expect(calls.filter(call => call.url === '/api/auth/refresh')).toHaveLength(1)
+  })
+})
+
+describe('loginRedirect', () => {
+  it('never redirects from an auth page, so the login page cannot loop', () => {
+    expect(loginRedirect('/auth/login', '?next=%2Fstudent')).toBeNull()
+    expect(loginRedirect('/auth/register', '')).toBeNull()
+    expect(loginRedirect('/tutor/lessons/1', '?tab=feedback')).toBe('/auth/login?next=%2Ftutor%2Flessons%2F1%3Ftab%3Dfeedback')
   })
 })
