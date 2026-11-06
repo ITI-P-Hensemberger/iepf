@@ -1,5 +1,5 @@
 // Purpose: The daily admin digest: admins waiting for activation and new subject requests.
-import { and, count, eq, gte, inArray, isNull, lt } from 'drizzle-orm'
+import { and, count, eq, inArray, isNull, sql } from 'drizzle-orm'
 
 import type { MailBatch } from '@/lib/mail-batch'
 import type { PushBatch } from '@/lib/reminder-delivery'
@@ -23,13 +23,13 @@ export async function pendingAdmins() {
     .orderBy(users.createdAt)
 }
 
-// Requests of the last 24 hours, with each subject's running total.
-export async function recentSubjectRequests(now: Date) {
-  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+// Requests of the last 24 hours, with each subject's running total. created_at comes from
+// the database default, in the database's local time, so the window is computed there too.
+export async function recentSubjectRequests() {
   const recent = await db.select({ subjectId: subjectRequests.subjectId, subjectName: subjects.name, count: count() })
     .from(subjectRequests)
     .innerJoin(subjects, eq(subjects.id, subjectRequests.subjectId))
-    .where(and(gte(subjectRequests.createdAt, since), lt(subjectRequests.createdAt, now)))
+    .where(sql`${subjectRequests.createdAt} >= localtimestamp - interval '24 hours' and ${subjectRequests.createdAt} < localtimestamp`)
     .groupBy(subjectRequests.subjectId, subjects.name)
   if (recent.length === 0) {
     return []
@@ -53,7 +53,7 @@ export async function sendAdminDigest(batches: { mail: MailBatch, push: PushBatc
       email: buildPendingAdminsMessage(waiting.map(admin => ({ name: `${admin.firstName} ${admin.lastName}`.trim(), email: admin.email })))
     })
   }
-  const requests = await recentSubjectRequests(now)
+  const requests = await recentSubjectRequests()
   if (requests.length > 0) {
     await notifyAdminsOnce(batches, `subject-requests:${day}`, 'adminSubjectRequests', {
       push: subjectRequestsPush(requests),
