@@ -12,10 +12,10 @@ export const studentProfiles = pgTable('student_profiles', {
   sectionId: uuid().references(() => classSections.id, { onDelete: 'set null' }),
   year: integer(),
   isActive: boolean().notNull().default(false),
-  createdAt: timestamp({ mode: 'date' })
+  createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull(),
-  updatedAt: timestamp({ mode: 'date' })
+  updatedAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull()
     .$onUpdate(() => new Date())

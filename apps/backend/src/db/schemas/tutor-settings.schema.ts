@@ -9,10 +9,10 @@ export const tutorSettings = pgTable('tutor_settings', {
   id: uuid().primaryKey().$defaultFn(() => randomUUID()),
   tutorId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),
   dailyCapacity: integer().notNull().default(1),
-  createdAt: timestamp({ mode: 'date' })
+  createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull(),
-  updatedAt: timestamp({ mode: 'date' })
+  updatedAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull()
     .$onUpdate(() => new Date())

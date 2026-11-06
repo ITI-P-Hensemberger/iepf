@@ -23,13 +23,12 @@ export async function pendingAdmins() {
     .orderBy(users.createdAt)
 }
 
-// Requests of the last 24 hours, with each subject's running total. created_at comes from
-// the database default, in the database's local time, so the window is computed there too.
+// Requests of the last 24 hours, with each subject's running total.
 export async function recentSubjectRequests() {
   const recent = await db.select({ subjectId: subjectRequests.subjectId, subjectName: subjects.name, count: count() })
     .from(subjectRequests)
     .innerJoin(subjects, eq(subjects.id, subjectRequests.subjectId))
-    .where(sql`${subjectRequests.createdAt} >= localtimestamp - interval '24 hours' and ${subjectRequests.createdAt} < localtimestamp`)
+    .where(sql`${subjectRequests.createdAt} >= now() - interval '24 hours' and ${subjectRequests.createdAt} < now()`)
     .groupBy(subjectRequests.subjectId, subjects.name)
   if (recent.length === 0) {
     return []

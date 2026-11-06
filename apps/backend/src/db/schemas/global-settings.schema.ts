@@ -9,10 +9,10 @@ export const globalSettings = pgTable('global_settings', {
   key: text().notNull().unique(),
   value: jsonb().notNull(),
   updatedBy: uuid().references(() => users.id, { onDelete: 'set null' }),
-  createdAt: timestamp({ mode: 'date' })
+  createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull(),
-  updatedAt: timestamp({ mode: 'date' })
+  updatedAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull()
     .$onUpdate(() => new Date())

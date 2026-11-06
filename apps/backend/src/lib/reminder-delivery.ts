@@ -9,7 +9,7 @@ import db from '@/db'
 import { reminderDeliveries } from '@/db/schemas/reminder-deliveries.schema'
 import { deliverPush, isPushEnabled } from '@/lib/push'
 
-const KEEP_DELIVERIES_DAYS = 7
+export const KEEP_DELIVERIES_DAYS = 7
 
 export function localDayKey(date: Date) {
   const pad = (value: number) => String(value).padStart(2, '0')

@@ -15,11 +15,11 @@ export const users = pgTable('users', {
   lastName: text().notNull(),
   passwordHash: text().notNull(),
   role: text().notNull().default('student'),
-  emailVerifiedAt: timestamp({ mode: 'date' }),
-  createdAt: timestamp({ mode: 'date' })
+  emailVerifiedAt: timestamp({ mode: 'date', withTimezone: true }),
+  createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull(),
-  updatedAt: timestamp({ mode: 'date' })
+  updatedAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull()
     .$onUpdate(() => new Date())

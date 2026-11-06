@@ -10,17 +10,17 @@ export const lessons = pgTable('lessons', {
   id: uuid().primaryKey().$defaultFn(() => randomUUID()),
   tutorId: uuid().notNull().references(() => users.id, { onDelete: 'cascade' }),
   subjectId: uuid().notNull().references(() => subjects.id, { onDelete: 'restrict' }),
-  startAt: timestamp({ mode: 'date' }).notNull(),
+  startAt: timestamp({ mode: 'date', withTimezone: true }).notNull(),
   durationMinutes: integer().notNull(),
   seats: integer().notNull(),
   status: text().notNull().default('scheduled'),
   countsForTutor: boolean().notNull().default(false),
   generatedByJob: boolean().default(false),
-  generatedForWeek: timestamp({ mode: 'date' }),
-  createdAt: timestamp({ mode: 'date' })
+  generatedForWeek: timestamp({ mode: 'date', withTimezone: true }),
+  createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull(),
-  updatedAt: timestamp({ mode: 'date' })
+  updatedAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull()
     .$onUpdate(() => new Date())

@@ -13,14 +13,14 @@ export const pushSubscriptions = pgTable('push_subscriptions', {
   endpoint: text().notNull().unique(),
   p256dh: text().notNull(),
   auth: text().notNull(),
-  createdAt: timestamp({ mode: 'date' })
+  createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull(),
   // Renewed every time the device confirms the subscription.
-  updatedAt: timestamp({ mode: 'date' })
+  updatedAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull(),
-  lastSuccessAt: timestamp({ mode: 'date' })
+  lastSuccessAt: timestamp({ mode: 'date', withTimezone: true })
 }, table => [
   index('push_subscriptions_user_idx').on(table.userId)
 ])

@@ -11,11 +11,11 @@ export const adminProfiles = pgTable('admin_profiles', {
   isActive: boolean().notNull().default(false),
   // Set when an admin turns this account off: an inactive admin without it is still
   // waiting for the first activation after accepting the invite.
-  deactivatedAt: timestamp({ mode: 'date' }),
-  createdAt: timestamp({ mode: 'date' })
+  deactivatedAt: timestamp({ mode: 'date', withTimezone: true }),
+  createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull(),
-  updatedAt: timestamp({ mode: 'date' })
+  updatedAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull()
     .$onUpdate(() => new Date())
