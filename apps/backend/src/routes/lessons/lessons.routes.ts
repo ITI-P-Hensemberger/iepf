@@ -73,6 +73,14 @@ export const bookingSchema = z.object({
   studentPresenceAt: z.string().nullable()
 })
 
+// Without a subject an admin's lesson starts open, like a generated one: the first booking picks it.
+const createLessonSchema = z.object({
+  tutorId: z.uuid(),
+  subjectId: z.uuid().nullable().optional(),
+  startAt: z.iso.datetime(),
+  durationMinutes: z.number().int()
+})
+
 const rescheduleLessonSchema = z.object({
   tutorId: z.uuid(),
   // null keeps the subject open for bookings to choose.
@@ -650,7 +658,7 @@ export const createLesson = createRoute({
   security: bearerAuth,
   request: {
     body: jsonContentRequired(
-      rescheduleLessonSchema,
+      createLessonSchema,
       'Admin lesson payload'
     )
   },
@@ -671,7 +679,7 @@ export const createLesson = createRoute({
       'Admin access required'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
-      createErrorSchema(rescheduleLessonSchema),
+      createErrorSchema(createLessonSchema),
       'Validation error(s)'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(

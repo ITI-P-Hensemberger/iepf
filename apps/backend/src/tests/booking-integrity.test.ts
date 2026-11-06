@@ -505,6 +505,23 @@ describe('one open lesson per time slot', () => {
     expect((await request(`/lessons/schedule?${tooLong}`, { method: 'GET', token: adminToken })).status).toBe(400)
   })
 
+  it('opens an admin lesson created without a subject, like a generated one', async () => {
+    for (const subject of [undefined, null]) {
+      const created = await request('/lessons', { token: adminToken, body: { tutorId: ids.tutor, subjectId: subject, startAt: nextLessonDay().toISOString(), durationMinutes: 60 } })
+      expect(created.status).toBe(201)
+      const { lessonId } = await created.json()
+      expect(await lessonRow(lessonId)).toMatchObject({ subjectId: null, subjectFromBooking: true, status: 'scheduled' })
+      // The first booking picks the subject; once nobody holds a seat it opens again.
+      const student = await createStudent(1)
+      const booked = await bookSubject(lessonId, student.token, physics)
+      expect(booked.status).toBe(201)
+      expect((await lessonRow(lessonId)).subjectId).toBe(physics)
+      const { booking } = await booked.json()
+      await request(`/lessons/${lessonId}/bookings/${booking.id}/cancel`, { method: 'PATCH', token: student.token })
+      expect((await lessonRow(lessonId)).subjectId).toBeNull()
+    }
+  })
+
   it('lists open lessons for admins without dropping them for a missing subject', async () => {
     const startAt = nextLessonDay()
     const lessonId = await createOpenLesson(3, startAt)

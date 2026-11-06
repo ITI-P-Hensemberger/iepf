@@ -78,10 +78,17 @@ function ensureAdmin(c: HandlerContext) {
   return currentUser
 }
 
-// What an open lesson (no subject picked yet) is called in messages.
-const OPEN_SUBJECT_LABEL = 'Materia a scelta'
+interface LessonEmailDetails<S extends string | null> {
+  lessonId: string
+  // null for a lesson nobody booked yet: messages then leave the subject out.
+  subjectName: S
+  tutorName: string
+  tutorEmail: string | null
+}
 
-async function fetchLessonEmailDetails(lessonId: string, tutorId: string, subjectId: string | null) {
+async function fetchLessonEmailDetails(lessonId: string, tutorId: string, subjectId: string): Promise<LessonEmailDetails<string> | null>
+async function fetchLessonEmailDetails(lessonId: string, tutorId: string, subjectId: string | null): Promise<LessonEmailDetails<string | null> | null>
+async function fetchLessonEmailDetails(lessonId: string, tutorId: string, subjectId: string | null): Promise<LessonEmailDetails<string | null> | null> {
   const [tutor, subject] = await Promise.all([
     db.query.users.findFirst({
       where(fields, operators) {
@@ -96,7 +103,7 @@ async function fetchLessonEmailDetails(lessonId: string, tutorId: string, subjec
           },
           columns: { name: true }
         })
-      : Promise.resolve({ name: OPEN_SUBJECT_LABEL })
+      : Promise.resolve({ name: null })
   ])
 
   if (!tutor || !subject) {
@@ -2191,12 +2198,15 @@ export const createLesson: AppRouteHandler<CreateLessonRoute> = async (c) => {
   ensureAdmin(c)
 
   const newStartAt = new Date(payload.startAt)
+  // No subject: an open lesson, whose first booking picks one of the tutor's subjects.
+  const subjectId = payload.subjectId ?? null
   const dailyCapacity = await getTutorDailyCapacity(payload.tutorId)
   const seats = dailyCapacity
 
   const [newLesson] = await db.insert(lessons).values({
     tutorId: payload.tutorId,
-    subjectId: payload.subjectId,
+    subjectId,
+    subjectFromBooking: subjectId === null,
     startAt: newStartAt,
     durationMinutes: payload.durationMinutes,
     seats,
@@ -2205,7 +2215,7 @@ export const createLesson: AppRouteHandler<CreateLessonRoute> = async (c) => {
     id: lessons.id
   })
 
-  const details = await fetchLessonEmailDetails(newLesson.id, payload.tutorId, payload.subjectId)
+  const details = await fetchLessonEmailDetails(newLesson.id, payload.tutorId, subjectId)
   if (details?.tutorEmail) {
     const message = buildLessonCreatedMessage({
       lessonId: newLesson.id,

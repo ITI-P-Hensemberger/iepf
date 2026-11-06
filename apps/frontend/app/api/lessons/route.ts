@@ -101,7 +101,8 @@ export async function GET(request: NextRequest) {
 
 type CreateLessonBody = {
   tutorId: string
-  subjectId: string
+  // null or missing: an open lesson, whose first booking picks the subject.
+  subjectId: string | null
   startAt: string
   durationMinutes: number
 }
@@ -128,7 +129,7 @@ export async function POST(request: Request) {
   if (typeof body.tutorId === 'string') {
     payload.tutorId = body.tutorId
   }
-  if (typeof body.subjectId === 'string') {
+  if (typeof body.subjectId === 'string' || body.subjectId === null) {
     payload.subjectId = body.subjectId
   }
   if (typeof body.startAt === 'string') {
@@ -139,7 +140,6 @@ export async function POST(request: Request) {
   }
   if (
     !payload.tutorId ||
-    !payload.subjectId ||
     !payload.startAt ||
     !payload.durationMinutes
   ) {

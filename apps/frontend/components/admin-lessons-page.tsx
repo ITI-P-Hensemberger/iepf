@@ -621,10 +621,6 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
       toast.error('Seleziona un tutor valido.')
       return
     }
-    if (!createForm.subjectId.trim()) {
-      toast.error('Seleziona una materia valida.')
-      return
-    }
     if (!createForm.date) {
       toast.error('Inserisci una data valida.')
       return
@@ -647,7 +643,8 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
         },
         body: JSON.stringify({
           tutorId: createForm.tutorId,
-          subjectId: createForm.subjectId,
+          // No subject: an open lesson, whose first booking picks one of the tutor's subjects.
+          subjectId: createForm.subjectId || null,
           startAt: startAtIso,
           durationMinutes: 60
         })
@@ -1079,7 +1076,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value='__none__'>Seleziona materia</SelectItem>
+                    <SelectItem value='__none__'>Nessuna: la sceglie la prima prenotazione</SelectItem>
                     {createSubjectSplit.preferred.length > 0 ? (
                       <SelectItem value='__preferred__' disabled>
                         Materie del tutor
