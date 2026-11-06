@@ -35,8 +35,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(Promise.all([
     self.registration.showNotification(title, {
       body: typeof data.body === 'string' ? data.body : '',
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
+      icon: '/icons/notification-192.png',
+      badge: '/icons/notification-192.png',
       tag: typeof data.tag === 'string' ? data.tag : undefined,
       lang: 'it',
       data: { url: safePath(data.url), category: typeof data.category === 'string' ? data.category : '' }
