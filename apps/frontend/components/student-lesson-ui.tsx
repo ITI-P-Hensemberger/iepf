@@ -22,6 +22,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { cn } from '@/lib/utils'
+import { capitalizeFirst } from '@/lib/capitalize'
 
 export type StudentLesson = {
   id: string
@@ -349,7 +350,7 @@ export function FeedbackDialog({
           </div>
           <Textarea
             value={text}
-            onChange={(event) => setText(event.target.value)}
+            onChange={(event) => setText(capitalizeFirst(event.target.value))}
             placeholder='Cosa ti è stato utile, cosa avresti voluto diverso'
             maxLength={1000}
             rows={4}

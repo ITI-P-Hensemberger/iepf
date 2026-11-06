@@ -30,6 +30,7 @@ import { formatItalianDate } from '@/lib/format-date'
 import { canMarkPresence } from '@/lib/lesson-schedule'
 import { lessonSubject } from '@/lib/lesson-subject'
 import { dayKeyOf, mondayOf } from '@/lib/school-week'
+import { capitalizeFirst } from '@/lib/capitalize'
 
 type Lesson = {
   id: string
@@ -629,7 +630,7 @@ export default function TutorLessonDetailsPage() {
             <StarRating value={feedbackRating} onChange={setFeedbackRating} />
             <Textarea
               value={feedbackText}
-              onChange={(event) => setFeedbackText(event.target.value)}
+              onChange={(event) => setFeedbackText(capitalizeFirst(event.target.value))}
               placeholder='Era preparato? Su cosa avete lavorato?'
               maxLength={1000}
               rows={4}

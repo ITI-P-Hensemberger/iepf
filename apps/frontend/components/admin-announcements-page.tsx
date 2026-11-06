@@ -45,6 +45,7 @@ import {
 } from '@/lib/announcement-status'
 import { safeHref } from '@/lib/markdown'
 import { cn } from '@/lib/utils'
+import { capitalizeFirst } from '@/lib/capitalize'
 
 type Role = 'student' | 'tutor' | 'admin'
 
@@ -336,7 +337,7 @@ function AnnouncementForm({
                 id='announcement-title'
                 value={draft.title}
                 maxLength={TITLE_MAX}
-                onChange={(event) => update('title', event.target.value)}
+                onChange={(event) => update('title', capitalizeFirst(event.target.value))}
               />
             </div>
 
@@ -371,7 +372,7 @@ function AnnouncementForm({
                   maxLength={LINK_LABEL_MAX}
                   placeholder='Scopri di più'
                   disabled={!draft.linkUrl.trim()}
-                  onChange={(event) => update('linkLabel', event.target.value)}
+                  onChange={(event) => update('linkLabel', capitalizeFirst(event.target.value))}
                 />
               </div>
             </div>

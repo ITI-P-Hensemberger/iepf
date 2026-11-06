@@ -66,6 +66,7 @@ import {
 import { track } from '@/lib/usage-analytics'
 import { useSession } from '@/lib/use-session'
 import { cn } from '@/lib/utils'
+import { capitalizeFirst } from '@/lib/capitalize'
 
 type LessonAvailable = {
   id: string
@@ -727,7 +728,7 @@ function ConfirmBody({
         <Textarea
           id='booking-topic'
           value={topic}
-          onChange={(event) => onTopic(event.target.value)}
+          onChange={(event) => onTopic(capitalizeFirst(event.target.value))}
           placeholder='Equazioni di secondo grado...'
           maxLength={200}
           rows={3}
