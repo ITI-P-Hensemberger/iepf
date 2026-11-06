@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useSession } from '@/lib/use-session'
 import { useSettings } from '@/components/settings-provider'
 import { MaintenanceBlock } from '@/components/maintenance-block'
+import { ServiceMessageBanner } from '@/components/service-message-banner'
 
 type ActivatorGuardProps = {
   children: React.ReactNode
@@ -68,9 +69,15 @@ export default function ActivatorGuard({ children }: ActivatorGuardProps) {
 
   const maintenanceActive = Boolean(settings?.maintenance.enabled)
 
-  if (maintenanceActive) {
-    return <MaintenanceBlock message={settings?.maintenance.message} />
-  }
-
-  return <>{children}</>
+  // No Header here (the page has its own logout), but the service banner reaches every role.
+  return (
+    <>
+      <ServiceMessageBanner />
+      {maintenanceActive ? (
+        <MaintenanceBlock message={settings?.maintenance.message} />
+      ) : (
+        children
+      )}
+    </>
+  )
 }
