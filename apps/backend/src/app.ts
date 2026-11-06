@@ -3,6 +3,7 @@ import configureOpenAPI from '@/lib/configure-open-api'
 import createApp from '@/lib/create-app'
 import adminImpersonation from '@/routes/admin-impersonation/admin-impersonation.index'
 import adminStats from '@/routes/admin-stats/admin-stats.index'
+import announcements from '@/routes/announcements/announcements.index'
 import audit from '@/routes/audit/audit.index'
 import auth from '@/routes/auth/auth.index'
 import classSections from '@/routes/class-sections/class-sections.index'
@@ -27,6 +28,7 @@ configureOpenAPI(app)
 const routes = [
   adminImpersonation,
   adminStats,
+  announcements,
   audit,
   auth,
   classSections,

@@ -1,11 +1,12 @@
 // Purpose: Delete data that is no longer needed: old audit logs, expired tokens and push
-// subscriptions of devices that have been silent for months.
+// subscriptions of devices that have been silent for months, and who closed long-expired popups.
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 
-import { inArray, lt } from 'drizzle-orm'
+import { and, inArray, isNotNull, lt } from 'drizzle-orm'
 
 import db from '@/db'
 import { adminInviteTokens } from '@/db/schemas/admin-invite-tokens.schema'
+import { announcementDismissals, announcements } from '@/db/schemas/announcements.schema'
 import { auditLogs } from '@/db/schemas/audit-logs.schema'
 import { emailVerificationTokens } from '@/db/schemas/email-verification-tokens.schema'
 import { passwordResetTokens } from '@/db/schemas/password-reset-tokens.schema'
@@ -14,6 +15,8 @@ import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
 import { deleteStaleSubscriptions } from '@/lib/push'
 
 export const AUDIT_LOG_RETENTION_DAYS = 90
+// Long enough that an admin who extends a popup just after it expired keeps who closed it.
+export const EXPIRED_POPUP_DISMISSALS_DAYS = 30
 const BATCH_SIZE = 5_000
 
 // Small batches keep the first run, on a table that has never been cleaned, from holding
@@ -31,6 +34,16 @@ async function deleteOlderThan(table: PgTable, id: PgColumn, date: PgColumn, cut
   }
 }
 
+// Popups without an expiry keep their dismissals: they can be shown again at any time.
+async function deleteExpiredPopupDismissals(now: Date) {
+  const cutoff = new Date(now.getTime() - EXPIRED_POPUP_DISMISSALS_DAYS * 24 * 60 * 60 * 1000)
+  const expired = db.select({ id: announcements.id })
+    .from(announcements)
+    .where(and(isNotNull(announcements.expiresAt), lt(announcements.expiresAt, cutoff)))
+  const result = await db.delete(announcementDismissals).where(inArray(announcementDismissals.announcementId, expired))
+  return result.rowCount ?? 0
+}
+
 export async function cleanUpExpiredData(now = new Date()) {
   const auditCutoff = new Date(now.getTime() - AUDIT_LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000)
 
@@ -41,6 +54,7 @@ export async function cleanUpExpiredData(now = new Date()) {
     passwordResetTokens: await deleteOlderThan(passwordResetTokens, passwordResetTokens.id, passwordResetTokens.expiresAt, now),
     adminInviteTokens: await deleteOlderThan(adminInviteTokens, adminInviteTokens.id, adminInviteTokens.expiresAt, now),
     tutorInviteTokens: await deleteOlderThan(tutorInviteTokens, tutorInviteTokens.id, tutorInviteTokens.expiresAt, now),
-    pushSubscriptions: await deleteStaleSubscriptions(now)
+    pushSubscriptions: await deleteStaleSubscriptions(now),
+    announcementDismissals: await deleteExpiredPopupDismissals(now)
   }
 }

@@ -3,7 +3,8 @@
 import * as React from 'react'
 
 import { cn } from '@/lib/utils'
-import { useSettings } from '@/components/settings-provider'
+import { MarkdownContent } from '@/components/markdown-content'
+import { type ServiceMessage, useSettings } from '@/components/settings-provider'
 import { useSession } from '@/lib/use-session'
 import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react'
 
@@ -37,24 +38,41 @@ export function ServiceMessageBanner() {
     return null
   }
 
-  const Icon = levelIcons[message.level] ?? Info
-
   return (
     <div className='w-full'>
       <div className='container mx-auto px-4 py-3 flex justify-center'>
-        <div
-          className={cn(
-            'w-full max-w-6xl rounded-lg border px-4 py-3 text-sm',
-            levelStyles[message.level] ?? levelStyles.info
-          )}
-        >
-          <div className='flex items-start gap-3'>
-            <Icon className='mt-0.5 h-4 w-4 shrink-0' />
-            <div className='space-y-1'>
-              <div className='text-sm font-semibold'>{message.title}</div>
-              <div className='text-sm opacity-90'>{message.body}</div>
-            </div>
-          </div>
+        <ServiceMessageCard message={message} className='max-w-6xl' />
+      </div>
+    </div>
+  )
+}
+
+// The banner itself, shared with the preview in the admin settings.
+export function ServiceMessageCard({
+  message,
+  className
+}: {
+  message: Pick<ServiceMessage, 'level' | 'title' | 'body'>
+  className?: string
+}) {
+  const Icon = levelIcons[message.level] ?? Info
+
+  return (
+    <div
+      className={cn(
+        'w-full rounded-lg border px-4 py-3 text-sm',
+        levelStyles[message.level] ?? levelStyles.info,
+        className
+      )}
+    >
+      <div className='flex items-start gap-3'>
+        <Icon className='mt-0.5 h-4 w-4 shrink-0' />
+        <div className='min-w-0 space-y-1'>
+          <div className='text-sm font-semibold break-words'>{message.title}</div>
+          <MarkdownContent
+            source={message.body}
+            className='space-y-2 opacity-90 [&_a]:text-current [&_code]:bg-black/10'
+          />
         </div>
       </div>
     </div>
