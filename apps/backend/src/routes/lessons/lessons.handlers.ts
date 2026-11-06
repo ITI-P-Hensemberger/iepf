@@ -47,11 +47,13 @@ import type {
   CancelBookingRoute,
   CancelLessonRoute,
   CreateLessonRoute,
+  GetAvailableSummaryRoute,
   GetLessonRoute,
   ListAvailableLessonsRoute,
   ListLessonBookingsRoute,
   ListLessonsRoute,
   ListMyLessonsRoute,
+  ListScheduleRoute,
   RescheduleLessonRoute,
   SetBookingPresenceRoute,
   UpdateBookingCountsRoute,
@@ -533,19 +535,22 @@ export const listMyLessons: AppRouteHandler<ListMyLessonsRoute> = async (c) => {
   )
 }
 
-export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = async (c) => {
-  const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'student') {
-    forbid()
-  }
+interface AvailableFilters {
+  subjectId?: string
+  from?: string
+  to?: string
+  sortDir?: 'asc' | 'desc'
+}
 
-  const query = c.req.valid('query')
+// The lessons a student may see on the booking page, each with whether they can book it now.
+// Without a page every matching lesson is loaded; with one, only that slice.
+async function loadAvailableLessons(studentId: string, filters: AvailableFilters, page?: { limit: number, offset: number }) {
   const now = new Date()
   const tomorrow = schoolTime(addDays(schoolDayKey(now), 1))
 
   const studentProfile = await db.query.studentProfiles.findFirst({
     where(fields, operators) {
-      return operators.eq(fields.userId, currentUser.id)
+      return operators.eq(fields.userId, studentId)
     },
     columns: { isActive: true, year: true }
   })
@@ -563,26 +568,23 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
         .where(gt(tutorProfiles.year, studentProfile.year))
     ))
   }
-  if (query.subjectId) {
-    conditions.push(lessonOffersSubject(query.subjectId))
+  if (filters.subjectId) {
+    conditions.push(lessonOffersSubject(filters.subjectId))
   }
-  if (query.from) {
-    conditions.push(gte(lessons.startAt, new Date(query.from)))
+  if (filters.from) {
+    conditions.push(gte(lessons.startAt, new Date(filters.from)))
   }
-  if (query.to) {
-    conditions.push(lte(lessons.startAt, new Date(query.to)))
+  if (filters.to) {
+    conditions.push(lte(lessons.startAt, new Date(filters.to)))
   }
 
   const listWhere = and(...conditions)
-
-  const direction = query.sortDir === 'desc' ? desc(lessons.startAt) : asc(lessons.startAt)
+  const direction = filters.sortDir === 'desc' ? desc(lessons.startAt) : asc(lessons.startAt)
 
   const [{ total }] = await db
     .select({ total: sql<number>`count(*)` })
     .from(lessons)
     .where(listWhere)
-
-  const prioritizeCanBook = query.offset === 0
 
   const lessonRowsQuery = db
     .select({
@@ -590,6 +592,7 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
       tutorId: lessons.tutorId,
       tutorFirstName: users.firstName,
       tutorLastName: users.lastName,
+      tutorYear: tutorProfiles.year,
       subjectId: lessons.subjectId,
       subjectName: subjects.name,
       startAt: lessons.startAt,
@@ -599,17 +602,18 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
     })
     .from(lessons)
     .innerJoin(users, eq(lessons.tutorId, users.id))
+    .leftJoin(tutorProfiles, eq(tutorProfiles.userId, lessons.tutorId))
     .leftJoin(subjects, eq(lessons.subjectId, subjects.id))
     .where(listWhere)
     // Lessons can start together: without the id they could repeat or vanish between pages.
     .orderBy(direction, asc(lessons.id))
 
-  const lessonRows = prioritizeCanBook
-    ? await lessonRowsQuery
-    : await lessonRowsQuery.limit(query.limit).offset(query.offset)
+  const lessonRows = page
+    ? await lessonRowsQuery.limit(page.limit).offset(page.offset)
+    : await lessonRowsQuery
 
   if (lessonRows.length === 0) {
-    return c.json(buildPagedResponse([], Number(total ?? 0), query.limit, query.offset), HttpStatusCodes.OK)
+    return { total: Number(total ?? 0), items: [], bookedDays: new Set<string>() }
   }
 
   const lessonIds = lessonRows.map(row => row.id)
@@ -617,7 +621,7 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
   const minDate = schoolDayRange(new Date(Math.min(...lessonDates.map(date => date.getTime())))).start
   const maxDate = schoolDayRange(new Date(Math.max(...lessonDates.map(date => date.getTime())))).end
 
-  const tokenBalance = await getStudentTokenBalance(currentUser.id)
+  const tokenBalance = await getStudentTokenBalance(studentId)
 
   const studentActive = studentProfile?.isActive === true
   const hasTokens = tokenBalance > 0
@@ -626,7 +630,7 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
     where(fields, operators) {
       return operators.and(
         operators.inArray(fields.lessonId, lessonIds),
-        operators.eq(fields.studentId, currentUser.id),
+        operators.eq(fields.studentId, studentId),
         operators.eq(fields.status, 'confirmed')
       )
     },
@@ -639,7 +643,7 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
     .from(lessonBookings)
     .innerJoin(lessons, eq(lessonBookings.lessonId, lessons.id))
     .where(and(
-      eq(lessonBookings.studentId, currentUser.id),
+      eq(lessonBookings.studentId, studentId),
       eq(lessonBookings.status, 'confirmed'),
       gte(lessons.startAt, minDate),
       lt(lessons.startAt, maxDate)
@@ -708,6 +712,7 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
       tutorId: lesson.tutorId,
       tutorFirstName: lesson.tutorFirstName,
       tutorLastName: lesson.tutorLastName,
+      tutorYear: lesson.tutorYear ?? null,
       subjectId: lesson.subjectId,
       subjectName: lesson.subjectName,
       startAt: new Date(lesson.startAt).toISOString(),
@@ -717,10 +722,29 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
       dailyOccupancy: dailyBookings,
       availableSeats,
       status: lesson.status,
+      bookingCutoff: cutoff.toISOString(),
       subjectOptions,
       canBook: canBook && subjectOptions.length > 0
     }
   })
+
+  return { total: Number(total ?? 0), items, bookedDays: bookedDateKeys }
+}
+
+export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = async (c) => {
+  const currentUser = c.get('currentUser')
+  if (!currentUser || currentUser.role !== 'student') {
+    forbid()
+  }
+
+  const query = c.req.valid('query')
+  // The first page puts the lessons the student can book first, so it needs them all.
+  const prioritizeCanBook = query.offset === 0
+  const { total, items } = await loadAvailableLessons(
+    currentUser.id,
+    query,
+    prioritizeCanBook ? undefined : { limit: query.limit, offset: query.offset }
+  )
 
   const pagedItems = prioritizeCanBook
     ? [
@@ -730,9 +754,173 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
     : items
 
   return c.json(
-    buildPagedResponse(pagedItems, Number(total ?? 0), query.limit, query.offset),
+    buildPagedResponse(pagedItems, total, query.limit, query.offset),
     HttpStatusCodes.OK
   )
+}
+
+// How many lessons the student can book per subject and, for the chosen subject, per day.
+export const getAvailableSummary: AppRouteHandler<GetAvailableSummaryRoute> = async (c) => {
+  const currentUser = c.get('currentUser')
+  if (!currentUser || currentUser.role !== 'student') {
+    forbid()
+  }
+
+  const query = c.req.valid('query')
+  const { items, bookedDays } = await loadAvailableLessons(currentUser.id, { from: query.from, to: query.to })
+  const bookable = items.filter(item => item.canBook)
+
+  const subjectCounts = new Map<string, { id: string, name: string, count: number }>()
+  for (const item of bookable) {
+    for (const option of item.subjectOptions) {
+      const entry = subjectCounts.get(option.id) ?? { ...option, count: 0 }
+      entry.count += 1
+      subjectCounts.set(option.id, entry)
+    }
+  }
+
+  const dayCounts = new Map<string, number>()
+  for (const item of bookable) {
+    if (query.subjectId && !item.subjectOptions.some(option => option.id === query.subjectId)) {
+      continue
+    }
+    const day = schoolDayKey(new Date(item.startAt))
+    dayCounts.set(day, (dayCounts.get(day) ?? 0) + 1)
+  }
+
+  // Days with a booking count even when no lesson is left to show, so the page can say why.
+  const studentDays = await db
+    .select({ startAt: lessons.startAt })
+    .from(lessonBookings)
+    .innerJoin(lessons, eq(lessonBookings.lessonId, lessons.id))
+    .where(and(
+      eq(lessonBookings.studentId, currentUser.id),
+      eq(lessonBookings.status, 'confirmed'),
+      gte(lessons.startAt, new Date(query.from)),
+      lte(lessons.startAt, new Date(query.to))
+    ))
+  for (const row of studentDays) {
+    bookedDays.add(schoolDayKey(new Date(row.startAt)))
+  }
+
+  return c.json({
+    subjects: [...subjectCounts.values()].sort((a, b) => a.name.localeCompare(b.name, 'it')),
+    days: [...new Set([...dayCounts.keys(), ...bookedDays])].sort().map(day => ({
+      day,
+      count: dayCounts.get(day) ?? 0,
+      booked: bookedDays.has(day)
+    }))
+  }, HttpStatusCodes.OK)
+}
+
+// Lessons with their bookings for a day or a week: admins see every tutor, a tutor only their own.
+export const listSchedule: AppRouteHandler<ListScheduleRoute> = async (c) => {
+  const currentUser = c.get('currentUser')
+  const isAdmin = currentUser?.role === 'admin' && currentUser.isActive === true
+  const isTutor = currentUser?.role === 'tutor'
+  if (!currentUser || (!isAdmin && !isTutor)) {
+    forbid()
+  }
+
+  const query = c.req.valid('query')
+  const from = new Date(query.from)
+  const to = new Date(query.to)
+  if (to.getTime() - from.getTime() > 15 * 24 * 60 * 60 * 1000 || to < from) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
+  }
+  const tutorId = isTutor ? currentUser.id : query.tutorId
+
+  const rows = await db
+    .select({
+      id: lessons.id,
+      tutorId: lessons.tutorId,
+      tutorFirstName: users.firstName,
+      tutorLastName: users.lastName,
+      tutorYear: tutorProfiles.year,
+      subjectId: lessons.subjectId,
+      subjectName: subjects.name,
+      subjectFromBooking: lessons.subjectFromBooking,
+      startAt: lessons.startAt,
+      durationMinutes: lessons.durationMinutes,
+      seats: lessons.seats,
+      status: lessons.status
+    })
+    .from(lessons)
+    .innerJoin(users, eq(lessons.tutorId, users.id))
+    .leftJoin(tutorProfiles, eq(tutorProfiles.userId, lessons.tutorId))
+    .leftJoin(subjects, eq(lessons.subjectId, subjects.id))
+    .where(and(
+      gte(lessons.startAt, from),
+      lte(lessons.startAt, to),
+      ...(tutorId ? [eq(lessons.tutorId, tutorId)] : []),
+      ...(query.subjectId ? [lessonOffersSubject(query.subjectId)] : [])
+    ))
+    .orderBy(asc(lessons.startAt), asc(users.lastName), asc(lessons.id))
+
+  const lessonIds = rows.map(row => row.id)
+  const bookingRows = lessonIds.length
+    ? await db
+        .select({
+          id: lessonBookings.id,
+          lessonId: lessonBookings.lessonId,
+          studentId: lessonBookings.studentId,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          subjectId: lessonBookings.subjectId,
+          topic: lessonBookings.topic,
+          studentPresence: lessonBookings.studentPresence
+        })
+        .from(lessonBookings)
+        .innerJoin(users, eq(lessonBookings.studentId, users.id))
+        .where(and(inArray(lessonBookings.lessonId, lessonIds), eq(lessonBookings.status, 'confirmed')))
+        .orderBy(asc(lessonBookings.createdAt))
+    : []
+  const students = await fetchStudentsDetails(bookingRows.map(row => row.studentId))
+  const bookingsByLesson = new Map<string, typeof bookingRows>()
+  for (const row of bookingRows) {
+    const list = bookingsByLesson.get(row.lessonId) ?? []
+    list.push(row)
+    bookingsByLesson.set(row.lessonId, list)
+  }
+
+  const tutorIds = [...new Set(rows.map(row => row.tutorId))]
+  const tutorOptions = await getTutorSubjectOptions(tutorIds)
+  const capacities = new Map<string, number>()
+  for (const id of tutorIds) {
+    capacities.set(id, await getTutorDailyCapacity(id))
+  }
+
+  const now = new Date()
+  const items = rows.map((row) => {
+    const lessonBookingsList = bookingsByLesson.get(row.id) ?? []
+    return {
+      id: row.id,
+      tutorId: row.tutorId,
+      tutorName: `${row.tutorFirstName} ${row.tutorLastName}`.trim(),
+      tutorYear: row.tutorYear ?? null,
+      tutorDailyCapacity: capacities.get(row.tutorId) ?? 1,
+      subjectId: row.subjectId,
+      subjectName: row.subjectName,
+      subjectFromBooking: row.subjectFromBooking,
+      subjectOptions: row.subjectId ? [] : (tutorOptions.get(row.tutorId) ?? []),
+      startAt: row.startAt.toISOString(),
+      durationMinutes: row.durationMinutes,
+      seats: row.seats,
+      status: row.status,
+      bookingsOpen: now < bookingCutoff(row.startAt) && row.status !== 'canceled',
+      bookings: lessonBookingsList.map(booking => ({
+        id: booking.id,
+        studentId: booking.studentId,
+        studentName: `${booking.firstName} ${booking.lastName}`.trim(),
+        classLabel: students.get(booking.studentId)?.classLabel ?? null,
+        subjectId: booking.subjectId,
+        topic: booking.topic,
+        studentPresence: booking.studentPresence
+      }))
+    }
+  })
+
+  return c.json({ data: items }, HttpStatusCodes.OK)
 }
 
 export const getLesson: AppRouteHandler<GetLessonRoute> = async (c) => {

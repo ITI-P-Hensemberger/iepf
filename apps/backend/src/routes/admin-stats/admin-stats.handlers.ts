@@ -175,7 +175,6 @@ export const listTutorLessonCounts: AppRouteHandler<ListTutorLessonCountsRoute> 
       lessonsCancelledNotCounted: lessonsCancelledNotCountedExpr,
       lessonsDone: sql<number>`count(${lessons.id}) filter (where ${LESSON_STATE_SQL.done})::int`,
       lessonsUpcoming: sql<number>`count(${lessons.id}) filter (where ${LESSON_STATE_SQL.upcoming})::int`,
-      lessonsExpired: sql<number>`count(${lessons.id}) filter (where ${LESSON_STATE_SQL.expired})::int`,
       lessonsCanceled: sql<number>`count(${lessons.id}) filter (where ${LESSON_STATE_SQL.canceled})::int`
     })
     .from(users)
@@ -490,7 +489,6 @@ export const getOverview: AppRouteHandler<GetOverviewRoute> = async (c) => {
     db.select({
       done: sql<number>`count(*) filter (where ${LESSON_STATE_SQL.done})::int`,
       upcoming: sql<number>`count(*) filter (where ${LESSON_STATE_SQL.upcoming})::int`,
-      expired: sql<number>`count(*) filter (where ${LESSON_STATE_SQL.expired})::int`,
       canceled: sql<number>`count(*) filter (where ${LESSON_STATE_SQL.canceled})::int`
     }).from(lessons),
     db.select({
@@ -513,7 +511,7 @@ export const getOverview: AppRouteHandler<GetOverviewRoute> = async (c) => {
       .orderBy(month)
   ])
   return c.json({
-    lessonsByState: statusRows[0] ?? { done: 0, upcoming: 0, expired: 0, canceled: 0 },
+    lessonsByState: statusRows[0] ?? { done: 0, upcoming: 0, canceled: 0 },
     attendance: attendanceRows[0] ?? { present: 0, absent: 0, unrecorded: 0 },
     months: monthRows
   }, HttpStatusCodes.OK)

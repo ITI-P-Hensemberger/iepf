@@ -27,6 +27,7 @@ import { getStudentTokenBalance } from '@/lib/lesson-tokens'
 import { assertLocalDatabase } from '@/lib/local-database'
 import { closeMailer } from '@/lib/mailer'
 import { hashPassword } from '@/lib/password'
+import { addDays, schoolDayKey, schoolTime } from '@/lib/school-time'
 import { issueTutorInviteToken } from '@/lib/tutor-invite'
 import { hasRecentReportExport, recordReportExport, REPORT_VALID_MINUTES } from '@/lib/year-report-export'
 import { resetRateLimiters } from '@/middlewares/rate-limit'
@@ -447,6 +448,61 @@ describe('one open lesson per time slot', () => {
     expect((await list(physics)).some(row => row.id === lessonId)).toBe(false)
     const [locked] = (await list(math)).filter(row => row.id === lessonId)
     expect(locked.subjectOptions.map(option => option.id)).toEqual([math])
+  })
+
+  it('sums up bookable lessons per subject and per day for the booking page', async () => {
+    const student = await createStudent(3)
+    const startAt = nextLessonDay()
+    const dayKey = schoolDayKey(startAt)
+    const range = new URLSearchParams({ from: schoolTime(dayKey).toISOString(), to: schoolTime(addDays(dayKey, 1)).toISOString() })
+    await createOpenLesson(3, startAt)
+    const summary = async (query: URLSearchParams) => {
+      const response = await request(`/lessons/available/summary?${query}`, { method: 'GET', token: student.token })
+      expect(response.status).toBe(200)
+      return response.json() as Promise<{ subjects: Array<{ id: string, count: number }>, days: Array<{ day: string, count: number, booked: boolean }> }>
+    }
+    const before = await summary(range)
+    // One open lesson counts for each subject its tutor teaches.
+    expect(before.subjects.find(subject => subject.id === math)?.count).toBe(1)
+    expect(before.subjects.find(subject => subject.id === physics)?.count).toBe(1)
+    expect(before.days).toEqual([{ day: dayKey, count: 1, booked: false }])
+
+    const later = new Date(startAt)
+    later.setHours(later.getHours() + 1)
+    const bookedLesson = await createOpenLesson(3, later)
+    expect((await bookSubject(bookedLesson, student.token, math)).status).toBe(201)
+    const after = await summary(new URLSearchParams({ ...Object.fromEntries(range), subjectId: physics }))
+    // One lesson a day: the rest of that day is no longer bookable for this student.
+    expect(after.days).toEqual([{ day: dayKey, count: 0, booked: true }])
+    expect(after.subjects).toEqual([])
+  })
+
+  it('shows a tutor their own schedule with bookings, and admins anyone\'s', async () => {
+    const student = await createStudent(2)
+    const startAt = nextLessonDay()
+    const lessonId = await createOpenLesson(3, startAt)
+    await bookSubject(lessonId, student.token, math)
+    const query = new URLSearchParams({ from: new Date(startAt.getTime() - 60_000).toISOString(), to: new Date(startAt.getTime() + 60_000).toISOString() })
+    const schedule = async (token: string, extra: Record<string, string> = {}) => {
+      return request(`/lessons/schedule?${new URLSearchParams({ ...Object.fromEntries(query), ...extra })}`, { method: 'GET', token })
+    }
+
+    const mine = await schedule(tutorToken)
+    expect(mine.status).toBe(200)
+    const [item] = (await mine.json()).data as Array<{ id: string, subjectId: string, bookings: Array<{ studentId: string, topic: string, subjectId: string }> }>
+    expect(item).toMatchObject({ id: lessonId, subjectId: math })
+    expect(item.bookings).toEqual([expect.objectContaining({ studentId: student.id, topic: 'Ripasso', subjectId: math })])
+
+    // A tutor asking for someone else's lessons still gets only their own.
+    const otherTutor = await createTutor(5)
+    const other = await schedule(tutorToken, { tutorId: otherTutor })
+    expect((await other.json()).data.map((row: { id: string }) => row.id)).toEqual([lessonId])
+    const forAdmin = await schedule(adminToken, { tutorId: otherTutor })
+    expect((await forAdmin.json()).data).toEqual([])
+
+    expect((await schedule(student.token)).status).toBe(403)
+    const tooLong = new URLSearchParams({ from: startAt.toISOString(), to: new Date(startAt.getTime() + 20 * 24 * 60 * 60 * 1000).toISOString() })
+    expect((await request(`/lessons/schedule?${tooLong}`, { method: 'GET', token: adminToken })).status).toBe(400)
   })
 
   it('lists open lessons for admins without dropping them for a missing subject', async () => {

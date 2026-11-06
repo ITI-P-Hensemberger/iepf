@@ -23,7 +23,6 @@ type TutorRow = Person & {
   tutorId: string
   lessonsDone: number
   lessonsUpcoming: number
-  lessonsExpired: number
   lessonsCanceled: number
 }
 type StudentRow = Person & {
@@ -73,7 +72,6 @@ const TUTORS: StatsListConfig<TutorRow> = {
     numberColumn('counted', 'Conteggiate', row => n(row.countedLessons), 'countedLessons'),
     numberColumn('done', 'Svolte', row => n(row.lessonsDone)),
     numberColumn('upcoming', 'In programma', row => n(row.lessonsUpcoming)),
-    numberColumn('expired', 'Scadute', row => n(row.lessonsExpired)),
     numberColumn('canceled', 'Annullate', row => n(row.lessonsCanceled))
   ],
   rowKey: row => row.tutorId,
@@ -175,7 +173,7 @@ export default function AdminStatsPage() {
     <main className='flex-1'>
       <div className='container mx-auto flex flex-col items-center px-4 py-10'>
         <div className='w-full max-w-6xl space-y-6'>
-          <BackButton />
+          <BackButton href='/admin' />
           <h1 className='text-2xl'>Statistiche</h1>
 
           <Tabs value={activeTab} onValueChange={changeTab}>

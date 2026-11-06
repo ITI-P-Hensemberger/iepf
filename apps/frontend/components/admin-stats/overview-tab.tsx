@@ -10,7 +10,7 @@ type StudentStatus = { active?: number, inactive?: number, pendingEmailVerificat
 type TutorStatus = { active?: number, inactive?: number, invites?: number }
 type Overview = {
   // By date: lessons are never marked completed, so the backend reads the clock.
-  lessonsByState: { done: number, upcoming: number, expired: number, canceled: number }
+  lessonsByState: { done: number, upcoming: number, canceled: number }
   attendance: { present: number, absent: number, unrecorded: number }
   months: Array<{ month: string, lessons: number, done: number, bookings: number, present: number, absent: number }>
 }
@@ -123,7 +123,6 @@ export function OverviewTab() {
           <Breakdown rows={[
             { label: 'Svolte', count: overview.data?.lessonsByState.done, color: 'var(--viz-3)' },
             { label: 'In programma', count: overview.data?.lessonsByState.upcoming, color: 'var(--viz-1)' },
-            { label: 'Scadute senza prenotazioni', count: overview.data?.lessonsByState.expired, color: 'var(--viz-4)' },
             { label: 'Annullate', count: overview.data?.lessonsByState.canceled, color: 'var(--viz-2)' }
           ]}
           />
