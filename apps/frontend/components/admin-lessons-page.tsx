@@ -191,7 +191,7 @@ function buildTutorOptionLabel(tutor: Tutor): string {
   return tutorLabel(tutor) ?? tutor.id
 }
 
-export default function AdminLessonsPage() {
+export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.ReactNode } = {}) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -703,11 +703,14 @@ export default function AdminLessonsPage() {
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
           <div className='mb-6 self-start'>
-            <BackButton />
+            <BackButton href='/admin' />
           </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <h1 className='text-2xl'>Gestione lezioni</h1>
-            <Button onClick={handleOpenCreate}>Crea lezione</Button>
+            <div className='flex flex-wrap items-center gap-2'>
+              {viewSwitch}
+              <Button onClick={handleOpenCreate}>Crea lezione</Button>
+            </div>
           </div>
 
           <form

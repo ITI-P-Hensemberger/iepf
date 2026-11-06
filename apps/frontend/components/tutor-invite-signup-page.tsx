@@ -25,7 +25,7 @@ export default function TutorInviteSignUpPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='mb-6 self-start'>
-          <BackButton />
+          <BackButton href='/' />
         </div>
         <Image
           src='/logo.png'

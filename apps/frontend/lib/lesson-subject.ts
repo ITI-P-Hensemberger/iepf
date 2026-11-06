@@ -14,14 +14,3 @@ export function lessonSubject<T extends SubjectOption>(
   if (!subjectId) return { id: '', name: OPEN_SUBJECT_LABEL }
   return subjects.get(subjectId)
 }
-
-// The subject a booking starts with: the lesson's own, the one the student is looking for,
-// or the only one on offer. Empty when the student still has to choose.
-export function initialBookingSubject(
-  lesson: { subjectId: string | null, subjectOptions: SubjectOption[] },
-  wanted?: string
-) {
-  if (lesson.subjectId) return lesson.subjectId
-  if (wanted && lesson.subjectOptions.some((option) => option.id === wanted)) return wanted
-  return lesson.subjectOptions.length === 1 ? lesson.subjectOptions[0].id : ''
-}

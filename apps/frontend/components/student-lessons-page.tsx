@@ -14,6 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
+import { LessonHoursBadge } from '@/components/lesson-hours-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
@@ -503,14 +504,12 @@ export default function StudentLessonsPage() {
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
           <div className='mb-6 self-start'>
-            <BackButton />
+            <BackButton href='/student' />
           </div>
           <div className='flex gap-2 flex-row items-center justify-between'>
             <h1 className='text-2xl'>Lezioni</h1>
             {profile?.role === 'student' && (
-              <Badge variant='secondary'>
-                Lezioni rimanenti: {profile.lessonTokens ?? '-'}
-              </Badge>
+              <LessonHoursBadge tokens={profile.lessonTokens} />
             )}
           </div>
 

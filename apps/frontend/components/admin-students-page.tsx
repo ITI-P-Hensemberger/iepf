@@ -530,7 +530,7 @@ export default function AdminStudentsPage() {
       {
         accessorKey: 'lessonTokens',
         header: () => (
-          <span className='whitespace-nowrap'>Crediti lezione</span>
+          <span className='whitespace-nowrap'>Ore di lezione rimanenti</span>
         ),
         cell: ({ row }) => row.original.lessonTokens ?? '-',
         enableSorting: false
@@ -580,7 +580,7 @@ export default function AdminStudentsPage() {
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
           <div className='mb-6 self-start'>
-            <BackButton />
+            <BackButton href='/admin' />
           </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <h1 className='text-2xl'>Gestione studenti</h1>
@@ -650,7 +650,7 @@ export default function AdminStudentsPage() {
                           <SelectItem value='firstName'>Nome</SelectItem>
                           <SelectItem value='year'>Classe</SelectItem>
                           <SelectItem value='lessonTokens'>
-                            Crediti lezione
+                            Ore di lezione rimanenti
                           </SelectItem>
                           <SelectItem value='createdAt'>Creazione</SelectItem>
                         </SelectContent>
@@ -763,7 +763,7 @@ export default function AdminStudentsPage() {
                           <SelectItem value='firstName'>Nome</SelectItem>
                           <SelectItem value='year'>Classe</SelectItem>
                           <SelectItem value='lessonTokens'>
-                            Crediti lezione
+                            Ore di lezione rimanenti
                           </SelectItem>
                           <SelectItem value='createdAt'>Creazione</SelectItem>
                         </SelectContent>

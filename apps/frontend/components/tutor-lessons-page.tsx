@@ -181,7 +181,7 @@ function isLessonNonBookable(lesson: Lesson) {
   return occupancy >= dailySeats
 }
 
-export default function TutorLessonsPage() {
+export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.ReactNode } = {}) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -433,10 +433,11 @@ export default function TutorLessonsPage() {
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
           <div className='mb-6 self-start'>
-            <BackButton />
+            <BackButton href='/tutor' />
           </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <h1 className='text-2xl'>Lezioni</h1>
+            {viewSwitch}
           </div>
           <div className='mt-4 empty:hidden'>
             <PushInviteCard

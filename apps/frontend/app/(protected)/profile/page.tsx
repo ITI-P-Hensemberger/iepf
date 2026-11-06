@@ -7,6 +7,7 @@ import * as z from 'zod'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { LessonHoursBadge } from '@/components/lesson-hours-badge'
 import { BackButton } from '@/components/back-button'
 import {
   AlertDialog,
@@ -30,7 +31,6 @@ import { useSession } from '@/lib/use-session'
 import { logout } from '@/lib/auth-client'
 
 import { extractPayloadArray } from '@/lib/backend-response'
-import { Badge } from '@/components/ui/badge'
 import { NotificationSettings } from '@/components/notification-settings'
 function normalizeName(value: string) {
   const trimmed = value.trim()
@@ -438,7 +438,7 @@ export default function ProfilePage() {
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
           <div className='mb-6 self-start'>
-            <BackButton />
+            <BackButton href='/' />
           </div>
           <h1 className='text-2xl'>Profilo</h1>
           <p className='mt-2 text-muted-foreground'>
@@ -457,9 +457,7 @@ export default function ProfilePage() {
             {profile?.role === 'student' && (
               <CardHeader className='pb-0'>
                 <div className='flex items-center justify-end'>
-                  <Badge variant='secondary'>
-                    Lezioni rimanenti: {profile.lessonTokens ?? '-'}
-                  </Badge>
+                  <LessonHoursBadge tokens={profile.lessonTokens} />
                 </div>
               </CardHeader>
             )}

@@ -34,6 +34,7 @@ import {
 import { extractPayloadArray } from '@/lib/backend-response'
 import { lessonSubject } from '@/lib/lesson-subject'
 import { formatItalianDate } from '@/lib/format-date'
+import { dayKeyOf, mondayOf } from '@/lib/school-week'
 import { BackButton } from '@/components/back-button'
 import { ExternalLink, Mail, MessageSquare, Save } from 'lucide-react'
 import { toast } from 'sonner'
@@ -548,7 +549,8 @@ export default function TutorLessonDetailsPage() {
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl space-y-6'>
           <div className='mb-6 self-start'>
-            <BackButton />
+            {/* Back to the agenda on this lesson's day, not wherever the browser came from. */}
+            <BackButton href={lesson ? `/tutor/lessons?week=${mondayOf(dayKeyOf(new Date(lesson.startAt)))}` : '/tutor/lessons'} />
           </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <div>

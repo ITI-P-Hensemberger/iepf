@@ -865,7 +865,7 @@ export default function AdminAdminsPage() {
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
           <div className='mb-6 self-start'>
-            <BackButton />
+            <BackButton href='/admin' />
           </div>
           <div className='mb-6 empty:hidden'>
             <PushInviteCard

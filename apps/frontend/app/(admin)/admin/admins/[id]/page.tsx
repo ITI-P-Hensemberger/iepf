@@ -259,7 +259,7 @@ export default function AdminAdminDetailPage() {
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
           <div className='mb-6'>
-            <BackButton />
+            <BackButton href='/admin/admins' />
           </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <div>

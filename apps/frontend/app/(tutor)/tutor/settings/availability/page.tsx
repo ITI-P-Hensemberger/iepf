@@ -258,7 +258,7 @@ function AvailabilityForm({
         <div className='max-w-6xl mx-auto'>
           {' '}
           <div className='mb-6'>
-            <BackButton />
+            <BackButton href='/tutor' />
           </div>
           {justSaved && (
             <div className='mb-6'>

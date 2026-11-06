@@ -57,6 +57,7 @@ import { format } from 'date-fns'
 import { toast } from 'sonner'
 
 import { formatItalianDate } from '@/lib/format-date'
+import { dayKeyOf } from '@/lib/school-week'
 import { OPEN_SUBJECT_LABEL, type SubjectOption } from '@/lib/lesson-subject'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { BackButton } from '@/components/back-button'
@@ -1180,7 +1181,8 @@ export default function AdminLessonDetailsPage() {
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl space-y-6'>
           <div className='mb-6 self-start'>
-            <BackButton />
+            {/* Back to the agenda on this lesson's day, not wherever the browser came from. */}
+            <BackButton href={lesson ? `/admin/lessons?day=${dayKeyOf(new Date(lesson.startAt))}` : '/admin/lessons'} />
           </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <div>
