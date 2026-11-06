@@ -206,3 +206,62 @@ export function lessonsAvailablePush(weekStart: Date): PushMessage {
     tag: `available-${week}`
   }
 }
+
+// Admin notifications: lock screens again, so no names; the email carries the details.
+
+export function lowFeedbackPush(params: { authorRole: Role, rating: number, subjectName: string, startAt: Date }): PushMessage {
+  const fromStudent = params.authorRole === 'student'
+  return {
+    title: fromStudent ? 'Feedback basso da uno studente' : 'Feedback basso da un tutor',
+    body: fromStudent
+      ? `Voto ${params.rating}/5 alla lezione di ${params.subjectName} di ${formatWhen(params.startAt)}.`
+      : `Voto ${params.rating}/5 a uno studente nella lezione di ${params.subjectName} di ${formatWhen(params.startAt)}.`,
+    url: '/admin/feedback'
+  }
+}
+
+export function lateCancellationPush(params: { lessonId: string, subjectName: string, startAt: Date }): PushMessage {
+  return {
+    title: 'Annullamento all\'ultimo momento',
+    body: `Uno studente ha annullato la lezione di ${params.subjectName} di oggi alle ${formatTime(params.startAt)}.`,
+    url: `/admin/lessons/${params.lessonId}`
+  }
+}
+
+export function absencePush(params: { lessonId: string, subjectName: string, startAt: Date }): PushMessage {
+  return {
+    title: 'Assenza segnata',
+    body: `Uno studente è assente alla lezione di ${params.subjectName} di ${formatWhen(params.startAt)}.`,
+    url: `/admin/lessons/${params.lessonId}`
+  }
+}
+
+export function emptyWeekPush(weekStart: Date): PushMessage {
+  const week = weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
+  return {
+    title: 'Nessuna lezione generata',
+    body: `La settimana del ${week} è vuota: controlla disponibilità e materie dei tutor.`,
+    url: '/admin/tutors',
+    tag: `empty-week-${week}`
+  }
+}
+
+export function pendingAdminsPush(count: number): PushMessage {
+  return {
+    title: 'Admin in attesa di attivazione',
+    body: count === 1
+      ? 'Un admin ha accettato l\'invito e aspetta l\'attivazione.'
+      : `${count} admin hanno accettato l'invito e aspettano l'attivazione.`,
+    url: '/admin/admins',
+    tag: 'pending-admins'
+  }
+}
+
+export function subjectRequestsPush(requests: Array<{ subjectName: string, count: number }>): PushMessage {
+  return {
+    title: 'Nuove richieste di materie',
+    body: requests.map(request => `${request.subjectName} (${request.count})`).join(', '),
+    url: '/admin/stats?tab=subject-requests',
+    tag: 'subject-requests'
+  }
+}

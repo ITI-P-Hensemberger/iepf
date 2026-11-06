@@ -13,7 +13,8 @@ import { isAllowedPushEndpoint, isValidSubscriptionKeys } from '@/lib/web-push'
 
 import type { GetPreferencesRoute, GetPushConfigRoute, SubscribeRoute, UnsubscribeRoute, UpdatePreferencesRoute } from './notifications.routes'
 
-const RECIPIENT_ROLES = new Set(['student', 'tutor'])
+// Activators get no notifications.
+const RECIPIENT_ROLES = new Set(['student', 'tutor', 'admin'])
 
 // Only the user in person: an admin impersonating a student must not route the student's
 // notifications to the admin's browser, nor change what a minor receives.

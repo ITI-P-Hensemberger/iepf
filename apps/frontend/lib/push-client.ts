@@ -6,9 +6,25 @@ export type PushSupport =
   | 'ios-needs-install'
   | 'unsupported'
 
-export const PUSH_CATEGORIES = ['bookings', 'reminders', 'feedback', 'account', 'lessons'] as const
-export type PushCategory = typeof PUSH_CATEGORIES[number]
-export type PushPreferences = Record<PushCategory, boolean>
+export const USER_CATEGORIES = ['bookings', 'reminders', 'feedback', 'account', 'lessons'] as const
+export const ADMIN_CATEGORIES = [
+  'adminLowFeedback',
+  'adminLateCancellations',
+  'adminAbsences',
+  'adminEmptyWeek',
+  'adminPendingAdmins',
+  'adminSubjectRequests'
+] as const
+export type UserCategory = typeof USER_CATEGORIES[number]
+export type AdminCategory = typeof ADMIN_CATEGORIES[number]
+// Admin email switches: emailAdminLowFeedback for adminLowFeedback, and so on.
+export type EmailPreference = `email${Capitalize<AdminCategory>}`
+export type PreferenceKey = UserCategory | AdminCategory | EmailPreference
+export type PushPreferences = Record<PreferenceKey, boolean>
+
+export function emailPreference(category: AdminCategory): EmailPreference {
+  return `email${category.charAt(0).toUpperCase()}${category.slice(1)}` as EmailPreference
+}
 
 function isIos() {
   const { userAgent, maxTouchPoints } = navigator

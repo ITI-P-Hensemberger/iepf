@@ -17,6 +17,7 @@ import { subjects } from '@/db/schemas/subjects.schema'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
+import { notifyAbsence, notifyLateCancellation } from '@/lib/admin-notifications'
 import {
   buildLessonBookingCanceledMessage,
   buildLessonBookingConfirmedMessage,
@@ -1260,6 +1261,9 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
 
   const canceledBooking = { lessonId: lesson.id, subjectName: lessonDetails?.subjectName ?? 'Lezione', startAt: new Date(lesson.startAt) }
   notifyUsers([booking.studentId], 'bookings', bookingCanceledPush('student', canceledBooking))
+  if (lateSameDayCancel) {
+    notifyLateCancellation({ lessonId: lesson.id, studentId: booking.studentId })
+  }
   notifyUsers([lesson.tutorId], 'bookings', bookingCanceledPush('tutor', canceledBooking))
 
   const updated = await db.query.lessonBookings.findFirst({
@@ -1556,6 +1560,11 @@ export const setBookingPresence: AppRouteHandler<SetBookingPresenceRoute> = asyn
     await db.update(lessons)
       .set({ countsForTutor: true })
       .where(eq(lessons.id, lesson.id))
+  }
+
+  // Each absence once: marking an absent student absent again is not a new one.
+  if (payload.present === false && booking.studentPresence !== false) {
+    notifyAbsence({ lessonId: lesson.id, studentId: booking.studentId })
   }
 
   if (payload.present !== null) {

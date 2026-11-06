@@ -69,7 +69,7 @@ beforeAll(async () => {
   await cleanDatabase()
   ids = await seedDevelopmentData()
   resetRateLimiters()
-  for (const role of ['admin', 'tutor', 'student']) {
+  for (const role of ['admin', 'tutor', 'student', 'activator']) {
     const login = await call('/auth/login', { body: { email: `${role}@example.test`, password: DEV_PASSWORD } })
     tokens[role] = (await login.json()).accessToken
   }
@@ -149,8 +149,8 @@ describe('subscriptions', () => {
     expect(await db.select().from(pushSubscriptions)).toHaveLength(0)
   })
 
-  it('is only for students and tutors in person', async () => {
-    expect((await subscribe(tokens.admin, 'admin')).status).toBe(403)
+  it('is not for activators, nor for anyone being impersonated', async () => {
+    expect((await subscribe(tokens.activator, 'activator')).status).toBe(403)
     expect((await call('/notifications/push/subscriptions', { body: { endpoint: endpoint('x'), keys: { p256dh: P256DH, auth: AUTH } } })).status).toBe(401)
 
     const impersonation = await call('/admin/impersonate', { token: tokens.admin, body: { userId: ids.student } })
@@ -195,7 +195,7 @@ describe('logout', () => {
 describe('preferences', () => {
   it('starts with every kind enabled and changes one at a time', async () => {
     const initial = await call('/notifications/preferences', { token: tokens.student })
-    expect(await initial.json()).toEqual({ bookings: true, reminders: true, feedback: true, account: true, lessons: true })
+    expect(await initial.json()).toMatchObject({ bookings: true, reminders: true, feedback: true, account: true, lessons: true, adminLowFeedback: true, emailAdminLowFeedback: true })
 
     const updated = await call('/notifications/preferences', { token: tokens.student, method: 'PUT', body: { reminders: false } })
     expect(await updated.json()).toMatchObject({ reminders: false, bookings: true })

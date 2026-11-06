@@ -10,8 +10,27 @@ import { pushSubscriptions } from '@/db/schemas/push-subscriptions.schema'
 import env from '@/env'
 import { createWebPushTransport } from '@/lib/web-push'
 
-export const PUSH_CATEGORIES = ['bookings', 'reminders', 'feedback', 'account', 'lessons'] as const
+export const USER_CATEGORIES = ['bookings', 'reminders', 'feedback', 'account', 'lessons'] as const
+// Admins only; each one goes out by push and by email, switched on and off separately.
+export const ADMIN_CATEGORIES = [
+  'adminLowFeedback',
+  'adminLateCancellations',
+  'adminAbsences',
+  'adminEmptyWeek',
+  'adminPendingAdmins',
+  'adminSubjectRequests'
+] as const
+export const PUSH_CATEGORIES = [...USER_CATEGORIES, ...ADMIN_CATEGORIES] as const
 export type PushCategory = typeof PUSH_CATEGORIES[number]
+export type AdminCategory = typeof ADMIN_CATEGORIES[number]
+export type EmailPreference = `email${Capitalize<AdminCategory>}`
+
+export function emailPreference(category: AdminCategory): EmailPreference {
+  return `email${category.charAt(0).toUpperCase()}${category.slice(1)}` as EmailPreference
+}
+
+export const PREFERENCE_KEYS = [...PUSH_CATEGORIES, ...ADMIN_CATEGORIES.map(emailPreference)] as const
+export type PreferenceKey = PushCategory | EmailPreference
 
 export interface PushMessage {
   title: string
@@ -68,13 +87,17 @@ export async function getPreferences(userId: string) {
       return operators.eq(fields.userId, userId)
     }
   })
-  return Object.fromEntries(PUSH_CATEGORIES.map(category => [category, row?.[category] ?? true])) as Record<PushCategory, boolean>
+  return Object.fromEntries(PREFERENCE_KEYS.map(key => [key, row?.[key] ?? true])) as Record<PreferenceKey, boolean>
 }
 
-async function usersWanting(userIds: string[], category: PushCategory) {
+// Users without a row have every kind switched on.
+export async function usersWanting(userIds: string[], key: PreferenceKey) {
+  if (userIds.length === 0) {
+    return []
+  }
   const optedOut = await db.select({ userId: notificationPreferences.userId })
     .from(notificationPreferences)
-    .where(and(inArray(notificationPreferences.userId, userIds), eq(notificationPreferences[category], false)))
+    .where(and(inArray(notificationPreferences.userId, userIds), eq(notificationPreferences[key], false)))
   const excluded = new Set(optedOut.map(row => row.userId))
   return userIds.filter(id => !excluded.has(id))
 }
@@ -144,8 +167,17 @@ export function notifyUsers(userIds: string[], category: PushCategory, message: 
   void delivery.finally(() => pendingPush.delete(delivery))
 }
 
+// Other fire-and-forget notification work that shutdown must wait for.
+export function trackNotificationTask(task: Promise<unknown>) {
+  pendingPush.add(task)
+  void task.finally(() => pendingPush.delete(task))
+}
+
+// Tasks can start more deliveries (an admin notice does), so wait until none is left.
 export async function waitForPendingPush() {
-  await Promise.allSettled(pendingPush)
+  while (pendingPush.size > 0) {
+    await Promise.allSettled([...pendingPush])
+  }
 }
 
 export async function saveSubscription(userId: string, subscription: { endpoint: string, p256dh: string, auth: string }) {

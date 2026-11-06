@@ -24,8 +24,8 @@ for unit in "$RELEASE/systemd/"*; do install -m 644 "$unit" /etc/systemd/system/
 systemctl daemon-reload
 # Removing cron first avoids two independent schedulers sending the same emails.
 crontab "$ROOT/shared/crontab.after-timers"
-if ! systemctl enable --now iepf-backup.timer iepf-cleanup-data.timer iepf-generate-lessons.timer iepf-remind-feedback.timer iepf-remind-lessons-today.timer iepf-remind-lessons-tomorrow.timer; then
-  systemctl disable --now iepf-backup.timer iepf-cleanup-data.timer iepf-generate-lessons.timer iepf-remind-feedback.timer iepf-remind-lessons-today.timer iepf-remind-lessons-tomorrow.timer || true
+if ! systemctl enable --now iepf-backup.timer iepf-cleanup-data.timer iepf-generate-lessons.timer iepf-notify-admins.timer iepf-remind-feedback.timer iepf-remind-lessons-today.timer iepf-remind-lessons-tomorrow.timer; then
+  systemctl disable --now iepf-backup.timer iepf-cleanup-data.timer iepf-generate-lessons.timer iepf-notify-admins.timer iepf-remind-feedback.timer iepf-remind-lessons-today.timer iepf-remind-lessons-tomorrow.timer || true
   crontab "$ROOT/shared/crontab.before-timers"
   exit 1
 fi

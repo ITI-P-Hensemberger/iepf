@@ -13,12 +13,15 @@ import {
   disablePush,
   enablePush,
   refreshPushSubscription,
-  type PushCategory,
+  emailPreference,
+  type AdminCategory,
+  type PreferenceKey,
   type PushPreferences,
-  type PushSupport
+  type PushSupport,
+  type UserCategory
 } from '@/lib/push-client'
 
-const CATEGORY_LABELS: Array<{ key: PushCategory, label: string, description: string, tutorDescription?: string }> = [
+const USER_LABELS: Array<{ key: UserCategory, label: string, description: string, tutorDescription?: string }> = [
   { key: 'bookings', label: 'Prenotazioni', description: 'Conferme, annullamenti e spostamenti delle lezioni.' },
   { key: 'reminders', label: 'Promemoria', description: 'Le lezioni del giorno e del giorno dopo.' },
   { key: 'feedback', label: 'Feedback', description: 'Lezioni concluse che aspettano il tuo feedback.' },
@@ -31,9 +34,18 @@ const CATEGORY_LABELS: Array<{ key: PushCategory, label: string, description: st
   }
 ]
 
+const ADMIN_LABELS: Array<{ key: AdminCategory, label: string, description: string }> = [
+  { key: 'adminLowFeedback', label: 'Feedback bassi', description: 'Voto 2 o meno, dato da uno studente o da un tutor.' },
+  { key: 'adminLateCancellations', label: 'Annullamenti dell\'ultimo momento', description: 'Uno studente annulla una lezione il giorno stesso.' },
+  { key: 'adminAbsences', label: 'Assenze', description: 'Ogni volta che uno studente viene segnato assente.' },
+  { key: 'adminEmptyWeek', label: 'Settimana senza lezioni', description: 'La generazione del sabato non crea lezioni per una settimana con giorni di scuola.' },
+  { key: 'adminPendingAdmins', label: 'Admin in attesa', description: 'Ogni mattina, se qualcuno ha accettato l\'invito e aspetta l\'attivazione.' },
+  { key: 'adminSubjectRequests', label: 'Richieste di materie', description: 'Ogni mattina, le richieste delle ultime 24 ore.' }
+]
+
 type DeviceState = 'loading' | 'off' | 'on' | 'blocked'
 
-export function NotificationSettings({ role }: { role: 'student' | 'tutor' }) {
+export function NotificationSettings({ role }: { role: 'student' | 'tutor' | 'admin' }) {
   const [support, setSupport] = React.useState<PushSupport | null>(null)
   const [device, setDevice] = React.useState<DeviceState>('loading')
   const [preferences, setPreferences] = React.useState<PushPreferences | null>(null)
@@ -95,7 +107,7 @@ export function NotificationSettings({ role }: { role: 'student' | 'tutor' }) {
     }
   }
 
-  async function handleToggle(key: PushCategory, value: boolean) {
+  async function handleToggle(key: PreferenceKey, value: boolean) {
     const previous = preferences
     setPreferences(current => (current ? { ...current, [key]: value } : current))
     const response = await fetch('/api/notifications/preferences', {
@@ -111,18 +123,21 @@ export function NotificationSettings({ role }: { role: 'student' | 'tutor' }) {
     }
   }
 
-  const categories = CATEGORY_LABELS.map(category => ({
-    ...category,
-    description: role === 'tutor' ? category.tutorDescription ?? category.description : category.description
-  }))
+  const userCategories = USER_LABELS
+    .filter(category => role !== 'admin' || category.key === 'account')
+    .map(category => ({
+      ...category,
+      description: role === 'tutor' ? category.tutorDescription ?? category.description : category.description
+    }))
 
   return (
     <Card className='mt-6'>
       <CardHeader>
         <CardTitle>Notifiche</CardTitle>
         <CardDescription>
-          Ricevi sul telefono o sul computer gli avvisi che oggi arrivano per email. Le email
-          continuano ad arrivare comunque. Le notifiche mostrano solo materia e orario.
+          {role === 'admin'
+            ? 'Scegli per ogni avviso se riceverlo come notifica, per email o in entrambi i modi. Le notifiche non mostrano nomi: i dettagli sono nell\'email e nell\'app.'
+            : 'Ricevi sul telefono o sul computer gli avvisi che oggi arrivano per email. Le email continuano ad arrivare comunque. Le notifiche mostrano solo materia e orario.'}
         </CardDescription>
       </CardHeader>
       <CardContent className='flex flex-col gap-6'>
@@ -171,7 +186,7 @@ export function NotificationSettings({ role }: { role: 'student' | 'tutor' }) {
         {preferences && (
           <div className='flex flex-col gap-3'>
             <p className='text-sm font-medium'>Cosa ricevere (su tutti i tuoi dispositivi)</p>
-            {categories.map(category => (
+            {userCategories.map(category => (
               <div key={category.key} className='flex items-start gap-3'>
                 <Checkbox
                   id={`push-${category.key}`}
@@ -181,6 +196,32 @@ export function NotificationSettings({ role }: { role: 'student' | 'tutor' }) {
                 <div className='grid gap-1'>
                   <Label htmlFor={`push-${category.key}`}>{category.label}</Label>
                   <p className='text-sm text-muted-foreground'>{category.description}</p>
+                </div>
+              </div>
+            ))}
+            {role === 'admin' && ADMIN_LABELS.map(category => (
+              <div key={category.key} className='flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between'>
+                <div className='grid gap-1'>
+                  <p className='text-sm font-medium'>{category.label}</p>
+                  <p className='text-sm text-muted-foreground'>{category.description}</p>
+                </div>
+                <div className='flex gap-4 sm:shrink-0'>
+                  <div className='flex items-center gap-2'>
+                    <Checkbox
+                      id={`push-${category.key}`}
+                      checked={preferences[category.key]}
+                      onCheckedChange={value => void handleToggle(category.key, value === true)}
+                    />
+                    <Label htmlFor={`push-${category.key}`}>Notifica</Label>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <Checkbox
+                      id={`email-${category.key}`}
+                      checked={preferences[emailPreference(category.key)]}
+                      onCheckedChange={value => void handleToggle(emailPreference(category.key), value === true)}
+                    />
+                    <Label htmlFor={`email-${category.key}`}>Email</Label>
+                  </div>
                 </div>
               </div>
             ))}

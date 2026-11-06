@@ -133,7 +133,10 @@ progetto se si vuole continuare a usare lo stesso volume dati.
 ## Notifiche push
 
 Le push affiancano le email (prenotazioni, promemoria, feedback, attivazione account,
-lezioni generate) per chi le attiva dal profilo; le email partono sempre. Usano Web
+lezioni generate) per chi le attiva dal profilo; le email partono sempre. Gli admin
+ricevono anche avvisi propri (feedback bassi, annullamenti in giornata, assenze, settimana
+senza lezioni, admin in attesa, richieste di materie) e scelgono per ciascuno push, email
+o entrambi. Gli activator non ricevono notifiche. Usano Web
 Push standard con chiavi VAPID (`web-push` nel backend, `apps/frontend/public/sw.js`
 e `app/manifest.ts` nel frontend), senza servizi a pagamento: il messaggio passa
 cifrato dal servizio push del browser. Il backend contatta solo gli endpoint di

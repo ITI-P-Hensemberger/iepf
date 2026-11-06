@@ -826,8 +826,10 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     }
 
     if (existing.role === 'admin' && hasProfileUpdates) {
+      // Turning an admin off by hand is not the same as one still waiting to be activated.
+      const deactivated = profileUpdates.isActive === false && previousIsActive === true
       const result = await db.update(adminProfiles)
-        .set({ isActive: profileUpdates.isActive })
+        .set({ isActive: profileUpdates.isActive, ...(deactivated ? { deactivatedAt: new Date() } : {}) })
         .where(eq(adminProfiles.userId, id))
       if (result.rowCount === 0) {
         await db.insert(adminProfiles).values({

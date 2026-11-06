@@ -12,7 +12,7 @@ const security = [{ bearerAuth: [] as string[] }]
 const unauthorized = jsonContent(createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED), 'Invalid credentials')
 const forbidden = jsonContent(
   createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
-  'Only students and tutors, and never during impersonation'
+  'Only students, tutors and admins, and never during impersonation'
 )
 
 export const pushConfigSchema = z.object({
@@ -32,12 +32,25 @@ export const unsubscribeSchema = z.object({
   endpoint: z.string().max(2048)
 })
 
+// The admin* keys matter only to admins; email* ones are their email switches.
 export const preferencesSchema = z.object({
   bookings: z.boolean(),
   reminders: z.boolean(),
   feedback: z.boolean(),
   account: z.boolean(),
-  lessons: z.boolean()
+  lessons: z.boolean(),
+  adminLowFeedback: z.boolean(),
+  adminLateCancellations: z.boolean(),
+  adminAbsences: z.boolean(),
+  adminEmptyWeek: z.boolean(),
+  adminPendingAdmins: z.boolean(),
+  adminSubjectRequests: z.boolean(),
+  emailAdminLowFeedback: z.boolean(),
+  emailAdminLateCancellations: z.boolean(),
+  emailAdminAbsences: z.boolean(),
+  emailAdminEmptyWeek: z.boolean(),
+  emailAdminPendingAdmins: z.boolean(),
+  emailAdminSubjectRequests: z.boolean()
 })
 
 export const updatePreferencesSchema = preferencesSchema.partial()

@@ -7,6 +7,7 @@ import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
 import { DEFAULT_TUTOR_SETTINGS } from '@/lib/constants'
 import { buildLessonsGeneratedMessage } from '@/lib/email-templates'
+import { notifyIfWeekEmpty } from '@/lib/empty-week'
 import { notifyStudentsOfNewLessons } from '@/lib/lessons-available'
 import { createMailBatch } from '@/lib/mail-batch'
 import { closeMailer } from '@/lib/mailer'
@@ -246,6 +247,10 @@ async function main() {
   }
 
   const studentsNotified = await notifyStudentsOfNewLessons(pushBatch, targetMonday, teachingYears)
+  // Only the scheduled run for next week: a --today rerun or mock data proves nothing.
+  if (!useToday && !mockOnly && await notifyIfWeekEmpty({ mail: mailBatch, push: pushBatch }, targetMonday, closureDateSet)) {
+    process.stdout.write('No lessons in the week: admins warned\n')
+  }
   await pushBatch.finish()
   await mailBatch.finish()
   if (studentsNotified > 0) {
