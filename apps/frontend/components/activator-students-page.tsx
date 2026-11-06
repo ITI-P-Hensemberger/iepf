@@ -11,6 +11,16 @@ import {
 import { Search } from 'lucide-react'
 import { toast } from 'sonner'
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -60,8 +70,11 @@ type DataTableProps<TData> = {
   total: number
   tab?: 'active' | 'inactive'
   isSubmitting?: boolean
-  onActivateStudent: (studentId: string, value: true | false) => Promise<void>
+  // Activating and deactivating always go through the confirmation dialog.
+  onRequestChange: (change: PendingChange) => void
 }
+
+type PendingChange = { students: User[]; activate: boolean }
 
 type PagedPayloadObject<T> = {
   items?: T[]
@@ -111,6 +124,35 @@ function normalizePaged<T>(payload: unknown): { items: T[]; total: number } {
   return { items: items as T[], total }
 }
 
+function confirmTitle(change: PendingChange | null) {
+  if (!change) return ''
+  const verb = change.activate ? 'Attivare' : 'Disattivare'
+  return change.students.length === 1
+    ? `${verb} questo studente?`
+    : `${verb} ${change.students.length} studenti?`
+}
+
+function confirmDescription(change: PendingChange | null) {
+  if (!change) return ''
+  const one = change.students.length === 1
+  if (change.activate) {
+    return one
+      ? 'Controlla che sia la persona giusta: una volta attivo potrà accedere e prenotare lezioni.'
+      : 'Controlla che siano le persone giuste: una volta attivi potranno accedere e prenotare lezioni.'
+  }
+  return one
+    ? 'Controlla che sia la persona giusta: una volta disattivato non potrà più prenotare lezioni finché non viene riattivato.'
+    : 'Controlla che siano le persone giuste: una volta disattivati non potranno più prenotare lezioni finché non vengono riattivati.'
+}
+
+function confirmAction(change: PendingChange | null) {
+  if (!change) return ''
+  const verb = change.activate ? 'Attiva' : 'Disattiva'
+  return change.students.length === 1
+    ? verb
+    : `${verb} ${change.students.length} studenti`
+}
+
 function DataTable<TData>({
   data,
   columns,
@@ -122,7 +164,7 @@ function DataTable<TData>({
   total,
   tab,
   isSubmitting,
-  onActivateStudent
+  onRequestChange
 }: DataTableProps<TData>) {
   const router = useRouter()
   const pathname = usePathname()
@@ -162,15 +204,14 @@ function DataTable<TData>({
             table.getFilteredSelectedRowModel().rows.length === 0 ||
             isSubmitting
           }
-          onClick={async () => {
-            const selectedRows = table
-              .getFilteredSelectedRowModel()
-              .rows.map((row) => row.original as unknown as User)
-            for (const row of selectedRows) {
-              await onActivateStudent(row.id, tab === 'inactive' ? true : false)
-            }
-            location.reload()
-          }}
+          onClick={() =>
+            onRequestChange({
+              students: table
+                .getFilteredSelectedRowModel()
+                .rows.map((row) => row.original as unknown as User),
+              activate: tab === 'inactive'
+            })
+          }
         >
           {isSubmitting
             ? 'Aggiornando...'
@@ -286,6 +327,8 @@ export default function ActivatorStudentsPage() {
   const [activeLoading, setActiveLoading] = React.useState(true)
   const [inactiveLoading, setInactiveLoading] = React.useState(true)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [pendingChange, setPendingChange] =
+    React.useState<PendingChange | null>(null)
   const [activeFilters, setActiveFilters] =
     React.useState<TableFilters>(defaultFilters)
   const [inactiveFilters, setInactiveFilters] =
@@ -577,6 +620,15 @@ export default function ActivatorStudentsPage() {
     }
   }
 
+  async function confirmChange() {
+    if (!pendingChange) return
+    for (const student of pendingChange.students) {
+      await activateStudent(student.id, pendingChange.activate)
+    }
+    setPendingChange(null)
+    location.reload()
+  }
+
   const makeColumns = React.useCallback(() => {
     const columns: ColumnDef<User>[] = [
       {
@@ -637,10 +689,12 @@ export default function ActivatorStudentsPage() {
           <Button
             variant={row.original.isActive ? 'destructive' : 'outline'}
             size='sm'
-            onClick={async () => {
-              await activateStudent(row.original.id, !row.original.isActive)
-              location.reload()
-            }}
+            onClick={() =>
+              setPendingChange({
+                students: [row.original],
+                activate: !row.original.isActive
+              })
+            }
             disabled={isSubmitting}
           >
             {row.original.isActive ? 'Disattiva' : 'Attiva'}
@@ -782,7 +836,7 @@ export default function ActivatorStudentsPage() {
                     pageSize={pageSize}
                     total={activeTotal}
                     isSubmitting={isSubmitting}
-                    onActivateStudent={activateStudent}
+                    onRequestChange={setPendingChange}
                     tab='active'
                   />
                 </div>
@@ -896,7 +950,7 @@ export default function ActivatorStudentsPage() {
                     pageSize={pageSize}
                     total={inactiveTotal}
                     isSubmitting={isSubmitting}
-                    onActivateStudent={activateStudent}
+                    onRequestChange={setPendingChange}
                     tab='inactive'
                   />
                 </div>
@@ -905,6 +959,52 @@ export default function ActivatorStudentsPage() {
           </div>
         </div>
       </div>
+
+      <AlertDialog
+        open={pendingChange !== null}
+        onOpenChange={(open) => {
+          if (!open && !isSubmitting) setPendingChange(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmTitle(pendingChange)}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDescription(pendingChange)}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ul className='max-h-64 divide-y overflow-y-auto rounded-md border text-sm'>
+            {pendingChange?.students.map((student) => (
+              <li key={student.id} className='px-3 py-2'>
+                <div className='font-medium'>
+                  {student.lastName} {student.firstName}
+                </div>
+                <div className='text-xs text-muted-foreground'>
+                  {student.year ?? ''}
+                  {getSectionLabel(student)} · {student.email}
+                </div>
+              </li>
+            ))}
+          </ul>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmitting}>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              variant={pendingChange?.activate ? 'default' : 'destructive'}
+              disabled={isSubmitting}
+              onClick={(event) => {
+                event.preventDefault()
+                void confirmChange()
+              }}
+            >
+              {isSubmitting
+                ? pendingChange?.activate
+                  ? 'Attivazione...'
+                  : 'Disattivazione...'
+                : confirmAction(pendingChange)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   )
 }
