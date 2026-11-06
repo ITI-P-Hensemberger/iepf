@@ -45,7 +45,29 @@ export const feedbackSchema = z.object({
   rating: z.number().int(),
   text: z.string().nullable(),
   createdAt: z.string(),
-  updatedAt: z.string()
+  updatedAt: z.string(),
+  // How many versions the history holds (1: never edited) and who wrote the latest.
+  versionCount: z.number().int(),
+  lastEditorRole: z.string().nullable(),
+  // For the author: until when they may still change it. Null for the admins.
+  editableUntil: z.string().nullable(),
+  deletedAt: z.string().nullable()
+})
+
+export const feedbackHistorySchema = z.object({
+  feedbackId: z.string(),
+  deletedAt: z.string().nullable(),
+  deletedByName: z.string().nullable(),
+  versions: z.array(z.object({
+    id: z.string(),
+    rating: z.number().int(),
+    text: z.string().nullable(),
+    createdAt: z.string(),
+    editorRole: z.string(),
+    editorIsAuthor: z.boolean(),
+    // Only for the admins.
+    editorName: z.string().nullable()
+  }))
 })
 
 const createLessonFeedbackSchema = z.object({
@@ -80,6 +102,7 @@ const adminListFeedbackQuerySchema = z.object({
   lessonTo: z.iso.datetime().optional(),
   from: z.iso.datetime().optional(),
   to: z.iso.datetime().optional(),
+  includeDeleted: z.stringbool().optional(),
   sortBy: z.enum(['createdAt', 'rating', 'lessonStartAt']).default('createdAt'),
   sortDir: z.enum(['asc', 'desc']).default('desc'),
   limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -355,6 +378,35 @@ export const adminDeleteFeedback = createRoute({
   }
 })
 
+export const getFeedbackHistory = createRoute({
+  path: '/feedback/{feedbackId}/history',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  request: {
+    params: FeedbackIdParamsSchema
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      feedbackHistorySchema,
+      'Every version of the feedback, newest first'
+    ),
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
+      'Feedback not found, or not written by the current user'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Access denied'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
+export type GetFeedbackHistoryRoute = typeof getFeedbackHistory
 export type CreateLessonFeedbackRoute = typeof createLessonFeedback
 export type UpdateLessonFeedbackRoute = typeof updateLessonFeedback
 export type ListMyFeedbackRoute = typeof listMyFeedback

@@ -1,16 +1,19 @@
 // Purpose: Lesson feedback handlers for tutors, students, and admins.
 import type { Context } from 'hono'
 
-import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, isNull, lte, sql } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
+import type { FeedbackEditorRole, FeedbackSummary } from '@/lib/feedback-history'
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
 import { lessonFeedback } from '@/db/schemas/lesson-feedback.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
+import { users } from '@/db/schemas/users.schema'
 import { LOW_FEEDBACK_RATING, notifyLowFeedback } from '@/lib/admin-notifications'
 import { buildErrorResponse } from '@/lib/error-response'
+import { feedbackChanged, feedbackEditableUntil, feedbackSummaries, fullName, isFeedbackEditable, listFeedbackVersions, recordFeedbackVersion } from '@/lib/feedback-history'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { buildPagedResponse } from '@/lib/pagination'
@@ -22,6 +25,7 @@ import type {
   AdminListFeedbackRoute,
   AdminUpdateFeedbackRoute,
   CreateLessonFeedbackRoute,
+  GetFeedbackHistoryRoute,
   ListMyFeedbackRoute,
   UpdateLessonFeedbackRoute
 } from './feedback.routes'
@@ -73,6 +77,79 @@ function ensureTutorTextRequired(authorRole: string, text?: string | null) {
     return false
   }
   return true
+}
+
+type FeedbackRow = typeof lessonFeedback.$inferSelect
+
+const EDIT_WINDOW_CLOSED = 'Il feedback si può modificare entro 7 giorni dalla lezione.'
+
+function toFeedbackResponse(row: FeedbackRow, summary: FeedbackSummary | undefined, editableUntil: Date | null = null) {
+  return {
+    id: row.id,
+    lessonId: row.lessonId,
+    bookingId: row.bookingId,
+    authorUserId: row.authorUserId,
+    targetUserId: row.targetUserId,
+    authorRole: row.authorRole,
+    rating: row.rating,
+    text: row.text ?? null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+    versionCount: summary?.versionCount ?? 1,
+    lastEditorRole: summary?.lastEditorRole ?? row.authorRole,
+    editableUntil: editableUntil ? editableUntil.toISOString() : null,
+    deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null
+  }
+}
+
+async function withSummaries(rows: FeedbackRow[], editableUntil?: (row: FeedbackRow) => Date | null) {
+  const summaries = await feedbackSummaries(rows.map(row => row.id))
+  return rows.map(row => toFeedbackResponse(row, summaries.get(row.id), editableUntil?.(row) ?? null))
+}
+
+async function findActiveFeedback(bookingId: string, authorUserId: string, authorRole: string) {
+  return db.query.lessonFeedback.findFirst({
+    where(fields, operators) {
+      return operators.and(
+        operators.eq(fields.bookingId, bookingId),
+        operators.eq(fields.authorUserId, authorUserId),
+        operators.eq(fields.authorRole, authorRole),
+        operators.isNull(fields.deletedAt)
+      )
+    }
+  })
+}
+
+// Writes the feedback and its first version together: a feedback never exists without history.
+async function insertFeedback(values: typeof lessonFeedback.$inferInsert & { rating: number }, editor: { userId: string, role: FeedbackEditorRole }) {
+  return db.transaction(async (tx) => {
+    const [created] = await tx.insert(lessonFeedback).values(values).returning()
+    await recordFeedbackVersion(tx, { feedbackId: created.id, rating: created.rating, text: created.text ?? null, editorUserId: editor.userId, editorRole: editor.role })
+    return created
+  })
+}
+
+// Applies an edit and records it as a version, unless nothing changed.
+async function applyFeedbackEdit(
+  feedback: FeedbackRow,
+  payload: { rating?: number, text?: string | null },
+  editor: { userId: string, role: FeedbackEditorRole }
+) {
+  const next = {
+    rating: payload.rating ?? feedback.rating,
+    text: payload.text !== undefined ? (payload.text ?? null) : (feedback.text ?? null)
+  }
+  if (!feedbackChanged({ rating: feedback.rating, text: feedback.text ?? null }, next)) {
+    return feedback
+  }
+  return db.transaction(async (tx) => {
+    const [updated] = await tx.update(lessonFeedback)
+      .set(next)
+      .where(eq(lessonFeedback.id, feedback.id))
+      .returning()
+    await recordFeedbackVersion(tx, { feedbackId: updated.id, rating: updated.rating, text: updated.text ?? null, editorUserId: editor.userId, editorRole: editor.role })
+    return updated
+  })
 }
 
 export const createLessonFeedback: AppRouteHandler<CreateLessonFeedbackRoute> = async (c) => {
@@ -135,21 +212,11 @@ export const createLessonFeedback: AppRouteHandler<CreateLessonFeedbackRoute> = 
     return c.json(buildErrorResponse(HttpStatusPhrases.UNPROCESSABLE_ENTITY), HttpStatusCodes.UNPROCESSABLE_ENTITY)
   }
 
-  const existing = await db.query.lessonFeedback.findFirst({
-    where(fields, operators) {
-      return operators.and(
-        operators.eq(fields.bookingId, booking.id),
-        operators.eq(fields.authorUserId, authorUserId),
-        operators.eq(fields.authorRole, authorRole)
-      )
-    }
-  })
-
-  if (existing) {
+  if (await findActiveFeedback(booking.id, authorUserId, authorRole)) {
     return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
-  const [created] = await db.insert(lessonFeedback).values({
+  const created = await insertFeedback({
     lessonId: lesson.id,
     bookingId: booking.id,
     authorUserId,
@@ -157,22 +224,11 @@ export const createLessonFeedback: AppRouteHandler<CreateLessonFeedbackRoute> = 
     authorRole,
     rating: payload.rating,
     text: payload.text ?? null
-  }).returning()
+  }, { userId: currentUser.id, role: authorRole })
 
   notifyLowFeedback({ lessonId: lesson.id, studentId: booking.studentId, authorRole, rating: created.rating })
 
-  return c.json({
-    id: created.id,
-    lessonId: created.lessonId,
-    bookingId: created.bookingId,
-    authorUserId: created.authorUserId,
-    targetUserId: created.targetUserId,
-    authorRole: created.authorRole,
-    rating: created.rating,
-    text: created.text ?? null,
-    createdAt: created.createdAt.toISOString(),
-    updatedAt: created.updatedAt.toISOString()
-  }, HttpStatusCodes.OK)
+  return c.json(toFeedbackResponse(created, undefined, feedbackEditableUntil(lesson.startAt)), HttpStatusCodes.OK)
 }
 
 export const updateLessonFeedback: AppRouteHandler<UpdateLessonFeedbackRoute> = async (c) => {
@@ -188,7 +244,7 @@ export const updateLessonFeedback: AppRouteHandler<UpdateLessonFeedbackRoute> = 
     forbid()
   }
 
-  if (currentUser.role !== 'tutor' && currentUser.role !== 'admin') {
+  if (currentUser.role !== 'student' && currentUser.role !== 'tutor' && currentUser.role !== 'admin') {
     forbid()
   }
 
@@ -196,7 +252,8 @@ export const updateLessonFeedback: AppRouteHandler<UpdateLessonFeedbackRoute> = 
     where(fields, operators) {
       return operators.and(
         operators.eq(fields.id, feedbackId),
-        operators.eq(fields.lessonId, lessonId)
+        operators.eq(fields.lessonId, lessonId),
+        operators.isNull(fields.deletedAt)
       )
     }
   })
@@ -205,13 +262,12 @@ export const updateLessonFeedback: AppRouteHandler<UpdateLessonFeedbackRoute> = 
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
-  if (currentUser.role === 'tutor') {
-    if (feedback.authorUserId !== currentUser.id || feedback.authorRole !== 'tutor') {
-      forbid()
-    }
-  }
-  else {
+  // Students and tutors only touch what they wrote themselves.
+  if (currentUser.role === 'admin') {
     ensureAdmin(c)
+  }
+  else if (feedback.authorUserId !== currentUser.id || feedback.authorRole !== currentUser.role) {
+    forbid()
   }
 
   const lesson = await fetchLesson(lessonId)
@@ -223,26 +279,19 @@ export const updateLessonFeedback: AppRouteHandler<UpdateLessonFeedbackRoute> = 
     return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
-  const updates: Partial<typeof lessonFeedback.$inferInsert> = {}
-  if (payload.rating !== undefined) {
-    updates.rating = payload.rating
-  }
-  if (payload.text !== undefined) {
-    updates.text = payload.text ?? null
+  if (currentUser.role !== 'admin' && !isFeedbackEditable(lesson.startAt)) {
+    return c.json(buildErrorResponse(EDIT_WINDOW_CLOSED), HttpStatusCodes.CONFLICT)
   }
 
-  if (!ensureTutorTextRequired(feedback.authorRole, updates.text ?? feedback.text)) {
+  if (payload.rating === undefined && payload.text === undefined) {
     return c.json(buildErrorResponse(HttpStatusPhrases.UNPROCESSABLE_ENTITY), HttpStatusCodes.UNPROCESSABLE_ENTITY)
   }
 
-  if (Object.keys(updates).length === 0) {
+  if (!ensureTutorTextRequired(feedback.authorRole, payload.text !== undefined ? payload.text : feedback.text)) {
     return c.json(buildErrorResponse(HttpStatusPhrases.UNPROCESSABLE_ENTITY), HttpStatusCodes.UNPROCESSABLE_ENTITY)
   }
 
-  const [updated] = await db.update(lessonFeedback)
-    .set(updates)
-    .where(eq(lessonFeedback.id, feedback.id))
-    .returning()
+  const updated = await applyFeedbackEdit(feedback, payload, { userId: currentUser.id, role: currentUser.role })
 
   // Only a rating that drops into the low range: editing the text of a low one is no news.
   if (updated.rating !== feedback.rating && feedback.rating > LOW_FEEDBACK_RATING) {
@@ -251,18 +300,8 @@ export const updateLessonFeedback: AppRouteHandler<UpdateLessonFeedbackRoute> = 
     notifyLowFeedback({ lessonId: updated.lessonId, studentId, authorRole, rating: updated.rating })
   }
 
-  return c.json({
-    id: updated.id,
-    lessonId: updated.lessonId,
-    bookingId: updated.bookingId,
-    authorUserId: updated.authorUserId,
-    targetUserId: updated.targetUserId,
-    authorRole: updated.authorRole,
-    rating: updated.rating,
-    text: updated.text ?? null,
-    createdAt: updated.createdAt.toISOString(),
-    updatedAt: updated.updatedAt.toISOString()
-  }, HttpStatusCodes.OK)
+  const [response] = await withSummaries([updated], () => currentUser.role === 'admin' ? null : feedbackEditableUntil(lesson.startAt))
+  return c.json(response, HttpStatusCodes.OK)
 }
 
 export const listMyFeedback: AppRouteHandler<ListMyFeedbackRoute> = async (c) => {
@@ -273,7 +312,8 @@ export const listMyFeedback: AppRouteHandler<ListMyFeedbackRoute> = async (c) =>
     forbid()
   }
 
-  const conditions = [eq(lessonFeedback.authorUserId, currentUser.id)]
+  // Only what the user wrote: feedback about them is never shown to them.
+  const conditions = [eq(lessonFeedback.authorUserId, currentUser.id), isNull(lessonFeedback.deletedAt)]
 
   if (query.lessonId) {
     conditions.push(eq(lessonFeedback.lessonId, query.lessonId))
@@ -286,19 +326,9 @@ export const listMyFeedback: AppRouteHandler<ListMyFeedbackRoute> = async (c) =>
   }
 
   const rows = await db
-    .select({
-      id: lessonFeedback.id,
-      lessonId: lessonFeedback.lessonId,
-      bookingId: lessonFeedback.bookingId,
-      authorUserId: lessonFeedback.authorUserId,
-      targetUserId: lessonFeedback.targetUserId,
-      authorRole: lessonFeedback.authorRole,
-      rating: lessonFeedback.rating,
-      text: lessonFeedback.text,
-      createdAt: lessonFeedback.createdAt,
-      updatedAt: lessonFeedback.updatedAt
-    })
+    .select({ feedback: lessonFeedback, lessonStartAt: lessons.startAt })
     .from(lessonFeedback)
+    .innerJoin(lessons, eq(lessons.id, lessonFeedback.lessonId))
     .where(and(...conditions))
     .orderBy(query.sortDir === 'desc' ? desc(lessonFeedback.createdAt) : asc(lessonFeedback.createdAt))
     .limit(query.limit)
@@ -309,12 +339,8 @@ export const listMyFeedback: AppRouteHandler<ListMyFeedbackRoute> = async (c) =>
     .from(lessonFeedback)
     .where(and(...conditions))
 
-  const data = rows.map(row => ({
-    ...row,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-    text: row.text ?? null
-  }))
+  const starts = new Map(rows.map(row => [row.feedback.id, row.lessonStartAt]))
+  const data = await withSummaries(rows.map(row => row.feedback), row => feedbackEditableUntil(starts.get(row.id)!))
 
   return c.json(buildPagedResponse(data, Number(total), query.limit, query.offset), HttpStatusCodes.OK)
 }
@@ -323,7 +349,7 @@ export const adminListFeedback: AppRouteHandler<AdminListFeedbackRoute> = async 
   ensureAdmin(c)
   const query = c.req.valid('query')
 
-  const conditions = []
+  const conditions = query.includeDeleted ? [] : [isNull(lessonFeedback.deletedAt)]
 
   if (query.lessonId) {
     conditions.push(eq(lessonFeedback.lessonId, query.lessonId))
@@ -370,18 +396,7 @@ export const adminListFeedback: AppRouteHandler<AdminListFeedbackRoute> = async 
   })()
 
   const baseQuery = db
-    .select({
-      id: lessonFeedback.id,
-      lessonId: lessonFeedback.lessonId,
-      bookingId: lessonFeedback.bookingId,
-      authorUserId: lessonFeedback.authorUserId,
-      targetUserId: lessonFeedback.targetUserId,
-      authorRole: lessonFeedback.authorRole,
-      rating: lessonFeedback.rating,
-      text: lessonFeedback.text,
-      createdAt: lessonFeedback.createdAt,
-      updatedAt: lessonFeedback.updatedAt
-    })
+    .select({ feedback: lessonFeedback })
     .from(lessonFeedback)
     .innerJoin(lessons, eq(lessonFeedback.lessonId, lessons.id))
 
@@ -398,12 +413,7 @@ export const adminListFeedback: AppRouteHandler<AdminListFeedbackRoute> = async 
     : baseTotalQuery
   const [{ total }] = await (whereClause ? totalQuery.where(whereClause) : totalQuery)
 
-  const data = rows.map(row => ({
-    ...row,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-    text: row.text ?? null
-  }))
+  const data = await withSummaries(rows.map(row => row.feedback))
 
   return c.json(buildPagedResponse(data, Number(total), query.limit, query.offset), HttpStatusCodes.OK)
 }
@@ -422,22 +432,12 @@ export const adminGetFeedback: AppRouteHandler<AdminGetFeedbackRoute> = async (c
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
-  return c.json({
-    id: feedback.id,
-    lessonId: feedback.lessonId,
-    bookingId: feedback.bookingId,
-    authorUserId: feedback.authorUserId,
-    targetUserId: feedback.targetUserId,
-    authorRole: feedback.authorRole,
-    rating: feedback.rating,
-    text: feedback.text ?? null,
-    createdAt: feedback.createdAt.toISOString(),
-    updatedAt: feedback.updatedAt.toISOString()
-  }, HttpStatusCodes.OK)
+  const [response] = await withSummaries([feedback])
+  return c.json(response, HttpStatusCodes.OK)
 }
 
 export const adminCreateFeedback: AppRouteHandler<AdminCreateFeedbackRoute> = async (c) => {
-  ensureAdmin(c)
+  const admin = ensureAdmin(c)
   const payload = c.req.valid('json')
 
   const lesson = await fetchLesson(payload.lessonId)
@@ -466,21 +466,12 @@ export const adminCreateFeedback: AppRouteHandler<AdminCreateFeedbackRoute> = as
     return c.json(buildErrorResponse(HttpStatusPhrases.UNPROCESSABLE_ENTITY), HttpStatusCodes.UNPROCESSABLE_ENTITY)
   }
 
-  const existing = await db.query.lessonFeedback.findFirst({
-    where(fields, operators) {
-      return operators.and(
-        operators.eq(fields.bookingId, booking.id),
-        operators.eq(fields.authorUserId, payload.authorUserId),
-        operators.eq(fields.authorRole, payload.authorRole)
-      )
-    }
-  })
-
-  if (existing) {
+  if (await findActiveFeedback(booking.id, payload.authorUserId, payload.authorRole)) {
     return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
-  const [created] = await db.insert(lessonFeedback).values({
+  // Written by an admin on the author's behalf: the history says so.
+  const created = await insertFeedback({
     lessonId: payload.lessonId,
     bookingId: payload.bookingId,
     authorUserId: payload.authorUserId,
@@ -488,30 +479,19 @@ export const adminCreateFeedback: AppRouteHandler<AdminCreateFeedbackRoute> = as
     authorRole: payload.authorRole,
     rating: payload.rating,
     text: payload.text ?? null
-  }).returning()
+  }, { userId: admin.id, role: 'admin' })
 
-  return c.json({
-    id: created.id,
-    lessonId: created.lessonId,
-    bookingId: created.bookingId,
-    authorUserId: created.authorUserId,
-    targetUserId: created.targetUserId,
-    authorRole: created.authorRole,
-    rating: created.rating,
-    text: created.text ?? null,
-    createdAt: created.createdAt.toISOString(),
-    updatedAt: created.updatedAt.toISOString()
-  }, HttpStatusCodes.OK)
+  return c.json(toFeedbackResponse(created, { versionCount: 1, lastEditorRole: 'admin' }), HttpStatusCodes.OK)
 }
 
 export const adminUpdateFeedback: AppRouteHandler<AdminUpdateFeedbackRoute> = async (c) => {
-  ensureAdmin(c)
+  const admin = ensureAdmin(c)
   const { feedbackId } = c.req.valid('param')
   const payload = c.req.valid('json')
 
   const feedback = await db.query.lessonFeedback.findFirst({
     where(fields, operators) {
-      return operators.eq(fields.id, feedbackId)
+      return operators.and(operators.eq(fields.id, feedbackId), operators.isNull(fields.deletedAt))
     }
   })
 
@@ -528,47 +508,27 @@ export const adminUpdateFeedback: AppRouteHandler<AdminUpdateFeedbackRoute> = as
     return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
-  const updates: Partial<typeof lessonFeedback.$inferInsert> = {}
-  if (payload.rating !== undefined) {
-    updates.rating = payload.rating
-  }
-  if (payload.text !== undefined) {
-    updates.text = payload.text ?? null
-  }
-
-  if (!ensureTutorTextRequired(feedback.authorRole, updates.text ?? feedback.text)) {
+  if (payload.rating === undefined && payload.text === undefined) {
     return c.json(buildErrorResponse(HttpStatusPhrases.UNPROCESSABLE_ENTITY), HttpStatusCodes.UNPROCESSABLE_ENTITY)
   }
 
-  if (Object.keys(updates).length === 0) {
+  if (!ensureTutorTextRequired(feedback.authorRole, payload.text !== undefined ? payload.text : feedback.text)) {
     return c.json(buildErrorResponse(HttpStatusPhrases.UNPROCESSABLE_ENTITY), HttpStatusCodes.UNPROCESSABLE_ENTITY)
   }
 
-  const [updated] = await db.update(lessonFeedback)
-    .set(updates)
-    .where(eq(lessonFeedback.id, feedback.id))
-    .returning()
-
-  return c.json({
-    id: updated.id,
-    lessonId: updated.lessonId,
-    bookingId: updated.bookingId,
-    authorUserId: updated.authorUserId,
-    targetUserId: updated.targetUserId,
-    authorRole: updated.authorRole,
-    rating: updated.rating,
-    text: updated.text ?? null,
-    createdAt: updated.createdAt.toISOString(),
-    updatedAt: updated.updatedAt.toISOString()
-  }, HttpStatusCodes.OK)
+  const updated = await applyFeedbackEdit(feedback, payload, { userId: admin.id, role: 'admin' })
+  const [response] = await withSummaries([updated])
+  return c.json(response, HttpStatusCodes.OK)
 }
 
+// Hidden, not erased: the feedback leaves every list and count, its history stays for the admins.
 export const adminDeleteFeedback: AppRouteHandler<AdminDeleteFeedbackRoute> = async (c) => {
-  ensureAdmin(c)
+  const admin = ensureAdmin(c)
   const { feedbackId } = c.req.valid('param')
 
-  const [deleted] = await db.delete(lessonFeedback)
-    .where(eq(lessonFeedback.id, feedbackId))
+  const [deleted] = await db.update(lessonFeedback)
+    .set({ deletedAt: new Date(), deletedByUserId: admin.id })
+    .where(and(eq(lessonFeedback.id, feedbackId), isNull(lessonFeedback.deletedAt)))
     .returning({ id: lessonFeedback.id })
 
   if (!deleted) {
@@ -576,4 +536,48 @@ export const adminDeleteFeedback: AppRouteHandler<AdminDeleteFeedbackRoute> = as
   }
 
   return c.json({ message: 'Feedback deleted.' }, HttpStatusCodes.OK)
+}
+
+// The author reads the history of their own feedback ("Tu" / "Amministratore"); the admins read
+// every history with names, deleted feedback included. Anyone else, the recipient too, gets 404.
+export const getFeedbackHistory: AppRouteHandler<GetFeedbackHistoryRoute> = async (c) => {
+  const currentUser = c.get('currentUser')
+  const { feedbackId } = c.req.valid('param')
+  if (!currentUser) {
+    forbid()
+  }
+  const isAdmin = currentUser.role === 'admin'
+  if (isAdmin) {
+    ensureAdmin(c)
+  }
+
+  const feedback = await db.query.lessonFeedback.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.id, feedbackId)
+    }
+  })
+
+  const visible = feedback && (isAdmin || (
+    feedback.authorUserId === currentUser.id
+    && feedback.authorRole === currentUser.role
+    && !feedback.deletedAt
+  ))
+  if (!feedback || !visible) {
+    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
+  }
+
+  let deletedByName: string | null = null
+  if (isAdmin && feedback.deletedByUserId) {
+    const deleter = await db.select({ firstName: users.firstName, lastName: users.lastName })
+      .from(users)
+      .where(eq(users.id, feedback.deletedByUserId))
+    deletedByName = fullName(deleter[0]?.firstName, deleter[0]?.lastName)
+  }
+
+  return c.json({
+    feedbackId: feedback.id,
+    deletedAt: feedback.deletedAt ? feedback.deletedAt.toISOString() : null,
+    deletedByName,
+    versions: await listFeedbackVersions(feedback.id, feedback.authorUserId, isAdmin)
+  }, HttpStatusCodes.OK)
 }

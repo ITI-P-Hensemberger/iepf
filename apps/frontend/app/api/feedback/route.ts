@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
     'lessonTo',
     'from',
     'to',
+    'includeDeleted',
     'limit',
     'offset'
   ]

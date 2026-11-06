@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { CalendarIcon, ExternalLink, Pencil, Trash2 } from 'lucide-react'
+import { CalendarIcon, ExternalLink, History, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -43,6 +43,8 @@ import { format } from 'date-fns'
 import { type DateRange } from 'react-day-picker'
 import { Label } from './ui/label'
 import { capitalizeFirst } from '@/lib/capitalize'
+import { FeedbackHistory } from '@/components/feedback-history'
+import { Checkbox } from '@/components/ui/checkbox'
 
 const pageSize = 20
 const commentPreviewLimit = 90
@@ -58,6 +60,9 @@ type Feedback = {
   text?: string | null
   createdAt: string
   updatedAt: string
+  versionCount?: number
+  lastEditorRole?: string | null
+  deletedAt?: string | null
 }
 
 type User = {
@@ -225,6 +230,9 @@ export default function AdminFeedbackPage() {
 
   const [deleteTarget, setDeleteTarget] = React.useState<Feedback | null>(null)
   const [isDeleting, setIsDeleting] = React.useState(false)
+  const [historyTarget, setHistoryTarget] = React.useState<Feedback | null>(null)
+  // Deleted feedback stays in the history: shown on request, marked, never editable.
+  const [showDeleted, setShowDeleted] = React.useState(false)
 
   const parsePage = React.useCallback(
     (key: string) => {
@@ -377,6 +385,9 @@ export default function AdminFeedbackPage() {
     }
     params.set('sortBy', currentFilters.sortBy)
     params.set('sortDir', currentFilters.sortDir)
+    if (showDeleted) {
+      params.set('includeDeleted', 'true')
+    }
     params.set('limit', String(pageSize))
     params.set('offset', String((currentFilters.page - 1) * pageSize))
 
@@ -396,7 +407,7 @@ export default function AdminFeedbackPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [currentFilters])
+  }, [currentFilters, showDeleted])
 
   React.useEffect(() => {
     void loadFeedback()
@@ -979,7 +990,11 @@ export default function AdminFeedbackPage() {
               </form>
             </TabsContent>
           </Tabs>
-          <div className='mt-6 rounded-lg border'>
+          <label className='mt-4 flex items-center gap-2 text-sm text-muted-foreground'>
+            <Checkbox checked={showDeleted} onCheckedChange={(value) => setShowDeleted(Boolean(value))} />
+            Mostra anche i feedback eliminati
+          </label>
+          <div className='mt-3 rounded-lg border'>
             <Table>
               <TableHeader className='bg-muted/50'>
                 <TableRow>
@@ -1054,7 +1069,20 @@ export default function AdminFeedbackPage() {
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell>{item.rating}</TableCell>
+                        <TableCell>
+                          <div className='flex flex-col items-start gap-1'>
+                            <span>{item.rating}</span>
+                            {item.deletedAt && (
+                              <span className='rounded-md bg-destructive/10 px-1.5 py-0.5 text-xs text-destructive'>Eliminato</span>
+                            )}
+                            {(item.versionCount ?? 1) > 1 && (
+                              <span className='inline-flex items-center gap-1 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-xs text-amber-800 dark:text-amber-300'>
+                                <History className='h-3 w-3' aria-hidden />
+                                {(item.versionCount ?? 1) - 1} {(item.versionCount ?? 1) - 1 === 1 ? 'modifica' : 'modifiche'}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className='w-80' title={item.text ?? ''}>
                           {item.text
                             ? item.text.length > commentPreviewLimit
@@ -1068,20 +1096,34 @@ export default function AdminFeedbackPage() {
                               variant='ghost'
                               size='icon'
                               className='h-6 w-6 p-0'
-                              aria-label='Modifica feedback'
-                              onClick={() => handleOpenEdit(item)}
+                              aria-label='Cronologia del feedback'
+                              title='Cronologia'
+                              onClick={() => setHistoryTarget(item)}
                             >
-                              <Pencil className='h-4 w-4' />
+                              <History className='h-4 w-4' />
                             </Button>
-                            <Button
-                              variant='ghost'
-                              size='icon'
-                              className='h-6 w-6 p-0 text-destructive'
-                              aria-label='Elimina feedback'
-                              onClick={() => setDeleteTarget(item)}
-                            >
-                              <Trash2 className='h-4 w-4' />
-                            </Button>
+                            {!item.deletedAt && (
+                              <>
+                                <Button
+                                  variant='ghost'
+                                  size='icon'
+                                  className='h-6 w-6 p-0'
+                                  aria-label='Modifica feedback'
+                                  onClick={() => handleOpenEdit(item)}
+                                >
+                                  <Pencil className='h-4 w-4' />
+                                </Button>
+                                <Button
+                                  variant='ghost'
+                                  size='icon'
+                                  className='h-6 w-6 p-0 text-destructive'
+                                  aria-label='Elimina feedback'
+                                  onClick={() => setDeleteTarget(item)}
+                                >
+                                  <Trash2 className='h-4 w-4' />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1245,7 +1287,7 @@ export default function AdminFeedbackPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare il feedback?</AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azione è irreversibile.
+              Sparisce per l&apos;autore e dalle statistiche. Resta nella cronologia, che gli admin vedono con &quot;Mostra anche i feedback eliminati&quot;.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deleteTarget && (
@@ -1299,6 +1341,31 @@ export default function AdminFeedbackPage() {
             >
               {isDeleting ? 'Eliminazione...' : 'Elimina'}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={historyTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setHistoryTarget(null)
+        }}
+      >
+        <AlertDialogContent className='max-w-[calc(100%-2rem)] max-h-[calc(100dvh-3rem)] overflow-y-auto sm:max-w-xl'>
+          <AlertDialogHeader className='text-left sm:text-left'>
+            <AlertDialogTitle>Cronologia del feedback</AlertDialogTitle>
+            <AlertDialogDescription className='text-left'>
+              {historyTarget && (() => {
+                const author = userMap.get(historyTarget.authorUserId)
+                const target = userMap.get(historyTarget.targetUserId)
+                const name = (user: typeof author, id: string) => user ? `${user.firstName} ${user.lastName}`.trim() : shortId(id)
+                const lesson = lessonMap[historyTarget.lessonId]
+                return `Scritto da ${name(author, historyTarget.authorUserId)} per ${name(target, historyTarget.targetUserId)}${lesson?.startAt ? `, lezione del ${formatItalianDate(lesson.startAt)}` : ''}.`
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {historyTarget && <FeedbackHistory feedbackId={historyTarget.id} audience='admin' />}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Chiudi</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

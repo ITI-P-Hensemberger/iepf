@@ -31,6 +31,7 @@ import { canMarkPresence } from '@/lib/lesson-schedule'
 import { lessonSubject } from '@/lib/lesson-subject'
 import { dayKeyOf, mondayOf } from '@/lib/school-week'
 import { capitalizeFirst } from '@/lib/capitalize'
+import { FeedbackHistoryToggle } from '@/components/feedback-history'
 
 type Lesson = {
   id: string
@@ -76,6 +77,14 @@ type Feedback = {
   bookingId: string
   rating: number
   text?: string | null
+  versionCount?: number
+  lastEditorRole?: string | null
+  editableUntil?: string | null
+}
+
+// A week after the lesson the tutor's feedback can no longer change.
+function isFeedbackEditable(feedback: Feedback | undefined) {
+  return !feedback || (Boolean(feedback.editableUntil) && new Date() <= new Date(feedback.editableUntil!))
 }
 
 function isCanceledStatus(status?: string | null) {
@@ -548,7 +557,7 @@ export default function TutorLessonDetailsPage() {
                         {booking.topic && <p className='flex-1 rounded-md bg-muted/50 px-3 py-2 text-sm whitespace-pre-wrap'>{booking.topic}</p>}
                         {(canGiveFeedback || existing) && (
                           <div className='flex flex-wrap items-center gap-2'>
-                            {canGiveFeedback && (
+                            {canGiveFeedback && isFeedbackEditable(existing) && (
                               <Button
                                 size='sm'
                                 variant='outline'
@@ -565,6 +574,15 @@ export default function TutorLessonDetailsPage() {
                             )}
                             {existing && <StarRating value={existing.rating} size='sm' />}
                           </div>
+                        )}
+                        {existing && (
+                          <FeedbackHistoryToggle
+                            key={`${existing.id}-${existing.versionCount ?? 1}`}
+                            feedbackId={existing.id}
+                            versionCount={existing.versionCount ?? 1}
+                            lastEditorRole={existing.lastEditorRole ?? null}
+                            audience='author'
+                          />
                         )}
                       </div>
                       {presenceOpen && (
