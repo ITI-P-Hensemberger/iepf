@@ -203,8 +203,7 @@ export function AnalyticsTab() {
     <div className='space-y-6'>
       <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
         <p className='max-w-2xl text-sm text-muted-foreground'>
-          Conteggi giornalieri per ruolo e anno, senza nomi, email, IP o identificativi. Niente durante l&apos;impersonazione
-          e niente da chi ha attivato &quot;Do Not Track&quot; o Global Privacy Control. Conservati 13 mesi.
+          Conteggi giornalieri per ruolo e anno, senza nomi, email, IP o identificativi. Conservati 13 mesi.
         </p>
         <RangeSelect days={days} onChange={setDays} />
       </div>

@@ -56,8 +56,7 @@ export const PAGE_TEMPLATES = [
   '/tutor/lessons/[id]',
   '/tutor/onboarding',
   '/tutor/pending',
-  '/tutor/settings/availability',
-  '/tutor/settings/subjects'
+  '/tutor/settings'
 ] as const
 
 // Why a student's booking did not go through, as the booking handler decides it.

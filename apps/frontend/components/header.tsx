@@ -114,10 +114,10 @@ export default function Header() {
             )}
             {profile?.role === 'tutor' && (
               <DropdownMenuGroup>
-                <MenuLink href='/tutor/settings/availability'>
+                <MenuLink href='/tutor/settings'>
                   Disponibilità
                 </MenuLink>
-                <MenuLink href='/tutor/settings/subjects'>Materie</MenuLink>
+                <MenuLink href='/tutor/settings?tab=subjects'>Materie</MenuLink>
               </DropdownMenuGroup>
             )}
             {profile?.role === 'admin' && (

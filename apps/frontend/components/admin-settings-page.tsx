@@ -26,7 +26,8 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { type SectionItem, SectionLayout } from '@/components/section-layout'
 import { Textarea } from '@/components/ui/textarea'
 import { MarkdownEditor } from '@/components/markdown-editor'
 import { SchoolYearReset } from '@/components/school-year-reset'
@@ -34,7 +35,7 @@ import { ServiceMessageCard } from '@/components/service-message-banner'
 import { Calendar } from '@/components/ui/calendar'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
-import { Pencil, Trash2, Save, X } from 'lucide-react'
+import { BookOpen, CalendarOff, Info, Megaphone, Pencil, RotateCcw, Save, Trash2, Wrench, X } from 'lucide-react'
 import { capitalizeFirst } from '@/lib/capitalize'
 
 type Role = 'student' | 'tutor' | 'admin' | 'activator'
@@ -664,14 +665,14 @@ export default function AdminSettingsPage() {
     () => ['info', 'maintenance', 'messages', 'closures', 'subjects', 'school-year'] as const,
     []
   )
-  const tabLabels: Record<(typeof availableTabs)[number], string> = {
-    info: 'Info',
-    maintenance: 'Manutenzione',
-    messages: 'Messaggi',
-    closures: 'Chiusure',
-    subjects: 'Materie',
-    'school-year': 'Anno scolastico'
-  }
+  const sections: SectionItem[] = [
+    { value: 'info', label: 'Info', icon: Info },
+    { value: 'maintenance', label: 'Manutenzione', icon: Wrench, separatorBefore: true },
+    { value: 'messages', label: 'Messaggi', icon: Megaphone },
+    { value: 'closures', label: 'Chiusure', icon: CalendarOff },
+    { value: 'subjects', label: 'Materie', icon: BookOpen },
+    { value: 'school-year', label: 'Anno scolastico', icon: RotateCcw, separatorBefore: true }
+  ]
 
   const activeTab = React.useMemo(() => {
     const tab = searchParams.get('tab')
@@ -698,53 +699,9 @@ export default function AdminSettingsPage() {
   )
 
   return (
-    <main className='flex-1'>
-      <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
-        <div className='w-full max-w-6xl space-y-6'>
-          <div className='mb-6 self-start'>
-            <BackButton href='/admin' />
-          </div>
-          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-            <h1 className='text-2xl'>Impostazioni globali</h1>
-          </div>
-
+    <SectionLayout title='Impostazioni globali' backHref='/admin' sections={sections} value={activeTab} onValueChange={handleTabChange}>
           <Tabs value={activeTab} onValueChange={handleTabChange}>
-            <div className='sm:hidden'>
-              <Select value={activeTab} onValueChange={handleTabChange}>
-                <SelectTrigger className='w-full'>
-                  <SelectValue placeholder='Seleziona sezione' />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableTabs.map((tab) => (
-                    <SelectItem key={tab} value={tab}>
-                      {tabLabels[tab]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <TabsList className='hidden sm:grid w-full grid-cols-6'>
-              <TabsTrigger value='info' className='w-full'>
-                Info
-              </TabsTrigger>
-              <TabsTrigger value='maintenance' className='w-full'>
-                Manutenzione
-              </TabsTrigger>
-              <TabsTrigger value='messages' className='w-full'>
-                Messaggi
-              </TabsTrigger>
-              <TabsTrigger value='closures' className='w-full'>
-                Chiusure
-              </TabsTrigger>
-              <TabsTrigger value='subjects' className='w-full'>
-                Materie
-              </TabsTrigger>
-              <TabsTrigger value='school-year' className='w-full'>
-                Anno scolastico
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value='maintenance' className='mt-6 space-y-6'>
+            <TabsContent value='maintenance' className='mt-0 space-y-6'>
               <div className='flex justify-end'>
                 <Button
                   onClick={handleSaveMaintenance}
@@ -826,7 +783,7 @@ export default function AdminSettingsPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value='messages' className='mt-6 space-y-6'>
+            <TabsContent value='messages' className='mt-0 space-y-6'>
               <div className='flex justify-end'>
                 <Button
                   onClick={handleSaveMessages}
@@ -956,7 +913,7 @@ export default function AdminSettingsPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value='subjects' className='mt-6 space-y-6'>
+            <TabsContent value='subjects' className='mt-0 space-y-6'>
               <Card>
                 <CardHeader>
                   <CardTitle>Nuova materia</CardTitle>
@@ -1123,7 +1080,7 @@ export default function AdminSettingsPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value='closures' className='mt-6 space-y-6'>
+            <TabsContent value='closures' className='mt-0 space-y-6'>
               <div className='flex justify-end'>
                 <Button
                   onClick={handleSaveClosures}
@@ -1181,11 +1138,11 @@ export default function AdminSettingsPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value='school-year' className='mt-6'>
+            <TabsContent value='school-year' className='mt-0'>
               {activeTab === 'school-year' && <SchoolYearReset />}
             </TabsContent>
 
-            <TabsContent value='info' className='mt-6 space-y-6'>
+            <TabsContent value='info' className='mt-0 space-y-6'>
               <Card>
                 <CardHeader>
                   <CardTitle>Informazioni</CardTitle>
@@ -1229,8 +1186,6 @@ export default function AdminSettingsPage() {
               </Card>
             </TabsContent>
           </Tabs>
-        </div>
-      </div>
-    </main>
+    </SectionLayout>
   )
 }

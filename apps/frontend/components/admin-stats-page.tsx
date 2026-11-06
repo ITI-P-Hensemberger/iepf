@@ -1,6 +1,7 @@
 'use client'
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { Bell, BookOpen, ChartLine, Download, GraduationCap, LayoutDashboard, MessageSquarePlus, Star, Users } from 'lucide-react'
 
 import type { StatsColumn } from '@/components/admin-stats/data-table'
 import type { StatsListConfig } from '@/components/admin-stats/stats-list'
@@ -11,10 +12,8 @@ import { FeedbackTab } from '@/components/admin-stats/feedback-tab'
 import { NotificationsTab } from '@/components/admin-stats/notifications-tab'
 import { OverviewTab } from '@/components/admin-stats/overview-tab'
 import { StatsList } from '@/components/admin-stats/stats-list'
-import { BackButton } from '@/components/back-button'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SectionLayout } from '@/components/section-layout'
 
 type SubjectTutorCount = { subjectId: string, name: string, tutorCount: number }
 type SubjectRequestSummary = { subjectName: string, canonicalName: string, requestCount: number }
@@ -142,15 +141,15 @@ const SUBJECT_REQUESTS: StatsListConfig<SubjectRequestSummary> = {
 }
 
 const TABS = [
-  { value: 'overview', label: 'Panoramica', content: () => <OverviewTab /> },
-  { value: 'usage', label: 'Utilizzo', content: () => <AnalyticsTab /> },
-  { value: 'notifications', label: 'Notifiche', content: () => <NotificationsTab /> },
-  { value: 'tutors', label: 'Tutor', content: () => <StatsList config={TUTORS} /> },
-  { value: 'students', label: 'Studenti', content: () => <StatsList config={STUDENTS} /> },
-  { value: 'subjects', label: 'Materie', content: () => <StatsList config={SUBJECTS} /> },
-  { value: 'subject-requests', label: 'Richieste', content: () => <StatsList config={SUBJECT_REQUESTS} /> },
-  { value: 'feedback', label: 'Feedback', content: () => <FeedbackTab /> },
-  { value: 'exports', label: 'Esportazioni', content: () => <ExportsTab /> }
+  { value: 'overview', label: 'Panoramica', icon: LayoutDashboard, content: () => <OverviewTab /> },
+  { value: 'usage', label: 'Utilizzo', icon: ChartLine, content: () => <AnalyticsTab /> },
+  { value: 'notifications', label: 'Notifiche', icon: Bell, content: () => <NotificationsTab /> },
+  { value: 'tutors', label: 'Tutor', icon: GraduationCap, separatorBefore: true, content: () => <StatsList config={TUTORS} /> },
+  { value: 'students', label: 'Studenti', icon: Users, content: () => <StatsList config={STUDENTS} /> },
+  { value: 'subjects', label: 'Materie', icon: BookOpen, content: () => <StatsList config={SUBJECTS} /> },
+  { value: 'subject-requests', label: 'Richieste', icon: MessageSquarePlus, content: () => <StatsList config={SUBJECT_REQUESTS} /> },
+  { value: 'feedback', label: 'Feedback', icon: Star, content: () => <FeedbackTab /> },
+  { value: 'exports', label: 'Esportazioni', icon: Download, separatorBefore: true, content: () => <ExportsTab /> }
 ] as const
 
 export default function AdminStatsPage() {
@@ -169,37 +168,11 @@ export default function AdminStatsPage() {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
   }
 
+  const active = TABS.find(tab => tab.value === activeTab) ?? TABS[0]
+  // Only the open section is mounted, so only its data is fetched.
   return (
-    <main className='flex-1'>
-      <div className='container mx-auto flex flex-col items-center px-4 py-10'>
-        <div className='w-full max-w-6xl space-y-6'>
-          <BackButton href='/admin' />
-          <h1 className='text-2xl'>Statistiche</h1>
-
-          <Tabs value={activeTab} onValueChange={changeTab}>
-            <div className='md:hidden'>
-              <Select value={activeTab} onValueChange={changeTab}>
-                <SelectTrigger className='w-full' aria-label='Sezione'>
-                  <SelectValue placeholder='Seleziona sezione' />
-                </SelectTrigger>
-                <SelectContent>
-                  {TABS.map(tab => <SelectItem key={tab.value} value={tab.value}>{tab.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <TabsList className='hidden w-full md:grid md:grid-cols-9'>
-              {TABS.map(tab => <TabsTrigger key={tab.value} value={tab.value} className='w-full'>{tab.label}</TabsTrigger>)}
-            </TabsList>
-
-            {/* Only the open tab is mounted, so only its data is fetched. */}
-            {TABS.map(tab => (
-              <TabsContent key={tab.value} value={tab.value} className='mt-6'>
-                {activeTab === tab.value && tab.content()}
-              </TabsContent>
-            ))}
-          </Tabs>
-        </div>
-      </div>
-    </main>
+    <SectionLayout title='Statistiche' backHref='/admin' sections={TABS} value={activeTab} onValueChange={changeTab}>
+      {active.content()}
+    </SectionLayout>
   )
 }
