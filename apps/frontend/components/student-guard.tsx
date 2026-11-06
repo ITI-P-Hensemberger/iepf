@@ -85,8 +85,8 @@ export default function StudentGuard({ children }: StudentGuardProps) {
 
   return (
     <>
-      <Header />
-      <ServiceMessageBanner />
+      {!maintenanceActive && <Header />}
+      {!maintenanceActive && <ServiceMessageBanner />}
       {!maintenanceActive && <PopupStack profile={profile} />}
       {maintenanceActive ? (
         <MaintenanceBlock message={settings?.maintenance.message} />

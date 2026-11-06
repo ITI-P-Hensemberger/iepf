@@ -21,6 +21,7 @@ import type {
   CheckSchoolYearResetRoute,
   GetAdminSettingsRoute,
   GetMySettingsRoute,
+  GetPublicMaintenanceRoute,
   ResetSchoolYearRoute,
   UpdateAdminSettingsRoute
 } from './settings.routes'
@@ -183,6 +184,13 @@ export const resetSchoolYear: AppRouteHandler<ResetSchoolYearRoute> = async (c) 
   })
 
   return c.json(result, HttpStatusCodes.OK)
+}
+
+export const getPublicMaintenance: AppRouteHandler<GetPublicMaintenanceRoute> = async (c) => {
+  const maintenance = await readSetting('maintenance', defaultMaintenance)
+  const parsed = maintenanceSchema.safeParse(maintenance)
+  const value = parsed.success ? parsed.data : defaultMaintenance
+  return c.json({ enabled: value.enabled, message: value.message, roles: value.roles }, HttpStatusCodes.OK)
 }
 
 export const getMySettings: AppRouteHandler<GetMySettingsRoute> = async (c) => {

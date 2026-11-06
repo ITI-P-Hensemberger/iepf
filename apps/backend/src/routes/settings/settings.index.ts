@@ -13,6 +13,7 @@ router.use('/settings/*', authenticate())
 router.openapi(routes.getAdminSettings, handlers.getAdminSettings)
 router.openapi(routes.updateAdminSettings, handlers.updateAdminSettings)
 router.openapi(routes.getMySettings, handlers.getMySettings)
+router.openapi(routes.getPublicMaintenance, handlers.getPublicMaintenance)
 router.openapi(routes.checkSchoolYearReset, handlers.checkSchoolYearReset)
 router.openapi(routes.resetSchoolYear, handlers.resetSchoolYear)
 
