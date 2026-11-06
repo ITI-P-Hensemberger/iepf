@@ -60,12 +60,12 @@ function sampleData(): ReportData {
     tutorSubjects: [{ tutorId: 't1', subjectId: 'm1' }],
     tutorCapacity: new Map([['t1', 2]]),
     lessons: [
-      { id: 'l1', tutorId: 't1', subjectId: 'm1', startAt: day('2025-10-06T13:00:00Z'), durationMinutes: 60, seats: 2, status: 'completed', countsForTutor: true, generatedByJob: true },
+      { id: 'l1', tutorId: 't1', subjectId: 'm1', startAt: day('2025-10-06T13:00:00Z'), durationMinutes: 60, seats: 2, status: 'confirmed', countsForTutor: true, generatedByJob: true },
       { id: 'l2', tutorId: 't1', subjectId: 'm1', startAt: day('2025-11-03T13:00:00Z'), durationMinutes: 60, seats: 2, status: 'canceled', countsForTutor: false, generatedByJob: true }
     ],
     bookings: [
-      { id: 'b1', lessonId: 'l1', studentId: 's1', topic: 'Equazioni\u0007 di secondo grado', status: 'confirmed', countsForStudent: true, presence: true, createdAt: day('2025-10-01T10:00:00Z'), canceledAt: null },
-      { id: 'b2', lessonId: 'l1', studentId: 's2', topic: 'Disequazioni', status: 'confirmed', countsForStudent: true, presence: false, createdAt: day('2025-10-02T10:00:00Z'), canceledAt: null }
+      { id: 'b1', lessonId: 'l1', studentId: 's1', subjectId: 'm1', topic: 'Equazioni\u0007 di secondo grado', status: 'confirmed', countsForStudent: true, presence: true, createdAt: day('2025-10-01T10:00:00Z'), canceledAt: null },
+      { id: 'b2', lessonId: 'l1', studentId: 's2', subjectId: 'm1', topic: 'Disequazioni', status: 'confirmed', countsForStudent: true, presence: false, createdAt: day('2025-10-02T10:00:00Z'), canceledAt: null }
     ],
     feedback: [{ lessonId: 'l1', authorUserId: 's1', targetUserId: 't1', authorRole: 'student', rating: 5, text: 'Chiaro "e" utile', createdAt: day('2025-10-07T10:00:00Z') }],
     tokenBalances: new Map([['s1', 9], ['s2', 10]]),

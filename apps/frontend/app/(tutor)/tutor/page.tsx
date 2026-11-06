@@ -23,6 +23,7 @@ import {
   TableRow
 } from '@/components/ui/table'
 import { extractPayloadArray } from '@/lib/backend-response'
+import { lessonSubject } from '@/lib/lesson-subject'
 import { formatItalianDate } from '@/lib/format-date'
 import { useSession } from '@/lib/use-session'
 import { PushInviteCard, TUTOR_ONBOARDED_FLAG as ONBOARDED_FLAG } from '@/components/push-prompt'
@@ -31,7 +32,7 @@ import { toast } from 'sonner'
 type Lesson = {
   id: string
   tutorId: string
-  subjectId: string
+  subjectId: string | null
   startAt: string
   lessonCapacity: number
   availableSeats: number
@@ -387,7 +388,7 @@ export default function TutorPage() {
                       </TableRow>
                     ) : lessons.length ? (
                       lessons.map((lesson) => {
-                        const subject = subjectMap.get(lesson.subjectId)
+                        const subject = lessonSubject(lesson.subjectId, subjectMap)
                         return (
                           <TableRow key={lesson.id}>
                             <TableCell>
@@ -489,7 +490,7 @@ export default function TutorPage() {
                       </TableRow>
                     ) : upcomingLessons.length ? (
                       upcomingLessons.map((lesson) => {
-                        const subject = subjectMap.get(lesson.subjectId)
+                        const subject = lessonSubject(lesson.subjectId, subjectMap)
                         return (
                           <TableRow key={lesson.id}>
                             <TableCell>

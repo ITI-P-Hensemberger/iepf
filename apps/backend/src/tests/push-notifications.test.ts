@@ -423,7 +423,7 @@ describe('reschedule notifications', () => {
 
   async function bookedLesson(startAt: string) {
     const [lesson] = await db.insert(lessons).values({ tutorId: ids.tutor, subjectId, startAt: new Date(startAt), durationMinutes: 60, seats: 2, status: 'confirmed' }).returning({ id: lessons.id })
-    await db.insert(lessonBookings).values({ lessonId: lesson.id, studentId: ids.student, topic: 'Argomento privato' })
+    await db.insert(lessonBookings).values({ lessonId: lesson.id, studentId: ids.student, subjectId, topic: 'Argomento privato' })
     return lesson.id
   }
 

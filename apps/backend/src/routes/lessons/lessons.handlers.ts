@@ -2,7 +2,7 @@
 import type { SQL } from 'drizzle-orm'
 import type { Context } from 'hono'
 
-import { and, asc, desc, eq, gt, gte, ilike, inArray, lte, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, ilike, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 import { randomUUID } from 'node:crypto'
 
@@ -17,6 +17,7 @@ import { lessons } from '@/db/schemas/lessons.schema'
 import { subjects } from '@/db/schemas/subjects.schema'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
+import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'
 import { notifyAbsence, notifyLateCancellation } from '@/lib/admin-notifications'
 import { countInBackground } from '@/lib/analytics'
@@ -38,6 +39,7 @@ import { buildPagedResponse } from '@/lib/pagination'
 import { containsProfanity } from '@/lib/profanity'
 import { notifyUsers } from '@/lib/push'
 import { bookingCanceledPush, bookingConfirmedPush, lessonAssignedPush, lessonCanceledPush, lessonChangedPush, lessonCreatedPush, lessonReassignedPush } from '@/lib/push-messages'
+import { addDays, bookingCutoff, isSameSchoolDay, schoolDayKey, schoolDayRange, schoolTime } from '@/lib/school-time'
 import { tutorCanTeachStudent } from '@/lib/school-years'
 
 import type {
@@ -82,7 +84,10 @@ function buildClassLabel(sectionName: string | null, sectionId: string | null, y
   return sectionLabel ?? yearLabel ?? null
 }
 
-async function fetchLessonEmailDetails(lessonId: string, tutorId: string, subjectId: string) {
+// What an open lesson (no subject picked yet) is called in messages.
+const OPEN_SUBJECT_LABEL = 'Materia a scelta'
+
+async function fetchLessonEmailDetails(lessonId: string, tutorId: string, subjectId: string | null) {
   const [tutor, subject] = await Promise.all([
     db.query.users.findFirst({
       where(fields, operators) {
@@ -90,12 +95,14 @@ async function fetchLessonEmailDetails(lessonId: string, tutorId: string, subjec
       },
       columns: { firstName: true, lastName: true, email: true }
     }),
-    db.query.subjects.findFirst({
-      where(fields, operators) {
-        return operators.eq(fields.id, subjectId)
-      },
-      columns: { name: true }
-    })
+    subjectId
+      ? db.query.subjects.findFirst({
+          where(fields, operators) {
+            return operators.eq(fields.id, subjectId)
+          },
+          columns: { name: true }
+        })
+      : Promise.resolve({ name: OPEN_SUBJECT_LABEL })
   ])
 
   if (!tutor || !subject) {
@@ -159,18 +166,9 @@ async function fetchStudentsDetails(studentIds: string[]) {
   }))
 }
 
-function sameDayOrAfter(a: Date, b: Date) {
-  const aDay = new Date(a)
-  aDay.setHours(0, 0, 0, 0)
-  const bDay = new Date(b)
-  bDay.setHours(0, 0, 0, 0)
-  return aDay.getTime() >= bDay.getTime()
-}
-
-function sameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear()
-    && a.getMonth() === b.getMonth()
-    && a.getDate() === b.getDate()
+// True once `now` is on the lesson's school day or later.
+function sameDayOrAfter(now: Date, lessonStart: Date) {
+  return schoolDayKey(now) >= schoolDayKey(lessonStart)
 }
 
 function rejection<S extends number>(message: string, status: S, reason?: BookingOutcome) {
@@ -218,22 +216,15 @@ async function cancelConfirmedBookings(tx: DbTransaction, lessonId: string, admi
   }
 }
 
-function getDateKey(date: Date): string {
-  return date.toISOString().split('T')[0]
-}
-
 async function getTutorDailyBookingCount(tutorId: string, date: Date, executor: DbExecutor = db): Promise<number> {
-  const dayStart = new Date(date)
-  dayStart.setHours(0, 0, 0, 0)
-  const dayEnd = new Date(date)
-  dayEnd.setHours(23, 59, 59, 999)
+  const day = schoolDayRange(date)
 
   const tutorLessons = await executor.query.lessons.findMany({
     where(fields, operators) {
       return operators.and(
         operators.eq(fields.tutorId, tutorId),
-        operators.gte(fields.startAt, dayStart),
-        operators.lte(fields.startAt, dayEnd)
+        operators.gte(fields.startAt, day.start),
+        operators.lt(fields.startAt, day.end)
       )
     },
     columns: { id: true }
@@ -258,10 +249,7 @@ async function getTutorDailyBookingCount(tutorId: string, date: Date, executor: 
 }
 
 async function getStudentDailyBookingCount(studentId: string, date: Date, executor: DbExecutor = db): Promise<number> {
-  const dayStart = new Date(date)
-  dayStart.setHours(0, 0, 0, 0)
-  const dayEnd = new Date(date)
-  dayEnd.setHours(23, 59, 59, 999)
+  const day = schoolDayRange(date)
 
   const [{ total }] = await executor
     .select({ total: sql<number>`count(*)::int` })
@@ -270,11 +258,56 @@ async function getStudentDailyBookingCount(studentId: string, date: Date, execut
     .where(and(
       eq(lessonBookings.studentId, studentId),
       eq(lessonBookings.status, 'confirmed'),
-      gte(lessons.startAt, dayStart),
-      lte(lessons.startAt, dayEnd)
+      gte(lessons.startAt, day.start),
+      lt(lessons.startAt, day.end)
     ))
 
   return total ?? 0
+}
+
+interface SubjectOption { id: string, name: string }
+
+// The subjects each tutor teaches: what a booking may pick on an open lesson.
+async function getTutorSubjectOptions(tutorIds: string[]): Promise<Map<string, SubjectOption[]>> {
+  const options = new Map<string, SubjectOption[]>()
+  if (tutorIds.length === 0) {
+    return options
+  }
+  const rows = await db
+    .select({ tutorId: tutorSubjects.tutorId, id: subjects.id, name: subjects.name })
+    .from(tutorSubjects)
+    .innerJoin(subjects, eq(tutorSubjects.subjectId, subjects.id))
+    .where(inArray(tutorSubjects.tutorId, [...new Set(tutorIds)]))
+    .orderBy(asc(subjects.name))
+  for (const row of rows) {
+    const list = options.get(row.tutorId) ?? []
+    list.push({ id: row.id, name: row.name })
+    options.set(row.tutorId, list)
+  }
+  return options
+}
+
+// A lesson matches a subject when it is for that subject, or is still open and its tutor teaches it.
+function lessonOffersSubject(subjectId: string) {
+  return or(
+    eq(lessons.subjectId, subjectId),
+    and(
+      isNull(lessons.subjectId),
+      inArray(
+        lessons.tutorId,
+        db.select({ tutorId: tutorSubjects.tutorId }).from(tutorSubjects).where(eq(tutorSubjects.subjectId, subjectId))
+      )
+    )
+  )!
+}
+
+// The subjects a booking may pick: the open lesson's tutor's subjects, or the subject already set.
+function subjectOptionsFor(lesson: { tutorId: string, subjectId: string | null, subjectName?: string | null }, tutorOptions: Map<string, SubjectOption[]>): SubjectOption[] {
+  if (lesson.subjectId) {
+    const name = lesson.subjectName ?? tutorOptions.get(lesson.tutorId)?.find(option => option.id === lesson.subjectId)?.name
+    return name ? [{ id: lesson.subjectId, name }] : []
+  }
+  return tutorOptions.get(lesson.tutorId) ?? []
 }
 
 export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
@@ -290,7 +323,7 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
     clauses.push(eq(lessons.tutorId, query.tutorId))
   }
   if (query.subjectId) {
-    clauses.push(eq(lessons.subjectId, query.subjectId))
+    clauses.push(lessonOffersSubject(query.subjectId))
   }
   if (query.status) {
     clauses.push(eq(lessons.status, query.status))
@@ -321,7 +354,7 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
     .select({ total: sql<number>`count(*)::int` })
     .from(lessons)
     .innerJoin(users, eq(lessons.tutorId, users.id))
-    .innerJoin(subjects, eq(lessons.subjectId, subjects.id))
+    .leftJoin(subjects, eq(lessons.subjectId, subjects.id))
     .where(listWhere)
 
   const pageLessons = await db
@@ -333,12 +366,13 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
       durationMinutes: lessons.durationMinutes,
       seats: lessons.seats,
       status: lessons.status,
+      subjectFromBooking: lessons.subjectFromBooking,
       createdAt: lessons.createdAt,
       countsForTutor: lessons.countsForTutor
     })
     .from(lessons)
     .innerJoin(users, eq(lessons.tutorId, users.id))
-    .innerJoin(subjects, eq(lessons.subjectId, subjects.id))
+    .leftJoin(subjects, eq(lessons.subjectId, subjects.id))
     .where(listWhere)
     // Lessons can start together: without the id they could repeat or vanish between pages.
     .orderBy(direction, asc(lessons.id))
@@ -352,7 +386,7 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
   // Get unique tutor+day combinations
   const tutorDayKeys = new Set<string>()
   for (const lesson of pageLessons) {
-    const dateKey = getDateKey(new Date(lesson.startAt))
+    const dateKey = schoolDayKey(new Date(lesson.startAt))
     tutorDayKeys.add(`${lesson.tutorId}:${dateKey}`)
   }
 
@@ -367,8 +401,7 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
   const tutorDayBookings = new Map<string, number>()
   for (const key of tutorDayKeys) {
     const [tutorId, dateKey] = key.split(':')
-    const date = new Date(dateKey)
-    const count = await getTutorDailyBookingCount(tutorId, date)
+    const count = await getTutorDailyBookingCount(tutorId, schoolTime(dateKey))
     tutorDayBookings.set(key, count)
   }
 
@@ -390,7 +423,7 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
   }
 
   const items = pageLessons.map((lesson) => {
-    const dateKey = getDateKey(new Date(lesson.startAt))
+    const dateKey = schoolDayKey(new Date(lesson.startAt))
     const tutorDayKey = `${lesson.tutorId}:${dateKey}`
     const dailyBookings = tutorDayBookings.get(tutorDayKey) ?? 0
     const dailyCapacity = tutorCapacities.get(lesson.tutorId) ?? 1
@@ -407,7 +440,8 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
       dailyOccupancy: dailyBookings,
       availableSeats: Math.max(0, lesson.seats - lessonBookings),
       countsForTutor: lesson.countsForTutor ?? false,
-      status: lesson.status
+      status: lesson.status,
+      subjectFromBooking: lesson.subjectFromBooking
     }
   })
 
@@ -452,7 +486,7 @@ export const listMyLessons: AppRouteHandler<ListMyLessonsRoute> = async (c) => {
       tutorFirstName: users.firstName,
       tutorLastName: users.lastName,
       tutorEmail: users.email,
-      subjectId: lessons.subjectId,
+      subjectId: lessonBookings.subjectId,
       subjectName: subjects.name,
       startAt: lessons.startAt,
       durationMinutes: lessons.durationMinutes,
@@ -467,7 +501,8 @@ export const listMyLessons: AppRouteHandler<ListMyLessonsRoute> = async (c) => {
     .from(lessonBookings)
     .innerJoin(lessons, eq(lessonBookings.lessonId, lessons.id))
     .innerJoin(users, eq(lessons.tutorId, users.id))
-    .innerJoin(subjects, eq(lessons.subjectId, subjects.id))
+    // A booking keeps the subject the student picked, even once the lesson's own subject opens again.
+    .innerJoin(subjects, eq(lessonBookings.subjectId, subjects.id))
     .where(whereClause)
     .orderBy(direction)
     .limit(query.limit)
@@ -506,9 +541,7 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
 
   const query = c.req.valid('query')
   const now = new Date()
-  const tomorrow = new Date(now)
-  tomorrow.setHours(0, 0, 0, 0)
-  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrow = schoolTime(addDays(schoolDayKey(now), 1))
 
   const studentProfile = await db.query.studentProfiles.findFirst({
     where(fields, operators) {
@@ -531,7 +564,7 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
     ))
   }
   if (query.subjectId) {
-    conditions.push(eq(lessons.subjectId, query.subjectId))
+    conditions.push(lessonOffersSubject(query.subjectId))
   }
   if (query.from) {
     conditions.push(gte(lessons.startAt, new Date(query.from)))
@@ -566,9 +599,10 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
     })
     .from(lessons)
     .innerJoin(users, eq(lessons.tutorId, users.id))
-    .innerJoin(subjects, eq(lessons.subjectId, subjects.id))
+    .leftJoin(subjects, eq(lessons.subjectId, subjects.id))
     .where(listWhere)
-    .orderBy(direction)
+    // Lessons can start together: without the id they could repeat or vanish between pages.
+    .orderBy(direction, asc(lessons.id))
 
   const lessonRows = prioritizeCanBook
     ? await lessonRowsQuery
@@ -580,10 +614,8 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
 
   const lessonIds = lessonRows.map(row => row.id)
   const lessonDates = lessonRows.map(row => new Date(row.startAt))
-  const minDate = new Date(Math.min(...lessonDates.map(date => date.getTime())))
-  const maxDate = new Date(Math.max(...lessonDates.map(date => date.getTime())))
-  minDate.setHours(0, 0, 0, 0)
-  maxDate.setHours(23, 59, 59, 999)
+  const minDate = schoolDayRange(new Date(Math.min(...lessonDates.map(date => date.getTime())))).start
+  const maxDate = schoolDayRange(new Date(Math.max(...lessonDates.map(date => date.getTime())))).end
 
   const tokenBalance = await getStudentTokenBalance(currentUser.id)
 
@@ -610,10 +642,10 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
       eq(lessonBookings.studentId, currentUser.id),
       eq(lessonBookings.status, 'confirmed'),
       gte(lessons.startAt, minDate),
-      lte(lessons.startAt, maxDate)
+      lt(lessons.startAt, maxDate)
     ))
 
-  const bookedDateKeys = new Set(studentDayBookings.map(row => getDateKey(new Date(row.startAt))))
+  const bookedDateKeys = new Set(studentDayBookings.map(row => schoolDayKey(new Date(row.startAt))))
 
   const bookings = await db.query.lessonBookings.findMany({
     where(fields, operators) {
@@ -635,42 +667,41 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
   for (const tutorId of tutorIds) {
     tutorCapacities.set(tutorId, await getTutorDailyCapacity(tutorId))
   }
+  const tutorOptions = await getTutorSubjectOptions(tutorIds)
 
   const tutorDayKeys = new Set<string>()
   for (const lesson of lessonRows) {
-    const dateKey = getDateKey(new Date(lesson.startAt))
+    const dateKey = schoolDayKey(new Date(lesson.startAt))
     tutorDayKeys.add(`${lesson.tutorId}:${dateKey}`)
   }
 
   const tutorDayBookings = new Map<string, number>()
   for (const key of tutorDayKeys) {
     const [tutorId, dateKey] = key.split(':')
-    const date = new Date(dateKey)
-    const count = await getTutorDailyBookingCount(tutorId, date)
+    const count = await getTutorDailyBookingCount(tutorId, schoolTime(dateKey))
     tutorDayBookings.set(key, count)
   }
 
   const items = lessonRows.map((lesson) => {
-    const dateKey = getDateKey(new Date(lesson.startAt))
+    const dateKey = schoolDayKey(new Date(lesson.startAt))
     const tutorDayKey = `${lesson.tutorId}:${dateKey}`
     const dailyCapacity = tutorCapacities.get(lesson.tutorId) ?? 1
     const dailyBookings = tutorDayBookings.get(tutorDayKey) ?? 0
     const lessonBookings = lessonBookingCounts.get(lesson.id) ?? 0
     const availableSeats = Math.max(0, lesson.seats - lessonBookings)
 
-    const bookingCutoff = new Date(lesson.startAt)
-    bookingCutoff.setDate(bookingCutoff.getDate() - 1)
-    bookingCutoff.setHours(20, 0, 0, 0)
+    const cutoff = bookingCutoff(new Date(lesson.startAt))
 
     const canBook = studentActive
       && hasTokens
       && (lesson.status === 'scheduled' || lesson.status === 'confirmed')
       && !sameDayOrAfter(now, new Date(lesson.startAt))
-      && now < bookingCutoff
+      && now < cutoff
       && !bookedLessonIds.has(lesson.id)
       && !bookedDateKeys.has(dateKey)
       && dailyBookings < dailyCapacity
       && lessonBookings < lesson.seats
+    const subjectOptions = subjectOptionsFor(lesson, tutorOptions)
 
     return {
       id: lesson.id,
@@ -686,7 +717,8 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
       dailyOccupancy: dailyBookings,
       availableSeats,
       status: lesson.status,
-      canBook
+      subjectOptions,
+      canBook: canBook && subjectOptions.length > 0
     }
   })
 
@@ -722,6 +754,7 @@ export const getLesson: AppRouteHandler<GetLessonRoute> = async (c) => {
       durationMinutes: true,
       seats: true,
       status: true,
+      subjectFromBooking: true,
       countsForTutor: true
     }
   })
@@ -730,6 +763,7 @@ export const getLesson: AppRouteHandler<GetLessonRoute> = async (c) => {
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
+  const tutorOptions = await getTutorSubjectOptions([lesson.tutorId])
   const bookingCount = await db.query.lessonBookings.findMany({
     where(fields, operators) {
       return operators.and(
@@ -756,7 +790,9 @@ export const getLesson: AppRouteHandler<GetLessonRoute> = async (c) => {
       dailyCapacity,
       dailyOccupancy: dailyBookings,
       availableSeats,
-      countsForTutor: lesson.countsForTutor ?? false
+      countsForTutor: lesson.countsForTutor ?? false,
+      subjectFromBooking: lesson.subjectFromBooking,
+      subjectOptions: subjectOptionsFor(lesson, tutorOptions)
     },
     HttpStatusCodes.OK
   )
@@ -802,6 +838,7 @@ export const listLessonBookings: AppRouteHandler<ListLessonBookingsRoute> = asyn
       id: true,
       lessonId: true,
       studentId: true,
+      subjectId: true,
       topic: true,
       status: true,
       countsForStudent: true,
@@ -893,10 +930,7 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
         return rejection(HttpStatusPhrases.BAD_REQUEST, HttpStatusCodes.BAD_REQUEST, 'too_late')
       }
 
-      const bookingCutoff = new Date(lessonStart)
-      bookingCutoff.setDate(lessonStart.getDate() - 1)
-      bookingCutoff.setHours(20, 0, 0, 0)
-      if (new Date() >= bookingCutoff) {
+      if (new Date() >= bookingCutoff(lessonStart)) {
         return rejection(HttpStatusPhrases.BAD_REQUEST, HttpStatusCodes.BAD_REQUEST, 'too_late')
       }
     }
@@ -948,6 +982,30 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
       return rejection(HttpStatusPhrases.CONFLICT, HttpStatusCodes.CONFLICT, 'already_booked')
     }
 
+    // An open lesson takes the subject of its first booking; later bookings must share it.
+    let subjectId = lesson.subjectId
+    if (!subjectId) {
+      if (!payload.subjectId) {
+        return rejection(HttpStatusPhrases.LESSON_SUBJECT_REQUIRED, HttpStatusCodes.BAD_REQUEST, 'subject_invalid')
+      }
+      const taught = await tx.query.tutorSubjects.findFirst({
+        where(fields, operators) {
+          return operators.and(
+            operators.eq(fields.tutorId, lesson.tutorId),
+            operators.eq(fields.subjectId, payload.subjectId!)
+          )
+        },
+        columns: { id: true }
+      })
+      if (!taught) {
+        return rejection(HttpStatusPhrases.LESSON_SUBJECT_REQUIRED, HttpStatusCodes.BAD_REQUEST, 'subject_invalid')
+      }
+      subjectId = payload.subjectId
+    }
+    else if (payload.subjectId && payload.subjectId !== subjectId) {
+      return rejection(HttpStatusPhrases.LESSON_SUBJECT_TAKEN, HttpStatusCodes.CONFLICT, 'subject_taken')
+    }
+
     if (!isAdmin) {
       const studentDailyBookings = await getStudentDailyBookingCount(studentUser.id, new Date(lesson.startAt), tx)
       if (studentDailyBookings >= 1) {
@@ -981,6 +1039,7 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
     const [booking] = await tx.insert(lessonBookings).values({
       lessonId: lesson.id,
       studentId: studentUser.id,
+      subjectId,
       topic: payload.topic,
       status: 'confirmed',
       countsForStudent: true
@@ -988,6 +1047,7 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
       id: lessonBookings.id,
       lessonId: lessonBookings.lessonId,
       studentId: lessonBookings.studentId,
+      subjectId: lessonBookings.subjectId,
       topic: lessonBookings.topic,
       status: lessonBookings.status,
       countsForStudent: lessonBookings.countsForStudent,
@@ -1002,13 +1062,13 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
       reason: 'lesson_booking'
     })
 
-    if (lesson.status === 'scheduled') {
+    if (lesson.status === 'scheduled' || lesson.subjectId !== subjectId) {
       await tx.update(lessons)
-        .set({ status: 'confirmed' })
+        .set({ status: lesson.status === 'scheduled' ? 'confirmed' : lesson.status, subjectId })
         .where(eq(lessons.id, lesson.id))
     }
 
-    return { rejected: false as const, lesson, booking, dailyCapacity, dailyBookings, confirmedCount: bookingCount.length }
+    return { rejected: false as const, lesson: { ...lesson, subjectId }, booking, dailyCapacity, dailyBookings, confirmedCount: bookingCount.length }
   })
 
   if (outcome.rejected) {
@@ -1021,7 +1081,7 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
 
   const { lesson, booking, dailyCapacity, dailyBookings, confirmedCount } = outcome
 
-  const lessonDetails = await fetchLessonEmailDetails(lesson.id, lesson.tutorId, lesson.subjectId)
+  const lessonDetails = await fetchLessonEmailDetails(lesson.id, lesson.tutorId, booking.subjectId)
   const studentsMap = await fetchStudentsDetails([studentUser.id])
   const studentDetails = studentsMap.get(studentUser.id)
   if (lessonDetails && studentDetails) {
@@ -1088,7 +1148,8 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
         dailyOccupancy: updatedDailyBookings,
         availableSeats,
         countsForTutor: lesson.countsForTutor ?? false,
-        status: lesson.status
+        status: lesson.status === 'scheduled' ? 'confirmed' : lesson.status,
+        subjectFromBooking: lesson.subjectFromBooking
       },
       booking: {
         ...booking,
@@ -1152,13 +1213,10 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
 
   const now = new Date()
   const lessonStart = new Date(lesson.startAt)
-  const cutoff = new Date(lessonStart)
-  cutoff.setDate(lessonStart.getDate() - 1)
-  cutoff.setHours(20, 0, 0, 0)
-  const lessonDayCutoff = new Date(lessonStart)
-  lessonDayCutoff.setHours(8, 0, 0, 0)
+  const cutoff = bookingCutoff(lessonStart)
+  const lessonDayCutoff = schoolTime(schoolDayKey(lessonStart), 8)
   const lateSameDayCancel = currentUser.role === 'student'
-    && sameDay(now, lessonStart)
+    && isSameSchoolDay(now, lessonStart)
     && now >= lessonDayCutoff
 
   let countsForStudent = false
@@ -1209,6 +1267,10 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
       await tx.update(lessons)
         .set({ status: 'scheduled' })
         .where(and(eq(lessons.id, lesson.id), eq(lessons.status, 'confirmed')))
+      // Nobody holds a seat: a lesson whose subject came from bookings is open for any subject again.
+      await tx.update(lessons)
+        .set({ subjectId: null })
+        .where(and(eq(lessons.id, lesson.id), eq(lessons.subjectFromBooking, true), eq(lessons.status, 'scheduled')))
     }
 
     if (shouldRefund) {
@@ -1227,7 +1289,7 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
     return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
-  const lessonDetails = await fetchLessonEmailDetails(lesson.id, lesson.tutorId, lesson.subjectId)
+  const lessonDetails = await fetchLessonEmailDetails(lesson.id, lesson.tutorId, booking.subjectId)
   const studentsMap = await fetchStudentsDetails([booking.studentId])
   const studentDetails = studentsMap.get(booking.studentId)
   if (lessonDetails && studentDetails) {
@@ -1288,6 +1350,7 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
       id: true,
       lessonId: true,
       studentId: true,
+      subjectId: true,
       topic: true,
       status: true,
       countsForStudent: true,
@@ -1347,7 +1410,7 @@ export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
           operators.eq(fields.status, 'confirmed')
         )
       },
-      columns: { studentId: true, topic: true }
+      columns: { studentId: true, subjectId: true, topic: true }
     })
 
     if (isTutor && bookings.length > 0) {
@@ -1383,7 +1446,7 @@ export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
   }
 
   if (isAdmin && confirmedStudentIds.length > 0) {
-    const lessonDetails = await fetchLessonEmailDetails(lesson.id, lesson.tutorId, lesson.subjectId)
+    const lessonDetails = await fetchLessonEmailDetails(lesson.id, lesson.tutorId, lesson.subjectId ?? confirmedBookings[0].subjectId)
     const studentsMap = await fetchStudentsDetails(confirmedStudentIds)
     if (lessonDetails) {
       for (const studentId of confirmedStudentIds) {
@@ -1467,7 +1530,8 @@ export const updateLessonCounts: AppRouteHandler<UpdateLessonCountsRoute> = asyn
       durationMinutes: lessons.durationMinutes,
       seats: lessons.seats,
       countsForTutor: lessons.countsForTutor,
-      status: lessons.status
+      status: lessons.status,
+      subjectFromBooking: lessons.subjectFromBooking
     })
 
   const bookingCount = await db.query.lessonBookings.findMany({
@@ -1491,6 +1555,7 @@ export const updateLessonCounts: AppRouteHandler<UpdateLessonCountsRoute> = asyn
       startAt: new Date(updated.startAt).toISOString(),
       durationMinutes: updated.durationMinutes,
       status: updated.status,
+      subjectFromBooking: updated.subjectFromBooking,
       lessonCapacity: updated.seats,
       dailyCapacity,
       dailyOccupancy: dailyBookings,
@@ -1582,7 +1647,7 @@ export const setBookingPresence: AppRouteHandler<SetBookingPresenceRoute> = asyn
   }
 
   if (payload.present !== null) {
-    const lessonDetails = await fetchLessonEmailDetails(lesson.id, lesson.tutorId, lesson.subjectId)
+    const lessonDetails = await fetchLessonEmailDetails(lesson.id, lesson.tutorId, booking.subjectId)
     const studentsMap = await fetchStudentsDetails([booking.studentId])
     const studentDetails = studentsMap.get(booking.studentId)
     if (lessonDetails && studentDetails?.email) {
@@ -1636,6 +1701,7 @@ export const updateBookingTopic: AppRouteHandler<UpdateBookingTopicRoute> = asyn
       id: lessonBookings.id,
       lessonId: lessonBookings.lessonId,
       studentId: lessonBookings.studentId,
+      subjectId: lessonBookings.subjectId,
       topic: lessonBookings.topic,
       status: lessonBookings.status,
       countsForStudent: lessonBookings.countsForStudent,
@@ -1671,6 +1737,7 @@ export const updateBookingCounts: AppRouteHandler<UpdateBookingCountsRoute> = as
         id: lessonBookings.id,
         lessonId: lessonBookings.lessonId,
         studentId: lessonBookings.studentId,
+        subjectId: lessonBookings.subjectId,
         topic: lessonBookings.topic,
         status: lessonBookings.status,
         countsForStudent: lessonBookings.countsForStudent,
@@ -1715,11 +1782,14 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
-  if (lesson.status === 'completed' || lesson.status === 'canceled') {
+  if (lesson.status === 'canceled') {
     return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
   const newStartAt = new Date(payload.startAt)
+  // Without a subject the lesson keeps letting bookings choose it, starting from the one it has now.
+  const subjectFromBooking = payload.subjectId === null
+  const newSubjectId = payload.subjectId ?? lesson.subjectId
 
   const outcome = await db.transaction(async (tx) => {
     await lockUsers(tx, [lesson.tutorId, payload.tutorId])
@@ -1729,7 +1799,7 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
       .where(eq(lessons.id, lesson.id))
       .for('update')
 
-    if (!lockedLesson || lockedLesson.status === 'completed' || lockedLesson.status === 'canceled') {
+    if (!lockedLesson || lockedLesson.status === 'canceled') {
       return null
     }
 
@@ -1737,7 +1807,8 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
 
     const [createdLesson] = await tx.insert(lessons).values({
       tutorId: payload.tutorId,
-      subjectId: payload.subjectId,
+      subjectId: newSubjectId,
+      subjectFromBooking,
       startAt: newStartAt,
       durationMinutes: payload.durationMinutes,
       seats,
@@ -1761,6 +1832,7 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
       columns: {
         id: true,
         studentId: true,
+        subjectId: true,
         topic: true,
         countsForStudent: true,
         studentPresence: true,
@@ -1777,6 +1849,8 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
           id: newId,
           lessonId: createdLesson.id,
           studentId: booking.studentId,
+          // Moved bookings follow the subject the admin set; kept open, they keep their own.
+          subjectId: newSubjectId ?? booking.subjectId,
           topic: booking.topic,
           status: 'confirmed',
           countsForStudent: booking.countsForStudent,
@@ -1828,7 +1902,7 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
   const studentIds = existingBookings.map(booking => booking.studentId)
   const tutorChanged = lesson.tutorId !== payload.tutorId
   const changed = tutorChanged
-    || lesson.subjectId !== payload.subjectId
+    || lesson.subjectId !== newSubjectId
     || new Date(lesson.startAt).getTime() !== newStartAt.getTime()
     || lesson.durationMinutes !== payload.durationMinutes
 
@@ -1836,7 +1910,7 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
   if (changed && (studentIds.length > 0 || tutorChanged)) {
     const studentsMap = await fetchStudentsDetails(studentIds)
     const oldDetails = await fetchLessonEmailDetails(lesson.id, lesson.tutorId, lesson.subjectId)
-    const newDetails = await fetchLessonEmailDetails(newLesson.id, payload.tutorId, payload.subjectId)
+    const newDetails = await fetchLessonEmailDetails(newLesson.id, payload.tutorId, newSubjectId)
 
     if (oldDetails && newDetails) {
       const studentList = studentIds

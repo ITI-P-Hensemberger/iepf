@@ -15,46 +15,18 @@ import { assertMockEnvironment, MOCK_TUTOR_PATTERN } from '@/lib/mock-data'
 import { recordNotifications } from '@/lib/notification-inbox'
 import { lessonsGeneratedPush } from '@/lib/push-messages'
 import { createPushBatch } from '@/lib/reminder-delivery'
+import { addDays, schoolDayKey, schoolTime, weekdayOf } from '@/lib/school-time'
 
-function getNextWeekMonday(): Date {
-  const now = new Date()
-  const dayOfWeek = now.getDay()
-  const daysUntilMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek
-  const monday = new Date(now)
-  monday.setDate(monday.getDate() + daysUntilMonday)
-  monday.setHours(0, 0, 0, 0)
-  return monday
+// Day keys are school days in Europe/Rome, whatever time zone the job runs in.
+function getMondayKey(useToday: boolean): string {
+  const todayKey = schoolDayKey(new Date())
+  const weekday = weekdayOf(todayKey)
+  return useToday ? addDays(todayKey, 1 - weekday) : addDays(todayKey, 8 - weekday)
 }
 
-function getCurrentWeekMonday(): Date {
-  const now = new Date()
-  const dayOfWeek = now.getDay()
-  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-  const monday = new Date(now)
-  monday.setDate(monday.getDate() - daysSinceMonday)
-  monday.setHours(0, 0, 0, 0)
-  return monday
-}
-
-function getStartOfTomorrow(): Date {
-  const now = new Date()
-  const tomorrow = new Date(now)
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  tomorrow.setHours(0, 0, 0, 0)
-  return tomorrow
-}
-
-function getWeekdayDate(monday: Date, weekday: number): Date {
-  const date = new Date(monday)
-  date.setDate(date.getDate() + (weekday - 1))
-  return date
-}
-
-function combineDateAndTime(date: Date, timeStr: string): Date {
-  const [hours, minutes] = timeStr.split(':').map(Number)
-  const combined = new Date(date)
-  combined.setHours(hours, minutes, 0, 0)
-  return combined
+function slotStart(dayKey: string, time: string): Date {
+  const [hours, minutes] = time.split(':').map(Number)
+  return schoolTime(dayKey, hours, minutes)
 }
 
 async function getActiveTutors(mockOnly: boolean) {
@@ -90,13 +62,6 @@ async function getTutorSettings(tutorId: string) {
   return settings ?? DEFAULT_TUTOR_SETTINGS
 }
 
-function formatDateKey(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
 async function getClosureDates() {
   const row = await db.query.globalSettings.findFirst({
     where(fields, operators) {
@@ -120,22 +85,22 @@ async function getTutorAvailableWeekdays(tutorId: string) {
   })
 }
 
-async function getTutorSubjectIds(tutorId: string) {
-  const subjects = await db.query.tutorSubjects.findMany({
+async function tutorHasSubjects(tutorId: string) {
+  const subject = await db.query.tutorSubjects.findFirst({
     where(fields, operators) {
       return operators.eq(fields.tutorId, tutorId)
     },
-    columns: { subjectId: true }
+    columns: { id: true }
   })
-  return subjects.map(s => s.subjectId)
+  return Boolean(subject)
 }
 
-async function lessonExists(tutorId: string, subjectId: string, startAt: Date, generatedForWeek: Date) {
+// One lesson per tutor and time slot, whatever subjects the tutor teaches.
+async function lessonExists(tutorId: string, startAt: Date, generatedForWeek: Date) {
   const existing = await db.query.lessons.findFirst({
     where(fields, operators) {
       return operators.and(
         operators.eq(fields.tutorId, tutorId),
-        operators.eq(fields.subjectId, subjectId),
         operators.eq(fields.startAt, startAt),
         operators.eq(fields.generatedForWeek, generatedForWeek)
       )
@@ -152,12 +117,13 @@ async function main() {
     assertMockEnvironment()
   }
   const useToday = args.has('today') || args.has('--today')
-  const targetMonday = useToday ? getCurrentWeekMonday() : getNextWeekMonday()
-  const minLessonDate = useToday ? getStartOfTomorrow() : null
+  const mondayKey = getMondayKey(useToday)
+  const targetMonday = schoolTime(mondayKey)
+  const minLessonDay = useToday ? addDays(schoolDayKey(new Date()), 1) : null
 
-  process.stdout.write(`Generating lessons for week starting ${targetMonday.toISOString().split('T')[0]}\n`)
-  if (useToday) {
-    process.stdout.write(`Limiting to lessons from ${minLessonDate!.toISOString().split('T')[0]} through end of week\n`)
+  process.stdout.write(`Generating lessons for week starting ${mondayKey}\n`)
+  if (minLessonDay) {
+    process.stdout.write(`Limiting to lessons from ${minLessonDay} through end of week\n`)
   }
 
   const activeTutors = await getActiveTutors(mockOnly)
@@ -175,13 +141,12 @@ async function main() {
     let createdForTutor = 0
     const settings = await getTutorSettings(tutor.id)
     const availableWeekdays = await getTutorAvailableWeekdays(tutor.id)
-    const subjectIds = await getTutorSubjectIds(tutor.id)
-
     if (availableWeekdays.length === 0) {
       continue
     }
 
-    if (subjectIds.length === 0) {
+    // A tutor without subjects has nothing a student could book.
+    if (!(await tutorHasSubjects(tutor.id))) {
       continue
     }
 
@@ -190,11 +155,11 @@ async function main() {
         continue
       }
 
-      const lessonDate = getWeekdayDate(targetMonday, availability.weekday)
-      if (minLessonDate && lessonDate < minLessonDate) {
+      const lessonDay = addDays(mondayKey, availability.weekday - 1)
+      if (minLessonDay && lessonDay < minLessonDay) {
         continue
       }
-      if (closureDateSet.has(formatDateKey(lessonDate))) {
+      if (closureDateSet.has(lessonDay)) {
         continue
       }
       const startTimes = availability.startTime === '14:00-16:00'
@@ -202,28 +167,26 @@ async function main() {
         : [availability.startTime]
 
       for (const startTime of startTimes) {
-        const startAt = combineDateAndTime(lessonDate, startTime)
-        for (const subjectId of subjectIds) {
-          const exists = await lessonExists(tutor.id, subjectId, startAt, targetMonday)
-
-          if (exists) {
-            totalSkipped += 1
-            continue
-          }
-
-          await db.insert(lessons).values({
-            tutorId: tutor.id,
-            subjectId,
-            startAt,
-            durationMinutes: 60,
-            seats: settings.dailyCapacity,
-            generatedByJob: true,
-            generatedForWeek: targetMonday
-          })
-
-          totalCreated += 1
-          createdForTutor += 1
+        const startAt = slotStart(lessonDay, startTime)
+        if (await lessonExists(tutor.id, startAt, targetMonday)) {
+          totalSkipped += 1
+          continue
         }
+
+        // The subject stays open: the first booking picks one of the tutor's subjects.
+        await db.insert(lessons).values({
+          tutorId: tutor.id,
+          subjectId: null,
+          subjectFromBooking: true,
+          startAt,
+          durationMinutes: 60,
+          seats: settings.dailyCapacity,
+          generatedByJob: true,
+          generatedForWeek: targetMonday
+        })
+
+        totalCreated += 1
+        createdForTutor += 1
       }
     }
 

@@ -9,7 +9,6 @@ const at = (iso: string, status: string, durationMinutes = 60) => lessonState({ 
 describe('lessonState', () => {
   it('reads done, upcoming and expired from the time', () => {
     expect(at('2026-03-10T14:00:00Z', 'confirmed')).toBe('done')
-    expect(at('2026-03-10T14:00:00Z', 'completed')).toBe('done')
     // Started but not over yet.
     expect(at('2026-03-10T15:00:00Z', 'confirmed')).toBe('upcoming')
     expect(at('2026-03-11T14:00:00Z', 'scheduled')).toBe('upcoming')

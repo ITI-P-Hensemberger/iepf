@@ -32,6 +32,7 @@ import {
   TableRow
 } from '@/components/ui/table'
 import { extractPayloadArray } from '@/lib/backend-response'
+import { lessonSubject } from '@/lib/lesson-subject'
 import { formatItalianDate } from '@/lib/format-date'
 import { BackButton } from '@/components/back-button'
 import { ExternalLink, Mail, MessageSquare, Save } from 'lucide-react'
@@ -40,7 +41,7 @@ import { toast } from 'sonner'
 type Lesson = {
   id: string
   tutorId: string
-  subjectId: string
+  subjectId: string | null
   startAt: string
   durationMinutes: number
   lessonCapacity: number
@@ -585,7 +586,7 @@ export default function TutorLessonDetailsPage() {
                   <div>
                     <p className='text-xs text-muted-foreground'>Materia</p>
                     <p className='text-sm font-medium'>
-                      {subjectMap.get(lesson.subjectId)?.name ?? '-'}
+                      {lessonSubject(lesson.subjectId, subjectMap)?.name ?? '-'}
                     </p>
                   </div>
                   <div>
@@ -839,7 +840,7 @@ export default function TutorLessonDetailsPage() {
           {lesson && (
             <div className='text-sm text-muted-foreground'>
               Data: {formatItalianDate(lesson.startAt)} <br />
-              Materia: {subjectMap.get(lesson.subjectId)?.name ?? '-'}
+              Materia: {lessonSubject(lesson.subjectId, subjectMap)?.name ?? '-'}
             </div>
           )}
           <AlertDialogFooter className='pt-2 sm:pt-0'>

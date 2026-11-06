@@ -26,7 +26,8 @@ import { hasOpenSchoolDay, notifyIfWeekEmpty } from '@/lib/empty-week'
 import { assertLocalDatabase } from '@/lib/local-database'
 import { createMailBatch } from '@/lib/mail-batch'
 import { saveSubscription, setPushConfig, waitForPendingPush } from '@/lib/push'
-import { createPushBatch, localDayKey } from '@/lib/reminder-delivery'
+import { createPushBatch } from '@/lib/reminder-delivery'
+import { schoolDayKey } from '@/lib/school-time'
 import { resetRateLimiters } from '@/middlewares/rate-limit'
 
 // Emails are recorded instead of sent; the mail batch of the jobs goes through the same spy.
@@ -74,7 +75,7 @@ async function pastLessonWithBooking(present: boolean | null = true) {
   // Started half an hour ago: tutors may mark presence only within two hours of the start.
   const startAt = new Date(Date.now() - 30 * 60 * 1000)
   const [lesson] = await db.insert(lessons).values({ tutorId: ids.tutor, subjectId, startAt, durationMinutes: 60, seats: 2, status: 'confirmed' }).returning({ id: lessons.id })
-  const [booking] = await db.insert(lessonBookings).values({ lessonId: lesson.id, studentId: ids.student, topic: 'Argomento', studentPresence: present }).returning({ id: lessonBookings.id })
+  const [booking] = await db.insert(lessonBookings).values({ lessonId: lesson.id, studentId: ids.student, subjectId, topic: 'Argomento', studentPresence: present }).returning({ id: lessonBookings.id })
   return { lessonId: lesson.id, bookingId: booking.id }
 }
 
@@ -206,7 +207,7 @@ describe('late cancellations', () => {
     vi.useFakeTimers({ toFake: ['Date'], now: new Date('2031-09-10T09:00:00') })
     try {
       const [lesson] = await db.insert(lessons).values({ tutorId: ids.tutor, subjectId, startAt: new Date('2031-09-10T15:00:00'), durationMinutes: 60, seats: 2, status: 'confirmed' }).returning({ id: lessons.id })
-      const [booking] = await db.insert(lessonBookings).values({ lessonId: lesson.id, studentId: ids.student, topic: 'Argomento' }).returning({ id: lessonBookings.id })
+      const [booking] = await db.insert(lessonBookings).values({ lessonId: lesson.id, studentId: ids.student, subjectId, topic: 'Argomento' }).returning({ id: lessonBookings.id })
       // A token issued now would already be expired at the faked date.
       resetRateLimiters()
       const login = await call('/auth/login', { body: { email: 'student@example.test', password: DEV_PASSWORD } })
@@ -224,7 +225,7 @@ describe('late cancellations', () => {
 
   it('say nothing about a cancellation days ahead', async () => {
     const [lesson] = await db.insert(lessons).values({ tutorId: ids.tutor, subjectId, startAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), durationMinutes: 60, seats: 2, status: 'confirmed' }).returning({ id: lessons.id })
-    const [booking] = await db.insert(lessonBookings).values({ lessonId: lesson.id, studentId: ids.student, topic: 'Argomento' }).returning({ id: lessonBookings.id })
+    const [booking] = await db.insert(lessonBookings).values({ lessonId: lesson.id, studentId: ids.student, subjectId, topic: 'Argomento' }).returning({ id: lessonBookings.id })
     await call(`/lessons/${lesson.id}/bookings/${booking.id}/cancel`, { token: tokens.student, method: 'PATCH', body: {} })
     await settle()
     expect(adminPushes()).toHaveLength(0)
@@ -239,7 +240,7 @@ describe('empty week', () => {
     return new Set(Array.from({ length: count }, (_, offset) => {
       const day = new Date(monday)
       day.setDate(monday.getDate() + offset)
-      return localDayKey(day)
+      return schoolDayKey(day)
     }))
   }
 

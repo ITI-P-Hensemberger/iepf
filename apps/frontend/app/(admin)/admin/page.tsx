@@ -5,6 +5,7 @@ import Link from 'next/link'
 
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/lib/use-session'
+import { lessonSubject } from '@/lib/lesson-subject'
 import { PushInviteCard } from '@/components/push-prompt'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -31,7 +32,7 @@ import { toast } from 'sonner'
 type Lesson = {
   id: string
   tutorId: string
-  subjectId: string
+  subjectId: string | null
   startAt: string
   lessonCapacity: number
   availableSeats: number
@@ -435,7 +436,7 @@ export default function AdminPage() {
                     </TableRow>
                   ) : lessons.length ? (
                     lessons.map((lesson) => {
-                      const subject = subjectMap.get(lesson.subjectId)
+                      const subject = lessonSubject(lesson.subjectId, subjectMap)
                       const tutor = tutorMap.get(lesson.tutorId)
                       return (
                         <TableRow key={lesson.id}>
@@ -557,7 +558,7 @@ export default function AdminPage() {
                     </TableRow>
                   ) : scheduledLessons.length ? (
                     scheduledLessons.map((lesson) => {
-                      const subject = subjectMap.get(lesson.subjectId)
+                      const subject = lessonSubject(lesson.subjectId, subjectMap)
                       const tutor = tutorMap.get(lesson.tutorId)
                       return (
                         <TableRow key={lesson.id}>

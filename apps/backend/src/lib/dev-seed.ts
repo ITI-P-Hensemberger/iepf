@@ -59,12 +59,14 @@ export async function seedDevelopmentData() {
     const confirmedId = '00000000-0000-4000-8000-000000000102'
     await tx.insert(lessons).values([
       { id: confirmedId, tutorId: ids.tutor, subjectId: subject.id, startAt, durationMinutes: 60, seats: 2, status: 'confirmed' },
-      { id: '00000000-0000-4000-8000-000000000103', tutorId: ids.tutor, subjectId: subject.id, startAt: new Date(startAt.getTime() + 86400000), durationMinutes: 60, seats: 2, status: 'scheduled' }
+      // Open like a generated lesson: the first booking picks the subject.
+      { id: '00000000-0000-4000-8000-000000000103', tutorId: ids.tutor, subjectId: null, subjectFromBooking: true, startAt: new Date(startAt.getTime() + 86400000), durationMinutes: 60, seats: 2, status: 'scheduled' }
     ]).onConflictDoNothing()
     await tx.insert(lessonBookings).values({
       id: '00000000-0000-4000-8000-000000000104',
       lessonId: confirmedId,
       studentId: ids.student,
+      subjectId: subject.id,
       topic: 'Equazioni: esempio locale'
     }).onConflictDoNothing()
     await tx.insert(tokenLedger).values({

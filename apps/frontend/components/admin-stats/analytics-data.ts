@@ -54,7 +54,9 @@ export const BOOKING_LABELS: Record<string, string> = {
   already_booked: 'Già prenotata',
   daily_limit: 'Limite giornaliero',
   tutor_full: 'Tutor al completo',
-  lesson_full: 'Posti esauriti'
+  lesson_full: 'Posti esauriti',
+  subject_invalid: 'Materia non valida',
+  subject_taken: 'Materia già scelta'
 }
 
 export function pageLabel(template: string) {

@@ -79,8 +79,8 @@ beforeAll(async () => {
   ordered = [first, second, third, ...sameStart.toSorted()]
 
   await db.insert(lessonBookings).values([
-    { lessonId: second, studentId: ids.student, status: 'confirmed', topic: 'Ripasso' },
-    { lessonId: third, studentId: ids.student, status: 'canceled', topic: 'Ripasso' }
+    { lessonId: second, studentId: ids.student, subjectId: subject.id, status: 'confirmed', topic: 'Ripasso' },
+    { lessonId: third, studentId: ids.student, subjectId: subject.id, status: 'canceled', topic: 'Ripasso' }
   ])
 })
 
@@ -158,7 +158,8 @@ describe('listing lessons', () => {
       dailyOccupancy: 1,
       availableSeats: 2,
       countsForTutor: false,
-      status: 'scheduled'
+      status: 'scheduled',
+      subjectFromBooking: false
     })
     // A canceled booking frees its seat, and the day's occupancy spans lessons off this page.
     expect(data[1]).toMatchObject({ id: ordered[2], availableSeats: 3, dailyOccupancy: 1 })

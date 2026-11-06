@@ -1,6 +1,11 @@
 'use client'
 
 import { lessonBookableSeats } from '@/lib/lesson-seats'
+import {
+  initialBookingSubject,
+  OPEN_SUBJECT_LABEL,
+  type SubjectOption
+} from '@/lib/lesson-subject'
 import * as React from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
@@ -55,8 +60,10 @@ type LessonAvailable = {
   tutorId: string
   tutorFirstName: string
   tutorLastName: string
-  subjectId: string
-  subjectName: string
+  // Null while the lesson is open: the first booking picks one of subjectOptions.
+  subjectId: string | null
+  subjectName: string | null
+  subjectOptions: SubjectOption[]
   startAt: string
   durationMinutes: number
   lessonCapacity: number
@@ -241,6 +248,7 @@ export default function StudentBookPage() {
   const [bookingTarget, setBookingTarget] =
     React.useState<LessonAvailable | null>(null)
   const [bookingTopic, setBookingTopic] = React.useState('')
+  const [bookingSubjectId, setBookingSubjectId] = React.useState('')
   const [isBooking, setIsBooking] = React.useState(false)
   const [subjectRequestId, setSubjectRequestId] = React.useState('')
   const [isSubmittingSubjectRequest, setIsSubmittingSubjectRequest] =
@@ -631,6 +639,10 @@ export default function StudentBookPage() {
       toast.error("L'argomento deve avere massimo 200 caratteri.")
       return
     }
+    if (!bookingSubjectId) {
+      toast.error('Scegli la materia della lezione.')
+      return
+    }
     setIsBooking(true)
     try {
       const response = await fetch(`/api/lessons/${bookingTarget.id}/book`, {
@@ -638,7 +650,7 @@ export default function StudentBookPage() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ topic: trimmed })
+        body: JSON.stringify({ topic: trimmed, subjectId: bookingSubjectId })
       })
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
@@ -649,6 +661,7 @@ export default function StudentBookPage() {
       setBookingOpen(false)
       setBookingTarget(null)
       setBookingTopic('')
+      setBookingSubjectId('')
       await refresh()
       await loadLessons()
       if (currentFilters.subjectId) {
@@ -665,6 +678,7 @@ export default function StudentBookPage() {
   }, [
     bookingTarget,
     bookingTopic,
+    bookingSubjectId,
     currentFilters.subjectId,
     loadDayCounts,
     loadTimeCounts,
@@ -1012,7 +1026,12 @@ export default function StudentBookPage() {
                       </TableRow>
                     ) : lessons.length ? (
                       lessons.map((lesson) => {
-                        const subject = subjectMap.get(lesson.subjectId)
+                        // An open lesson shows the subject the student searched for, when offered.
+                        const shownSubjectId = initialBookingSubject(
+                          lesson,
+                          currentFilters.subjectId
+                        )
+                        const subject = subjectMap.get(shownSubjectId)
                         return (
                           <TableRow
                             key={lesson.id}
@@ -1026,7 +1045,9 @@ export default function StudentBookPage() {
                             <TableCell>
                               {subjectsLoading
                                 ? 'Caricamento...'
-                                : (subject?.name ?? lesson.subjectName ?? '-')}
+                                : (subject?.name ??
+                                  lesson.subjectName ??
+                                  OPEN_SUBJECT_LABEL)}
                             </TableCell>
                             <TableCell>
                               {lesson.tutorLastName} {lesson.tutorFirstName}
@@ -1042,6 +1063,12 @@ export default function StudentBookPage() {
                                 onClick={() => {
                                   setBookingTarget(lesson)
                                   setBookingTopic('')
+                                  setBookingSubjectId(
+                                    initialBookingSubject(
+                                      lesson,
+                                      currentFilters.subjectId
+                                    )
+                                  )
                                   setBookingOpen(true)
                                   track('book_dialog_open')
                                 }}
@@ -1108,6 +1135,7 @@ export default function StudentBookPage() {
             setBookingOpen(false)
             setBookingTarget(null)
             setBookingTopic('')
+            setBookingSubjectId('')
             return
           }
           setBookingOpen(true)
@@ -1123,7 +1151,38 @@ export default function StudentBookPage() {
           {bookingTarget && (
             <div className='space-y-2 text-sm text-muted-foreground'>
               <div>Data: {formatItalianDate(bookingTarget.startAt)}</div>
-              <div>Materia: {bookingTarget.subjectName || '-'}</div>
+              {bookingTarget.subjectId ||
+              bookingTarget.subjectOptions.length <= 1 ? (
+                <div>
+                  Materia:{' '}
+                  {bookingTarget.subjectName ??
+                    bookingTarget.subjectOptions[0]?.name ??
+                    '-'}
+                </div>
+              ) : (
+                <Field>
+                  <FieldLabel>Materia</FieldLabel>
+                  <Select
+                    value={bookingSubjectId}
+                    onValueChange={setBookingSubjectId}
+                  >
+                    <SelectTrigger className='w-full'>
+                      <SelectValue placeholder='Scegli la materia' />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {bookingTarget.subjectOptions.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className='text-xs'>
+                    Il tutor insegna più materie: la prima prenotazione sceglie
+                    quella della lezione.
+                  </p>
+                </Field>
+              )}
               <div>
                 Tutor: {bookingTarget.tutorLastName}{' '}
                 {bookingTarget.tutorFirstName}

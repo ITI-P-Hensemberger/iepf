@@ -57,15 +57,18 @@ import { format } from 'date-fns'
 import { toast } from 'sonner'
 
 import { formatItalianDate } from '@/lib/format-date'
+import { OPEN_SUBJECT_LABEL, type SubjectOption } from '@/lib/lesson-subject'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { BackButton } from '@/components/back-button'
 
 const AVAILABLE_TIMES = ['13:00', '14:00', '15:00', '16:00']
+// Reschedule choice that leaves the subject to the bookings, as on generated lessons.
+const OPEN_SUBJECT_VALUE = '__open__'
 
 type Lesson = {
   id: string
   tutorId: string
-  subjectId: string
+  subjectId: string | null
   startAt: string
   durationMinutes: number
   lessonCapacity: number
@@ -74,6 +77,9 @@ type Lesson = {
   availableSeats: number
   countsForTutor?: boolean | null
   status: string
+  // True when bookings choose the subject: subjectId stays null until the first one.
+  subjectFromBooking?: boolean
+  subjectOptions?: SubjectOption[]
 }
 
 type Booking = {
@@ -354,6 +360,10 @@ export default function AdminLessonDetailsPage() {
 
   const [subject, setSubject] = React.useState<Subject | null>(null)
   const [subjectLoading, setSubjectLoading] = React.useState(false)
+  // An open lesson has no subject until a booking picks one of its tutor's.
+  const subjectLabel =
+    lesson && !lesson.subjectId ? OPEN_SUBJECT_LABEL : (subject?.name ?? '-')
+  const bookingSubjectOptions = lesson?.subjectOptions ?? []
   const [tutor, setTutor] = React.useState<Tutor | null>(null)
   const [tutorLoading, setTutorLoading] = React.useState(false)
   const [studentMap, setStudentMap] = React.useState<Map<string, Student>>(
@@ -421,6 +431,7 @@ export default function AdminLessonDetailsPage() {
   const [studentSearch, setStudentSearch] = React.useState('')
   const [selectedStudentId, setSelectedStudentId] = React.useState('')
   const [bookingTopic, setBookingTopic] = React.useState('')
+  const [bookingSubjectId, setBookingSubjectId] = React.useState('')
   const [isCreatingBooking, setIsCreatingBooking] = React.useState(false)
 
   const loadLesson = React.useCallback(async () => {
@@ -803,7 +814,8 @@ export default function AdminLessonDetailsPage() {
         },
         body: JSON.stringify({
           studentId: selectedStudentId,
-          topic: bookingTopic.trim() ? bookingTopic.trim() : undefined
+          topic: bookingTopic.trim() ? bookingTopic.trim() : undefined,
+          subjectId: bookingSubjectId || undefined
         })
       })
       if (!response.ok) {
@@ -820,6 +832,7 @@ export default function AdminLessonDetailsPage() {
       setBookStudentOpen(false)
       setSelectedStudentId('')
       setBookingTopic('')
+      setBookingSubjectId('')
       setStudentSearch('')
       await loadBookings()
       await loadLesson()
@@ -832,7 +845,7 @@ export default function AdminLessonDetailsPage() {
     } finally {
       setIsCreatingBooking(false)
     }
-  }, [bookingTopic, lessonId, loadBookings, loadLesson, selectedStudentId])
+  }, [bookingSubjectId, bookingTopic, lessonId, loadBookings, loadLesson, selectedStudentId])
 
   const handleTopicUpdate = React.useCallback(async () => {
     if (!topicTarget) {
@@ -1075,7 +1088,9 @@ export default function AdminLessonDetailsPage() {
         : '15:00'
     setRescheduleForm({
       tutorId: lesson.tutorId,
-      subjectId: lesson.subjectId,
+      subjectId: lesson.subjectFromBooking
+        ? OPEN_SUBJECT_VALUE
+        : (lesson.subjectId ?? ''),
       date: new Date(lesson.startAt),
       time: timeValue
     })
@@ -1117,7 +1132,10 @@ export default function AdminLessonDetailsPage() {
         },
         body: JSON.stringify({
           tutorId: rescheduleForm.tutorId,
-          subjectId: rescheduleForm.subjectId,
+          subjectId:
+            rescheduleForm.subjectId === OPEN_SUBJECT_VALUE
+              ? null
+              : rescheduleForm.subjectId,
           startAt: startAtIso,
           durationMinutes: 60
         })
@@ -1256,7 +1274,7 @@ export default function AdminLessonDetailsPage() {
                     <p className='text-sm'>
                       {subjectLoading
                         ? 'Caricamento...'
-                        : (subject?.name ?? '-')}
+                        : subjectLabel}
                     </p>
                   </div>
                   <div>
@@ -1628,6 +1646,33 @@ export default function AdminLessonDetailsPage() {
                 </SelectContent>
               </Select>
             </div>
+            {!lesson?.subjectId && bookingSubjectOptions.length > 0 ? (
+              <div className='space-y-2'>
+                <FieldLabel htmlFor='booking-subject'>Materia</FieldLabel>
+                <Select
+                  value={bookingSubjectId || '__none__'}
+                  onValueChange={(value) =>
+                    setBookingSubjectId(value === '__none__' ? '' : value)
+                  }
+                >
+                  <SelectTrigger id='booking-subject' className='w-full'>
+                    <SelectValue placeholder='Seleziona materia' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='__none__'>Seleziona materia</SelectItem>
+                    {bookingSubjectOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className='text-xs text-muted-foreground'>
+                  La lezione non ha ancora una materia: la sceglie questa
+                  prenotazione.
+                </p>
+              </div>
+            ) : null}
             <div className='space-y-2'>
               <FieldLabel htmlFor='booking-topic'>Argomento</FieldLabel>
               <Input
@@ -1645,7 +1690,11 @@ export default function AdminLessonDetailsPage() {
                 event.preventDefault()
                 void handleCreateBooking()
               }}
-              disabled={isCreatingBooking || !selectedStudentId}
+              disabled={
+                isCreatingBooking ||
+                !selectedStudentId ||
+                (!lesson?.subjectId && !bookingSubjectId)
+              }
             >
               {isCreatingBooking ? 'Salvataggio...' : 'Prenota'}
             </AlertDialogAction>
@@ -1719,7 +1768,7 @@ export default function AdminLessonDetailsPage() {
                 {lesson ? formatItalianDate(lesson.startAt) : 'Caricamento...'}
               </div>
               <div>Tutor: {tutorLabel(tutor) ?? '-'}</div>
-              <div>Materia: {subject?.name ?? '-'}</div>
+              <div>Materia: {subjectLabel}</div>
               <div>Argomento: {cancelTarget.topic || '-'}</div>
               <div>Stato: {formatBookingStatus(cancelTarget.status)}</div>
             </div>
@@ -1768,7 +1817,7 @@ export default function AdminLessonDetailsPage() {
             <div className='rounded-md border p-3 text-sm text-muted-foreground space-y-1'>
               <div>Data: {formatItalianDate(lesson.startAt)}</div>
               <div>Tutor: {tutorLabel(tutor) ?? '-'}</div>
-              <div>Materia: {subject?.name ?? '-'}</div>
+              <div>Materia: {subjectLabel}</div>
               <div>
                 Posti occupati: {lessonOccupiedSeats(lesson)}/
                 {lesson.lessonCapacity}
@@ -1947,6 +1996,11 @@ export default function AdminLessonDetailsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value='__none__'>Seleziona materia</SelectItem>
+                    {lesson?.subjectFromBooking ? (
+                      <SelectItem value={OPEN_SUBJECT_VALUE}>
+                        {OPEN_SUBJECT_LABEL} (la sceglie la prima prenotazione)
+                      </SelectItem>
+                    ) : null}
                     {rescheduleSubjectSplit.preferred.length > 0 ? (
                       <SelectItem value='__preferred__' disabled>
                         Materie del tutor

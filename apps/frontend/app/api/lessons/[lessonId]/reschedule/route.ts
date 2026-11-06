@@ -7,7 +7,8 @@ import { AUTH_COOKIES } from '@/lib/auth'
 
 type RescheduleBody = {
   tutorId: string
-  subjectId: string
+  // null keeps the lesson open: its bookings choose the subject.
+  subjectId: string | null
   startAt: string
   durationMinutes: number
 }
@@ -38,7 +39,7 @@ export async function POST(
   if (typeof body.tutorId === 'string') {
     payload.tutorId = body.tutorId
   }
-  if (typeof body.subjectId === 'string') {
+  if (typeof body.subjectId === 'string' || body.subjectId === null) {
     payload.subjectId = body.subjectId
   }
   if (typeof body.startAt === 'string') {
@@ -49,7 +50,7 @@ export async function POST(
   }
   if (
     !payload.tutorId ||
-    !payload.subjectId ||
+    payload.subjectId === undefined ||
     !payload.startAt ||
     !payload.durationMinutes
   ) {

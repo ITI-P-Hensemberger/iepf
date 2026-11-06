@@ -39,10 +39,16 @@ const bookingTopicSchema = z.object({
   topic: z.string().min(1).max(200)
 })
 
+const subjectOptionSchema = z.object({
+  id: z.string(),
+  name: z.string()
+})
+
 export const lessonSchema = z.object({
   id: z.string(),
   tutorId: z.string(),
-  subjectId: z.string(),
+  // null while the lesson is open: the first booking picks one of the tutor's subjects.
+  subjectId: z.string().nullable(),
   startAt: z.string(),
   durationMinutes: z.number().int(),
   lessonCapacity: z.number().int(),
@@ -50,13 +56,16 @@ export const lessonSchema = z.object({
   dailyOccupancy: z.number().int(),
   availableSeats: z.number().int(),
   countsForTutor: z.boolean(),
-  status: z.string()
+  status: z.string(),
+  subjectFromBooking: z.boolean(),
+  subjectOptions: z.array(subjectOptionSchema).optional()
 })
 
 export const bookingSchema = z.object({
   id: z.string(),
   lessonId: z.string(),
   studentId: z.string(),
+  subjectId: z.string(),
   topic: z.string(),
   status: z.string(),
   countsForStudent: z.boolean(),
@@ -66,7 +75,8 @@ export const bookingSchema = z.object({
 
 const rescheduleLessonSchema = z.object({
   tutorId: z.uuid(),
-  subjectId: z.uuid(),
+  // null keeps the subject open for bookings to choose.
+  subjectId: z.uuid().nullable(),
   startAt: z.iso.datetime(),
   durationMinutes: z.number().int()
 })
@@ -93,6 +103,8 @@ const presenceSchema = z.object({
 
 const bookGeneratedLessonSchema = z.object({
   topic: z.string().min(1).max(200),
+  // Required on an open lesson; on a lesson with a subject it must match it.
+  subjectId: z.uuid().optional(),
   studentId: z.uuid().optional()
 })
 
@@ -133,7 +145,7 @@ const listLessonsQuerySchema = z.object({
 const lessonListItemSchema = z.object({
   id: z.string(),
   tutorId: z.string(),
-  subjectId: z.string(),
+  subjectId: z.string().nullable(),
   startAt: z.string(),
   durationMinutes: z.number().int(),
   lessonCapacity: z.number().int(),
@@ -141,7 +153,8 @@ const lessonListItemSchema = z.object({
   dailyOccupancy: z.number().int(),
   availableSeats: z.number().int(),
   countsForTutor: z.boolean(),
-  status: z.string()
+  status: z.string(),
+  subjectFromBooking: z.boolean()
 })
 
 const myLessonItemSchema = z.object({
@@ -168,8 +181,8 @@ const availableLessonItemSchema = z.object({
   tutorId: z.string(),
   tutorFirstName: z.string(),
   tutorLastName: z.string(),
-  subjectId: z.string(),
-  subjectName: z.string(),
+  subjectId: z.string().nullable(),
+  subjectName: z.string().nullable(),
   startAt: z.string(),
   durationMinutes: z.number().int(),
   lessonCapacity: z.number().int(),
@@ -177,6 +190,8 @@ const availableLessonItemSchema = z.object({
   dailyOccupancy: z.number().int(),
   availableSeats: z.number().int(),
   status: z.string(),
+  // What a booking may pick: the tutor's subjects while the lesson is open, else its subject.
+  subjectOptions: z.array(subjectOptionSchema),
   canBook: z.boolean()
 })
 

@@ -9,14 +9,13 @@ import { lessons } from '@/db/schemas/lessons.schema'
 import { notifyAdminsOnce } from '@/lib/admin-notifications'
 import { buildEmptyWeekAdminMessage } from '@/lib/email-templates'
 import { emptyWeekPush } from '@/lib/push-messages'
-import { localDayKey } from '@/lib/reminder-delivery'
+import { addDays, schoolDayKey, schoolTime } from '@/lib/school-time'
 
 // Monday to Friday; closure days come from the admin settings as YYYY-MM-DD.
 export function hasOpenSchoolDay(monday: Date, closureDates: Set<string>) {
+  const mondayKey = schoolDayKey(monday)
   for (let offset = 0; offset < 5; offset++) {
-    const day = new Date(monday)
-    day.setDate(monday.getDate() + offset)
-    if (!closureDates.has(localDayKey(day))) {
+    if (!closureDates.has(addDays(mondayKey, offset))) {
       return true
     }
   }
@@ -24,8 +23,7 @@ export function hasOpenSchoolDay(monday: Date, closureDates: Set<string>) {
 }
 
 async function lessonsInWeek(monday: Date) {
-  const end = new Date(monday)
-  end.setDate(monday.getDate() + 7)
+  const end = schoolTime(addDays(schoolDayKey(monday), 7))
   const [row] = await db.select({ total: count() })
     .from(lessons)
     .where(and(gte(lessons.startAt, monday), lt(lessons.startAt, end), ne(lessons.status, 'canceled')))
@@ -37,7 +35,7 @@ export async function notifyIfWeekEmpty(batches: { mail: MailBatch, push: PushBa
   if (!hasOpenSchoolDay(monday, closureDates) || await lessonsInWeek(monday) > 0) {
     return false
   }
-  await notifyAdminsOnce(batches, `empty-week:${localDayKey(monday)}`, 'adminEmptyWeek', {
+  await notifyAdminsOnce(batches, `empty-week:${schoolDayKey(monday)}`, 'adminEmptyWeek', {
     push: emptyWeekPush(monday),
     email: buildEmptyWeekAdminMessage(monday)
   })

@@ -7,7 +7,8 @@ import db from '@/db'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
 import { lessonsAvailablePush } from '@/lib/push-messages'
-import { localDayKey, sendReminderPushOnce } from '@/lib/reminder-delivery'
+import { sendReminderPushOnce } from '@/lib/reminder-delivery'
+import { schoolDayKey } from '@/lib/school-time'
 import { tutorCanTeachStudent } from '@/lib/school-years'
 
 // Only students who can book at least one of the new lessons: those of a tutor in a
@@ -28,7 +29,7 @@ export async function notifyStudentsOfNewLessons(batch: PushBatch, weekStart: Da
     if (!tutorCanTeachStudent(highestYear, student.year)) {
       continue
     }
-    if (await sendReminderPushOnce(batch, `lessons-available:${localDayKey(weekStart)}:${student.id}`, student.id, 'lessons', message)) {
+    if (await sendReminderPushOnce(batch, `lessons-available:${schoolDayKey(weekStart)}:${student.id}`, student.id, 'lessons', message)) {
       notified += 1
     }
   }

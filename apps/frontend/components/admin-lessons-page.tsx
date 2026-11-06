@@ -42,6 +42,7 @@ import { format } from 'date-fns'
 import { toast } from 'sonner'
 
 import { formatItalianDate } from '@/lib/format-date'
+import { lessonSubject } from '@/lib/lesson-subject'
 import { type DateRange } from 'react-day-picker'
 
 import { extractPayloadArray } from '@/lib/backend-response'
@@ -52,7 +53,7 @@ const AVAILABLE_TIMES = ['13:00', '14:00', '15:00', '16:00']
 type Lesson = {
   id: string
   tutorId: string
-  subjectId: string
+  subjectId: string | null
   startAt: string
   durationMinutes: number
   lessonCapacity: number
@@ -896,7 +897,7 @@ export default function AdminLessonsPage() {
                   </TableRow>
                 ) : lessons.length ? (
                   lessons.map((lesson) => {
-                    const subject = subjectMap.get(lesson.subjectId)
+                    const subject = lessonSubject(lesson.subjectId, subjectMap)
                     const tutor = tutorMap.get(lesson.tutorId)
                     return (
                       <TableRow key={lesson.id}>

@@ -9,7 +9,7 @@ import { romeDay } from '@/lib/analytics'
 import { lessonState } from '@/lib/lesson-state'
 import { Workbook } from '@/lib/xlsx/workbook'
 
-// Lessons are never marked completed: whether one took place is read from its time.
+// Whether a lesson took place is read from its time, not from a status.
 const LESSON_STATE: Record<LessonState, string> = {
   done: 'Svolta',
   upcoming: 'In programma',
@@ -48,7 +48,9 @@ const BOOKING_OUTCOME: Record<string, string> = {
   already_booked: 'Già prenotata',
   daily_limit: 'Limite giornaliero',
   tutor_full: 'Tutor al completo',
-  lesson_full: 'Posti esauriti'
+  lesson_full: 'Posti esauriti',
+  subject_invalid: 'Materia non valida',
+  subject_taken: 'Materia già scelta'
 }
 
 export function schoolYearLabel(now: Date) {
@@ -471,7 +473,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     const lessonBookings = bookingsByLesson.get(lesson.id) ?? []
     return [
       lesson.startAt,
-      subjectName.get(lesson.subjectId) ?? '',
+      lesson.subjectId ? subjectName.get(lesson.subjectId) ?? '' : '',
       fullName(people.get(lesson.tutorId)),
       lesson.durationMinutes,
       LESSON_STATE[stateOf(lesson)],
@@ -508,7 +510,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     const student = people.get(booking.studentId)
     return [
       lesson?.startAt ?? null,
-      lesson ? subjectName.get(lesson.subjectId) ?? '' : '',
+      subjectName.get(booking.subjectId) ?? '',
       lesson ? fullName(people.get(lesson.tutorId)) : '',
       fullName(student),
       student?.year ?? null,
@@ -540,7 +542,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     return [
       item.createdAt,
       lesson?.startAt ?? null,
-      lesson ? subjectName.get(lesson.subjectId) ?? '' : '',
+      lesson?.subjectId ? subjectName.get(lesson.subjectId) ?? '' : '',
       fullName(people.get(item.authorUserId)),
       ROLE_LABEL[item.authorRole] ?? item.authorRole,
       fullName(people.get(item.targetUserId)),
@@ -553,10 +555,12 @@ export function buildYearReport(data: ReportData, now = new Date()) {
   // ---- Materie ---------------------------------------------------------------------------
   const tutorsPerSubject = countBy(data.tutorSubjects, row => row.subjectId)
   const requestsPerSubject = countBy(data.subjectRequests, row => row.subjectId)
-  const lessonsBySubject = groupBy(data.lessons, lesson => lesson.subjectId)
+  // A lesson still open has no subject yet; bookings always name the one they were made for.
+  const lessonsBySubject = groupBy(data.lessons, lesson => lesson.subjectId ?? '')
+  const bookingsBySubject = groupBy(data.bookings, booking => booking.subjectId)
   const subjectRows = data.subjects.map((subject) => {
     const subjectLessons = lessonsBySubject.get(subject.id) ?? []
-    const subjectBookings = subjectLessons.flatMap(lesson => bookingsByLesson.get(lesson.id) ?? [])
+    const subjectBookings = bookingsBySubject.get(subject.id) ?? []
     const lessonIds = new Set(subjectLessons.map(lesson => lesson.id))
     return [
       subject.name,

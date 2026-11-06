@@ -17,8 +17,18 @@ export async function lessonContext(lessonId: string, studentId: string) {
   if (!lesson) {
     return null
   }
+  // The student's booking names the subject even when the lesson's own subject has opened again.
+  const booking = await db.query.lessonBookings.findFirst({
+    where: (fields, operators) => operators.and(operators.eq(fields.lessonId, lessonId), operators.eq(fields.studentId, studentId)),
+    orderBy: (fields, operators) => operators.desc(fields.createdAt),
+    columns: { subjectId: true }
+  })
+  const subjectId = booking?.subjectId ?? lesson.subjectId
+  if (!subjectId) {
+    return null
+  }
   const [subject, tutor, student, profile] = await Promise.all([
-    db.query.subjects.findFirst({ where: (fields, operators) => operators.eq(fields.id, lesson.subjectId), columns: { name: true } }),
+    db.query.subjects.findFirst({ where: (fields, operators) => operators.eq(fields.id, subjectId), columns: { name: true } }),
     db.query.users.findFirst({ where: (fields, operators) => operators.eq(fields.id, lesson.tutorId), columns: { firstName: true, lastName: true } }),
     db.query.users.findFirst({ where: (fields, operators) => operators.eq(fields.id, studentId), columns: { firstName: true, lastName: true } }),
     db.query.studentProfiles.findFirst({ where: (fields, operators) => operators.eq(fields.userId, studentId), columns: { sectionId: true, year: true } })

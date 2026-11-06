@@ -12,11 +12,6 @@ import { deliverPush, isPushEnabled } from '@/lib/push'
 
 export const KEEP_DELIVERIES_DAYS = 7
 
-export function localDayKey(date: Date) {
-  const pad = (value: number) => String(value).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
-
 // Claims the reminder before sending. A failed send gives the claim back, so that a rerun
 // retries it; a crash between the two loses that email rather than sending it twice.
 export async function sendReminderOnce(batch: MailBatch, key: string, payload: MailPayload) {

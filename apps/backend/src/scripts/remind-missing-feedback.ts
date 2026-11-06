@@ -1,5 +1,5 @@
 // Purpose: Send reminder emails for missing lesson feedback on the current day.
-import { and, gte, inArray, lte } from 'drizzle-orm'
+import { and, gte, inArray, lt } from 'drizzle-orm'
 
 import db, { closeDb } from '@/db'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
@@ -10,19 +10,12 @@ import { buildLessonFeedbackReminderMessage } from '@/lib/email-templates'
 import { createMailBatch } from '@/lib/mail-batch'
 import { closeMailer } from '@/lib/mailer'
 import { feedbackReminderPush } from '@/lib/push-messages'
-import { createPushBatch, localDayKey, pruneReminderDeliveries, sendReminderOnce, sendReminderPushOnce } from '@/lib/reminder-delivery'
-
-function getDayBounds(reference = new Date()) {
-  const start = new Date(reference)
-  start.setHours(0, 0, 0, 0)
-  const end = new Date(reference)
-  end.setHours(23, 59, 59, 999)
-  return { start, end }
-}
+import { createPushBatch, pruneReminderDeliveries, sendReminderOnce, sendReminderPushOnce } from '@/lib/reminder-delivery'
+import { schoolDayKey, schoolDayRange } from '@/lib/school-time'
 
 async function remindMissingFeedback() {
   const now = new Date()
-  const { start, end } = getDayBounds(now)
+  const { start, end } = schoolDayRange(now)
   const upperBound = now < end ? now : end
 
   const todayLessons = await db
@@ -34,7 +27,7 @@ async function remindMissingFeedback() {
     .from(lessons)
     .where(and(
       gte(lessons.startAt, start),
-      lte(lessons.startAt, upperBound)
+      lt(lessons.startAt, upperBound)
     ))
 
   if (todayLessons.length === 0) {
@@ -149,7 +142,7 @@ async function remindMissingFeedback() {
     }
 
     const message = buildLessonFeedbackReminderMessage(pending.role, pending.count)
-    if (await sendReminderOnce(mailBatch, `feedback:${localDayKey(now)}:${userId}`, {
+    if (await sendReminderOnce(mailBatch, `feedback:${schoolDayKey(now)}:${userId}`, {
       to: recipient.email,
       subject: message.subject,
       text: message.text,
@@ -157,7 +150,7 @@ async function remindMissingFeedback() {
     })) {
       sent += 1
     }
-    await sendReminderPushOnce(pushBatch, `feedback:${localDayKey(now)}:${userId}`, userId, 'feedback', feedbackReminderPush(pending.role, pending.count))
+    await sendReminderPushOnce(pushBatch, `feedback:${schoolDayKey(now)}:${userId}`, userId, 'feedback', feedbackReminderPush(pending.role, pending.count))
   }
 
   const pushed = await pushBatch.finish()

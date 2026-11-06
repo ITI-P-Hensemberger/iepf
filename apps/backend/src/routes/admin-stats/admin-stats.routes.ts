@@ -31,9 +31,7 @@ const tutorLessonCountSchema = z.object({
   lessonsConfirmedNotCounted: z.number().int().min(0),
   lessonsCancelledCounted: z.number().int().min(0),
   lessonsCancelledNotCounted: z.number().int().min(0),
-  lessonsCompletedCounted: z.number().int().min(0),
-  lessonsCompletedNotCounted: z.number().int().min(0),
-  // By date: lessons are never marked completed, so these read the clock.
+  // By date: whether a lesson took place is read from the clock.
   lessonsDone: z.number().int().min(0),
   lessonsUpcoming: z.number().int().min(0),
   lessonsExpired: z.number().int().min(0),
