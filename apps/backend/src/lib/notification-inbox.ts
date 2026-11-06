@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, lt, or } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, isNull, lt, or } from 'drizzle-orm'
 // Purpose: Keep every notification in the user's panel, whatever their push preferences.
 import { Buffer } from 'node:buffer'
 
@@ -86,6 +86,17 @@ export async function listNotifications(userId: string, cursor: NotificationCurs
 
 export async function countUnread(userId: string) {
   return db.$count(notifications, and(eq(notifications.userId, userId), isNull(notifications.readAt)))
+}
+
+export async function unreadCounts(userIds: string[]) {
+  if (userIds.length === 0) {
+    return new Map<string, number>()
+  }
+  const rows = await db.select({ userId: notifications.userId, count: count() })
+    .from(notifications)
+    .where(and(inArray(notifications.userId, userIds), isNull(notifications.readAt)))
+    .groupBy(notifications.userId)
+  return new Map(rows.map(row => [row.userId, row.count]))
 }
 
 // Only the user's own notification: another id simply matches nothing.
