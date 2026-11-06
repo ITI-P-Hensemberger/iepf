@@ -2,6 +2,7 @@
 import type { Context } from 'hono'
 
 import { count, eq } from 'drizzle-orm'
+import { streamSSE } from 'hono/streaming'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
@@ -14,10 +15,11 @@ import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { sendMail } from '@/lib/mailer'
 import * as inbox from '@/lib/notification-inbox'
+import * as notificationStream from '@/lib/notification-stream'
 import { getPushPublicKey, isPushEnabled, getPreferences as readPreferences, removeSubscription, saveSubscription } from '@/lib/push'
 import { isAllowedPushEndpoint, isValidSubscriptionKeys } from '@/lib/web-push'
 
-import type { GetDevicesRoute, GetInboxRoute, GetPreferencesRoute, GetPushConfigRoute, GetUnreadRoute, MarkAllReadRoute, MarkReadRoute, SendSetupLinkRoute, SubscribeRoute, UnsubscribeRoute, UpdatePreferencesRoute } from './notifications.routes'
+import type { GetDevicesRoute, GetInboxRoute, GetPreferencesRoute, GetPushConfigRoute, GetUnreadRoute, MarkAllReadRoute, MarkReadRoute, SendSetupLinkRoute, StreamInboxRoute, SubscribeRoute, UnsubscribeRoute, UpdatePreferencesRoute } from './notifications.routes'
 
 // Activators get no notifications.
 const RECIPIENT_ROLES = new Set(['student', 'tutor', 'admin'])
@@ -146,6 +148,78 @@ export const getUnread: AppRouteHandler<GetUnreadRoute> = async (c) => {
     return forbidden(c)
   }
   return c.json({ count: await inbox.countUnread(user.id) }, HttpStatusCodes.OK)
+}
+
+// A comment line now and then keeps idle proxies and the frontend's fetch from dropping it.
+export const STREAM_HEARTBEAT_MS = 25_000
+// setTimeout cannot wait longer than this.
+const MAX_TIMER_MS = 2_147_483_647
+
+export const streamInbox: AppRouteHandler<StreamInboxRoute> = async (c) => {
+  const user = inboxUser(c)
+  if (!user) {
+    return forbidden(c)
+  }
+  const expiresAt = c.get('accessTokenExpiresAt')
+  c.header('Cache-Control', 'no-cache, no-transform')
+  c.header('X-Accel-Buffering', 'no')
+
+  return streamSSE(c, async (stream) => {
+    // Changed from callbacks, so kept on an object the loop reads each time round.
+    const state = { dirty: true, ended: false }
+    let wake: (() => void) | null = null
+    const nudge = () => {
+      const resolve = wake
+      wake = null
+      resolve?.()
+    }
+    const end = () => {
+      state.ended = true
+      nudge()
+    }
+
+    const unsubscribe = notificationStream.subscribe(user.id, {
+      changed: () => {
+        state.dirty = true
+        nudge()
+      },
+      close: end
+    })
+    stream.onAbort(end)
+    const heartbeat = setInterval(() => {
+      stream.write(': ping\n\n').catch(end)
+    }, STREAM_HEARTBEAT_MS)
+    // Past the token's expiry the user may be gone or deactivated: the client must reconnect.
+    const expiry = expiresAt
+      ? setTimeout(end, Math.min(Math.max(0, expiresAt * 1000 - Date.now()), MAX_TIMER_MS))
+      : null
+
+    try {
+      while (!state.ended) {
+        if (!state.dirty) {
+          await new Promise<void>((resolve) => {
+            wake = resolve
+          })
+          continue
+        }
+        // Many changes in a row collapse into one read of the count.
+        state.dirty = false
+        const unread = await inbox.countUnread(user.id)
+        if (!state.ended) {
+          await stream.writeSSE({ event: 'unread', data: JSON.stringify({ count: unread }) })
+        }
+      }
+    }
+    finally {
+      clearInterval(heartbeat)
+      if (expiry) {
+        clearTimeout(expiry)
+      }
+      unsubscribe()
+    }
+  }, async (error) => {
+    console.error('Notification stream failed:', error)
+  })
 }
 
 export const markRead: AppRouteHandler<MarkReadRoute> = async (c) => {

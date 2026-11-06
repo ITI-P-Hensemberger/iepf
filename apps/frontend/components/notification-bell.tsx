@@ -23,6 +23,7 @@ import {
   NOTIFICATION_EVENT,
   safeNotificationPath
 } from '@/lib/notification-inbox'
+import { watchUnread } from '@/lib/notification-stream'
 import { cn } from '@/lib/utils'
 
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
@@ -82,6 +83,26 @@ export function NotificationBell() {
       navigator.serviceWorker?.removeEventListener('message', onMessage)
     }
   }, [refreshUnread])
+
+  // While the tab is visible, a stream keeps the counter current as notifications arrive,
+  // also on a computer with no push. A hidden tab closes it and frees the connection.
+  React.useEffect(() => {
+    let stop: (() => void) | null = null
+    const follow = () => {
+      if (document.visibilityState === 'visible') {
+        stop ??= watchUnread({ onCount: setUnread })
+      } else {
+        stop?.()
+        stop = null
+      }
+    }
+    follow()
+    document.addEventListener('visibilitychange', follow)
+    return () => {
+      document.removeEventListener('visibilitychange', follow)
+      stop?.()
+    }
+  }, [])
 
   // Opening the panel reloads the first page; it never marks anything as read.
   async function handleOpenChange(next: boolean) {

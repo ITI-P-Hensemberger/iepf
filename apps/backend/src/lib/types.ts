@@ -15,6 +15,8 @@ export interface AppBindings {
   Variables: {
     logger: PinoLogger
     currentUser?: AuthenticatedUser
+    // Seconds since the epoch, from the access token: long-lived responses end there.
+    accessTokenExpiresAt?: number
     impersonation?: {
       adminId: string
       adminEmail: string

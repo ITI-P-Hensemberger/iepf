@@ -217,6 +217,23 @@ export const getUnread = createRoute({
   }
 })
 
+// Server-Sent Events: an `unread` event with { count } on opening and after every change.
+// It ends when the access token expires; the client opens it again with a renewed one.
+export const streamInbox = createRoute({
+  path: '/notifications/inbox/stream',
+  method: 'get',
+  tags,
+  security,
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: 'An event stream of the unread count',
+      content: { 'text/event-stream': { schema: z.string() } }
+    },
+    [HttpStatusCodes.FORBIDDEN]: forbidden,
+    [HttpStatusCodes.UNAUTHORIZED]: unauthorized
+  }
+})
+
 export const markRead = createRoute({
   path: '/notifications/inbox/{id}/read',
   method: 'post',
@@ -245,6 +262,7 @@ export const markAllRead = createRoute({
 
 export type GetInboxRoute = typeof getInbox
 export type GetUnreadRoute = typeof getUnread
+export type StreamInboxRoute = typeof streamInbox
 export type MarkReadRoute = typeof markRead
 export type MarkAllReadRoute = typeof markAllRead
 export type GetDevicesRoute = typeof getDevices

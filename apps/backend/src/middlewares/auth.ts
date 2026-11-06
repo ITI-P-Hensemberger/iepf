@@ -104,6 +104,7 @@ export function authenticate(): MiddlewareHandler<AppBindings> {
         })
       }
 
+      c.set('accessTokenExpiresAt', payload.exp)
       c.set('currentUser', {
         id: payload.sub,
         email: payload.email,
