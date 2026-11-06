@@ -8,6 +8,27 @@ import {
 export default function FAQ() {
   return (
     <Accordion type='single' collapsible>
+      <AccordionItem value='prezzi'>
+        <AccordionTrigger>
+          Quanto costa il servizio e quante lezioni comprende il pacchetto?
+        </AccordionTrigger>
+        <AccordionContent>
+          Il contributo e il numero di lezioni del pacchetto sono indicati
+          nella circolare dell&apos;anno scolastico in corso, che trovi nel
+          registro elettronico.
+        </AccordionContent>
+      </AccordionItem>
+      <AccordionItem value='attivazione'>
+        <AccordionTrigger>
+          Come viene attivato il mio account dopo la registrazione?
+        </AccordionTrigger>
+        <AccordionContent>
+          Dopo la registrazione, invia alla Segreteria Didattica la
+          liberatoria firmata allegata alla circolare. La Segreteria ti
+          invierà l&apos;avviso di pagamento e, una volta effettuato il
+          pagamento, il tuo account verrà attivato.
+        </AccordionContent>
+      </AccordionItem>
       <AccordionItem value='item-1'>
         <AccordionTrigger>Come posso prenotare una lezione?</AccordionTrigger>
         <AccordionContent>
@@ -49,7 +70,7 @@ export default function FAQ() {
       </AccordionItem>
       <AccordionItem value='item-5'>
         <AccordionTrigger>
-          Cosa succede se esaurisco le 30 lezioni prima della fine
+          Cosa succede se esaurisco il pacchetto di lezioni prima della fine
           dell&apos;anno scolastico?
         </AccordionTrigger>
         <AccordionContent>
@@ -59,8 +80,8 @@ export default function FAQ() {
       </AccordionItem>
       <AccordionItem value='item-6'>
         <AccordionTrigger>
-          Cosa succede se non esaurisco le 30 lezioni prima della fine
-          dell&apos;anno scolastico?
+          Cosa succede se non esaurisco il pacchetto di lezioni prima della
+          fine dell&apos;anno scolastico?
         </AccordionTrigger>
         <AccordionContent>
           Le lezioni non utilizzate non sono rimborsabili e non possono essere
