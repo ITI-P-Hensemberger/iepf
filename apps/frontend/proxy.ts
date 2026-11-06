@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 import { AUTH_COOKIES, fetchUserProfile, isAuthRejected, refreshWithProfile, type AuthTokens } from '@/lib/auth'
 import { clearAuthCookies, setAuthCookies } from '@/lib/auth-cookies'
+import { isMaintenanceOpenPath, MAINTENANCE_PATH, maintenanceApplies, readMaintenance } from '@/lib/maintenance'
 
 const STUDENT_PREFIX = '/student'
 const PROFILE_PREFIX = '/profile'
@@ -208,7 +209,19 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  const response = NextResponse.next()
+  // After the role redirects, so a signed-in student who opens the login lands on their home
+  // and sees maintenance there. The address stays, so a reload after maintenance shows the page.
+  const inMaintenance = maintenanceApplies(await readMaintenance(apiBaseUrl), isAuthenticated ? role : null)
+  let response: NextResponse
+  if (pathname === MAINTENANCE_PATH && !inMaintenance) {
+    response = NextResponse.redirect(new URL('/', request.url))
+  }
+  else if (inMaintenance && !isMaintenanceOpenPath(pathname)) {
+    response = NextResponse.rewrite(new URL(MAINTENANCE_PATH, request.url))
+  }
+  else {
+    response = NextResponse.next()
+  }
   if (refreshed && didRefresh) {
     setAuthCookies(response, refreshed.tokens, remember)
   }

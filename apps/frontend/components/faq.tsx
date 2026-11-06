@@ -4,10 +4,66 @@ import {
   AccordionItem,
   AccordionTrigger
 } from './ui/accordion'
+import Link from 'next/link'
+
+import { ACTIVATION_FORM_URL, RELEASE_FORM_URL } from '@/lib/student-activation'
 
 export default function FAQ() {
   return (
     <Accordion type='single' collapsible>
+      <AccordionItem value='prezzi'>
+        <AccordionTrigger>
+          Quanto costa il servizio e quante lezioni comprende il pacchetto?
+        </AccordionTrigger>
+        <AccordionContent>
+          Il contributo e il numero di lezioni del pacchetto sono indicati
+          nella circolare dell&apos;anno scolastico in corso, che trovi nel
+          registro elettronico.
+        </AccordionContent>
+      </AccordionItem>
+      <AccordionItem value='attivazione'>
+        <AccordionTrigger>
+          Come viene attivato il mio account dopo la registrazione?
+        </AccordionTrigger>
+        <AccordionContent>
+          <ol className='list-decimal space-y-2 pl-5'>
+            <li>
+              Scarica il documento di{' '}
+              <Link
+                href={RELEASE_FORM_URL}
+                target='_blank'
+                className='underline underline-offset-4'
+              >
+                liberatoria e regolamento
+              </Link>
+              , che trovi anche nella circolare di inizio progetto.
+            </li>
+            <li>
+              Fai compilare e firmare la liberatoria da un genitore o un tutore
+              legale: è obbligatoria per partecipare al progetto.
+            </li>
+            <li>
+              Attendi l&apos;avviso di pagamento dalla Segreteria Scolastica,
+              che può arrivare dopo alcuni giorni, poi effettua il pagamento e
+              conserva la ricevuta. Non pagare prima di aver ricevuto
+              l&apos;avviso con la dicitura &quot;InsiemeÈ+Facile&quot; o
+              simili.
+            </li>
+            <li>
+              Allega la ricevuta di pagamento e la liberatoria firmata al{' '}
+              <Link
+                href={ACTIVATION_FORM_URL}
+                target='_blank'
+                className='underline underline-offset-4'
+              >
+                form di attivazione
+              </Link>
+              . Una volta inviato il form, la segreteria attiverà il tuo account
+              e potrai prenotare le lezioni.
+            </li>
+          </ol>
+        </AccordionContent>
+      </AccordionItem>
       <AccordionItem value='item-1'>
         <AccordionTrigger>Come posso prenotare una lezione?</AccordionTrigger>
         <AccordionContent>
@@ -49,7 +105,7 @@ export default function FAQ() {
       </AccordionItem>
       <AccordionItem value='item-5'>
         <AccordionTrigger>
-          Cosa succede se esaurisco le 30 lezioni prima della fine
+          Cosa succede se esaurisco il pacchetto di lezioni prima della fine
           dell&apos;anno scolastico?
         </AccordionTrigger>
         <AccordionContent>
@@ -59,8 +115,8 @@ export default function FAQ() {
       </AccordionItem>
       <AccordionItem value='item-6'>
         <AccordionTrigger>
-          Cosa succede se non esaurisco le 30 lezioni prima della fine
-          dell&apos;anno scolastico?
+          Cosa succede se non esaurisco il pacchetto di lezioni prima della
+          fine dell&apos;anno scolastico?
         </AccordionTrigger>
         <AccordionContent>
           Le lezioni non utilizzate non sono rimborsabili e non possono essere

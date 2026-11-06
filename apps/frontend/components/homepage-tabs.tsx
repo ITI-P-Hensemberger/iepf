@@ -11,7 +11,6 @@ function HomepageTabs() {
     >
       <TabsList className='self-center'>
         <TabsTrigger value='cose-insieme-e-facile'>Cos&apos;è IEPF</TabsTrigger>
-        <TabsTrigger value='modalita-e-prezzi'>Prezzi</TabsTrigger>
         <Button asChild variant='ghost'>
           <Link href='/faq'>FAQ</Link>
         </Button>
@@ -34,28 +33,6 @@ function HomepageTabs() {
             Le attività sono seguite dai nostri tutor: studenti di terza,
             quarta e quinta selezionati per competenza e capacità di spiegare in modo
             chiaro e pratico.
-          </p>
-        </Card>
-      </TabsContent>
-
-      <TabsContent value='modalita-e-prezzi'>
-        <Card className='mt-4 sm:max-h-[40vh] max-h-[30vh] overflow-y-auto px-4'>
-          <p>
-            Il servizio prevede un contributo di <b>50€</b>, che dà accesso alla
-            piattaforma con un pacchetto di <b>30 lezioni</b> utilizzabili
-            durante tutto l&apos;anno scolastico.
-          </p>
-          <p>
-            <b>Procedura di pagamento e attivazione:</b>
-            <br />
-            1) Dopo la registrazione sul sito, inviare alla{' '}
-            <b>Segreteria Didattica</b> la liberatoria firmata (allegata alla
-            circolare).
-            <br />
-            2) La Segreteria invierà l&apos;<b>avviso di pagamento</b>.
-            <br />
-            3) Una volta effettuato il pagamento, l&apos;utenza dello studente verrà{' '}
-            <b>attivata</b>.
           </p>
         </Card>
       </TabsContent>

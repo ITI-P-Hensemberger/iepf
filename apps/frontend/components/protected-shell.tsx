@@ -32,8 +32,8 @@ export default function ProtectedShell({ children }: ProtectedShellProps) {
 
   return (
     <>
-      <Header />
-      <ServiceMessageBanner />
+      {!maintenanceActive && <Header />}
+      {!maintenanceActive && <ServiceMessageBanner />}
       {!maintenanceActive && <PopupStack profile={profile} />}
       {maintenanceActive ? (
         <MaintenanceBlock message={settings?.maintenance.message} />
