@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import Footer from '@/components/footer'
@@ -6,6 +6,15 @@ import { SettingsProvider } from '@/components/settings-provider'
 import ImpersonationBanner from '@/components/impersonation-banner'
 import './fonts/roboto.css'
 import './globals.css'
+
+// The status bar and browser chrome follow the device theme, in the site's own colors
+// (--background of the light and dark themes).
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' }
+  ]
+}
 
 export const metadata: Metadata = {
   title: 'IEPF - InsiemeÈ+Facile',
