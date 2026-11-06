@@ -4,6 +4,9 @@ import {
   AccordionItem,
   AccordionTrigger
 } from './ui/accordion'
+import Link from 'next/link'
+
+import { ACTIVATION_FORM_URL, RELEASE_FORM_URL } from '@/lib/student-activation'
 
 export default function FAQ() {
   return (
@@ -23,10 +26,42 @@ export default function FAQ() {
           Come viene attivato il mio account dopo la registrazione?
         </AccordionTrigger>
         <AccordionContent>
-          Dopo la registrazione, invia alla Segreteria Didattica la
-          liberatoria firmata allegata alla circolare. La Segreteria ti
-          invierà l&apos;avviso di pagamento e, una volta effettuato il
-          pagamento, il tuo account verrà attivato.
+          <ol className='list-decimal space-y-2 pl-5'>
+            <li>
+              Scarica il documento di{' '}
+              <Link
+                href={RELEASE_FORM_URL}
+                target='_blank'
+                className='underline underline-offset-4'
+              >
+                liberatoria e regolamento
+              </Link>
+              , che trovi anche nella circolare di inizio progetto.
+            </li>
+            <li>
+              Fai compilare e firmare la liberatoria da un genitore o un tutore
+              legale: è obbligatoria per partecipare al progetto.
+            </li>
+            <li>
+              Attendi l&apos;avviso di pagamento dalla Segreteria Scolastica,
+              che può arrivare dopo alcuni giorni, poi effettua il pagamento e
+              conserva la ricevuta. Non pagare prima di aver ricevuto
+              l&apos;avviso con la dicitura &quot;InsiemeÈ+Facile&quot; o
+              simili.
+            </li>
+            <li>
+              Allega la ricevuta di pagamento e la liberatoria firmata al{' '}
+              <Link
+                href={ACTIVATION_FORM_URL}
+                target='_blank'
+                className='underline underline-offset-4'
+              >
+                form di attivazione
+              </Link>
+              . Una volta inviato il form, la segreteria attiverà il tuo account
+              e potrai prenotare le lezioni.
+            </li>
+          </ol>
         </AccordionContent>
       </AccordionItem>
       <AccordionItem value='item-1'>
