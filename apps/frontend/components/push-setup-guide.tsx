@@ -22,8 +22,8 @@ export type PushRole = 'student' | 'tutor' | 'admin'
 export const SETUP_PATH = '/profile?attiva-notifiche=1'
 
 export const ROLE_REASON: Record<PushRole, string> = {
-  student: 'Ricevi i promemoria prima delle lezioni e le conferme delle prenotazioni.',
-  tutor: 'Sappi subito quando uno studente prenota, annulla o quando una lezione cambia.',
+  student: 'Ricevi promemoria e aggiornamenti su nuove lezioni disponibili.',
+  tutor: 'Ricevi avvisi quando uno studente prenota, annulla o quando una lezione subisce cambiamenti.',
   admin: 'Ricevi gli avvisi su feedback bassi, assenze, annullamenti tardivi e richieste in attesa.'
 }
 
@@ -46,7 +46,7 @@ async function copySetupLink() {
     await navigator.clipboard.writeText(setupUrl())
     toast.success('Link copiato.')
   } catch {
-    toast.error('Copia non riuscita: tieni premuto sul link qui sotto per copiarlo.')
+    toast.error('Copia non riuscita: copia l\'indirizzo dalla barra del browser.')
   }
 }
 
@@ -85,8 +85,7 @@ const IOS_STEPS = [
     icon: Share,
     text: (
       <>
-        Tocca <strong>Condividi</strong>: il quadrato con la freccia verso l&apos;alto, in basso al centro
-        (su iPad in alto a destra).
+        Tocca <strong>Condividi</strong>, in basso al centro (su iPad in alto a destra).
       </>
     )
   },
@@ -121,7 +120,7 @@ function IosInstallSteps({ userId }: { userId: string }) {
   return (
     <div className='space-y-3'>
       <p className='text-sm text-muted-foreground'>
-        Su iPhone e iPad le notifiche arrivano solo dall&apos;app nella schermata Home. Bastano tre passaggi:
+        Bastano tre passaggi:
       </p>
       <ol className='space-y-2'>
         {IOS_STEPS.map((item, index) => (
@@ -153,7 +152,6 @@ function CopyLinkBox() {
         <Copy className='size-4' />
         Copia il link
       </Button>
-      <p className='break-all text-center font-mono text-xs text-muted-foreground select-all'>{setupUrl()}</p>
     </div>
   )
 }
@@ -227,7 +225,7 @@ function DesktopToPhone({ onDone }: { onDone: () => void }) {
   return (
     <div className='space-y-4'>
       <p className='text-sm text-muted-foreground'>
-        Inquadra il codice con la fotocamera del telefono: IEPF si apre e ti guida passo passo.
+        Inquadra il codice QR con la fotocamera del telefono: IEPF si apre e ti guida passo passo.
       </p>
       <div className='flex justify-center'>
         <QrCode value={url} />
@@ -330,8 +328,8 @@ export function PushSetupGuide({
         <CheckCircle2 className='size-10 text-emerald-600' />
         <p className='text-sm'>
           {doneOnPhone
-            ? 'Fatto! Le notifiche arrivano sul telefono. Puoi scegliere quali ricevere dal tuo profilo.'
-            : 'Fatto! Gli avvisi di IEPF arriveranno su questo dispositivo. Puoi scegliere quali ricevere dal tuo profilo.'}
+            ? 'Fatto! Le notifiche arrivano sul telefono.'
+            : 'Fatto! Gli avvisi di IEPF arriveranno su questo dispositivo.'}
         </p>
       </div>
     )
@@ -347,8 +345,7 @@ export function PushSetupGuide({
         <div className='space-y-3'>
           {isIosHome && state === 'ask' && (
             <p className='rounded-lg bg-primary/5 p-3 text-sm'>
-              <strong>Ci sei quasi:</strong> hai aperto IEPF dalla schermata Home. Ora tocca il pulsante qui sotto e
-              poi <strong>Consenti</strong>.
+              <strong>Ci sei quasi:</strong> ora tocca il pulsante qui sotto e poi <strong>Consenti</strong>.
             </p>
           )}
           <Button type='button' className='w-full' size='lg' disabled={busy} onClick={() => void handleEnable()}>
