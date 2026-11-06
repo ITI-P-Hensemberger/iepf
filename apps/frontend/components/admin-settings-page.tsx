@@ -29,7 +29,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { MarkdownEditor } from '@/components/markdown-editor'
-import { SchoolYearResetDialog } from '@/components/school-year-reset-dialog'
+import { SchoolYearReset } from '@/components/school-year-reset'
 import { ServiceMessageCard } from '@/components/service-message-banner'
 import { Calendar } from '@/components/ui/calendar'
 import { extractPayloadArray } from '@/lib/backend-response'
@@ -660,7 +660,7 @@ export default function AdminSettingsPage() {
   )
 
   const availableTabs = React.useMemo(
-    () => ['info', 'maintenance', 'messages', 'closures', 'subjects'] as const,
+    () => ['info', 'maintenance', 'messages', 'closures', 'subjects', 'school-year'] as const,
     []
   )
   const tabLabels: Record<(typeof availableTabs)[number], string> = {
@@ -668,7 +668,8 @@ export default function AdminSettingsPage() {
     maintenance: 'Manutenzione',
     messages: 'Messaggi',
     closures: 'Chiusure',
-    subjects: 'Materie'
+    subjects: 'Materie',
+    'school-year': 'Anno scolastico'
   }
 
   const activeTab = React.useMemo(() => {
@@ -721,7 +722,7 @@ export default function AdminSettingsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <TabsList className='hidden sm:grid w-full grid-cols-5'>
+            <TabsList className='hidden sm:grid w-full grid-cols-6'>
               <TabsTrigger value='info' className='w-full'>
                 Info
               </TabsTrigger>
@@ -736,6 +737,9 @@ export default function AdminSettingsPage() {
               </TabsTrigger>
               <TabsTrigger value='subjects' className='w-full'>
                 Materie
+              </TabsTrigger>
+              <TabsTrigger value='school-year' className='w-full'>
+                Anno scolastico
               </TabsTrigger>
             </TabsList>
 
@@ -1176,14 +1180,11 @@ export default function AdminSettingsPage() {
               </Card>
             </TabsContent>
 
+            <TabsContent value='school-year' className='mt-6'>
+              {activeTab === 'school-year' && <SchoolYearReset />}
+            </TabsContent>
+
             <TabsContent value='info' className='mt-6 space-y-6'>
-              <Card className='border-destructive'>
-                <CardHeader><CardTitle>Nuovo anno scolastico</CardTitle></CardHeader>
-                <CardContent className='space-y-3'>
-                  <p className='text-sm text-muted-foreground'>Elimina definitivamente lezioni, studenti, tutor, feedback e inviti tutor. Admin e impostazioni globali restano. Prima del reset si scarica il report completo dell&apos;anno.</p>
-                  <SchoolYearResetDialog />
-                </CardContent>
-              </Card>
               <Card>
                 <CardHeader>
                   <CardTitle>Informazioni</CardTitle>

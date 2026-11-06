@@ -11,8 +11,6 @@ import { classSections } from '@/db/schemas/class-sections.schema'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
 import { lessonFeedback } from '@/db/schemas/lesson-feedback.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
-import { notificationPreferences } from '@/db/schemas/notification-preferences.schema'
-import { notifications } from '@/db/schemas/notifications.schema'
 import { pushSubscriptions } from '@/db/schemas/push-subscriptions.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { subjects } from '@/db/schemas/subjects.schema'
@@ -23,8 +21,7 @@ import { users } from '@/db/schemas/users.schema'
 import { readAnalytics } from '@/lib/analytics'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
-import { KEEP_NOTIFICATIONS_DAYS } from '@/lib/notification-inbox'
-import { PUSH_CATEGORIES } from '@/lib/push'
+import { readNotificationStats } from '@/lib/notification-stats'
 import { buildYearReport, reportFilename } from '@/lib/year-report'
 import { loadReportData } from '@/lib/year-report-data'
 import { recordReportExport } from '@/lib/year-report-export'
@@ -517,37 +514,7 @@ export const getOverview: AppRouteHandler<GetOverviewRoute> = async (c) => {
   }, HttpStatusCodes.OK)
 }
 
-// The push service a device uses, from the host of its endpoint: it says which browsers people use.
-const pushService = sql<string>`case
-  when ${pushSubscriptions.endpoint} like 'https://fcm.googleapis.com/%' then 'google'
-  when ${pushSubscriptions.endpoint} like 'https://web.push.apple.com/%' then 'apple'
-  when ${pushSubscriptions.endpoint} like '%.mozilla.com/%' then 'mozilla'
-  when ${pushSubscriptions.endpoint} like '%.notify.windows.com/%' then 'microsoft'
-  else 'other' end`
-
 export const getNotificationStats: AppRouteHandler<GetNotificationStatsRoute> = async (c) => {
   ensureAdmin(c)
-  const [inbox, devices, preferenceRows] = await Promise.all([
-    db.select({
-      category: notifications.category,
-      total: sql<number>`count(*)::int`,
-      read: sql<number>`count(${notifications.readAt})::int`
-    }).from(notifications).groupBy(notifications.category),
-    db.select({
-      service: pushService,
-      devices: sql<number>`count(*)::int`,
-      workingLast30Days: sql<number>`count(*) filter (where ${pushSubscriptions.lastSuccessAt} > now() - interval '30 days')::int`
-    }).from(pushSubscriptions).groupBy(pushService),
-    db.select(Object.fromEntries(PUSH_CATEGORIES.map(category => [
-      category,
-      sql<number>`count(*) filter (where ${notificationPreferences[category]} = false)::int`
-    ])) as Record<typeof PUSH_CATEGORIES[number], ReturnType<typeof sql<number>>>).from(notificationPreferences)
-  ])
-  const optOuts = preferenceRows[0] as Record<string, number> | undefined
-  return c.json({
-    keepDays: KEEP_NOTIFICATIONS_DAYS,
-    inbox: inbox.sort((a, b) => b.total - a.total),
-    devices: devices.sort((a, b) => b.devices - a.devices),
-    optOuts: PUSH_CATEGORIES.map(category => ({ category, users: Number(optOuts?.[category] ?? 0) })).filter(row => row.users > 0)
-  }, HttpStatusCodes.OK)
+  return c.json(await readNotificationStats(), HttpStatusCodes.OK)
 }

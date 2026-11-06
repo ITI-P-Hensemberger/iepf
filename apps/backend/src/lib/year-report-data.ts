@@ -2,6 +2,8 @@
 // the school year before the reset deletes students and tutors, so it is complete.
 import { eq, sql } from 'drizzle-orm'
 
+import type { NotificationStats } from '@/lib/notification-stats'
+
 import db from '@/db'
 import { analyticsDaily } from '@/db/schemas/analytics-daily.schema'
 import { classSections } from '@/db/schemas/class-sections.schema'
@@ -17,6 +19,7 @@ import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'
+import { readNotificationStats } from '@/lib/notification-stats'
 
 export interface ReportPerson {
   id: string
@@ -43,11 +46,12 @@ export interface ReportData {
   tokenBalances: Map<string, number>
   subjectRequests: Array<{ studentId: string, subjectId: string, createdAt: Date }>
   analytics: Array<{ day: string, event: string, detail: string, role: string, year: number, count: number }>
+  notifications: NotificationStats
 }
 
 export async function loadReportData(): Promise<ReportData> {
   const hasPush = sql<boolean>`exists (select 1 from ${pushSubscriptions} where ${pushSubscriptions.userId} = ${users.id})`
-  const [people, subjectRows, tutorSubjectRows, capacityRows, lessonRows, bookingRows, feedbackRows, balanceRows, requestRows, analyticsRows] = await Promise.all([
+  const [people, subjectRows, tutorSubjectRows, capacityRows, lessonRows, bookingRows, feedbackRows, balanceRows, requestRows, analyticsRows, notificationStats] = await Promise.all([
     db.select({
       id: users.id,
       role: users.role,
@@ -105,7 +109,8 @@ export async function loadReportData(): Promise<ReportData> {
       .from(tokenLedger)
       .groupBy(tokenLedger.studentId),
     db.select({ studentId: subjectRequests.studentId, subjectId: subjectRequests.subjectId, createdAt: subjectRequests.createdAt }).from(subjectRequests),
-    db.select().from(analyticsDaily).orderBy(analyticsDaily.day)
+    db.select().from(analyticsDaily).orderBy(analyticsDaily.day),
+    readNotificationStats()
   ])
 
   return {
@@ -130,6 +135,7 @@ export async function loadReportData(): Promise<ReportData> {
     feedback: feedbackRows,
     tokenBalances: new Map(balanceRows.map(row => [row.studentId, Number(row.balance)])),
     subjectRequests: requestRows,
-    analytics: analyticsRows
+    analytics: analyticsRows,
+    notifications: notificationStats
   }
 }

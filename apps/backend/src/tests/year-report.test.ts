@@ -73,8 +73,15 @@ function sampleData(): ReportData {
     analytics: [
       { day: '2025-10-06', event: 'active_users', detail: '', role: 'student', year: 2, count: 12 },
       { day: '2025-10-06', event: 'push_sent', detail: 'reminders', role: '', year: 0, count: 10 },
-      { day: '2025-10-06', event: 'push_open', detail: 'reminders', role: 'student', year: 2, count: 4 }
-    ]
+      { day: '2025-10-06', event: 'push_open', detail: 'reminders', role: 'student', year: 2, count: 4 },
+      { day: '2025-10-06', event: 'bell_open', detail: '', role: 'student', year: 2, count: 3 }
+    ],
+    notifications: {
+      keepDays: 90,
+      inbox: [{ category: 'bookings', total: 3, read: 1 }],
+      devices: [{ service: 'google', devices: 2, workingLast30Days: 1 }],
+      optOuts: [{ category: 'reminders', users: 1 }]
+    }
   }
 }
 
@@ -103,7 +110,7 @@ describe('buildYearReport', () => {
 
   it('has every sheet, and declares every part it contains', () => {
     const names = [...workbook.matchAll(/<sheet name="([^"]+)"/g)].map(match => match[1])
-    expect(names).toEqual(['Riepilogo', 'Andamento', 'Classi', 'Studenti', 'Tutor', 'Lezioni', 'Prenotazioni', 'Feedback', 'Materie', 'Utilizzo'])
+    expect(names).toEqual(['Riepilogo', 'Andamento', 'Classi', 'Studenti', 'Tutor', 'Lezioni', 'Prenotazioni', 'Feedback', 'Materie', 'Utilizzo', 'Notifiche'])
     for (const name of files.keys()) {
       if (name.endsWith('.rels') || name === '[Content_Types].xml')
         continue
@@ -117,6 +124,13 @@ describe('buildYearReport', () => {
     const bookings = files.get('xl/worksheets/sheet7.xml')!
     expect(bookings).toContain('Equazioni di secondo grado')
     expect(bookings).not.toContain('\u0007')
+  })
+
+  it('has a notifications sheet with coverage, push, panel and devices', () => {
+    const sheet = files.get('xl/worksheets/sheet11.xml')!
+    for (const text of ['Chi riceve le notifiche push', 'Promemoria', 'Prenotazioni', 'Google (Chrome, Android)', 'Pannello aperto']) {
+      expect(sheet).toContain(text)
+    }
   })
 
   it('gives each table headers that match its first row', () => {
@@ -135,10 +149,10 @@ describe('buildYearReport', () => {
     }
   })
 
-  it('draws native charts on the summary, trend, classes, subjects and usage sheets', () => {
+  it('draws native charts that point at existing sheets', () => {
     const charts = [...files.keys()].filter(name => name.startsWith('xl/charts/'))
-    // Nine in a full report; the sample has no booking outcomes, so that chart is left out.
-    expect(charts).toHaveLength(8)
+    // Twelve in a full report; the sample has no booking outcomes, so that chart is left out.
+    expect(charts).toHaveLength(11)
     for (const name of charts) {
       const refs = [...files.get(name)!.matchAll(/<c:f>'([^']+)'!/g)].map(match => match[1])
       expect(refs.length, name).toBeGreaterThan(0)

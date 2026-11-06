@@ -1,6 +1,6 @@
 'use client'
 
-import { BarChart3, BookOpen, CalendarDays, Download, GraduationCap, Layers, ListChecks, MessageSquare, ShieldAlert, Users } from 'lucide-react'
+import { BarChart3, Bell, BookOpen, CalendarDays, Download, GraduationCap, Layers, ListChecks, MessageSquare, ShieldAlert, Users } from 'lucide-react'
 import * as React from 'react'
 import { toast } from 'sonner'
 
@@ -17,7 +17,8 @@ export const REPORT_SHEETS = [
   { name: 'Lezioni e prenotazioni', icon: ListChecks, description: 'L\'elenco completo, con argomento, stato e presenza.' },
   { name: 'Feedback', icon: MessageSquare, description: 'Ogni voto con il suo commento, nei due sensi.' },
   { name: 'Materie', icon: BookOpen, description: 'Tutor, lezioni e richieste per materia.' },
-  { name: 'Utilizzo', icon: BarChart3, description: 'Statistiche d\'uso anonime: attivi, push, esiti.' }
+  { name: 'Utilizzo', icon: BarChart3, description: 'Statistiche d\'uso anonime: attivi, esiti, pagine, errori.' },
+  { name: 'Notifiche', icon: Bell, description: 'Copertura push, aperture, pannello, dispositivi.' }
 ] as const
 
 export function useYearReportDownload() {
