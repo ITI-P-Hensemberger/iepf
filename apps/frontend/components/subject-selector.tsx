@@ -1,14 +1,17 @@
 'use client'
 
 import * as React from 'react'
-import { BookOpen, Check, Search } from 'lucide-react'
+import { BookOpen, Check, X } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { EmptyState } from '@/components/empty-state'
+import { SearchField } from '@/components/search-field'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import { extractPayloadArray } from '@/lib/backend-response'
+import { cn } from '@/lib/utils'
 
 type Subject = {
   id: string
@@ -21,13 +24,16 @@ type SubjectSelectorProps = {
   disabled?: boolean
   /** If provided, uses these subjects instead of fetching */
   subjects?: Subject[]
+  // The subjects already saved: the badges on top tell new and removed ones from them.
+  saved?: string[]
 }
 
 export function SubjectSelector({
   value,
   onChange,
   disabled = false,
-  subjects: providedSubjects
+  subjects: providedSubjects,
+  saved
 }: SubjectSelectorProps) {
   const [subjects, setSubjects] = React.useState<Subject[]>(
     providedSubjects || []
@@ -100,91 +106,102 @@ export function SubjectSelector({
     }
   }
 
+  const nameOf = new Map(subjects.map((subject) => [subject.id, subject.name]))
+  const savedSet = new Set(saved ?? value)
+  // Selected ones first (saved, then new), then the saved ones about to be removed.
+  const chips = [
+    ...value.map((id) => ({ id, state: savedSet.has(id) ? 'saved' as const : 'added' as const })),
+    ...(saved ?? []).filter((id) => !value.includes(id)).map((id) => ({ id, state: 'removed' as const }))
+  ].filter((chip) => nameOf.has(chip.id))
+    .sort((a, b) => (a.state === b.state ? (nameOf.get(a.id) ?? '').localeCompare(nameOf.get(b.id) ?? '', 'it') : 0))
+
   return (
     <div className='space-y-4'>
-      <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-2'>
-          <BookOpen className='h-5 w-5 text-primary' />
-          <h3 className='text-base font-medium'>Materie</h3>
+      <div className='flex flex-wrap items-start justify-between gap-2'>
+        <div className='space-y-1'>
+          <h3 className='flex items-center gap-2 font-semibold'>
+            <BookOpen className='size-4 text-muted-foreground' aria-hidden /> Materie
+          </h3>
+          <p className='text-sm text-muted-foreground'>Spunta le materie che puoi insegnare.</p>
         </div>
-        {selectedCount > 0 && (
-          <Badge variant='secondary' className='gap-1'>
-            {selectedCount}{' '}
-            {selectedCount === 1 ? 'materia selezionata' : 'materie selezionate'}
-          </Badge>
-        )}
+        <Badge variant={selectedCount > 0 ? 'secondary' : 'outline'}>
+          {selectedCount === 0 ? 'Nessuna materia' : `${selectedCount} ${selectedCount === 1 ? 'materia' : 'materie'}`}
+        </Badge>
       </div>
 
-      <p className='text-sm text-muted-foreground'>
-        Seleziona le materie che insegni
-      </p>
-
-      {isLoading && (
-        <div className='space-y-3'>
-          <Skeleton className='h-10 w-full' />
-          <div className='grid grid-cols-2 sm:grid-cols-3 gap-3'>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className='h-8 w-full' />
-            ))}
-          </div>
+      {chips.length > 0 && (
+        <div className='flex flex-wrap gap-1.5' aria-label='Materie scelte'>
+          {chips.map((chip) => (
+            <button
+              key={chip.id}
+              type='button'
+              disabled={disabled}
+              onClick={() => handleToggle(chip.id)}
+              title={chip.state === 'removed' ? 'Tienila' : 'Togli'}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors disabled:opacity-50',
+                chip.state === 'saved' && 'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
+                chip.state === 'added' && 'border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+                chip.state === 'removed' && 'border-dashed text-muted-foreground line-through'
+              )}
+            >
+              {chip.state === 'saved' && <Check className='size-3' aria-hidden />}
+              {nameOf.get(chip.id)}
+              {chip.state === 'added' && <span className='font-normal'>· nuova</span>}
+              {chip.state === 'removed' && <span className='font-normal no-underline'>· da togliere</span>}
+              {chip.state !== 'removed' && <X className='size-3 opacity-60' aria-hidden />}
+            </button>
+          ))}
         </div>
       )}
 
-      {!isLoading && (
+      {isLoading ? (
+        <div className='space-y-2'>
+          <Skeleton className='h-9 w-full' />
+          <Skeleton className='h-48 w-full' />
+        </div>
+      ) : (
         <>
           {subjects.length > 6 && (
-            <div className='relative'>
-              <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
-              <Input
-                type='text'
-                placeholder='Cerca materie...'
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                disabled={disabled}
-                className='pl-9'
-              />
-            </div>
+            <SearchField
+              id='subject-search'
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder='Cerca una materia'
+            />
           )}
-
           {filteredSubjects.length === 0 ? (
-            <div className='rounded-md border border-dashed p-8 text-center'>
-              <p className='text-sm text-muted-foreground'>
-                {searchQuery
-                  ? 'Nessuna materia trovata'
-                  : 'Nessuna materia disponibile'}
-              </p>
-            </div>
+            <EmptyState>{searchQuery ? 'Nessuna materia trovata.' : 'Nessuna materia disponibile.'}</EmptyState>
           ) : (
-            <div className='grid grid-cols-2 sm:grid-cols-3 gap-3'>
+            <ul className='divide-y rounded-lg border'>
               {filteredSubjects.map((subject) => {
                 const isSelected = value.includes(subject.id)
+                const checkboxId = `subject-${subject.id}`
                 return (
-                  <button
-                    key={subject.id}
-                    type='button'
-                    onClick={() => handleToggle(subject.id)}
-                    disabled={disabled}
-                    className={`
-                      flex items-center gap-2 rounded-lg border p-3 text-left transition-all
-                      ${isSelected
-                        ? 'border-primary bg-primary/5 shadow-sm'
-                        : 'border-border hover:border-primary/50 hover:bg-accent/50'
-                      }
-                      ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                    `}
-                  >
-                    <span className={`text-sm break-words leading-tight flex-1 min-w-0 ${isSelected ? 'text-primary font-medium' : ''}`}>
-                      {subject.name}
-                    </span>
-                    {isSelected && (
-                      <div className='flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground flex-shrink-0'>
-                        <Check className='h-2.5 w-2.5' />
-                      </div>
-                    )}
-                  </button>
+                  <li key={subject.id}>
+                    <label
+                      htmlFor={checkboxId}
+                      className={cn(
+                        'flex items-center gap-3 px-4 py-2.5 transition-colors',
+                        disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-muted/50',
+                        isSelected && 'bg-primary/[0.03]'
+                      )}
+                    >
+                      <Checkbox
+                        id={checkboxId}
+                        checked={isSelected}
+                        disabled={disabled}
+                        onCheckedChange={() => handleToggle(subject.id)}
+                      />
+                      <span className={cn('min-w-0 flex-1 text-sm break-words', isSelected && 'font-medium')}>{subject.name}</span>
+                      {isSelected && savedSet.has(subject.id) && saved && (
+                        <span className='text-xs text-muted-foreground'>salvata</span>
+                      )}
+                    </label>
+                  </li>
                 )
               })}
-            </div>
+            </ul>
           )}
         </>
       )}

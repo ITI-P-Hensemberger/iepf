@@ -48,3 +48,12 @@ export function dayRange(key: string) {
 export function weekRange(mondayKey: string) {
   return { from: dayRange(mondayKey).from, to: dayRange(addDaysToKey(mondayKey, 4)).to }
 }
+
+// The week a tutor is working on: this one until Saturday noon, when the next week's lessons are
+// assigned; from then on, and on Sunday, the next one.
+export function currentLessonMonday(now: Date) {
+  const monday = mondayOf(dayKeyOf(now))
+  const weekday = now.getDay()
+  const nextWeekOut = weekday === 0 || (weekday === 6 && now.getHours() >= 12)
+  return nextWeekOut ? addDaysToKey(monday, 7) : monday
+}

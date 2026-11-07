@@ -1,5 +1,7 @@
 'use client'
 
+import { MailCheck } from 'lucide-react'
+import { ResultPanel } from '@/components/result-panel'
 import * as React from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
@@ -263,22 +265,14 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
 
   if (isSuccess) {
     return (
-      <Card className='w-full sm:max-w-md'>
-        <CardContent className='pt-6'>
-          <div className='flex flex-col gap-3 text-center'>
-            <h2 className='text-lg font-semibold'>Controlla la tua email</h2>
-            <p className='text-muted-foreground text-sm'>
-              Ti abbiamo inviato un link di verifica. Apri la mail per
-              completare la registrazione.
-            </p>
-          </div>
-        </CardContent>
-        <CardFooter className='justify-center'>
-          <Button asChild>
-            <Link href='/auth/login'>Vai al login</Link>
-          </Button>
-        </CardFooter>
-      </Card>
+      <ResultPanel
+        icon={MailCheck}
+        tone='info'
+        title='Controlla la tua email'
+        action={<Button asChild><Link href='/auth/login'>Vai al login</Link></Button>}
+      >
+        Ti abbiamo inviato un link di verifica: aprilo per completare la registrazione.
+      </ResultPanel>
     )
   }
 

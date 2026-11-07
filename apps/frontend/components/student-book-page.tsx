@@ -2,6 +2,7 @@
 
 // Booking in four steps: pick a subject, pick a day and a lesson, confirm with a topic, done.
 // The step lives in the URL (?week, ?subject, ?day) so the back button walks back through it.
+import { TILE } from '@/lib/tile'
 import { BlockSkeleton } from '@/components/loading'
 import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
@@ -525,7 +526,7 @@ function SubjectStep({
           key={subject.id}
           type='button'
           onClick={() => onPick(subject.id)}
-          className='flex flex-col items-start gap-1 rounded-lg border bg-card p-3 text-left transition-colors hover:border-primary hover:bg-accent'
+          className={cn('flex flex-col items-start gap-1 p-3 text-left', TILE)}
         >
           <span className='font-medium'>{subject.name}</span>
           <span className='text-xs text-muted-foreground'>

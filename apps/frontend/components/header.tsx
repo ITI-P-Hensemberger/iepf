@@ -74,7 +74,7 @@ export default function Header() {
             priority
           />
           <span className='text-sm font-medium'>IEPF</span>
-          <span className='text-sm font-medium ml-4 text-white/75 hover:text-white hover:underline'>
+          <span className='ml-4 text-sm font-medium text-muted-foreground hover:text-foreground hover:underline'>
             Home
           </span>
         </Link>
@@ -128,7 +128,6 @@ export default function Header() {
                 <MenuLink href='/admin/feedback'>Gestione Feedback</MenuLink>
                 <DropdownMenuSeparator />
                 <MenuLink href='/admin/settings'>Impostazioni globali</MenuLink>
-                <MenuLink href='/admin/announcements'>Popup</MenuLink>
                 <MenuLink href='/admin/stats'>Statistiche</MenuLink>
               </DropdownMenuGroup>
             )}

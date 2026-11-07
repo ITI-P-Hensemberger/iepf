@@ -1,5 +1,4 @@
-import { BackButton } from '@/components/back-button'
-import Image from 'next/image'
+import { PageHeader } from '@/components/page-header'
 
 const TERMS = [
   {
@@ -105,38 +104,22 @@ const TERMS = [
 export default function TermsPage() {
   return (
     <main className='flex-1'>
-      <div className='container mx-auto px-8 py-10 flex flex-col items-center'>
-        <div className='mb-6 self-start'>
-          <BackButton />
-        </div>
-        <Image
-          src='/logo.png'
-          alt='IEPF Logo'
-          width={125}
-          height={125}
-          style={{ width: 'auto', height: 'auto' }}
-          draggable={false}
-          priority
-        />
-        <h1 className='mt-6 text-2xl font-bold text-center'>
-          Termini e Condizioni di Utilizzo del Sito Web
-        </h1>
-        <p className='mt-2 text-center text-muted-foreground'>
-          Progetto “Insieme È Più Facile”
-        </p>
-        <p className='mt-6 max-w-3xl text-justify'>
+      <div className='container mx-auto px-4 pt-10 pb-16'>
+        <div className='mx-auto w-full max-w-3xl'>
+        <PageHeader title='Termini e condizioni' description='Utilizzo del sito del progetto “Insieme È Più Facile”.' />
+        <p className='mt-6'>
           I presenti Termini e Condizioni disciplinano l&apos;accesso e
           l&apos;utilizzo del sito web dedicato al progetto di supporto allo
           studio pomeridiano &quot;Insieme È Più Facile&quot; (di seguito, il
           &quot;Progetto&quot;), promosso dall&apos;ITI P. Hensemberger.
         </p>
-        <p className='mt-3 max-w-3xl text-justify'>
+        <p className='mt-3'>
           L&apos;utilizzo del sito e dei relativi servizi comporta
           l&apos;accettazione integrale dei presenti Termini e Condizioni da
           parte del genitore o del soggetto esercente la responsabilità
           genitoriale (di seguito, l&apos;&quot;Utente&quot;).
         </p>
-        <div className='mt-8 w-full max-w-4xl space-y-6 text-justify'>
+        <div className='mt-8 w-full space-y-6'>
           {TERMS.map((section) => (
             <section key={section.title} className='space-y-2'>
               <h2 className='text-lg font-semibold text-start'>
@@ -158,6 +141,7 @@ export default function TermsPage() {
               )}
             </section>
           ))}
+        </div>
         </div>
       </div>
     </main>

@@ -13,8 +13,8 @@ import './globals.css'
 // (--background of the light and dark themes).
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' }
+    { media: '(prefers-color-scheme: light)', color: '#f3f3f2' },
+    { media: '(prefers-color-scheme: dark)', color: '#1c1d21' }
   ]
 }
 
@@ -53,7 +53,7 @@ export default function RootLayout({
             <SessionRefresh />
             <div className='flex min-h-dvh flex-col'>
               <ImpersonationBanner />
-              <div className='flex-1'>{children}</div>
+              <div className='flex flex-1 flex-col'>{children}</div>
               <Footer />
               <Toaster />
             </div>

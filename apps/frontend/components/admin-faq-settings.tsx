@@ -1,0 +1,265 @@
+'use client'
+
+import * as React from 'react'
+import Link from 'next/link'
+import { ArrowDown, ArrowUp, ExternalLink, Pencil, Plus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
+
+import { EmptyState } from '@/components/empty-state'
+import { SettingsSection } from '@/components/settings-section'
+import type { FaqItem } from '@/components/faq'
+import { BlockSkeleton } from '@/components/loading'
+import { MarkdownContent } from '@/components/markdown-content'
+import { MarkdownEditor } from '@/components/markdown-editor'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { capitalizeFirst } from '@/lib/capitalize'
+
+const QUESTION_MAX = 300
+const ANSWER_MAX = 5_000
+
+type Draft = { id: string | null, question: string, answer: string }
+
+async function errorOf(response: Response, fallback: string) {
+  const payload = await response.json().catch(() => null) as { message?: string, error?: { message?: string } } | null
+  return payload?.error?.message ?? payload?.message ?? fallback
+}
+
+// The "FAQ" section of the global settings: the questions of the public FAQ page, in page
+// order. Admins add, edit (answers in markdown, like the popups), delete and move them.
+export function AdminFaqSettings() {
+  const [items, setItems] = React.useState<FaqItem[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [draft, setDraft] = React.useState<Draft | null>(null)
+  const [saving, setSaving] = React.useState(false)
+  const [deleteTarget, setDeleteTarget] = React.useState<FaqItem | null>(null)
+  const [moving, setMoving] = React.useState(false)
+
+  const load = React.useCallback(async () => {
+    try {
+      const response = await fetch('/api/faqs', { cache: 'no-store' })
+      if (!response.ok) throw new Error()
+      setItems(await response.json())
+    } catch {
+      toast.error('Impossibile caricare le domande frequenti.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    void load()
+  }, [load])
+
+  async function save() {
+    if (!draft) return
+    if (!draft.question.trim() || !draft.answer.trim()) {
+      toast.error('Scrivi la domanda e la risposta.')
+      return
+    }
+    setSaving(true)
+    try {
+      const response = await fetch(draft.id ? `/api/faqs/${draft.id}` : '/api/faqs', {
+        method: draft.id ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: draft.question.trim(), answer: draft.answer.trim() })
+      })
+      if (!response.ok) throw new Error(await errorOf(response, 'Impossibile salvare la domanda.'))
+      toast.success(draft.id ? 'Domanda aggiornata.' : 'Domanda aggiunta.')
+      setDraft(null)
+      await load()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Impossibile salvare la domanda.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function remove(item: FaqItem) {
+    try {
+      const response = await fetch(`/api/faqs/${item.id}`, { method: 'DELETE' })
+      if (!response.ok && response.status !== 404) throw new Error(await errorOf(response, 'Impossibile eliminare la domanda.'))
+      toast.success('Domanda eliminata.')
+      if (draft?.id === item.id) setDraft(null)
+      await load()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Impossibile eliminare la domanda.')
+    } finally {
+      setDeleteTarget(null)
+    }
+  }
+
+  // Moves a question one place, at once on screen; a stale list comes back from the server.
+  async function move(index: number, step: -1 | 1) {
+    const target = index + step
+    if (target < 0 || target >= items.length) return
+    const next = [...items]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    setItems(next)
+    setMoving(true)
+    try {
+      const response = await fetch('/api/faqs/order', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: next.map(item => item.id) })
+      })
+      if (!response.ok) throw new Error(await errorOf(response, 'Impossibile cambiare l’ordine.'))
+      setItems(await response.json())
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Impossibile cambiare l’ordine.')
+      await load()
+    } finally {
+      setMoving(false)
+    }
+  }
+
+  return (
+    <SettingsSection
+      title='Domande frequenti'
+      description='Le domande della pagina pubblica FAQ, nell’ordine in cui le vede chi la apre.'
+      actions={<>
+          <Button asChild variant='outline'>
+            <Link href='/faq' target='_blank'><ExternalLink className='size-4' /> Apri la pagina</Link>
+          </Button>
+          {!draft && (
+            <Button onClick={() => setDraft({ id: null, question: '', answer: '' })}>
+              <Plus className='size-4' /> Nuova domanda
+            </Button>
+          )}
+      </>}
+    >
+      {draft && (
+        <form
+          className='space-y-4 rounded-lg border bg-card p-4 sm:p-6'
+          onSubmit={(event) => {
+            event.preventDefault()
+            void save()
+          }}
+        >
+          <h3 className='font-semibold'>{draft.id ? 'Modifica domanda' : 'Nuova domanda'}</h3>
+          <div className='space-y-2'>
+            <Label htmlFor='faq-question'>Domanda</Label>
+            <Input
+              id='faq-question'
+              value={draft.question}
+              maxLength={QUESTION_MAX}
+              onChange={event => setDraft({ ...draft, question: capitalizeFirst(event.target.value) })}
+              placeholder='Es. Come posso prenotare una lezione?'
+              autoFocus
+            />
+          </div>
+          <div className='space-y-2'>
+            <Label htmlFor='faq-answer'>Risposta</Label>
+            <MarkdownEditor
+              id='faq-answer'
+              value={draft.answer}
+              maxLength={ANSWER_MAX}
+              rows={8}
+              onChange={answer => setDraft({ ...draft, answer })}
+            />
+          </div>
+          <div className='flex flex-col-reverse gap-2 sm:flex-row sm:justify-end'>
+            <Button type='button' variant='outline' onClick={() => setDraft(null)} disabled={saving}>Annulla</Button>
+            <Button type='submit' disabled={saving}>{saving ? 'Salvataggio...' : draft.id ? 'Salva modifiche' : 'Aggiungi domanda'}</Button>
+          </div>
+        </form>
+      )}
+
+      {loading ? (
+        <BlockSkeleton lines={4} />
+      ) : items.length === 0 ? (
+        <EmptyState>Nessuna domanda: la pagina FAQ è vuota. Aggiungi la prima.</EmptyState>
+      ) : (
+        <ol className='divide-y rounded-lg border bg-card'>
+          {items.map((item, index) => (
+            <li key={item.id} className='flex gap-3 px-4 py-3 sm:px-6 sm:py-4'>
+              <span className='mt-0.5 w-6 shrink-0 text-sm text-muted-foreground tabular-nums'>{index + 1}.</span>
+              <div className='min-w-0 flex-1'>
+                <p className='font-medium'>{item.question}</p>
+                <div className='mt-1 line-clamp-2 text-sm text-muted-foreground'>
+                  <MarkdownContent source={item.answer} />
+                </div>
+              </div>
+              <div className='flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-start'>
+                <div className='flex gap-1'>
+                  <Button
+                    variant='ghost'
+                    size='icon'
+                    aria-label={`Sposta su: ${item.question}`}
+                    title='Sposta su'
+                    disabled={index === 0 || moving}
+                    onClick={() => void move(index, -1)}
+                  >
+                    <ArrowUp className='size-4' />
+                  </Button>
+                  <Button
+                    variant='ghost'
+                    size='icon'
+                    aria-label={`Sposta giù: ${item.question}`}
+                    title='Sposta giù'
+                    disabled={index === items.length - 1 || moving}
+                    onClick={() => void move(index, 1)}
+                  >
+                    <ArrowDown className='size-4' />
+                  </Button>
+                </div>
+                <div className='flex gap-1'>
+                  <Button
+                    variant='outline'
+                    size='icon'
+                    aria-label={`Modifica: ${item.question}`}
+                    title='Modifica'
+                    onClick={() => setDraft({ id: item.id, question: item.question, answer: item.answer })}
+                  >
+                    <Pencil className='size-4' />
+                  </Button>
+                  <Button
+                    variant='outline'
+                    size='icon'
+                    aria-label={`Elimina: ${item.question}`}
+                    title='Elimina'
+                    className='text-destructive hover:text-destructive'
+                    onClick={() => setDeleteTarget(item)}
+                  >
+                    <Trash2 className='size-4' />
+                  </Button>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={open => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare la domanda?</AlertDialogTitle>
+            <AlertDialogDescription>
+              «{deleteTarget?.question}» sparisce dalla pagina FAQ. Non si può annullare.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className='bg-destructive text-white hover:bg-destructive/90'
+              onClick={() => deleteTarget && void remove(deleteTarget)}
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </SettingsSection>
+  )
+}

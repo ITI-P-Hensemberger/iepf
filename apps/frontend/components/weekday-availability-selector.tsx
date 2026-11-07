@@ -1,16 +1,12 @@
 'use client'
 
 import * as React from 'react'
-import { Calendar, Check } from 'lucide-react'
+import { Calendar } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select'
+import { SegmentedTabs } from '@/components/segmented-tabs'
+import { Switch } from '@/components/ui/switch'
+import { cn } from '@/lib/utils'
 
 const WEEKDAYS = [
   { value: 1, label: 'Lunedì' },
@@ -21,9 +17,9 @@ const WEEKDAYS = [
 ] as const
 
 const START_TIMES = [
-  { value: '14:00', label: '14:00 - 15:00 (1h)' },
-  { value: '15:00', label: '15:00 - 16:00 (1h)' },
-  { value: '14:00-16:00', label: '14:00 - 16:00 (2h)' }
+  { value: '14:00', label: '14–15' },
+  { value: '15:00', label: '15–16' },
+  { value: '14:00-16:00', label: '14–16 · 2 ore' }
 ] as const
 type StartTime = (typeof START_TIMES)[number]['value']
 
@@ -93,95 +89,66 @@ export function WeekdayAvailabilitySelector({
     updateAvailability(dayValue, { isAvailable: true, startTime })
   }
 
+  // Hours a week, for the summary: each day is one or two lessons.
+  const hours = value.reduce((sum, day) => sum + (day.isAvailable ? (day.startTime === '14:00-16:00' ? 2 : 1) : 0), 0)
+
   return (
     <div className='space-y-4'>
-      <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-2'>
-          <Calendar className='h-5 w-5 text-primary' />
-          <h3 className='text-base font-medium'>Disponibilità</h3>
+      <div className='flex flex-wrap items-start justify-between gap-2'>
+        <div className='space-y-1'>
+          <h3 className='flex items-center gap-2 font-semibold'>
+            <Calendar className='size-4 text-muted-foreground' aria-hidden /> Disponibilità settimanale
+          </h3>
+          <p className='text-sm text-muted-foreground'>
+            Accendi i giorni in cui puoi fare lezione e scegli la fascia oraria.
+          </p>
         </div>
-        {selectedCount > 0 && (
-          <Badge variant='secondary' className='gap-1'>
-            {selectedCount}{' '}
-            {selectedCount === 1 ? 'giorno selezionato' : 'giorni selezionati'}
-          </Badge>
-        )}
+        <Badge variant={selectedCount > 0 ? 'secondary' : 'outline'}>
+          {selectedCount === 0
+            ? 'Nessun giorno'
+            : `${selectedCount} ${selectedCount === 1 ? 'giorno' : 'giorni'} · ${hours} ${hours === 1 ? 'ora' : 'ore'} a settimana`}
+        </Badge>
       </div>
 
-      <p className='text-sm text-muted-foreground'>
-        Seleziona i giorni e scegli l&apos;orario di inizio della lezione.
-      </p>
-
-      <div className='space-y-4 sm:space-y-2'>
+      <ul className='divide-y rounded-lg border'>
         {WEEKDAYS.map((day) => {
           const availability = value.find((item) => item.weekday === day.value)
           const isSelected = availability?.isAvailable ?? false
           const startTime = availability?.startTime ?? null
+          const switchId = `availability-${day.value}`
           return (
-            <div
+            <li
               key={day.value}
-              className='flex flex-col gap-2 sm:flex-row sm:items-stretch sm:justify-between'
-            >
-              <div
-                role='button'
-                tabIndex={disabled ? -1 : 0}
-                onClick={() => handleToggle(day.value, !isSelected)}
-                onKeyDown={(event) => {
-                  if (disabled) return
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault()
-                    handleToggle(day.value, !isSelected)
-                  }
-                }}
-                aria-pressed={isSelected}
-                className={`
-                  w-full flex items-center justify-between rounded-lg border p-4 text-left transition-all
-                  ${
-                    isSelected
-                      ? 'border-primary bg-primary/5 shadow-sm'
-                      : 'border-border hover:border-primary/50 hover:bg-accent/50'
-                  }
-                  ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                `}
-              >
-                <span
-                  className={`font-medium ${isSelected ? 'text-primary' : ''}`}
-                >
-                  {day.label}
-                </span>
-                {isSelected && (
-                  <div className='flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground'>
-                    <Check className='h-3 w-3' />
-                  </div>
-                )}
-              </div>
-
-              {isSelected && (
-                <div className='w-full sm:w-56'>
-                  <Select
-                    value={startTime ?? undefined}
-                    onValueChange={(value) =>
-                      handleStartTimeChange(day.value, value as StartTime)
-                    }
-                    disabled={disabled}
-                  >
-                    <SelectTrigger className='w-full h-full min-h-16 justify-between whitespace-nowrap'>
-                      <SelectValue placeholder='Ora inizio' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {START_TIMES.map((slot) => (
-                        <SelectItem key={slot.value} value={slot.value}>
-                          {slot.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              className={cn(
+                'flex flex-col gap-3 px-4 py-3 transition-colors sm:flex-row sm:items-center sm:justify-between',
+                isSelected ? 'bg-primary/[0.03]' : ''
               )}
-            </div>
+            >
+              <label htmlFor={switchId} className={cn('flex items-center gap-3', disabled ? 'cursor-not-allowed' : 'cursor-pointer')}>
+                <Switch
+                  id={switchId}
+                  checked={isSelected}
+                  disabled={disabled}
+                  onCheckedChange={(checked) => handleToggle(day.value, checked)}
+                  aria-label={`${day.label}: disponibile`}
+                />
+                <span className={cn('font-medium', !isSelected && 'text-muted-foreground')}>{day.label}</span>
+              </label>
+              {isSelected ? (
+                <SegmentedTabs
+                  label={`Fascia oraria di ${day.label.toLowerCase()}`}
+                  stretch
+                  value={startTime ?? '15:00'}
+                  onValueChange={(next) => handleStartTimeChange(day.value, next as StartTime)}
+                  options={START_TIMES.map((slot) => ({ value: slot.value, label: slot.label }))}
+                />
+              ) : (
+                <span className='text-sm text-muted-foreground sm:pr-1'>Non disponibile</span>
+              )}
+            </li>
           )
         })}
-      </div>
+      </ul>
     </div>
   )
 }

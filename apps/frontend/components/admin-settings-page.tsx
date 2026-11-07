@@ -1,14 +1,17 @@
 'use client'
 
-import { STICKY_TOP_ACTIONS } from '@/components/sticky-footer'
-import { cn } from '@/lib/utils'
+import { AdminSubjectsSettings } from '@/components/admin-subjects-settings'
+import { SettingsSection } from '@/components/settings-section'
+import AdminAnnouncementsPage from '@/components/admin-announcements-page'
+import { AdminClosures } from '@/components/admin-closures'
+import { AdminFaqSettings } from '@/components/admin-faq-settings'
 import * as React from 'react'
 import { toast } from 'sonner'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -19,24 +22,15 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '@/components/ui/table'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { type SectionItem, SectionLayout } from '@/components/section-layout'
 import { Textarea } from '@/components/ui/textarea'
 import { MarkdownEditor } from '@/components/markdown-editor'
 import { SchoolYearReset } from '@/components/school-year-reset'
 import { ServiceMessageCard } from '@/components/service-message-banner'
-import { Calendar } from '@/components/ui/calendar'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
-import { BookOpen, CalendarOff, Info, Megaphone, Pencil, RotateCcw, Save, Trash2, Wrench, X } from 'lucide-react'
+import { BookOpen, CalendarOff, Info, Megaphone, RotateCcw, Wrench, CircleHelp, MessageSquareText } from 'lucide-react'
 import { capitalizeFirst } from '@/lib/capitalize'
 
 type Role = 'student' | 'tutor' | 'admin' | 'activator'
@@ -59,14 +53,6 @@ type SettingsPayload = {
   maintenance: MaintenanceSettings
   serviceMessages: Record<Role, ServiceMessage | null>
   closureDates: string[]
-}
-
-type Subject = {
-  id: string
-  name: string
-  canonicalName: string
-  createdAt: string
-  updatedAt: string
 }
 
 const roleOptions: Role[] = ['student', 'tutor', 'admin', 'activator']
@@ -149,25 +135,15 @@ export default function AdminSettingsPage() {
   const [currentTime, setCurrentTime] = React.useState<string>(
     new Date().toISOString()
   )
-  const [subjects, setSubjects] = React.useState<Subject[]>([])
-  const [subjectsLoading, setSubjectsLoading] = React.useState(false)
-  const [subjectsCreating, setSubjectsCreating] = React.useState(false)
-  const [subjectsSavingId, setSubjectsSavingId] = React.useState<string | null>(
-    null
-  )
-  const [subjectsDeletingId, setSubjectsDeletingId] = React.useState<
-    string | null
-  >(null)
-  const [newSubjectName, setNewSubjectName] = React.useState('')
-  const [newSubjectCanonicalName, setNewSubjectCanonicalName] =
-    React.useState('')
-  const [editingSubjectId, setEditingSubjectId] = React.useState<string | null>(
-    null
-  )
-  const [editingSubjectName, setEditingSubjectName] = React.useState('')
-  const [editingSubjectCanonicalName, setEditingSubjectCanonicalName] =
-    React.useState('')
   const [closureDates, setClosureDates] = React.useState<string[]>([])
+  // For the Info section; the Materie section loads and edits the list on its own.
+  const [subjectCount, setSubjectCount] = React.useState<number | null>(null)
+  React.useEffect(() => {
+    void fetch('/api/subjects')
+      .then(response => (response.ok ? response.json() : null))
+      .then(payload => payload && setSubjectCount(extractPayloadArray(payload).length))
+      .catch(() => undefined)
+  }, [])
 
   React.useEffect(() => {
     let isMounted = true
@@ -268,147 +244,6 @@ export default function AdminSettingsPage() {
     return () => window.clearInterval(interval)
   }, [])
 
-  const loadSubjects = React.useCallback(async () => {
-    setSubjectsLoading(true)
-    try {
-      const response = await fetch('/api/subjects')
-      if (!response.ok) {
-        throw new Error('Impossibile caricare le materie.')
-      }
-      const payload = await response.json()
-      const data = extractPayloadArray<Subject>(payload)
-      setSubjects(data)
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile caricare le materie.'
-      )
-    } finally {
-      setSubjectsLoading(false)
-    }
-  }, [])
-
-  React.useEffect(() => {
-    void loadSubjects()
-  }, [loadSubjects])
-
-  const handleCreateSubject = React.useCallback(
-    async (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
-      const name = newSubjectName.trim()
-      const canonicalName = newSubjectCanonicalName.trim()
-
-      if (!name || !canonicalName) {
-        toast.error('Inserisci nome e nome canonico.')
-        return
-      }
-
-      setSubjectsCreating(true)
-      try {
-        const response = await fetch('/api/subjects', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, canonicalName })
-        })
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null)
-          throw new Error(payload?.message || 'Impossibile creare la materia.')
-        }
-        const payload = await response.json()
-        const created = (payload?.data ?? payload) as Subject
-        setSubjects((prev) => [created, ...prev])
-        setNewSubjectName('')
-        setNewSubjectCanonicalName('')
-        toast.success('Materia creata.')
-      } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : 'Impossibile creare la materia.'
-        )
-      } finally {
-        setSubjectsCreating(false)
-      }
-    },
-    [newSubjectCanonicalName, newSubjectName]
-  )
-
-  const handleEditSubject = React.useCallback((subject: Subject) => {
-    setEditingSubjectId(subject.id)
-    setEditingSubjectName(subject.name)
-    setEditingSubjectCanonicalName(subject.canonicalName)
-  }, [])
-
-  const handleCancelEdit = React.useCallback(() => {
-    setEditingSubjectId(null)
-    setEditingSubjectName('')
-    setEditingSubjectCanonicalName('')
-  }, [])
-
-  const handleUpdateSubject = React.useCallback(
-    async (subjectId: string) => {
-      const name = editingSubjectName.trim()
-      const canonicalName = editingSubjectCanonicalName.trim()
-
-      if (!name || !canonicalName) {
-        toast.error('Inserisci nome e nome canonico.')
-        return
-      }
-
-      setSubjectsSavingId(subjectId)
-      try {
-        const response = await fetch(`/api/subjects/${subjectId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, canonicalName })
-        })
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null)
-          throw new Error(
-            payload?.message || 'Impossibile aggiornare la materia.'
-          )
-        }
-        const payload = await response.json()
-        const updated = (payload?.data ?? payload) as Subject
-        setSubjects((prev) =>
-          prev.map((subject) => (subject.id === subjectId ? updated : subject))
-        )
-        handleCancelEdit()
-        toast.success('Materia aggiornata.')
-      } catch (err) {
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : 'Impossibile aggiornare la materia.'
-        )
-      } finally {
-        setSubjectsSavingId(null)
-      }
-    },
-    [editingSubjectCanonicalName, editingSubjectName, handleCancelEdit]
-  )
-
-  const handleDeleteSubject = React.useCallback(async (subject: Subject) => {
-    const confirmed = window.confirm(`Eliminare la materia "${subject.name}"?`)
-    if (!confirmed) return
-
-    setSubjectsDeletingId(subject.id)
-    try {
-      const response = await fetch(`/api/subjects/${subject.id}`, {
-        method: 'DELETE'
-      })
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        throw new Error(payload?.message || 'Impossibile eliminare la materia.')
-      }
-      setSubjects((prev) => prev.filter((item) => item.id !== subject.id))
-      toast.success('Materia eliminata.')
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile eliminare la materia.'
-      )
-    } finally {
-      setSubjectsDeletingId(null)
-    }
-  }, [])
-
   const toggleRole = React.useCallback((role: Role) => {
     setSettings((prev) => {
       const roles = new Set(prev.maintenance.roles ?? [])
@@ -475,44 +310,6 @@ export default function AdminSettingsPage() {
         .sort() as string[],
     [closureDates, toApiClosureDate]
   )
-
-  const handleRemoveClosureDate = React.useCallback(
-    (date: string) => {
-      setClosureDates((prev) => prev.filter((item) => item !== date))
-    },
-    []
-  )
-
-  const parseClosureDate = React.useCallback(
-    (date: string) => {
-      const apiDate = toApiClosureDate(date)
-      if (!apiDate) return null
-      const parsed = new Date(`${apiDate}T00:00:00`)
-      return Number.isNaN(parsed.getTime()) ? null : parsed
-    },
-    [toApiClosureDate]
-  )
-
-  const formatClosureDate = React.useCallback((date: Date) => {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${day}-${month}-${year}`
-  }, [])
-
-  const selectedClosureDates = React.useMemo(
-    () => closureDates.map(parseClosureDate).filter(Boolean) as Date[],
-    [closureDates, parseClosureDate]
-  )
-
-  const closureDatesDisplay = React.useMemo(() => {
-    return closureDates.slice().sort((a, b) => {
-      const apiA = toApiClosureDate(a)
-      const apiB = toApiClosureDate(b)
-      if (!apiA || !apiB) return a.localeCompare(b)
-      return apiA.localeCompare(apiB)
-    })
-  }, [closureDates, toApiClosureDate])
 
   const handleSaveMaintenance = React.useCallback(async () => {
     setSavingMaintenance(true)
@@ -663,15 +460,17 @@ export default function AdminSettingsPage() {
   )
 
   const availableTabs = React.useMemo(
-    () => ['info', 'maintenance', 'messages', 'closures', 'subjects', 'school-year'] as const,
+    () => ['info', 'maintenance', 'messages', 'popup', 'closures', 'subjects', 'faq', 'school-year'] as const,
     []
   )
   const sections: SectionItem[] = [
     { value: 'info', label: 'Info', icon: Info },
     { value: 'maintenance', label: 'Manutenzione', icon: Wrench, separatorBefore: true },
     { value: 'messages', label: 'Messaggi', icon: Megaphone },
+    { value: 'popup', label: 'Popup', icon: MessageSquareText },
     { value: 'closures', label: 'Chiusure', icon: CalendarOff },
     { value: 'subjects', label: 'Materie', icon: BookOpen },
+    { value: 'faq', label: 'FAQ', icon: CircleHelp },
     { value: 'school-year', label: 'Anno scolastico', icon: RotateCcw, separatorBefore: true }
   ]
 
@@ -703,20 +502,17 @@ export default function AdminSettingsPage() {
     <SectionLayout title='Impostazioni globali' backHref='/admin' sections={sections} value={activeTab} onValueChange={handleTabChange}>
           <Tabs value={activeTab} onValueChange={handleTabChange}>
             <TabsContent value='maintenance' className='mt-0 space-y-6'>
-              <div className={cn('flex justify-end', STICKY_TOP_ACTIONS)}>
-                <Button
-                  onClick={handleSaveMaintenance}
-                  disabled={loading || savingMaintenance || !isMaintenanceDirty}
-                >
-                  {savingMaintenance ? 'Salvataggio...' : 'Salva manutenzione'}
-                </Button>
-              </div>
-
+              <SettingsSection
+                title='Manutenzione'
+                description='Chiude il sito a studenti e tutor con un messaggio; gli admin continuano a entrare.'
+                actions={
+                  <Button onClick={handleSaveMaintenance} disabled={loading || savingMaintenance || !isMaintenanceDirty}>
+                    {savingMaintenance ? 'Salvataggio...' : 'Salva modifiche'}
+                  </Button>
+                }
+              >
               <Card>
-                <CardHeader>
-                  <CardTitle>Modalità manutenzione</CardTitle>
-                </CardHeader>
-                <CardContent className='space-y-4'>
+                <CardContent className='pt-6 space-y-4'>
                   <div className='flex items-start gap-3'>
                     <Checkbox
                       id='maintenance-enabled'
@@ -782,23 +578,21 @@ export default function AdminSettingsPage() {
                   </Field>
                 </CardContent>
               </Card>
+              </SettingsSection>
             </TabsContent>
 
             <TabsContent value='messages' className='mt-0 space-y-6'>
-              <div className={cn('flex justify-end', STICKY_TOP_ACTIONS)}>
-                <Button
-                  onClick={handleSaveMessages}
-                  disabled={loading || savingMessages || !isServiceDirty}
-                >
-                  {savingMessages ? 'Salvataggio...' : 'Salva messaggi'}
-                </Button>
-              </div>
-
+              <SettingsSection
+                title='Messaggi di servizio'
+                description='Un avviso in cima alle pagine, diverso per studenti, tutor e admin.'
+                actions={
+                  <Button onClick={handleSaveMessages} disabled={loading || savingMessages || !isServiceDirty}>
+                    {savingMessages ? 'Salvataggio...' : 'Salva modifiche'}
+                  </Button>
+                }
+              >
               <Card>
-                <CardHeader>
-                  <CardTitle>Messaggi di servizio</CardTitle>
-                </CardHeader>
-                <CardContent className='space-y-6'>
+                <CardContent className='pt-6 space-y-6'>
                   {roleOptions.map((role) => {
                     const message = serviceMessageState[role]
                     return (
@@ -912,243 +706,58 @@ export default function AdminSettingsPage() {
                   })}
                 </CardContent>
               </Card>
+              </SettingsSection>
             </TabsContent>
 
             <TabsContent value='subjects' className='mt-0 space-y-6'>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Nuova materia</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <form className='space-y-4' onSubmit={handleCreateSubject}>
-                    <div className='grid gap-4 md:grid-cols-2'>
-                      <Field className='gap-2'>
-                        <FieldLabel>Nome</FieldLabel>
-                        <Input
-                          value={newSubjectName}
-                          onChange={(event) =>
-                            setNewSubjectName(capitalizeFirst(event.target.value))
-                          }
-                          placeholder='Es. Matematica'
-                          maxLength={120}
-                        />
-                      </Field>
-                      <Field className='gap-2'>
-                        <FieldLabel>Nome canonico</FieldLabel>
-                        <Input
-                          value={newSubjectCanonicalName}
-                          onChange={(event) =>
-                            setNewSubjectCanonicalName(event.target.value)
-                          }
-                          placeholder='Es. matematica'
-                          maxLength={120}
-                        />
-                      </Field>
-                    </div>
-                    <div className='flex justify-end'>
-                      <Button type='submit' disabled={subjectsCreating}>
-                        {subjectsCreating ? 'Creazione...' : 'Aggiungi materia'}
-                      </Button>
-                    </div>
-                  </form>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Elenco materie</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {subjectsLoading ? (
-                    <div className='text-sm text-muted-foreground'>
-                      Caricamento materie...
-                    </div>
-                  ) : subjects.length === 0 ? (
-                    <div className='text-sm text-muted-foreground'>
-                      Nessuna materia disponibile.
-                    </div>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Nome</TableHead>
-                          <TableHead>Nome canonico</TableHead>
-                          <TableHead></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {subjects.map((subject) => {
-                          const isEditing = editingSubjectId === subject.id
-                          const isSaving = subjectsSavingId === subject.id
-                          return (
-                            <TableRow key={subject.id}>
-                              <TableCell>
-                                {isEditing ? (
-                                  <Input
-                                    value={editingSubjectName}
-                                    onChange={(event) =>
-                                      setEditingSubjectName(capitalizeFirst(event.target.value))
-                                    }
-                                    maxLength={120}
-                                  />
-                                ) : (
-                                  subject.name
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                {isEditing ? (
-                                  <Input
-                                    value={editingSubjectCanonicalName}
-                                    onChange={(event) =>
-                                      setEditingSubjectCanonicalName(
-                                        event.target.value
-                                      )
-                                    }
-                                    maxLength={120}
-                                  />
-                                ) : (
-                                  subject.canonicalName
-                                )}
-                              </TableCell>
-                              <TableCell className='text-right'>
-                                <div className='flex items-center justify-end gap-2'>
-                                  {isEditing ? (
-                                    <>
-                                      <Button
-                                        size='sm'
-                                        variant='ghost'
-                                        onClick={() =>
-                                          handleUpdateSubject(subject.id)
-                                        }
-                                        disabled={isSaving}
-                                        aria-label='Salva'
-                                      >
-                                        <Save className='h-4 w-4' />
-                                      </Button>
-                                      <Button
-                                        size='sm'
-                                        variant='ghost'
-                                        onClick={handleCancelEdit}
-                                        disabled={isSaving}
-                                        aria-label='Annulla'
-                                      >
-                                        <X className='h-4 w-4' />
-                                      </Button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Button
-                                        size='sm'
-                                        variant='ghost'
-                                        onClick={() =>
-                                          handleEditSubject(subject)
-                                        }
-                                        disabled={Boolean(
-                                          editingSubjectId ||
-                                          subjectsSavingId ||
-                                          subjectsDeletingId
-                                        )}
-                                        aria-label='Modifica'
-                                      >
-                                        <Pencil className='h-4 w-4' />
-                                      </Button>
-                                      <Button
-                                        size='sm'
-                                        variant='ghost'
-                                        onClick={() =>
-                                          handleDeleteSubject(subject)
-                                        }
-                                        disabled={Boolean(
-                                          editingSubjectId ||
-                                          subjectsSavingId ||
-                                          subjectsDeletingId
-                                        )}
-                                        aria-label='Elimina'
-                                      >
-                                        <Trash2 className='h-4 w-4 text-destructive' />
-                                      </Button>
-                                    </>
-                                  )}
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          )
-                        })}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
+              {activeTab === 'subjects' && <AdminSubjectsSettings />}
             </TabsContent>
 
             <TabsContent value='closures' className='mt-0 space-y-6'>
-              <div className={cn('flex justify-end', STICKY_TOP_ACTIONS)}>
-                <Button
-                  onClick={handleSaveClosures}
-                  disabled={loading || savingClosures || !isClosuresDirty}
-                >
-                  {savingClosures ? 'Salvataggio...' : 'Salva chiusure'}
-                </Button>
-              </div>
+              <SettingsSection
+                title='Chiusure'
+                description='I giorni in cui la scuola è chiusa e non si fanno lezioni.'
+                actions={
+                  <Button onClick={handleSaveClosures} disabled={loading || savingClosures || !isClosuresDirty}>
+                    {savingClosures ? 'Salvataggio...' : 'Salva modifiche'}
+                  </Button>
+                }
+              >
+              <AdminClosures
+                dates={closureDatesPayload}
+                onChange={(next) => setClosureDates(next.map((date) => {
+                  const [year, month, day] = date.split('-')
+                  return `${day}-${month}-${year}`
+                }))}
+                dirty={isClosuresDirty}
+              />
+              </SettingsSection>
+            </TabsContent>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Date di chiusura</CardTitle>
-                </CardHeader>
-                <CardContent className='space-y-4'>
-                  <p className='text-sm text-muted-foreground'>
-                    Seleziona le date in cui la scuola è chiusa.
-                  </p>
-                  <div className='flex justify-center'>
-                    <Calendar
-                      mode='multiple'
-                      selected={selectedClosureDates}
-                      onSelect={(dates) => {
-                        const next = (dates ?? []).map(formatClosureDate)
-                        setClosureDates(Array.from(new Set(next)))
-                      }}
-                      numberOfMonths={1}
-                    />
-                  </div>
+            <TabsContent value='popup' className='mt-0'>
+              {activeTab === 'popup' && <AdminAnnouncementsPage />}
+            </TabsContent>
 
-                  {closureDates.length === 0 ? (
-                    <div className='text-sm text-muted-foreground'>
-                      Nessuna data di chiusura impostata.
-                    </div>
-                  ) : (
-                    <div className='flex flex-wrap gap-2'>
-                      {closureDatesDisplay.map((date) => (
-                        <div
-                          key={date}
-                          className='flex items-center gap-2 rounded-full border px-3 py-1 text-sm'
-                        >
-                          <span>{date}</span>
-                          <Button
-                            type='button'
-                            size='sm'
-                            variant='ghost'
-                            onClick={() => handleRemoveClosureDate(date)}
-                          >
-                            Rimuovi
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+            <TabsContent value='faq' className='mt-0'>
+              {activeTab === 'faq' && <AdminFaqSettings />}
             </TabsContent>
 
             <TabsContent value='school-year' className='mt-0'>
+              <SettingsSection
+                title='Anno scolastico'
+                description='A fine anno: scarica il report e azzera i dati per ricominciare.'
+              >
               {activeTab === 'school-year' && <SchoolYearReset />}
+              </SettingsSection>
             </TabsContent>
 
             <TabsContent value='info' className='mt-0 space-y-6'>
+              <SettingsSection
+                title='Informazioni'
+                description='Lo stato del servizio a colpo d’occhio.'
+              >
               <Card>
-                <CardHeader>
-                  <CardTitle>Informazioni</CardTitle>
-                </CardHeader>
-                <CardContent className='space-y-4'>
+                <CardContent className='pt-6 space-y-4'>
                   <div className='flex flex-wrap gap-2'>
                     <Badge variant='secondary'>
                       Data e ora attuali: {formatItalianDate(currentTime)}
@@ -1173,7 +782,7 @@ export default function AdminSettingsPage() {
                         .join(', ') || 'nessuno'}
                     </Badge>
                     <Badge variant='outline'>
-                      Materie totali: {subjects.length}
+                      Materie totali: {subjectCount ?? '–'}
                     </Badge>
                     <Badge variant='outline'>
                       Giorni di chiusura: {closureDates.length}
@@ -1185,6 +794,7 @@ export default function AdminSettingsPage() {
                   </p>
                 </CardContent>
               </Card>
+              </SettingsSection>
             </TabsContent>
           </Tabs>
     </SectionLayout>

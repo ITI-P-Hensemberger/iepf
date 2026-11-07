@@ -76,7 +76,7 @@ export function SectionLayout({
                       className={cn(
                         'flex items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors',
                         active
-                          ? 'bg-muted font-medium text-foreground'
+                          ? 'bg-primary/12 font-medium text-[var(--primary-text)]'
                           : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                       )}
                     >

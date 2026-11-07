@@ -2,6 +2,7 @@
 
 // One school day at a glance: every tutor's lessons (or every subject's), what is booked, what
 // is still open, and a click away from each lesson's details.
+import { TILE } from '@/lib/tile'
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -174,7 +175,7 @@ export function DayOverview({ lessons, loading, grouping }: { lessons: ScheduleL
 
 function Figure({ label, value }: { label: string, value: number }) {
   return (
-    <div className='rounded-lg bg-muted/50 px-4 py-3'>
+    <div className='rounded-lg border bg-card px-4 py-3'>
       <div className='text-xs text-muted-foreground'>{label}</div>
       <div className='text-2xl font-medium'>{value}</div>
     </div>
@@ -187,7 +188,7 @@ function GroupRow({ lessons, grouping }: { lessons: ScheduleLesson[], grouping: 
   return (
     <div className='flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start'>
       {/* The tutor or subject stays in view while its lessons scroll. */}
-      <div className='sticky top-[var(--sticky-top)] z-10 -mx-4 bg-card px-4 py-1 sm:mx-0 sm:w-48 sm:shrink-0 sm:self-start sm:bg-transparent sm:px-0 sm:py-0'>
+      <div className='sticky top-[var(--sticky-top)] z-10 -mx-4 bg-[var(--card)] px-4 py-1 sm:mx-0 sm:w-48 sm:shrink-0 sm:self-start sm:bg-transparent sm:px-0 sm:py-0'>
         {grouping === 'tutor' ? (
           <>
             <div className='font-medium'>{first.tutorName}</div>
@@ -221,7 +222,9 @@ function LessonChip({ lesson, grouping }: { lesson: ScheduleLesson, grouping: Gr
       href={withFrom(`/admin/lessons/${lesson.id}`, here)}
       title={students || undefined}
       className={cn(
-        'flex min-w-36 flex-1 basis-0 flex-col gap-0.5 rounded-md border px-3 py-2 text-sm transition-colors hover:border-primary',
+        // A lesson tile: on the card colour with a light shadow, lifting under the pointer.
+        'flex min-w-36 flex-1 basis-0 flex-col gap-0.5 px-3 py-2 text-sm',
+        TILE,
         open && !canceled && 'border-dashed',
         canceled && 'text-muted-foreground line-through decoration-muted-foreground/60'
       )}

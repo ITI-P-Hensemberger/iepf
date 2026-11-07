@@ -8,11 +8,11 @@ function Footer() {
           <span>© {new Date().getFullYear()} ITI P. Hensemberger</span>
           <span className='hidden sm:inline'>·</span>
           <Link href='/privacy-policy' className='underline underline-offset-4'>
-            Informativa sulla Privacy
+            Informativa sulla privacy
           </Link>
           <span className='hidden sm:inline'>·</span>
           <Link href='/terms' className='underline underline-offset-4'>
-            Termini e Condizioni
+            Termini e condizioni
           </Link>
         </div>
       </div>

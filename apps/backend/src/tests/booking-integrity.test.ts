@@ -306,6 +306,19 @@ describe('booking integrity', () => {
     await expect(db.insert(lessonBookings).values(values)).resolves.toBeDefined()
   })
 
+  it('sorts students by the hours they have left', async () => {
+    const few = await createStudent(1)
+    const many = await createStudent(9)
+    const response = await request('/users?role=student&sortBy=lessonTokens&sortDir=desc&limit=200', { method: 'GET', token: adminToken })
+    expect(response.status).toBe(200)
+    const order = (await response.json()).data.map((user: { id: string }) => user.id)
+    expect(order.indexOf(many.id)).toBeLessThan(order.indexOf(few.id))
+    const ascending = await request('/users?role=student&sortBy=lessonTokens&sortDir=asc&limit=200', { method: 'GET', token: adminToken })
+    const { data } = await ascending.json() as { data: Array<{ lessonTokens: number }> }
+    const balances = data.map(user => user.lessonTokens)
+    expect(balances).toEqual([...balances].sort((a: number, b: number) => a - b))
+  })
+
   it('keeps concurrent admin token adjustments consistent and non-negative', async () => {
     const student = await createStudent(1)
     const responses = await Promise.all([1, 2, 3].map(() => request(`/students/${student.id}/tokens/adjust`, {

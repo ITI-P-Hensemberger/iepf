@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import Image from 'next/image'
+import { Link2Off as LinkIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { BackButton } from '@/components/back-button'
+import { AuthLayout } from '@/components/auth-layout'
+import { ResultPanel } from '@/components/result-panel'
 import { TutorRegistrationForm } from '@/components/tutor-registration-form'
 
 export default function TutorInviteSignUpPage() {
@@ -22,35 +23,17 @@ export default function TutorInviteSignUpPage() {
   }, [isTokenMissing])
 
   return (
-    <main className='flex-1'>
-      <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
-        <div className='mb-6 self-start'>
-          <BackButton href='/' />
-        </div>
-        <Image
-          src='/logo.png'
-          alt='IEPF Logo'
-          width={125}
-          height={125}
-          style={{ width: 'auto', height: 'auto' }}
-          draggable={false}
-          priority
-        />
-        <h1 className='mt-6 text-2xl'>Registrazione tutor</h1>
-        {!isSuccess && !isTokenMissing && (
-          <p className='mt-2 text-center max-w-md'>
-            Completa la registrazione per attivare il tuo account tutor.
-          </p>
-        )}
-        {!isTokenMissing && (
-          <div className='w-full max-w-md mt-6'>
-            <TutorRegistrationForm
-              token={token}
-              onSuccess={() => setIsSuccess(true)}
-            />
-          </div>
-        )}
-      </div>
-    </main>
+    <AuthLayout
+      title='Registrazione tutor'
+      description={isSuccess || isTokenMissing ? undefined : 'Completa la registrazione per attivare il tuo account tutor.'}
+    >
+      {isTokenMissing ? (
+        <ResultPanel icon={LinkIcon} tone='error' title='Invito non valido'>
+          Il link di invito è incompleto o scaduto. Chiedi un nuovo invito.
+        </ResultPanel>
+      ) : (
+        <TutorRegistrationForm token={token} onSuccess={() => setIsSuccess(true)} />
+      )}
+    </AuthLayout>
   )
 }

@@ -21,11 +21,12 @@ export const subjects = pgTable('subjects', {
 
 export const selectSubjectsSchema = toZodV4SchemaTyped(createSelectSchema(subjects))
 
+// Admins only write the name: the canonical name is made from it (lib/subject-name.ts).
 export const insertSubjectsSchema = toZodV4SchemaTyped(createInsertSchema(subjects, {
-  name: field => field.min(1).max(120),
-  canonicalName: field => field.min(1).max(120)
+  name: field => field.trim().min(1).max(120).refine(value => /[\p{L}\p{N}]/u.test(value), 'Il nome deve contenere lettere o numeri')
 }).omit({
   id: true,
+  canonicalName: true,
   createdAt: true,
   updatedAt: true
 }).strict())

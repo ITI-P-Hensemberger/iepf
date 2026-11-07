@@ -1198,7 +1198,7 @@ export default function AdminLessonDetailsPage() {
               ) : tutor ? (
                 <div className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between'>
                   <div className='space-y-1'>
-                    <Link className='font-medium text-primary hover:underline' href={withFrom(`/admin/tutors/${tutor.id}`, here)}>
+                    <Link className='font-medium text-[var(--primary-text)] hover:underline' href={withFrom(`/admin/tutors/${tutor.id}`, here)}>
                       {tutor.firstName} {tutor.lastName}
                     </Link>
                     {tutorClassLabel(tutor) && <div className='text-sm text-muted-foreground'>{tutorClassLabel(tutor)}</div>}
@@ -1259,7 +1259,7 @@ export default function AdminLessonDetailsPage() {
                     <div className='flex items-start justify-between gap-2'>
                       <div className='min-w-0'>
                         {student ? (
-                          <Link className='inline-flex items-center gap-1 font-medium text-primary hover:underline' href={withFrom(`/admin/students/${student.id}`, here)}>
+                          <Link className='inline-flex items-center gap-1 font-medium text-[var(--primary-text)] hover:underline' href={withFrom(`/admin/students/${student.id}`, here)}>
                             {studentLabel(student)}
                           </Link>
                         ) : (

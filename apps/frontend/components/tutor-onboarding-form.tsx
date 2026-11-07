@@ -7,10 +7,9 @@ import * as z from 'zod'
 import { toast } from 'sonner'
 
 import { TUTOR_ONBOARDED_FLAG as ONBOARDED_FLAG } from '@/components/push-prompt'
-import { GraduationCap } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
+import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { FieldSeparator } from '@/components/ui/field'
 import { SubjectSelector } from '@/components/subject-selector'
 import { WeekdayAvailabilitySelector } from '@/components/weekday-availability-selector'
@@ -143,18 +142,7 @@ export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
 
   return (
     <Card className='w-full'>
-      <CardHeader className='space-y-2'>
-        <div className='flex items-center gap-2'>
-          <GraduationCap className='h-6 w-6 text-primary' />
-          <h1 className='text-xl font-semibold'>
-            Configura il tuo profilo tutor
-          </h1>
-        </div>
-        <p className='text-sm text-muted-foreground'>
-          Completa il tuo profilo selezionando le materie e la disponibilità
-        </p>
-      </CardHeader>
-      <CardContent>
+      <CardContent className='pt-6'>
         <form
           id='tutor-onboarding-form'
           onSubmit={form.handleSubmit(onSubmit)}

@@ -11,6 +11,7 @@ import { announcementDismissals, announcements } from './schemas/announcements.s
 import { auditLogs } from './schemas/audit-logs.schema'
 import { classSections } from './schemas/class-sections.schema'
 import { emailVerificationTokens } from './schemas/email-verification-tokens.schema'
+import { faqs } from './schemas/faqs.schema'
 import { globalSettings } from './schemas/global-settings.schema'
 import { lessonBookings } from './schemas/lesson-bookings.schema'
 import { lessonFeedback, lessonFeedbackVersions } from './schemas/lesson-feedback.schema'
@@ -61,7 +62,8 @@ const schema = {
   notificationPreferences,
   notifications,
   announcements,
-  announcementDismissals
+  announcementDismissals,
+  faqs
 }
 
 const pool = new Pool({

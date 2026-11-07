@@ -6,7 +6,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -14,7 +13,7 @@ import { Button } from '@/components/ui/button'
 import { startLoginSession } from '@/lib/announcement-dismissals'
 import { notifyAuthChanged } from '@/lib/auth-events'
 import { safeInternalPath } from '@/lib/safe-redirect'
-import { BackButton } from '@/components/back-button'
+import { AuthLayout } from '@/components/auth-layout'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import {
   Field,
@@ -249,25 +248,16 @@ function LoginContent() {
   }
 
   return (
-    <main className='flex-1'>
-      <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
-        <div className='mb-6 self-start'>
-          <BackButton href='/' />
-        </div>
-        <Image
-          src='/logo.png'
-          alt='IEPF Logo'
-          width={125}
-          height={125}
-          style={{ width: 'auto', height: 'auto' }}
-          draggable={false}
-          priority
-        />
-        <h1 className='mt-6 text-2xl'>Accesso</h1>
-        <p className='mt-2 text-center max-w-md'>
-          Inserisci le tue credenziali per accedere al tuo account.
+    <AuthLayout
+      title='Accedi'
+      description='Inserisci le tue credenziali per entrare nel tuo account.'
+      footer={(
+        <p>
+          Non hai un account?{' '}
+          <Link href='/auth/sign-up' className='font-medium text-foreground underline underline-offset-4'>Registrati</Link>
         </p>
-        <div className='w-full max-w-md mt-6'>
+      )}
+    >
           <Card>
             <CardContent className='pt-6'>
               <form
@@ -381,14 +371,9 @@ function LoginContent() {
                   ? 'Invio in corso...'
                   : 'Hai dimenticato la password?'}
               </Button>
-              <Button asChild variant='ghost'>
-                <Link href='/auth/sign-up'>Non hai un account? Registrati</Link>
-              </Button>
             </CardFooter>
           </Card>
-        </div>
-      </div>
-    </main>
+    </AuthLayout>
   )
 }
 
