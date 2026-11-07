@@ -335,6 +335,8 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
           return a.sectionName ?? ''
         case 'year':
           return a.year ?? -1
+        case 'lessonTokens':
+          return a.lessonTokens ?? -1
         default:
           return a.lastName
       }
@@ -353,6 +355,8 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
           return b.sectionName ?? ''
         case 'year':
           return b.year ?? -1
+        case 'lessonTokens':
+          return b.lessonTokens ?? -1
         default:
           return b.lastName
       }
