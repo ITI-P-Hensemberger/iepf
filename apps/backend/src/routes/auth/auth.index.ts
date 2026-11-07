@@ -35,6 +35,11 @@ router.use('/auth/password/reset/confirm', rateLimit({
   max: 5,
   keyPrefix: 'auth:password-reset-confirm'
 }))
+router.use('/auth/password/reset/check', rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  keyPrefix: 'auth:password-reset-check'
+}))
 router.use('/auth/verify-email/request', rateLimit({
   windowMs: 60_000,
   max: 3,
@@ -107,6 +112,7 @@ router
   .openapi(routes.logout, handlers.logout)
   .openapi(routes.register, handlers.register)
   .openapi(routes.requestPasswordReset, handlers.requestPasswordReset)
+  .openapi(routes.checkPasswordReset, handlers.checkPasswordReset)
   .openapi(routes.confirmPasswordReset, handlers.confirmPasswordReset)
   .openapi(routes.requestEmailVerification, handlers.requestEmailVerification)
   .openapi(routes.confirmEmailVerification, handlers.confirmEmailVerification)

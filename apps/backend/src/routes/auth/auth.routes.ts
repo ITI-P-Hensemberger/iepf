@@ -228,7 +228,9 @@ export const confirmPasswordReset = createRoute({
     body: jsonContentRequired(
       z.object({
         token: z.string().min(1),
-        password: z.string().min(8)
+        password: z.string().min(8),
+        // The refresh token of the session the link was opened in: it stays signed in.
+        keepRefreshToken: z.string().min(1).optional()
       }),
       'Password reset confirmation'
     )
@@ -241,6 +243,34 @@ export const confirmPasswordReset = createRoute({
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
       'Invalid or expired reset token'
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
+      'Rate limit exceeded'
+    )
+  }
+})
+
+export const checkPasswordReset = createRoute({
+  path: '/auth/password/reset/check',
+  method: 'post',
+  tags,
+  request: {
+    body: jsonContentRequired(
+      z.object({
+        token: z.string().min(1)
+      }),
+      'Password reset link to look at, without using it'
+    )
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      z.object({
+        valid: z.boolean(),
+        // True when the bearer of the optional access token is the link's owner.
+        sameUser: z.boolean()
+      }),
+      'Whether the link still works, and for whom'
     ),
     [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.TOO_MANY_REQUESTS),
@@ -567,6 +597,7 @@ export type LogoutRoute = typeof logout
 export type RegisterRoute = typeof register
 export type RequestPasswordResetRoute = typeof requestPasswordReset
 export type ConfirmPasswordResetRoute = typeof confirmPasswordReset
+export type CheckPasswordResetRoute = typeof checkPasswordReset
 export type RequestEmailVerificationRoute = typeof requestEmailVerification
 export type ConfirmEmailVerificationRoute = typeof confirmEmailVerification
 export type InviteTutorRoute = typeof inviteTutor

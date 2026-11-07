@@ -1,5 +1,5 @@
 // Purpose: Refresh token lifecycle helpers.
-import { and, eq, lte } from 'drizzle-orm'
+import { and, eq, lte, ne } from 'drizzle-orm'
 import { randomBytes } from 'node:crypto'
 
 import db from '@/db'
@@ -109,6 +109,9 @@ export async function revokeRefreshToken(refreshToken: string) {
   await db.delete(refreshTokens).where(eq(refreshTokens.tokenHash, tokenHash))
 }
 
-export async function revokeUserRefreshTokens(userId: string) {
-  await db.delete(refreshTokens).where(eq(refreshTokens.userId, userId))
+// `keep` spares the session the change was made from; it only counts when it belongs to `userId`.
+export async function revokeUserRefreshTokens(userId: string, keep?: string) {
+  await db.delete(refreshTokens).where(keep
+    ? and(eq(refreshTokens.userId, userId), ne(refreshTokens.tokenHash, hashToken(keep)))
+    : eq(refreshTokens.userId, userId))
 }

@@ -1,6 +1,8 @@
 import { backendFetch } from '@/lib/backend-fetch'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
+import { AUTH_COOKIES } from '@/lib/auth'
 import { parseBackendPayload } from '@/lib/backend-response'
 
 export async function POST(request: Request) {
@@ -23,7 +25,12 @@ export async function POST(request: Request) {
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify({
+      token: body?.token,
+      password: body?.password,
+      // This device stays signed in when the link is for its own user; the backend checks that.
+      keepRefreshToken: (await cookies()).get(AUTH_COOKIES.refresh)?.value
+    })
   })
 
   const payload = await response.text()

@@ -31,6 +31,17 @@ export async function issuePasswordResetToken(userId: string) {
   }
 }
 
+// Whose link this is, without using it up: null when unknown or expired.
+export async function passwordResetTokenOwner(token: string) {
+  const found = await db.query.passwordResetTokens.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.tokenHash, hashToken(token))
+    },
+    columns: { userId: true, expiresAt: true }
+  })
+  return found && found.expiresAt > new Date() ? found.userId : null
+}
+
 export async function consumePasswordResetToken(token: string) {
   const tokenHash = hashToken(token)
   const found = await db.query.passwordResetTokens.findFirst({

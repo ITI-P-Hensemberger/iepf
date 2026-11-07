@@ -35,7 +35,6 @@ import {
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { useSession } from '@/lib/use-session'
-import { logout } from '@/lib/auth-client'
 
 import { extractPayloadArray } from '@/lib/backend-response'
 import { NotificationSettings } from '@/components/notification-settings'
@@ -459,8 +458,7 @@ export default function ProfilePage() {
       }
 
       setResetStatus('success')
-      toast.success('Mail di reset inviata. Controlla la tua casella.')
-      await logout()
+      toast.success('Ti abbiamo mandato il link per cambiare password.')
     } catch (err) {
       setResetStatus('error')
       toast.error(
@@ -622,7 +620,7 @@ export default function ProfilePage() {
                 <div className='space-y-1'>
                   <h2 className='text-lg font-semibold'>Password</h2>
                   <p className='text-sm text-muted-foreground'>
-                    Ti mandiamo per email un link per sceglierne una nuova; intanto esci dall&apos;account.
+                    Ti mandiamo per email un link per sceglierne una nuova. Resti connesso su questo dispositivo.
                   </p>
                 </div>
                 <Button
