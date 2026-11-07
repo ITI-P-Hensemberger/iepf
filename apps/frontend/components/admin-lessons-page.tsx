@@ -740,7 +740,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
               id: 'lesson-search',
               value: filters.search,
               onChange: (value) => setFilters((prev) => ({ ...prev, search: value })),
-              placeholder: 'Tutor o materia'
+              placeholder: 'Data, tutor, studente, materia o argomento'
             }}
             activeFilters={[filters.tutorId, filters.subjectId, filters.status, filters.dateRange?.from].filter(Boolean).length}
             onReset={handleClearFilters}

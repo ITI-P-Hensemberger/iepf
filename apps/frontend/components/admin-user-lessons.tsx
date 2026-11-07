@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 
 import { EmptyState } from '@/components/empty-state'
+import { SEARCH_DELAY, SearchField } from '@/components/search-field'
 import { useHere, withFrom } from '@/lib/back-link'
 import { StatusBadge, type StudentLesson } from '@/components/student-lesson-ui'
 import { Badge } from '@/components/ui/badge'
@@ -44,6 +45,12 @@ function tutorBadge(lesson: TutorLesson, when: When) {
 export function AdminUserLessons({ role, userId }: { role: 'tutor' | 'student', userId: string }) {
   const here = useHere()
   const [when, setWhen] = React.useState<When>('past')
+  const [search, setSearch] = React.useState('')
+  const [q, setQ] = React.useState('')
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => setQ(search.trim()), SEARCH_DELAY)
+    return () => window.clearTimeout(timer)
+  }, [search])
   const [rows, setRows] = React.useState<Row[]>([])
   const [total, setTotal] = React.useState(0)
   const [loading, setLoading] = React.useState(true)
@@ -62,6 +69,7 @@ export function AdminUserLessons({ role, userId }: { role: 'tutor' | 'student', 
         sortDir: when === 'past' ? 'desc' : 'asc',
         [when === 'past' ? 'to' : 'from']: now
       })
+      if (q) params.set('q', q)
       let next: Row[]
       let count: number
       if (role === 'student') {
@@ -105,7 +113,7 @@ export function AdminUserLessons({ role, userId }: { role: 'tutor' | 'student', 
     } finally {
       setLoading(false)
     }
-  }, [role, userId, when])
+  }, [role, userId, when, q])
 
   React.useEffect(() => {
     void load(0)
@@ -115,6 +123,12 @@ export function AdminUserLessons({ role, userId }: { role: 'tutor' | 'student', 
 
   return (
     <section className='space-y-4'>
+      <SearchField
+        id={`${role}-lessons-search`}
+        value={search}
+        onChange={setSearch}
+        placeholder={role === 'tutor' ? 'Data, materia, studente o argomento' : 'Data, materia, tutor o argomento'}
+      />
       <div className='flex flex-wrap items-center justify-between gap-3'>
         <SegmentedTabs
           label='Periodo'
@@ -142,7 +156,9 @@ export function AdminUserLessons({ role, userId }: { role: 'tutor' | 'student', 
         </div>
       ) : rows.length === 0 ? (
         <EmptyState>
-          {when === 'past'
+          {q
+            ? 'Nessuna lezione trovata.'
+            : when === 'past'
             ? role === 'tutor' ? 'Nessuna lezione svolta.' : 'Nessuna lezione a cui ha partecipato.'
             : 'Nessuna lezione in programma.'}
         </EmptyState>

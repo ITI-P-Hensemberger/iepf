@@ -487,7 +487,7 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
               id: 'lesson-search',
               value: filters.search,
               onChange: (value) => setFilters((prev) => ({ ...prev, search: value })),
-              placeholder: 'Materia'
+              placeholder: 'Data, studente, classe, email o materia'
             }}
             activeFilters={[filters.subjectId, filters.status, filters.dateRange?.from].filter(Boolean).length}
             onReset={handleClearFilters}

@@ -34,6 +34,7 @@ import {
 import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { bookingMatches, dateMatches, likePattern, personMatches, subjectMatches } from '@/lib/lesson-search'
 import { getStudentTokenBalance, lockUsers } from '@/lib/lesson-tokens'
 import { sendMail } from '@/lib/mailer'
 import { buildPagedResponse } from '@/lib/pagination'
@@ -339,14 +340,17 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
   const orderBy = query.sortBy === 'createdAt' ? lessons.createdAt : lessons.startAt
   const direction = query.sortDir === 'desc' ? desc(orderBy) : asc(orderBy)
 
-  const listWhere = query.q
+  // Free text: the day ("13/11"), the tutor, the subject, or a booking's student (name, email,
+  // class), topic or subject.
+  const pattern = query.q ? likePattern(query.q) : null
+  const listWhere = pattern
     ? and(
         ...clauses,
         or(
-          ilike(users.firstName, `%${query.q}%`),
-          ilike(users.lastName, `%${query.q}%`),
-          ilike(subjects.name, `%${query.q}%`),
-          ilike(subjects.canonicalName, `%${query.q}%`)
+          dateMatches(lessons.startAt, pattern),
+          personMatches(lessons.tutorId, pattern),
+          subjectMatches(lessons.subjectId, pattern),
+          bookingMatches(lessons.id, pattern)
         )
       )
     : clauses.length ? and(...clauses) : undefined
@@ -462,6 +466,16 @@ export const listMyLessons: AppRouteHandler<ListMyLessonsRoute> = async (c) => {
   }
 
   const conditions = [eq(lessonBookings.studentId, studentId)]
+  if (query.q) {
+    // Free text: the day ("13/11"), the tutor (name or email), the subject or the topic.
+    const pattern = likePattern(query.q)
+    conditions.push(or(
+      dateMatches(lessons.startAt, pattern),
+      personMatches(lessons.tutorId, pattern),
+      subjectMatches(lessonBookings.subjectId, pattern),
+      ilike(lessonBookings.topic, pattern)
+    )!)
+  }
   if (query.bookingStatus) {
     conditions.push(eq(lessonBookings.status, query.bookingStatus))
   }

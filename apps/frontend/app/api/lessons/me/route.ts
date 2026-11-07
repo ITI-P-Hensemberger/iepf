@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
   const targetParams = new URLSearchParams()
   const allowedKeys = [
     'studentId',
+    'q',
     'from',
     'to',
     'lessonStatus',

@@ -205,3 +205,34 @@ describe('listing a student\'s bookings', () => {
     expect(page.data.map((item: { id: string }) => item.id)).toEqual([ordered[1], ordered[2]])
   })
 })
+
+describe('searching lessons', () => {
+  const ids = async (query: Record<string, string>) => (await list(query)).data.map(({ id }) => id)
+
+  it('finds lessons by day, as people write it', async () => {
+    expect(await ids({ q: '03/03/2031' })).toEqual(ordered)
+    expect(await ids({ q: '3/3/2031' })).toEqual(ordered)
+    expect(await ids({ q: '03/03/31' })).toEqual(ordered)
+    expect(await ids({ q: '04/03/2031' })).toEqual([])
+  })
+
+  it('finds lessons by a booking\'s student, class or topic', async () => {
+    expect(await ids({ q: 'Demo student' })).toEqual([ordered[1], ordered[2]])
+    expect(await ids({ q: 'student@example' })).toEqual([ordered[1], ordered[2]])
+    expect(await ids({ q: 'ripasso' })).toEqual([ordered[1], ordered[2]])
+  })
+
+  it('finds a student\'s bookings by tutor, topic or day', async () => {
+    const [student] = await db.select({ id: users.id }).from(users).where(eq(users.email, 'student@example.test'))
+    const search = async (q: string) => {
+      const response = await app.request(`/lessons/me?${new URLSearchParams({ studentId: student.id, q })}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      return (await response.json()).data.map((item: { id: string }) => item.id)
+    }
+    expect(await search('Paginato')).toEqual([ordered[1], ordered[2]])
+    expect(await search('list-lessons-tutor@')).toEqual([ordered[1], ordered[2]])
+    expect(await search('ripasso')).toEqual(expect.arrayContaining([ordered[1], ordered[2]]))
+    expect(await search('03/03/2031')).toEqual([ordered[1], ordered[2]])
+  })
+})

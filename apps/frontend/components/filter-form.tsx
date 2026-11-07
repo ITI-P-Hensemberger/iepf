@@ -1,11 +1,11 @@
 'use client'
 
 import * as React from 'react'
-import { ChevronDown, Search, SlidersHorizontal } from 'lucide-react'
+import { ChevronDown, SlidersHorizontal } from 'lucide-react'
 
+import { SearchField } from '@/components/search-field'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
 function differs(draft: object, applied: object) {
@@ -43,6 +43,19 @@ export function FilterForm({
 }) {
   const ref = React.useRef<HTMLFormElement>(null)
   const [open, setOpen] = React.useState(false)
+  const barRef = React.useRef<HTMLDivElement>(null)
+  const panelRef = React.useRef<HTMLDivElement>(null)
+
+  // The panel opens in the page, above the list. If the list was scrolled the panel is out of
+  // sight behind the sticky bar: bring it just under the bar.
+  React.useEffect(() => {
+    if (!open) return
+    const bar = barRef.current?.getBoundingClientRect()
+    const panel = panelRef.current?.getBoundingClientRect()
+    if (!bar || !panel || panel.top >= bar.bottom) return
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    window.scrollTo({ top: window.scrollY + panel.top - bar.bottom, behavior: reduce ? 'auto' : 'smooth' })
+  }, [open])
   const panelId = React.useId()
   const key = JSON.stringify(values)
   const latest = React.useRef({ values, applied })
@@ -61,20 +74,9 @@ export function FilterForm({
   return (
     // contents: the bar sticks along the whole list that follows the form, not only the form.
     <form ref={ref} onSubmit={onSubmit} className='contents'>
-      <div className={cn('sticky top-[var(--app-header-bottom)] z-30 -mx-4 bg-background/95 px-4 py-3 backdrop-blur', className)}>
+      <div ref={barRef} className={cn('sticky top-[var(--app-header-bottom)] z-30 -mx-4 bg-background/95 px-4 py-3 backdrop-blur', className)}>
         <div className='flex gap-2'>
-          <div className='relative min-w-0 flex-1'>
-            <Search className='pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground' aria-hidden />
-            <Input
-              id={search.id}
-              type='search'
-              aria-label='Cerca'
-              placeholder={search.placeholder}
-              value={search.value}
-              onChange={event => search.onChange(event.target.value)}
-              className='pl-9'
-            />
-          </div>
+          <SearchField {...search} className='flex-1' />
           {children && (
             <Button
               type='button'
@@ -92,7 +94,7 @@ export function FilterForm({
         </div>
       </div>
       {children && open && (
-        <div id={panelId} className='mb-4 rounded-lg border bg-card p-4'>
+        <div ref={panelRef} id={panelId} className='mb-4 rounded-lg border bg-card p-4'>
           {children}
           {onReset && (
             <div className='mt-4 flex justify-end'>
