@@ -8,7 +8,7 @@ import { BellOff } from 'lucide-react'
 import { NotificationBell } from '@/components/notification-bell'
 import { UsageTracker } from '@/components/usage-tracker'
 import { isPushRole, openPushSetup, usePushSetup } from '@/components/push-prompt'
-import { logout } from '@/lib/auth-client'
+import { isImpersonating, logout } from '@/lib/auth-client'
 import { useSession } from '@/lib/use-session'
 import { Avatar, AvatarFallback } from './ui/avatar'
 import { avatarGradient } from '@/lib/avatar'
@@ -41,6 +41,8 @@ function MenuLink({
   )
 }
 
+const noSubscription = () => () => {}
+
 export default function Header() {
   const { profile } = useSession()
   // Not null while this device could still turn push on: the popup is one click away.
@@ -52,6 +54,9 @@ export default function Header() {
         profile?.lastName?.charAt(0)?.toUpperCase() ?? ''
       }`
     : ''
+
+  // The flag cookie only changes with a full reload; the server render has no cookies to read.
+  const impersonating = React.useSyncExternalStore(noSubscription, isImpersonating, () => false)
 
   async function handleLogout() {
     await logout()
@@ -145,7 +150,7 @@ export default function Header() {
                 onClick={handleLogout}
                 className='w-full'
               >
-                Esci
+                {impersonating ? 'Termina impersonazione' : 'Esci'}
               </Button>
             </DropdownMenuItem>
           </DropdownMenuContent>

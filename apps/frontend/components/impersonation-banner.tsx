@@ -4,23 +4,11 @@ import * as React from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { endImpersonation, readCookie } from '@/lib/auth-client'
 
 type ImpersonationInfo = {
   role?: string
   email?: string
-}
-
-function getCookieValue(name: string) {
-  if (typeof document === 'undefined') {
-    return null
-  }
-  const cookies = document.cookie.split(';').map((cookie) => cookie.trim())
-  for (const cookie of cookies) {
-    if (cookie.startsWith(`${name}=`)) {
-      return decodeURIComponent(cookie.slice(name.length + 1))
-    }
-  }
-  return null
 }
 
 export default function ImpersonationBanner() {
@@ -29,14 +17,14 @@ export default function ImpersonationBanner() {
   const bannerRef = React.useRef<HTMLDivElement | null>(null)
 
   React.useEffect(() => {
-    const isActive = getCookieValue('iepf_impersonating') === 'true'
+    const isActive = readCookie('iepf_impersonating') === 'true'
     if (!isActive) {
       setInfo(null)
       return
     }
     setInfo({
-      role: getCookieValue('iepf_impersonated_role') ?? undefined,
-      email: getCookieValue('iepf_impersonated_email') ?? undefined
+      role: readCookie('iepf_impersonated_role') ?? undefined,
+      email: readCookie('iepf_impersonated_email') ?? undefined
     })
   }, [])
 
@@ -71,22 +59,7 @@ export default function ImpersonationBanner() {
   async function handleEndImpersonation() {
     setIsEnding(true)
     try {
-      const response = await fetch('/api/admin/impersonate/end', {
-        method: 'POST'
-      })
-      if (!response.ok) {
-        let message = "Impossibile terminare l'impersonazione."
-        try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
-        } catch {
-          message = "Impossibile terminare l'impersonazione."
-        }
-        throw new Error(message)
-      }
-      // A full reload guarantees nothing about the impersonated user stays in memory.
-      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-      window.location.href = '/admin'
+      await endImpersonation()
     } catch (err) {
       toast.error(
         err instanceof Error
