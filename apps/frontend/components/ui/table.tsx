@@ -7,7 +7,7 @@ const Table = React.forwardRef<
   React.HTMLAttributes<HTMLTableElement>
 >(({ className, ...props }, ref) => (
   // From 1024px tables fit the page: no scroll box, so a sticky header can stick to the page.
-  <div className='relative w-full overflow-auto lg:overflow-visible'>
+  <div className='relative w-full overflow-auto rounded-[inherit] bg-[var(--card)] lg:overflow-visible'>
     <table
       ref={ref}
       className={cn('w-full caption-bottom text-sm', className)}

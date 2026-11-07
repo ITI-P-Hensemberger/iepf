@@ -128,7 +128,6 @@ export default function Header() {
                 <MenuLink href='/admin/feedback'>Gestione Feedback</MenuLink>
                 <DropdownMenuSeparator />
                 <MenuLink href='/admin/settings'>Impostazioni globali</MenuLink>
-                <MenuLink href='/admin/settings?tab=popup'>Popup</MenuLink>
                 <MenuLink href='/admin/stats'>Statistiche</MenuLink>
               </DropdownMenuGroup>
             )}
