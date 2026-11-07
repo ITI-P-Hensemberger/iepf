@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, isNull, lt, or } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 // Purpose: Keep every notification in the user's panel, whatever their push preferences.
 import { Buffer } from 'node:buffer'
 
@@ -66,6 +66,7 @@ export async function listNotifications(userId: string, cursor: NotificationCurs
     .from(notifications)
     .where(and(
       eq(notifications.userId, userId),
+      isNull(notifications.archivedAt),
       cursor
         ? or(
             lt(notifications.createdAt, cursor.createdAt),
@@ -85,7 +86,7 @@ export async function listNotifications(userId: string, cursor: NotificationCurs
 }
 
 export async function countUnread(userId: string) {
-  return db.$count(notifications, and(eq(notifications.userId, userId), isNull(notifications.readAt)))
+  return db.$count(notifications, and(eq(notifications.userId, userId), isNull(notifications.readAt), isNull(notifications.archivedAt)))
 }
 
 export async function unreadCounts(userIds: string[]) {
@@ -94,7 +95,7 @@ export async function unreadCounts(userIds: string[]) {
   }
   const rows = await db.select({ userId: notifications.userId, count: count() })
     .from(notifications)
-    .where(and(inArray(notifications.userId, userIds), isNull(notifications.readAt)))
+    .where(and(inArray(notifications.userId, userIds), isNull(notifications.readAt), isNull(notifications.archivedAt)))
     .groupBy(notifications.userId)
   return new Map(rows.map(row => [row.userId, row.count]))
 }
@@ -110,4 +111,13 @@ export async function markAllRead(userId: string) {
   await db.update(notifications)
     .set({ readAt: new Date() })
     .where(and(eq(notifications.userId, userId), isNull(notifications.readAt)))
+}
+
+// "Elimina" in the panel: the notification is read and archived, not deleted, so the
+// statistics and the retention keep seeing it.
+export async function archive(userId: string, id: string) {
+  const now = new Date()
+  await db.update(notifications)
+    .set({ readAt: sql`coalesce(${notifications.readAt}, ${now})`, archivedAt: now })
+    .where(and(eq(notifications.id, id), eq(notifications.userId, userId), isNull(notifications.archivedAt)))
 }

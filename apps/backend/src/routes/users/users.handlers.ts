@@ -24,7 +24,7 @@ import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { getStudentTokenBalances } from '@/lib/lesson-tokens'
 import { sendMail } from '@/lib/mailer'
 import { buildPagedResponse } from '@/lib/pagination'
-import { hashPassword } from '@/lib/password'
+import { hashPassword, verifyPassword } from '@/lib/password'
 import { notifyUsers } from '@/lib/push'
 import { activationChangedPush } from '@/lib/push-messages'
 import { revokeUserRefreshTokens } from '@/lib/refresh-tokens'
@@ -892,9 +892,19 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
 }
 
 export const remove: AppRouteHandler<RemoveRoute> = async (c) => {
-  ensureAdmin(c)
+  const admin = ensureAdmin(c)
 
   const { id } = c.req.valid('param')
+  const { password } = c.req.valid('json')
+  const own = await db.query.users.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.id, admin.id)
+    },
+    columns: { passwordHash: true }
+  })
+  if (!own || !(await verifyPassword(own.passwordHash, password))) {
+    return c.json(buildErrorResponse('Password non corretta.'), HttpStatusCodes.FORBIDDEN)
+  }
   const result = await db.delete(users)
     .where(eq(users.id, id))
 

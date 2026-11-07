@@ -136,11 +136,17 @@ export const patch = createRoute({
   }
 })
 
+// Deleting someone cannot be undone: the admin types their own password again.
+export const removeUserSchema = z.object({
+  password: z.string().min(1)
+})
+
 export const remove = createRoute({
   path: '/users/{id}',
   method: 'delete',
   request: {
-    params: IdUUIDParamsSchema
+    params: IdUUIDParamsSchema,
+    body: jsonContentRequired(removeUserSchema, 'The admin\'s own password')
   },
   tags,
   security: bearerAuth,
@@ -153,8 +159,12 @@ export const remove = createRoute({
       'User not found'
     ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
-      createErrorSchema(IdUUIDParamsSchema),
-      'Invalid id error'
+      createErrorSchema(IdUUIDParamsSchema).or(createErrorSchema(removeUserSchema)),
+      'Invalid id or missing password'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Wrong password, or not an admin'
     ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),

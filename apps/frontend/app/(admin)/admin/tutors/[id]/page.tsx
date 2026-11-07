@@ -6,9 +6,11 @@ import { BlockSkeleton } from '@/components/loading'
 import * as React from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { BookOpen, CalendarClock, History, UserRound } from 'lucide-react'
+import { BookOpen, CalendarClock, History, TriangleAlert, UserRound } from 'lucide-react'
 
 import { AdminUserLessons } from '@/components/admin-user-lessons'
+import { ConfirmDeleteDialog } from '@/components/confirm-delete-dialog'
+import { DangerAction, DangerZone } from '@/components/danger-zone'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
@@ -160,7 +162,8 @@ const SECTIONS = [
   { value: 'account', label: 'Dati', icon: UserRound },
   { value: 'availability', label: 'Disponibilità', icon: CalendarClock },
   { value: 'subjects', label: 'Materie', icon: BookOpen },
-  { value: 'lessons', label: 'Storico lezioni', icon: History }
+  { value: 'lessons', label: 'Storico lezioni', icon: History },
+  { value: 'danger', label: 'Danger zone', icon: TriangleAlert, separatorBefore: true }
 ] as const
 
 export default function AdminTutorDetailPage() {
@@ -172,7 +175,7 @@ export default function AdminTutorDetailPage() {
   const backHref = useBackHref('/admin/tutors')
   const setParam = useSetParam()
   const active =
-    tab === 'availability' || tab === 'subjects' || tab === 'lessons'
+    tab === 'availability' || tab === 'subjects' || tab === 'lessons' || tab === 'danger'
       ? tab
       : 'account'
 
@@ -678,33 +681,34 @@ export default function AdminTutorDetailPage() {
     await handleConfirmedSubmit(values)
   }
 
-  async function handleDelete() {
+  // Returns the error to show in the dialog (a wrong password), or null.
+  async function handleDelete(password: string): Promise<string | null> {
     if (!tutorId) {
-      return
+      return null
     }
     setIsDeleting(true)
     try {
       const response = await fetch(`/api/users/${tutorId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
       })
-      if (!response.ok) {
-        let message = 'Impossibile eliminare il tutor.'
-        try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
-        } catch {
-          message = 'Impossibile eliminare il tutor.'
-        }
-        throw new Error(message)
+      if (response.status === 403) {
+        return 'Password non corretta.'
       }
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { message?: string } | null
+        throw new Error(payload?.message ?? 'Impossibile eliminare il tutor.')
+      }
+      setShowDeleteAlert(false)
       router.push('/admin/tutors')
+      return null
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile eliminare il tutor.'
-      )
+      toast.error(err instanceof Error ? err.message : 'Impossibile eliminare il tutor.')
+      setShowDeleteAlert(false)
+      return null
     } finally {
       setIsDeleting(false)
-      setShowDeleteAlert(false)
     }
   }
 
@@ -1246,21 +1250,13 @@ export default function AdminTutorDetailPage() {
               </form>
             )}
           </CardContent>
-          <CardFooter className={cn('flex flex-col gap-3 items-start sm:flex-row sm:items-center sm:justify-between', STICKY_CARD_FOOTER)}>
+          <CardFooter className={cn('flex justify-end', STICKY_CARD_FOOTER)}>
             <Button
               type='submit'
               form='admin-tutor-form'
               disabled={isSubmitting || !form.formState.isDirty}
             >
               {isSubmitting ? 'Salvataggio...' : 'Salva modifiche'}
-            </Button>
-            <Button
-              type='button'
-              variant='destructive'
-              onClick={() => setShowDeleteAlert(true)}
-              disabled={isDeleting}
-            >
-              {isDeleting ? 'Eliminazione...' : 'Elimina account'}
             </Button>
           </CardFooter>
         </Card>
@@ -1401,31 +1397,28 @@ export default function AdminTutorDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
-        <AlertDialogContent className='z-60'>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare il tutor?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Questa azione è irreversibile. Il tutor perderà l&apos;accesso
-              all&apos;account.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(event) => {
-                event.preventDefault()
-                void handleDelete()
-              }}
-              disabled={isDeleting}
-            >
-              {isDeleting ? 'Eliminazione...' : 'Elimina'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDeleteDialog
+        open={showDeleteAlert}
+        onOpenChange={setShowDeleteAlert}
+        title='Eliminare il tutor?'
+        description='Il tutor perde l’accesso e l’account viene eliminato. Non si può annullare.'
+        onConfirm={handleDelete}
+      />
       {active === 'lessons' && tutorId && (
         <AdminUserLessons role='tutor' userId={tutorId} />
+      )}
+      {active === 'danger' && (
+        <DangerZone>
+          <DangerAction
+            title='Elimina account'
+            description='Il tutor perde l’accesso e l’account viene eliminato. Non si può annullare.'
+            action={
+              <Button variant='destructive' onClick={() => setShowDeleteAlert(true)} disabled={isDeleting}>
+                {isDeleting ? 'Eliminazione...' : 'Elimina account'}
+              </Button>
+            }
+          />
+        </DangerZone>
       )}
     </SectionLayout>
   )

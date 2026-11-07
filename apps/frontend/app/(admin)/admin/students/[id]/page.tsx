@@ -6,10 +6,12 @@ import { BlockSkeleton } from '@/components/loading'
 import * as React from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { History, Hourglass, UserRound } from 'lucide-react'
+import { History, Hourglass, TriangleAlert, UserRound } from 'lucide-react'
 
 import { AdminStudentHours } from '@/components/admin-student-hours'
 import { AdminUserLessons } from '@/components/admin-user-lessons'
+import { ConfirmDeleteDialog } from '@/components/confirm-delete-dialog'
+import { DangerAction, DangerZone } from '@/components/danger-zone'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
@@ -111,7 +113,8 @@ type Student = {
 const SECTIONS = [
   { value: 'account', label: 'Dati', icon: UserRound },
   { value: 'hours', label: 'Ore di lezione', icon: Hourglass },
-  { value: 'lessons', label: 'Storico lezioni', icon: History }
+  { value: 'lessons', label: 'Storico lezioni', icon: History },
+  { value: 'danger', label: 'Danger zone', icon: TriangleAlert, separatorBefore: true }
 ] as const
 
 export default function AdminStudentDetailPage() {
@@ -122,7 +125,7 @@ export default function AdminStudentDetailPage() {
   const here = useHere()
   const backHref = useBackHref('/admin/students')
   const setParam = useSetParam()
-  const active = tab === 'hours' || tab === 'lessons' ? tab : 'account'
+  const active = tab === 'hours' || tab === 'lessons' || tab === 'danger' ? tab : 'account'
 
   const [student, setStudent] = React.useState<Student | null>(null)
   const [sections, setSections] = React.useState<Section[]>([])
@@ -346,35 +349,34 @@ export default function AdminStudentDetailPage() {
     await submitStudent(values)
   }
 
-  async function handleDelete() {
+  // Returns the error to show in the dialog (a wrong password), or null.
+  async function handleDelete(password: string): Promise<string | null> {
     if (!studentId) {
-      return
+      return null
     }
     setIsDeleting(true)
     try {
       const response = await fetch(`/api/users/${studentId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
       })
-      if (!response.ok) {
-        let message = 'Impossibile eliminare lo studente.'
-        try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
-        } catch {
-          message = 'Impossibile eliminare lo studente.'
-        }
-        throw new Error(message)
+      if (response.status === 403) {
+        return 'Password non corretta.'
       }
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { message?: string } | null
+        throw new Error(payload?.message ?? 'Impossibile eliminare lo studente.')
+      }
+      setShowDeleteAlert(false)
       router.push('/admin/students')
+      return null
     } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile eliminare lo studente.'
-      )
+      toast.error(err instanceof Error ? err.message : 'Impossibile eliminare lo studente.')
+      setShowDeleteAlert(false)
+      return null
     } finally {
       setIsDeleting(false)
-      setShowDeleteAlert(false)
     }
   }
 
@@ -770,21 +772,13 @@ export default function AdminStudentDetailPage() {
               </form>
             )}
           </CardContent>
-          <CardFooter className={cn('flex flex-col gap-3 items-start sm:flex-row sm:items-center sm:justify-between', STICKY_CARD_FOOTER)}>
+          <CardFooter className={cn('flex justify-end', STICKY_CARD_FOOTER)}>
             <Button
               type='submit'
               form='admin-student-form'
               disabled={isSubmitting || !form.formState.isDirty}
             >
               {isSubmitting ? 'Salvataggio...' : 'Salva modifiche'}
-            </Button>
-            <Button
-              type='button'
-              variant='destructive'
-              onClick={() => setShowDeleteAlert(true)}
-              disabled={isDeleting}
-            >
-              {isDeleting ? 'Eliminazione...' : 'Elimina account'}
             </Button>
           </CardFooter>
         </Card>
@@ -828,31 +822,28 @@ export default function AdminStudentDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
-        <AlertDialogContent className='z-60'>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare lo studente?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Questa azione è irreversibile. Lo studente perderà l&apos;accesso
-              all&apos;account.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(event) => {
-                event.preventDefault()
-                void handleDelete()
-              }}
-              disabled={isDeleting}
-            >
-              {isDeleting ? 'Eliminazione...' : 'Elimina'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDeleteDialog
+        open={showDeleteAlert}
+        onOpenChange={setShowDeleteAlert}
+        title='Eliminare lo studente?'
+        description='Lo studente perde l’accesso e l’account viene eliminato. Non si può annullare.'
+        onConfirm={handleDelete}
+      />
       {active === 'lessons' && studentId && (
         <AdminUserLessons role='student' userId={studentId} />
+      )}
+      {active === 'danger' && (
+        <DangerZone>
+          <DangerAction
+            title='Elimina account'
+            description='Lo studente perde l’accesso e l’account viene eliminato. Non si può annullare.'
+            action={
+              <Button variant='destructive' onClick={() => setShowDeleteAlert(true)} disabled={isDeleting}>
+                {isDeleting ? 'Eliminazione...' : 'Elimina account'}
+              </Button>
+            }
+          />
+        </DangerZone>
       )}
     </SectionLayout>
   )

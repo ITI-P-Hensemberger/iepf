@@ -332,6 +332,18 @@ describe('booking integrity', () => {
 
     expect((await request(`/students/${student.id}/tokens/history`, { method: 'GET', token: tutorToken })).status).toBe(403)
   })
+
+  it('deletes a user only with the admin\'s own password', async () => {
+    const student = await createStudent(0)
+    const remove = (body?: unknown) => request(`/users/${student.id}`, { method: 'DELETE', token: adminToken, body })
+
+    expect((await remove({ password: 'sbagliata' })).status).toBe(403)
+    expect((await remove()).status).not.toBe(204)
+    expect(await db.query.users.findFirst({ where: (fields, { eq }) => eq(fields.id, student.id) })).toBeDefined()
+
+    expect((await remove({ password: DEV_PASSWORD })).status).toBe(204)
+    expect(await db.query.users.findFirst({ where: (fields, { eq }) => eq(fields.id, student.id) })).toBeUndefined()
+  })
 })
 
 describe('one open lesson per time slot', () => {
