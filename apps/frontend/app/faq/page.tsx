@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { BackButton } from '@/components/back-button'
 import FAQ from '@/components/faq'
 
-// Read by people not signed in yet, often from the landing: the same logo and heading as there.
+// Read by people not signed in yet, often from the landing: its logo on top, then the usual title.
 export default function FAQPage() {
   return (
     <main className='flex-1'>
@@ -21,18 +21,16 @@ export default function FAQPage() {
               draggable={false}
               priority
             />
-            <h1 className='mt-8 text-3xl font-semibold tracking-tight text-balance sm:text-4xl'>
-              Domande frequenti
-            </h1>
-            <p className='mt-4 text-lg text-muted-foreground text-pretty'>
-              Non trovi la risposta? Scrivici a{' '}
-              <Link href='mailto:iepf@hensemberger.it' className='text-foreground underline underline-offset-4'>
-                iepf@hensemberger.it
-              </Link>
-              .
-            </p>
           </section>
-          <div className='mt-10 rounded-lg border bg-card px-4 sm:px-6'>
+          <h1 className='mt-8 text-2xl'>Domande frequenti</h1>
+          <p className='mt-1 text-sm text-muted-foreground'>
+            Non trovi la risposta? Scrivici a{' '}
+            <Link href='mailto:iepf@hensemberger.it' className='underline underline-offset-4'>
+              iepf@hensemberger.it
+            </Link>
+            .
+          </p>
+          <div className='mt-6 rounded-lg border bg-card px-4 sm:px-6'>
             <FAQ />
           </div>
         </div>
