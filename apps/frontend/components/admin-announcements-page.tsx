@@ -1,5 +1,6 @@
 'use client'
 
+import { SettingsSection } from '@/components/settings-section'
 import { BlockSkeleton } from '@/components/loading'
 import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
@@ -610,19 +611,16 @@ export default function AdminAnnouncementsPage() {
   }
 
   return (
-    <div className='space-y-6'>
-          <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
-            <div className='space-y-1'>
-              <h2 className='text-lg font-semibold'>Popup</h2>
-              <p className='text-sm text-muted-foreground'>Messaggi in primo piano per studenti, tutor o admin.</p>
-            </div>
-            {!editing && (
-              <Button onClick={() => openEditor(null, EMPTY_DRAFT)}>
-                <Plus className='size-4' />
-                Nuovo popup
-              </Button>
-            )}
-          </div>
+    <SettingsSection
+      title='Popup'
+      description='Messaggi in primo piano per studenti, tutor o admin.'
+      actions={!editing && (
+        <Button onClick={() => openEditor(null, EMPTY_DRAFT)}>
+          <Plus className='size-4' />
+          Nuovo popup
+        </Button>
+      )}
+    >
 
           {editing && (
             <div ref={formRef} className='scroll-mt-20'>
@@ -739,6 +737,6 @@ export default function AdminAnnouncementsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </SettingsSection>
   )
 }

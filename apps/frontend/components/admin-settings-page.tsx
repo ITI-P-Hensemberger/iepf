@@ -1,10 +1,9 @@
 'use client'
 
+import { SettingsSection } from '@/components/settings-section'
 import AdminAnnouncementsPage from '@/components/admin-announcements-page'
 import { AdminClosures } from '@/components/admin-closures'
 import { AdminFaqSettings } from '@/components/admin-faq-settings'
-import { STICKY_TOP_ACTIONS } from '@/components/sticky-footer'
-import { cn } from '@/lib/utils'
 import * as React from 'react'
 import { toast } from 'sonner'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -669,20 +668,17 @@ export default function AdminSettingsPage() {
     <SectionLayout title='Impostazioni globali' backHref='/admin' sections={sections} value={activeTab} onValueChange={handleTabChange}>
           <Tabs value={activeTab} onValueChange={handleTabChange}>
             <TabsContent value='maintenance' className='mt-0 space-y-6'>
-              <div className={cn('flex justify-end', STICKY_TOP_ACTIONS)}>
-                <Button
-                  onClick={handleSaveMaintenance}
-                  disabled={loading || savingMaintenance || !isMaintenanceDirty}
-                >
-                  {savingMaintenance ? 'Salvataggio...' : 'Salva manutenzione'}
-                </Button>
-              </div>
-
+              <SettingsSection
+                title='Manutenzione'
+                description='Chiude il sito a studenti e tutor con un messaggio; gli admin continuano a entrare.'
+                actions={
+                  <Button onClick={handleSaveMaintenance} disabled={loading || savingMaintenance || !isMaintenanceDirty}>
+                    {savingMaintenance ? 'Salvataggio...' : 'Salva modifiche'}
+                  </Button>
+                }
+              >
               <Card>
-                <CardHeader>
-                  <CardTitle>Modalità manutenzione</CardTitle>
-                </CardHeader>
-                <CardContent className='space-y-4'>
+                <CardContent className='pt-6 space-y-4'>
                   <div className='flex items-start gap-3'>
                     <Checkbox
                       id='maintenance-enabled'
@@ -748,23 +744,21 @@ export default function AdminSettingsPage() {
                   </Field>
                 </CardContent>
               </Card>
+              </SettingsSection>
             </TabsContent>
 
             <TabsContent value='messages' className='mt-0 space-y-6'>
-              <div className={cn('flex justify-end', STICKY_TOP_ACTIONS)}>
-                <Button
-                  onClick={handleSaveMessages}
-                  disabled={loading || savingMessages || !isServiceDirty}
-                >
-                  {savingMessages ? 'Salvataggio...' : 'Salva messaggi'}
-                </Button>
-              </div>
-
+              <SettingsSection
+                title='Messaggi di servizio'
+                description='Un avviso in cima alle pagine, diverso per studenti, tutor e admin.'
+                actions={
+                  <Button onClick={handleSaveMessages} disabled={loading || savingMessages || !isServiceDirty}>
+                    {savingMessages ? 'Salvataggio...' : 'Salva modifiche'}
+                  </Button>
+                }
+              >
               <Card>
-                <CardHeader>
-                  <CardTitle>Messaggi di servizio</CardTitle>
-                </CardHeader>
-                <CardContent className='space-y-6'>
+                <CardContent className='pt-6 space-y-6'>
                   {roleOptions.map((role) => {
                     const message = serviceMessageState[role]
                     return (
@@ -878,9 +872,14 @@ export default function AdminSettingsPage() {
                   })}
                 </CardContent>
               </Card>
+              </SettingsSection>
             </TabsContent>
 
             <TabsContent value='subjects' className='mt-0 space-y-6'>
+              <SettingsSection
+                title='Materie'
+                description='Le materie che i tutor possono insegnare e gli studenti prenotare.'
+              >
               <Card>
                 <CardHeader>
                   <CardTitle>Nuova materia</CardTitle>
@@ -1045,18 +1044,19 @@ export default function AdminSettingsPage() {
                   )}
                 </CardContent>
               </Card>
+              </SettingsSection>
             </TabsContent>
 
             <TabsContent value='closures' className='mt-0 space-y-6'>
-              <div className={cn('flex justify-end', STICKY_TOP_ACTIONS)}>
-                <Button
-                  onClick={handleSaveClosures}
-                  disabled={loading || savingClosures || !isClosuresDirty}
-                >
-                  {savingClosures ? 'Salvataggio...' : 'Salva chiusure'}
-                </Button>
-              </div>
-
+              <SettingsSection
+                title='Chiusure'
+                description='I giorni in cui la scuola è chiusa e non si fanno lezioni.'
+                actions={
+                  <Button onClick={handleSaveClosures} disabled={loading || savingClosures || !isClosuresDirty}>
+                    {savingClosures ? 'Salvataggio...' : 'Salva modifiche'}
+                  </Button>
+                }
+              >
               <AdminClosures
                 dates={closureDatesPayload}
                 onChange={(next) => setClosureDates(next.map((date) => {
@@ -1065,6 +1065,7 @@ export default function AdminSettingsPage() {
                 }))}
                 dirty={isClosuresDirty}
               />
+              </SettingsSection>
             </TabsContent>
 
             <TabsContent value='popup' className='mt-0'>
@@ -1076,15 +1077,21 @@ export default function AdminSettingsPage() {
             </TabsContent>
 
             <TabsContent value='school-year' className='mt-0'>
+              <SettingsSection
+                title='Anno scolastico'
+                description='A fine anno: scarica il report e azzera i dati per ricominciare.'
+              >
               {activeTab === 'school-year' && <SchoolYearReset />}
+              </SettingsSection>
             </TabsContent>
 
             <TabsContent value='info' className='mt-0 space-y-6'>
+              <SettingsSection
+                title='Informazioni'
+                description='Lo stato del servizio a colpo d’occhio.'
+              >
               <Card>
-                <CardHeader>
-                  <CardTitle>Informazioni</CardTitle>
-                </CardHeader>
-                <CardContent className='space-y-4'>
+                <CardContent className='pt-6 space-y-4'>
                   <div className='flex flex-wrap gap-2'>
                     <Badge variant='secondary'>
                       Data e ora attuali: {formatItalianDate(currentTime)}
@@ -1121,6 +1128,7 @@ export default function AdminSettingsPage() {
                   </p>
                 </CardContent>
               </Card>
+              </SettingsSection>
             </TabsContent>
           </Tabs>
     </SectionLayout>

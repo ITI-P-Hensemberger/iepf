@@ -6,6 +6,7 @@ import { ArrowDown, ArrowUp, ExternalLink, Pencil, Plus, Trash2 } from 'lucide-r
 import { toast } from 'sonner'
 
 import { EmptyState } from '@/components/empty-state'
+import { SettingsSection } from '@/components/settings-section'
 import type { FaqItem } from '@/components/faq'
 import { BlockSkeleton } from '@/components/loading'
 import { MarkdownContent } from '@/components/markdown-content'
@@ -124,15 +125,10 @@ export function AdminFaqSettings() {
   }
 
   return (
-    <div className='space-y-6'>
-      <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
-        <div className='space-y-1'>
-          <h2 className='text-lg font-semibold'>Domande frequenti</h2>
-          <p className='text-sm text-muted-foreground'>
-            Le domande della pagina pubblica FAQ, nell’ordine in cui le vede chi la apre.
-          </p>
-        </div>
-        <div className='flex flex-col gap-2 sm:flex-row'>
+    <SettingsSection
+      title='Domande frequenti'
+      description='Le domande della pagina pubblica FAQ, nell’ordine in cui le vede chi la apre.'
+      actions={<>
           <Button asChild variant='outline'>
             <Link href='/faq' target='_blank'><ExternalLink className='size-4' /> Apri la pagina</Link>
           </Button>
@@ -141,9 +137,8 @@ export function AdminFaqSettings() {
               <Plus className='size-4' /> Nuova domanda
             </Button>
           )}
-        </div>
-      </div>
-
+      </>}
+    >
       {draft && (
         <form
           className='space-y-4 rounded-lg border bg-card p-4 sm:p-6'
@@ -265,6 +260,6 @@ export function AdminFaqSettings() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </SettingsSection>
   )
 }
