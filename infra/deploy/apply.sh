@@ -111,7 +111,9 @@ recover() {
 trap recover ERR
 compose up -d --wait --wait-timeout 180 traefik backend frontend
 # Smoke-test public routing and TLS as well as container health.
-curl --fail --silent --show-error --retry 5 --retry-delay 3 --max-time 20 https://iepf.hensemberger.it/auth/login -o /dev/null
+# Traefik routes a recreated container only once it has seen it turn healthy, a few seconds after
+# `--wait` returns: until then it answers 404, which curl retries only with --retry-all-errors.
+curl --fail --silent --show-error --retry 10 --retry-delay 3 --retry-all-errors --max-time 20 https://iepf.hensemberger.it/auth/login -o /dev/null
 rm -f "$ROOT/current.next"
 ln -s "$RELEASE" "$ROOT/current.next"
 mv -Tf "$ROOT/current.next" "$ROOT/current"
