@@ -1,5 +1,7 @@
 'use client'
 
+import { STICKY_CARD_FOOTER } from '@/components/sticky-footer'
+import { cn } from '@/lib/utils'
 import * as React from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
@@ -185,7 +187,7 @@ export function TutorSubjectsSettings() {
                 )}
               </form>
             </CardContent>
-            <CardFooter className='flex justify-end'>
+            <CardFooter className={cn('flex justify-end', STICKY_CARD_FOOTER)}>
               <Button
                 type='submit'
                 form='subjects-form'

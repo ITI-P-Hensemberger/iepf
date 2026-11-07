@@ -1,6 +1,7 @@
 'use client'
 
 import { SortableHead } from '@/components/sortable-head'
+import { usePageBar } from '@/lib/sticky'
 import { ListPagination } from '@/components/list-pagination'
 import { TableSkeletonRows } from '@/components/loading'
 import * as React from 'react'
@@ -265,6 +266,9 @@ function DataTable<TData>({
     [pageKey, pathname, router, searchParamsString]
   )
 
+  const searchBarRef = React.useRef<HTMLDivElement>(null)
+  usePageBar(searchBarRef)
+
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
@@ -281,7 +285,7 @@ function DataTable<TData>({
   return (
     <div className='space-y-4'>
       {/* The same search bar as every list: under the header while the list scrolls. */}
-      <div className='sticky top-[var(--app-header-bottom)] z-30 -mx-4 bg-background/95 px-4 py-3 backdrop-blur'>
+      <div ref={searchBarRef} className='sticky top-[var(--app-header-bottom)] z-30 -mx-4 bg-background/95 px-4 py-3 backdrop-blur'>
         <div className='relative'>
           <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
           <Input
@@ -296,7 +300,7 @@ function DataTable<TData>({
       </div>
       <div className='rounded-lg border'>
         <Table>
-          <TableHeader className='bg-muted/50'>
+          <TableHeader sticky className='bg-muted/50'>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (

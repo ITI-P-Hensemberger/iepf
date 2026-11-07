@@ -186,7 +186,8 @@ function GroupRow({ lessons, grouping }: { lessons: ScheduleLesson[], grouping: 
   const booked = lessons.filter((lesson) => !isCanceled(lesson)).reduce((sum, lesson) => sum + lesson.bookings.length, 0)
   return (
     <div className='flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start'>
-      <div className='sm:w-48 sm:shrink-0'>
+      {/* The tutor or subject stays in view while its lessons scroll. */}
+      <div className='sticky top-[var(--sticky-top)] z-10 -mx-4 bg-card px-4 py-1 sm:mx-0 sm:w-48 sm:shrink-0 sm:self-start sm:bg-transparent sm:px-0 sm:py-0'>
         {grouping === 'tutor' ? (
           <>
             <div className='font-medium'>{first.tutorName}</div>

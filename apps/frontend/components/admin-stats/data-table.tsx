@@ -37,9 +37,9 @@ type DataTableProps<T> = {
 export function DataTable<T>({ rows, rowKey, columns, isLoading, emptyMessage, page, pageSize, total, onPageChange, sort, onSort }: DataTableProps<T>) {
   return (
     <div className='space-y-3'>
-      <div className='overflow-x-auto rounded-lg border'>
+      <div className='overflow-x-auto rounded-lg border lg:overflow-visible'>
         <Table>
-          <TableHeader className='bg-muted/50'>
+          <TableHeader sticky className='bg-muted/50'>
             <TableRow>
               {columns.map((column) => {
                 const active = sort?.sortBy === column.sortKey

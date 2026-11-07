@@ -1,5 +1,7 @@
 'use client'
 
+import { STICKY_SECTION_FOOTER } from '@/components/sticky-footer'
+import { cn } from '@/lib/utils'
 import * as React from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm, useWatch } from 'react-hook-form'
@@ -603,7 +605,7 @@ export default function ProfilePage() {
                       </Field>
                     )}
                   </div>
-                  <div className='flex justify-end'>
+                  <div className={cn('flex justify-end', STICKY_SECTION_FOOTER)}>
                     <Button type='submit' className='w-full sm:w-auto' disabled={isSubmitting || !canSave}>
                       {isSubmitting ? 'Salvataggio...' : 'Salva modifiche'}
                     </Button>

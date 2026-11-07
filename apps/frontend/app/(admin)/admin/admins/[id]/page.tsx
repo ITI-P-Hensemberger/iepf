@@ -1,5 +1,7 @@
 'use client'
 
+import { STICKY_CARD_FOOTER } from '@/components/sticky-footer'
+import { cn } from '@/lib/utils'
 import { BlockSkeleton } from '@/components/loading'
 import * as React from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -433,7 +435,7 @@ export default function AdminAdminDetailPage() {
                 </form>
               )}
             </CardContent>
-            <CardFooter className='flex flex-col gap-3 items-start sm:flex-row sm:items-center sm:justify-between'>
+            <CardFooter className={cn('flex flex-col gap-3 items-start sm:flex-row sm:items-center sm:justify-between', STICKY_CARD_FOOTER)}>
               <Button
                 type='submit'
                 form='admin-admin-form'

@@ -189,7 +189,7 @@ export default function StudentLessonsPage() {
             ) : (
               days.map((dayLessons) => (
                 <section key={dayLessons[0].bookingId} className='space-y-2'>
-                  <h2 className='text-sm font-medium text-muted-foreground'>{lessonDayLabel(dayLessons[0].startAt)}</h2>
+                  <h2 className='sticky top-[var(--sticky-top)] z-10 -mx-4 bg-background/95 px-4 py-1.5 text-sm font-medium text-muted-foreground backdrop-blur'>{lessonDayLabel(dayLessons[0].startAt)}</h2>
                   {dayLessons.map((lesson) => (
                     <StudentLessonCard
                       key={lesson.bookingId}

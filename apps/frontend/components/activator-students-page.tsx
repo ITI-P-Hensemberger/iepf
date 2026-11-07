@@ -225,7 +225,7 @@ function DataTable<TData>({
       </div>
       <div className='rounded-lg border'>
         <Table>
-          <TableHeader className='bg-muted/50'>
+          <TableHeader sticky className='bg-muted/50'>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (

@@ -633,7 +633,7 @@ export default function AdminFeedbackPage() {
         </label>
         <div className='mt-3 rounded-lg border'>
           <Table>
-            <TableHeader className='bg-muted/50'>
+            <TableHeader sticky className='bg-muted/50'>
               <TableRow>
                 <TableHead>
                     <SortableHead

@@ -853,7 +853,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
 
           <div className='mt-6 rounded-lg border'>
             <Table>
-              <TableHeader className='bg-muted/50'>
+              <TableHeader sticky className='bg-muted/50'>
                 <TableRow>
                   <TableHead>
                     <SortableHead

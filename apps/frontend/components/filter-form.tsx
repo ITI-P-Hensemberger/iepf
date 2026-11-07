@@ -6,6 +6,7 @@ import { ChevronDown, SlidersHorizontal } from 'lucide-react'
 import { SearchField } from '@/components/search-field'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { usePageBar } from '@/lib/sticky'
 import { cn } from '@/lib/utils'
 
 function differs(draft: object, applied: object) {
@@ -45,6 +46,7 @@ export function FilterForm({
   const [open, setOpen] = React.useState(false)
   const barRef = React.useRef<HTMLDivElement>(null)
   const panelRef = React.useRef<HTMLDivElement>(null)
+  usePageBar(barRef)
 
   // The panel opens in the page, above the list. If the list was scrolled the panel is out of
   // sight behind the sticky bar: bring it just under the bar.
