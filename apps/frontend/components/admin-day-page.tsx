@@ -187,7 +187,7 @@ function GroupRow({ lessons, grouping }: { lessons: ScheduleLesson[], grouping: 
   return (
     <div className='flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start'>
       {/* The tutor or subject stays in view while its lessons scroll. */}
-      <div className='sticky top-[var(--sticky-top)] z-10 -mx-4 bg-card px-4 py-1 sm:mx-0 sm:w-48 sm:shrink-0 sm:self-start sm:bg-transparent sm:px-0 sm:py-0'>
+      <div className='sticky top-[var(--sticky-top)] z-10 -mx-4 bg-[var(--card)] px-4 py-1 sm:mx-0 sm:w-48 sm:shrink-0 sm:self-start sm:bg-transparent sm:px-0 sm:py-0'>
         {grouping === 'tutor' ? (
           <>
             <div className='font-medium'>{first.tutorName}</div>
@@ -221,7 +221,8 @@ function LessonChip({ lesson, grouping }: { lesson: ScheduleLesson, grouping: Gr
       href={withFrom(`/admin/lessons/${lesson.id}`, here)}
       title={students || undefined}
       className={cn(
-        'flex min-w-36 flex-1 basis-0 flex-col gap-0.5 rounded-md border px-3 py-2 text-sm transition-colors hover:border-primary',
+        // A lesson tile: on the card colour with a light shadow, lifting under the pointer.
+        'flex min-w-36 flex-1 basis-0 flex-col gap-0.5 rounded-lg border bg-card px-3 py-2 text-sm shadow-xs transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md',
         open && !canceled && 'border-dashed',
         canceled && 'text-muted-foreground line-through decoration-muted-foreground/60'
       )}

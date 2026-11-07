@@ -107,7 +107,7 @@ export default function TutorWeekPage() {
           const dayLessons = byDay.get(day) ?? []
           return (
             <section key={day} className={cn('rounded-lg border bg-card', day < todayKey && 'opacity-80')}>
-              <header className='sticky top-[var(--sticky-top)] z-10 flex items-center gap-2 rounded-t-lg border-b bg-card px-4 py-2'>
+              <header className='sticky top-[var(--sticky-top)] z-10 flex items-center gap-2 rounded-t-lg border-b bg-[var(--card)] px-4 py-2'>
                 <h3 className='font-medium'>{capitalize(dayFormat.format(dateOfKey(day)))}</h3>
                 {day === todayKey && <Badge>Oggi</Badge>}
               </header>

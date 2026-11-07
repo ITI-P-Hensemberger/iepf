@@ -146,6 +146,7 @@
 /* Grafite with depth: every card lifts off the page a little (a soft shadow, and a light edge on
    top in the dark theme), and the main buttons catch a faint light from above. */
 @layer components {
+  /* Sticky titles and labels on a card take its colour with bg-[var(--card)], so they don't lift. */
   [data-slot='card'],
   .bg-card {
     box-shadow: var(--shadow-card);
