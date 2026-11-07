@@ -204,6 +204,13 @@
       "when": 1794066001898,
       "tag": "0028_notification_archive",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1794067610870,
+      "tag": "0029_faqs",
+      "breakpoints": true
     }
   ]
 }

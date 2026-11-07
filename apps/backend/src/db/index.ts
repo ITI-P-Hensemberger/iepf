@@ -8,6 +8,7 @@ import { adminInviteTokens } from './schemas/admin-invite-tokens.schema'
 import { adminProfiles } from './schemas/admin-profiles.schema'
 import { analyticsDaily } from './schemas/analytics-daily.schema'
 import { announcementDismissals, announcements } from './schemas/announcements.schema'
+import { faqs } from './schemas/faqs.schema'
 import { auditLogs } from './schemas/audit-logs.schema'
 import { classSections } from './schemas/class-sections.schema'
 import { emailVerificationTokens } from './schemas/email-verification-tokens.schema'
@@ -61,7 +62,8 @@ const schema = {
   notificationPreferences,
   notifications,
   announcements,
-  announcementDismissals
+  announcementDismissals,
+  faqs
 }
 
 const pool = new Pool({

@@ -8,6 +8,7 @@ import announcements from '@/routes/announcements/announcements.index'
 import audit from '@/routes/audit/audit.index'
 import auth from '@/routes/auth/auth.index'
 import classSections from '@/routes/class-sections/class-sections.index'
+import faqs from '@/routes/faqs/faqs.index'
 import feedback from '@/routes/feedback/feedback.index'
 import health from '@/routes/health.route'
 import lessons from '@/routes/lessons/lessons.index'
@@ -34,6 +35,7 @@ const routes = [
   audit,
   auth,
   classSections,
+  faqs,
   feedback,
   health,
   lessons,
