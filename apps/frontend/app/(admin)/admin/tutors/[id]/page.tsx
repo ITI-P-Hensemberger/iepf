@@ -1341,6 +1341,7 @@ export default function AdminTutorDetailPage() {
                     <SubjectSelector
                       value={field.value}
                       onChange={field.onChange}
+                      saved={(subjectsForm.formState.defaultValues?.subjectIds ?? []).filter((id): id is string => Boolean(id))}
                       disabled={subjectsLoading || subjectsSubmitting}
                     />
                   )}

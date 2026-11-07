@@ -175,6 +175,7 @@ export function TutorSubjectsSettings() {
                     <SubjectSelector
                       value={field.value}
                       onChange={field.onChange}
+                      saved={(form.formState.defaultValues?.subjectIds ?? []).filter((id): id is string => Boolean(id))}
                       disabled={isLoading || isSubmitting}
                     />
                   )}
