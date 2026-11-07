@@ -16,9 +16,12 @@ export default function FAQ({ items }: { items: FaqItem[] }) {
     <Accordion type='single' collapsible>
       {items.map(item => (
         <AccordionItem key={item.id} value={item.id}>
-          <AccordionTrigger>{item.question}</AccordionTrigger>
+          <AccordionTrigger className='text-base font-semibold'>{item.question}</AccordionTrigger>
+          {/* The answer reads apart from the question: softer, indented, with an orange edge. */}
           <AccordionContent>
-            <MarkdownContent source={item.answer} />
+            <div className='border-l-2 border-primary/50 pl-4 text-muted-foreground'>
+              <MarkdownContent source={item.answer} />
+            </div>
           </AccordionContent>
         </AccordionItem>
       ))}

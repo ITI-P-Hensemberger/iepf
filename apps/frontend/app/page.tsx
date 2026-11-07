@@ -39,7 +39,8 @@ export default function Home() {
             priority
           />
           <h1 className='mt-8 text-3xl font-semibold tracking-tight text-balance sm:text-4xl'>
-            Il supporto allo studio dell&apos;ITI P. Hensemberger
+            Il supporto allo studio dell’
+            <span className='ml-[0.1em] whitespace-nowrap text-[var(--school)]'>ITI P. Hensemberger</span>
           </h1>
           <p className='mt-4 text-lg text-muted-foreground text-pretty'>
             Lezioni pomeridiane con i tutor della scuola, per consolidare i
