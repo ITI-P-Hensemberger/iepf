@@ -1,5 +1,6 @@
 'use client'
 
+import { AdminFaqSettings } from '@/components/admin-faq-settings'
 import { STICKY_TOP_ACTIONS } from '@/components/sticky-footer'
 import { cn } from '@/lib/utils'
 import * as React from 'react'
@@ -36,7 +37,7 @@ import { ServiceMessageCard } from '@/components/service-message-banner'
 import { Calendar } from '@/components/ui/calendar'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
-import { BookOpen, CalendarOff, Info, Megaphone, Pencil, RotateCcw, Save, Trash2, Wrench, X } from 'lucide-react'
+import { BookOpen, CalendarOff, Info, Megaphone, Pencil, RotateCcw, Save, Trash2, Wrench, X, CircleHelp } from 'lucide-react'
 import { capitalizeFirst } from '@/lib/capitalize'
 
 type Role = 'student' | 'tutor' | 'admin' | 'activator'
@@ -663,7 +664,7 @@ export default function AdminSettingsPage() {
   )
 
   const availableTabs = React.useMemo(
-    () => ['info', 'maintenance', 'messages', 'closures', 'subjects', 'school-year'] as const,
+    () => ['info', 'maintenance', 'messages', 'closures', 'subjects', 'faq', 'school-year'] as const,
     []
   )
   const sections: SectionItem[] = [
@@ -672,6 +673,7 @@ export default function AdminSettingsPage() {
     { value: 'messages', label: 'Messaggi', icon: Megaphone },
     { value: 'closures', label: 'Chiusure', icon: CalendarOff },
     { value: 'subjects', label: 'Materie', icon: BookOpen },
+    { value: 'faq', label: 'FAQ', icon: CircleHelp },
     { value: 'school-year', label: 'Anno scolastico', icon: RotateCcw, separatorBefore: true }
   ]
 
@@ -1137,6 +1139,10 @@ export default function AdminSettingsPage() {
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value='faq' className='mt-0'>
+              {activeTab === 'faq' && <AdminFaqSettings />}
             </TabsContent>
 
             <TabsContent value='school-year' className='mt-0'>

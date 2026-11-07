@@ -2,10 +2,26 @@ import Image from 'next/image'
 import Link from 'next/link'
 
 import { BackButton } from '@/components/back-button'
-import FAQ from '@/components/faq'
+import { EmptyState } from '@/components/empty-state'
+import FAQ, { type FaqItem } from '@/components/faq'
 
 // Read by people not signed in yet, often from the landing: its logo on top, then the usual title.
-export default function FAQPage() {
+// Read at every visit: an admin's change shows at once.
+export const dynamic = 'force-dynamic'
+
+async function loadQuestions(): Promise<FaqItem[]> {
+  try {
+    const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:9999'
+    const response = await fetch(`${apiBaseUrl}/faqs`, { cache: 'no-store' })
+    return response.ok ? await response.json() : []
+  }
+  catch {
+    return []
+  }
+}
+
+export default async function FAQPage() {
+  const items = await loadQuestions()
   return (
     <main className='flex-1'>
       <div className='container mx-auto px-4 pt-10 pb-16'>
@@ -30,9 +46,13 @@ export default function FAQPage() {
             </Link>
             .
           </p>
-          <div className='mt-6 rounded-lg border bg-card px-4 sm:px-6'>
-            <FAQ />
-          </div>
+          {items.length > 0 ? (
+            <div className='mt-6 rounded-lg border bg-card px-4 sm:px-6'>
+              <FAQ items={items} />
+            </div>
+          ) : (
+            <EmptyState className='mt-6'>Le domande frequenti non sono disponibili in questo momento.</EmptyState>
+          )}
         </div>
       </div>
     </main>
