@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { CalendarCheck, GraduationCap, Lightbulb } from 'lucide-react'
+import { CalendarCheck, GraduationCap, Lightbulb, LogIn, UserPlus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 
@@ -25,8 +25,9 @@ const POINTS = [
 // The first page anyone sees: what the project is, and the two ways in.
 export default function Home() {
   return (
-    <main className='flex-1'>
-      <div className='container mx-auto px-4 pt-12 pb-16'>
+    // On a computer the content sits in the middle of the screen, between header and footer.
+    <main className='flex flex-1 flex-col'>
+      <div className='container mx-auto px-4 pt-12 pb-16 lg:my-auto'>
         <section className='mx-auto flex max-w-2xl flex-col items-center text-center'>
           <Image
             src='/logo.png'
@@ -45,12 +46,13 @@ export default function Home() {
             concetti fondamentali e affrontare con più sicurezza le materie in
             cui sei in difficoltà.
           </p>
-          <div className='mt-8 flex w-full flex-col gap-3 sm:w-auto sm:flex-row'>
-            <Button asChild size='lg'>
-              <Link href='/auth/sign-up'>Registrati</Link>
+          {/* The two ways in, the first thing to see after the title. */}
+          <div className='mt-10 flex w-full flex-col gap-3 sm:w-auto sm:flex-row'>
+            <Button asChild size='lg' className='h-12 px-8 text-base shadow-md sm:min-w-48'>
+              <Link href='/auth/sign-up'><UserPlus className='size-5' /> Registrati</Link>
             </Button>
-            <Button asChild size='lg' variant='outline'>
-              <Link href='/auth/login'>Accedi</Link>
+            <Button asChild size='lg' variant='outline' className='h-12 border-foreground/30 px-8 text-base sm:min-w-48'>
+              <Link href='/auth/login'><LogIn className='size-5' /> Accedi</Link>
             </Button>
           </div>
         </section>
