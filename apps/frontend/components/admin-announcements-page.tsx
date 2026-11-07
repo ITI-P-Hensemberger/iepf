@@ -9,7 +9,6 @@ import { CalendarIcon, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { AnnouncementCard } from '@/components/announcement-popup'
-import { PageHeader } from '@/components/page-header'
 import { MarkdownEditor } from '@/components/markdown-editor'
 import {
   AlertDialog,
@@ -498,6 +497,7 @@ function AnnouncementForm({
   )
 }
 
+// The "Popup" section of the global settings.
 export default function AdminAnnouncementsPage() {
   const [items, setItems] = React.useState<Announcement[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
@@ -610,20 +610,19 @@ export default function AdminAnnouncementsPage() {
   }
 
   return (
-    <main className='flex-1'>
-      <div className='container mx-auto flex flex-col items-center px-4 py-10'>
-        <div className='w-full max-w-6xl space-y-6'>
-          <PageHeader
-            title='Popup'
-            description='Messaggi in primo piano per studenti, tutor o admin.'
-            backHref='/admin'
-            actions={!editing && (
+    <div className='space-y-6'>
+          <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+            <div className='space-y-1'>
+              <h2 className='text-lg font-semibold'>Popup</h2>
+              <p className='text-sm text-muted-foreground'>Messaggi in primo piano per studenti, tutor o admin.</p>
+            </div>
+            {!editing && (
               <Button onClick={() => openEditor(null, EMPTY_DRAFT)}>
                 <Plus className='size-4' />
                 Nuovo popup
               </Button>
             )}
-          />
+          </div>
 
           {editing && (
             <div ref={formRef} className='scroll-mt-20'>
@@ -716,8 +715,6 @@ export default function AdminAnnouncementsPage() {
               })}
             </ul>
           )}
-        </div>
-      </div>
 
       <AlertDialog
         open={toDelete !== null}
@@ -742,6 +739,6 @@ export default function AdminAnnouncementsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </main>
+    </div>
   )
 }

@@ -1,5 +1,6 @@
 'use client'
 
+import AdminAnnouncementsPage from '@/components/admin-announcements-page'
 import { AdminClosures } from '@/components/admin-closures'
 import { AdminFaqSettings } from '@/components/admin-faq-settings'
 import { STICKY_TOP_ACTIONS } from '@/components/sticky-footer'
@@ -37,7 +38,7 @@ import { SchoolYearReset } from '@/components/school-year-reset'
 import { ServiceMessageCard } from '@/components/service-message-banner'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
-import { BookOpen, CalendarOff, Info, Megaphone, Pencil, RotateCcw, Save, Trash2, Wrench, X, CircleHelp } from 'lucide-react'
+import { BookOpen, CalendarOff, Info, Megaphone, Pencil, RotateCcw, Save, Trash2, Wrench, X, CircleHelp, MessageSquareText } from 'lucide-react'
 import { capitalizeFirst } from '@/lib/capitalize'
 
 type Role = 'student' | 'tutor' | 'admin' | 'activator'
@@ -626,13 +627,14 @@ export default function AdminSettingsPage() {
   )
 
   const availableTabs = React.useMemo(
-    () => ['info', 'maintenance', 'messages', 'closures', 'subjects', 'faq', 'school-year'] as const,
+    () => ['info', 'maintenance', 'messages', 'popup', 'closures', 'subjects', 'faq', 'school-year'] as const,
     []
   )
   const sections: SectionItem[] = [
     { value: 'info', label: 'Info', icon: Info },
     { value: 'maintenance', label: 'Manutenzione', icon: Wrench, separatorBefore: true },
     { value: 'messages', label: 'Messaggi', icon: Megaphone },
+    { value: 'popup', label: 'Popup', icon: MessageSquareText },
     { value: 'closures', label: 'Chiusure', icon: CalendarOff },
     { value: 'subjects', label: 'Materie', icon: BookOpen },
     { value: 'faq', label: 'FAQ', icon: CircleHelp },
@@ -1063,6 +1065,10 @@ export default function AdminSettingsPage() {
                 }))}
                 dirty={isClosuresDirty}
               />
+            </TabsContent>
+
+            <TabsContent value='popup' className='mt-0'>
+              {activeTab === 'popup' && <AdminAnnouncementsPage />}
             </TabsContent>
 
             <TabsContent value='faq' className='mt-0'>
