@@ -487,8 +487,8 @@ export default function AdminTutorsPage() {
       const params = new URLSearchParams()
       params.set('role', 'tutor')
       params.set('isActive', String(isActive))
-      if (search) {
-        params.set('q', search)
+      if (search.trim()) {
+        params.set('q', search.trim())
       }
       params.set('sortBy', sort.sortBy)
       params.set('sortDir', sort.sortDir)
@@ -538,8 +538,8 @@ export default function AdminTutorsPage() {
     }) => {
       const { search, sort, page } = options
       const params = new URLSearchParams()
-      if (search) {
-        params.set('q', search)
+      if (search.trim()) {
+        params.set('q', search.trim())
       }
       params.set('sortBy', sort.sortBy)
       params.set('sortDir', sort.sortDir)

@@ -50,7 +50,7 @@ const PAGE = 30
 function query(tab: Tab, offset: number, q: string) {
   const now = new Date().toISOString()
   const params = new URLSearchParams({ limit: String(PAGE), offset: String(offset) })
-  if (q) params.set('q', q)
+  if (q.trim()) params.set('q', q.trim())
   if (tab === 'upcoming') {
     params.set('bookingStatus', 'confirmed')
     params.set('from', now)
@@ -114,8 +114,8 @@ export default function StudentLessonsPage() {
 
   // The search reaches the URL (and the list) a moment after the last key.
   React.useEffect(() => {
-    if (search.trim() === q) return
-    const timer = window.setTimeout(() => setParam('q', search.trim()), SEARCH_DELAY)
+    if (search === q) return
+    const timer = window.setTimeout(() => setParam('q', search), SEARCH_DELAY)
     return () => window.clearTimeout(timer)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, q])

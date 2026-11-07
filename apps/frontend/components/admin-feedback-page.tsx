@@ -316,7 +316,7 @@ export default function AdminFeedbackPage() {
       const params = new URLSearchParams(searchParamsString)
 
       if (nextFilters.search.trim()) {
-        params.set('feedbackQ', nextFilters.search.trim())
+        params.set('feedbackQ', nextFilters.search)
       } else {
         params.delete('feedbackQ')
       }
@@ -400,8 +400,9 @@ export default function AdminFeedbackPage() {
     if (currentFilters.dateRange?.to) {
       params.set('lessonTo', endOfDayIso(currentFilters.dateRange.to))
     }
-    if (currentFilters.search) {
-      params.set('q', currentFilters.search)
+    // The field keeps what is typed (spaces included); the search ignores spaces at the ends.
+    if (currentFilters.search.trim()) {
+      params.set('q', currentFilters.search.trim())
     }
     params.set('sortBy', currentFilters.sortBy)
     params.set('sortDir', currentFilters.sortDir)

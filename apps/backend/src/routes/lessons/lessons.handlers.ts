@@ -347,7 +347,7 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
     ? and(
         ...clauses,
         or(
-          dateMatches(lessons.startAt, pattern),
+          dateMatches(lessons.startAt, query.q ?? '', pattern),
           personMatches(lessons.tutorId, pattern),
           subjectMatches(lessons.subjectId, pattern),
           bookingMatches(lessons.id, pattern)
@@ -470,7 +470,7 @@ export const listMyLessons: AppRouteHandler<ListMyLessonsRoute> = async (c) => {
     // Free text: the day ("13/11"), the tutor (name or email), the subject or the topic.
     const pattern = likePattern(query.q)
     conditions.push(or(
-      dateMatches(lessons.startAt, pattern),
+      dateMatches(lessons.startAt, query.q, pattern),
       personMatches(lessons.tutorId, pattern),
       subjectMatches(lessonBookings.subjectId, pattern),
       ilike(lessonBookings.topic, pattern)

@@ -425,8 +425,8 @@ export default function AdminAdminsPage() {
       const params = new URLSearchParams()
       params.set('role', 'admin')
       params.set('isActive', String(isActive))
-      if (search) {
-        params.set('q', search)
+      if (search.trim()) {
+        params.set('q', search.trim())
       }
       if (sort) {
         params.set('sortBy', sort.sortBy)
@@ -478,8 +478,8 @@ export default function AdminAdminsPage() {
     }) => {
       const { search, sort, page } = options
       const params = new URLSearchParams()
-      if (search) {
-        params.set('q', search)
+      if (search.trim()) {
+        params.set('q', search.trim())
       }
       if (sort) {
         params.set('sortBy', sort.sortBy)

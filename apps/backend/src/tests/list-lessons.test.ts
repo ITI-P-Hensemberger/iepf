@@ -213,6 +213,10 @@ describe('searching lessons', () => {
     expect(await ids({ q: '03/03/2031' })).toEqual(ordered)
     expect(await ids({ q: '3/3/2031' })).toEqual(ordered)
     expect(await ids({ q: '03/03/31' })).toEqual(ordered)
+    expect(await ids({ q: '03-03' })).toEqual(ordered)
+    expect(await ids({ q: '3 marzo 2031' })).toEqual(ordered)
+    expect(await ids({ q: '3 mar' })).toEqual(ordered)
+    expect(await ids({ q: 'marzo 2031' })).toEqual(ordered)
     expect(await ids({ q: '04/03/2031' })).toEqual([])
   })
 

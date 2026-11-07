@@ -283,8 +283,9 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
       params.set('to', endOfDayIso(currentFilters.dateRange.to))
     }
     params.set('sortBy', 'startAt')
-    if (currentFilters.search) {
-      params.set('q', currentFilters.search)
+    // The field keeps what is typed (spaces included); the search ignores spaces at the ends.
+    if (currentFilters.search.trim()) {
+      params.set('q', currentFilters.search.trim())
     }
     params.set('sortDir', currentFilters.sortDir)
     params.set('limit', String(pageSize))
@@ -392,7 +393,7 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
       const nextPage = updates.page ?? 1
 
       if (nextSearch.trim()) {
-        params.set('lessonQ', nextSearch.trim())
+        params.set('lessonQ', nextSearch)
       } else {
         params.delete('lessonQ')
       }

@@ -448,8 +448,8 @@ export default function ActivatorStudentsPage() {
       const params = new URLSearchParams()
       params.set('role', 'student')
       params.set('isActive', String(isActive))
-      if (search) {
-        params.set('q', search)
+      if (search.trim()) {
+        params.set('q', search.trim())
       }
       params.set('sortBy', sort.sortBy)
       params.set('sortDir', sort.sortDir)
