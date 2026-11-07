@@ -5,7 +5,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { CalendarCheck, ChevronLeft, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -91,16 +91,26 @@ export default function AdminDayPage() {
   return (
     <div className='space-y-4'>
       <StickyBar className='flex flex-wrap items-center gap-2'>
-        <Button variant='outline' size='icon' aria-label='Giorno precedente' onClick={() => setParam('day', stepSchoolDay(dayKey, -1))}>
-          <ChevronLeft className='h-4 w-4' />
-        </Button>
-        <span className='min-w-52 text-center font-medium'>{capitalize(dayFormat.format(dateOfKey(dayKey)))}</span>
-        <Button variant='outline' size='icon' aria-label='Giorno successivo' onClick={() => setParam('day', stepSchoolDay(dayKey, 1))}>
-          <ChevronRight className='h-4 w-4' />
-        </Button>
-        {dayKey !== firstSchoolDay(todayKey) && (
-          <Button variant='ghost' size='sm' onClick={() => setParam('day', firstSchoolDay(todayKey))}>Oggi</Button>
-        )}
+        {/* One row on a phone too: arrows, the day, and the jump back to today. */}
+        <div className='flex w-full items-center gap-2 sm:w-auto'>
+          <Button variant='outline' size='icon' aria-label='Giorno precedente' onClick={() => setParam('day', stepSchoolDay(dayKey, -1))}>
+            <ChevronLeft className='h-4 w-4' />
+          </Button>
+          <span className='min-w-0 flex-1 truncate text-center font-medium sm:min-w-52 sm:flex-none'>{capitalize(dayFormat.format(dateOfKey(dayKey)))}</span>
+          <Button variant='outline' size='icon' aria-label='Giorno successivo' onClick={() => setParam('day', stepSchoolDay(dayKey, 1))}>
+            <ChevronRight className='h-4 w-4' />
+          </Button>
+          <Button
+            variant='outline'
+            size='icon'
+            aria-label='Torna a oggi'
+            title='Oggi'
+            disabled={dayKey === firstSchoolDay(todayKey)}
+            onClick={() => setParam('day', firstSchoolDay(todayKey))}
+          >
+            <CalendarCheck className='h-4 w-4' />
+          </Button>
+        </div>
         <div className='w-full sm:ml-auto sm:w-44'>
           <Select value={grouping} onValueChange={(value) => setParam('group', value)}>
             <SelectTrigger className='w-full' aria-label='Raggruppa'>

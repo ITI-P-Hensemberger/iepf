@@ -5,7 +5,7 @@
 import { StickyBar } from '@/components/sticky-bar'
 import * as React from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { CalendarCheck, ChevronLeft, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { TutorLessonList } from '@/components/tutor-lesson-list'
@@ -67,18 +67,28 @@ export default function TutorWeekPage() {
   return (
     <div className='space-y-4'>
       <StickyBar className='flex flex-wrap items-center gap-2'>
-        <Button variant='outline' size='icon' aria-label='Settimana precedente' onClick={() => goToWeek(addDaysToKey(mondayKey, -7))}>
-          <ChevronLeft className='h-4 w-4' />
-        </Button>
-        <span className='min-w-40 text-center font-medium'>
-          {shortFormat.format(dateOfKey(days[0]))} – {shortFormat.format(dateOfKey(days[4]))}
-        </span>
-        <Button variant='outline' size='icon' aria-label='Settimana successiva' onClick={() => goToWeek(addDaysToKey(mondayKey, 7))}>
-          <ChevronRight className='h-4 w-4' />
-        </Button>
-        {mondayKey !== mondayOf(todayKey) && (
-          <Button variant='ghost' size='sm' onClick={() => goToWeek(todayKey)}>Questa settimana</Button>
-        )}
+        {/* One row on a phone too: arrows, the week, and the jump back to this week. */}
+        <div className='flex w-full items-center gap-2 sm:w-auto'>
+          <Button variant='outline' size='icon' aria-label='Settimana precedente' onClick={() => goToWeek(addDaysToKey(mondayKey, -7))}>
+            <ChevronLeft className='h-4 w-4' />
+          </Button>
+          <span className='min-w-0 flex-1 truncate text-center font-medium sm:min-w-40 sm:flex-none'>
+            {shortFormat.format(dateOfKey(days[0]))} – {shortFormat.format(dateOfKey(days[4]))}
+          </span>
+          <Button variant='outline' size='icon' aria-label='Settimana successiva' onClick={() => goToWeek(addDaysToKey(mondayKey, 7))}>
+            <ChevronRight className='h-4 w-4' />
+          </Button>
+          <Button
+            variant='outline'
+            size='icon'
+            aria-label='Torna a questa settimana'
+            title='Questa settimana'
+            disabled={mondayKey === mondayOf(todayKey)}
+            onClick={() => goToWeek(todayKey)}
+          >
+            <CalendarCheck className='h-4 w-4' />
+          </Button>
+        </div>
         <span className='ml-auto text-sm text-muted-foreground'>
           {running.length} {running.length === 1 ? 'lezione' : 'lezioni'} · {students} {students === 1 ? 'studente' : 'studenti'}
           {capacity ? ` · ${capacity} ${capacity === 1 ? 'posto' : 'posti'} al giorno` : ''}
