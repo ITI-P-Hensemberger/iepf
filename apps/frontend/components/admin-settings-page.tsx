@@ -1,5 +1,6 @@
 'use client'
 
+import { AdminClosures } from '@/components/admin-closures'
 import { AdminFaqSettings } from '@/components/admin-faq-settings'
 import { STICKY_TOP_ACTIONS } from '@/components/sticky-footer'
 import { cn } from '@/lib/utils'
@@ -34,7 +35,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { MarkdownEditor } from '@/components/markdown-editor'
 import { SchoolYearReset } from '@/components/school-year-reset'
 import { ServiceMessageCard } from '@/components/service-message-banner'
-import { Calendar } from '@/components/ui/calendar'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
 import { BookOpen, CalendarOff, Info, Megaphone, Pencil, RotateCcw, Save, Trash2, Wrench, X, CircleHelp } from 'lucide-react'
@@ -476,44 +476,6 @@ export default function AdminSettingsPage() {
         .sort() as string[],
     [closureDates, toApiClosureDate]
   )
-
-  const handleRemoveClosureDate = React.useCallback(
-    (date: string) => {
-      setClosureDates((prev) => prev.filter((item) => item !== date))
-    },
-    []
-  )
-
-  const parseClosureDate = React.useCallback(
-    (date: string) => {
-      const apiDate = toApiClosureDate(date)
-      if (!apiDate) return null
-      const parsed = new Date(`${apiDate}T00:00:00`)
-      return Number.isNaN(parsed.getTime()) ? null : parsed
-    },
-    [toApiClosureDate]
-  )
-
-  const formatClosureDate = React.useCallback((date: Date) => {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${day}-${month}-${year}`
-  }, [])
-
-  const selectedClosureDates = React.useMemo(
-    () => closureDates.map(parseClosureDate).filter(Boolean) as Date[],
-    [closureDates, parseClosureDate]
-  )
-
-  const closureDatesDisplay = React.useMemo(() => {
-    return closureDates.slice().sort((a, b) => {
-      const apiA = toApiClosureDate(a)
-      const apiB = toApiClosureDate(b)
-      if (!apiA || !apiB) return a.localeCompare(b)
-      return apiA.localeCompare(apiB)
-    })
-  }, [closureDates, toApiClosureDate])
 
   const handleSaveMaintenance = React.useCallback(async () => {
     setSavingMaintenance(true)
@@ -1093,52 +1055,14 @@ export default function AdminSettingsPage() {
                 </Button>
               </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Date di chiusura</CardTitle>
-                </CardHeader>
-                <CardContent className='space-y-4'>
-                  <p className='text-sm text-muted-foreground'>
-                    Seleziona le date in cui la scuola è chiusa.
-                  </p>
-                  <div className='flex justify-center'>
-                    <Calendar
-                      mode='multiple'
-                      selected={selectedClosureDates}
-                      onSelect={(dates) => {
-                        const next = (dates ?? []).map(formatClosureDate)
-                        setClosureDates(Array.from(new Set(next)))
-                      }}
-                      numberOfMonths={1}
-                    />
-                  </div>
-
-                  {closureDates.length === 0 ? (
-                    <div className='text-sm text-muted-foreground'>
-                      Nessuna data di chiusura impostata.
-                    </div>
-                  ) : (
-                    <div className='flex flex-wrap gap-2'>
-                      {closureDatesDisplay.map((date) => (
-                        <div
-                          key={date}
-                          className='flex items-center gap-2 rounded-full border px-3 py-1 text-sm'
-                        >
-                          <span>{date}</span>
-                          <Button
-                            type='button'
-                            size='sm'
-                            variant='ghost'
-                            onClick={() => handleRemoveClosureDate(date)}
-                          >
-                            Rimuovi
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <AdminClosures
+                dates={closureDatesPayload}
+                onChange={(next) => setClosureDates(next.map((date) => {
+                  const [year, month, day] = date.split('-')
+                  return `${day}-${month}-${year}`
+                }))}
+                dirty={isClosuresDirty}
+              />
             </TabsContent>
 
             <TabsContent value='faq' className='mt-0'>

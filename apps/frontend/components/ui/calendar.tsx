@@ -12,6 +12,8 @@ import {
   type DayButton,
 } from "react-day-picker"
 
+import { it } from "date-fns/locale"
+
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
 
@@ -31,6 +33,9 @@ function Calendar({
 
   return (
     <DayPicker
+      // Every calendar of the site speaks Italian and starts the week on Monday.
+      locale={it}
+      weekStartsOn={1}
       showOutsideDays={showOutsideDays}
       className={cn(
         "bg-background group/calendar p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
