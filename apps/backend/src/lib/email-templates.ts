@@ -752,10 +752,10 @@ export function buildLessonsGeneratedMessage(params: {
     : `ti sono state assegnate ${params.count} lezioni per la settimana che inizia il ${weekLabel}.`
 
   return {
-    subject: 'Nuove lezioni assegnate',
+    subject: 'Lezioni della settimana assegnate',
     text: `Ciao ${params.tutorName}, ${message}`,
     html: buildEmailHtml(
-      'Nuove lezioni assegnate',
+      'Lezioni della settimana assegnate',
       `Ciao ${escapeHtml(params.tutorName)}, ${message}`,
       { label: 'Vai alle lezioni', url: new URL('/tutor/lessons', env.SITE_URL ?? 'http://localhost:3000').toString() },
       { hideHomeButton: true }

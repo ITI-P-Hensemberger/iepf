@@ -3,15 +3,13 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 
-import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { ChevronLeft } from 'lucide-react'
 
 type BackButtonProps = {
   label?: string
   href?: string
   fallbackHref?: string
-  variant?: React.ComponentProps<typeof Button>['variant']
-  size?: React.ComponentProps<typeof Button>['size']
   className?: string
   icon?: React.ReactNode
 }
@@ -20,8 +18,6 @@ export function BackButton({
   label = 'Indietro',
   href,
   fallbackHref = '/',
-  variant = 'ghost',
-  size = 'sm',
   className,
   icon = <ChevronLeft className='h-4 w-4' />
 }: BackButtonProps) {
@@ -51,11 +47,15 @@ export function BackButton({
   )
 
   return (
-    <Button
+    <button
       type='button'
-      variant={variant}
-      size={size}
-      className={[ 'gap-2', className ].filter(Boolean).join(' ')}
+      className={cn(
+        // A pill, unlike the square buttons of the page: easy to spot, quiet, and its edge lines up
+        // with the content below.
+        'inline-flex h-8 items-center gap-1 rounded-full border bg-muted/50 pr-3.5 pl-2 text-sm font-medium text-foreground/80 transition-colors',
+        'hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
+        className
+      )}
       onClick={() => {
         if (href) {
           router.replace(href)
@@ -77,6 +77,6 @@ export function BackButton({
     >
       {icon}
       {label}
-    </Button>
+    </button>
   )
 }

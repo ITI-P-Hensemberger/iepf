@@ -3,7 +3,9 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { BookOpen, CalendarClock, UserRound } from 'lucide-react'
+import { BookOpen, CalendarClock, History, UserRound } from 'lucide-react'
+
+import { AdminUserLessons } from '@/components/admin-user-lessons'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
@@ -153,7 +155,8 @@ const WEEKDAYS = [
 const SECTIONS = [
   { value: 'account', label: 'Dati', icon: UserRound },
   { value: 'availability', label: 'Disponibilità', icon: CalendarClock },
-  { value: 'subjects', label: 'Materie', icon: BookOpen }
+  { value: 'subjects', label: 'Materie', icon: BookOpen },
+  { value: 'lessons', label: 'Lezioni', icon: History }
 ] as const
 
 export default function AdminTutorDetailPage() {
@@ -161,7 +164,7 @@ export default function AdminTutorDetailPage() {
   const router = useRouter()
   const tutorId = String(params?.id ?? '')
   const tab = useSearchParams().get('tab')
-  const active = tab === 'availability' || tab === 'subjects' ? tab : 'account'
+  const active = tab === 'availability' || tab === 'subjects' || tab === 'lessons' ? tab : 'account'
 
   const [tutor, setTutor] = React.useState<Tutor | null>(null)
   const [sections, setSections] = React.useState<Section[]>([])
@@ -877,7 +880,7 @@ export default function AdminTutorDetailPage() {
               </Button>
               <Button asChild variant='outline'>
                 <Link
-                  href={`/admin/feedback?feedbackAuthor=${tutorId}&feedbackRole=tutor`}
+                  href={`/admin/feedback?feedbackAuthor=${tutorId}&feedbackRole=tutor&from=/admin/tutors/${tutorId}`}
                 >
                   Feedback
                 </Link>
@@ -1421,6 +1424,7 @@ export default function AdminTutorDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {active === 'lessons' && tutorId && <AdminUserLessons role='tutor' userId={tutorId} />}
     </SectionLayout>
   )
 }

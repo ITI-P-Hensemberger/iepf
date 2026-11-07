@@ -148,7 +148,7 @@ export function lessonAssignedPush(after: LessonVersion, bookedStudents: number)
 
 export function lessonCreatedPush(params: { lessonId: string, subjectName: string | null, startAt: Date }): PushMessage {
   return {
-    title: 'Nuova lezione in calendario',
+    title: 'Nuova lezione assegnata',
     body: params.subjectName ? `${params.subjectName}, ${formatWhen(params.startAt)}` : capitalize(formatWhen(params.startAt)),
     url: lessonsUrl('tutor', params.lessonId),
     tag: `lesson-${params.lessonId}`
@@ -203,10 +203,10 @@ export function activationChangedPush(isActive: boolean): PushMessage {
 export function lessonsGeneratedPush(params: { count: number, weekStart: Date }): PushMessage {
   const week = params.weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
   return {
-    title: 'Lezioni della settimana pronte',
+    title: 'Lezioni della settimana assegnate',
     body: params.count === 1
-      ? `1 lezione creata per la settimana del ${week}.`
-      : `${params.count} lezioni create per la settimana del ${week}.`,
+      ? `1 lezione assegnata per la settimana del ${week}.`
+      : `${params.count} lezioni assegnate per la settimana del ${week}.`,
     url: lessonsUrl('tutor'),
     tag: `generated-${week}`
   }

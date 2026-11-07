@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
   const targetUrl = new URL(`${apiBaseUrl}/lessons/me`)
   const targetParams = new URLSearchParams()
   const allowedKeys = [
+    'studentId',
     'from',
     'to',
     'lessonStatus',

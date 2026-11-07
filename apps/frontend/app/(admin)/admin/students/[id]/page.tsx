@@ -3,7 +3,9 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { Hourglass, UserRound } from 'lucide-react'
+import { History, Hourglass, UserRound } from 'lucide-react'
+
+import { AdminUserLessons } from '@/components/admin-user-lessons'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
@@ -106,14 +108,16 @@ type TokenAdjustmentDirection = 'add' | 'remove'
 
 const SECTIONS = [
   { value: 'account', label: 'Dati', icon: UserRound },
-  { value: 'hours', label: 'Ore di lezione', icon: Hourglass }
+  { value: 'hours', label: 'Ore di lezione', icon: Hourglass },
+  { value: 'lessons', label: 'Lezioni', icon: History }
 ] as const
 
 export default function AdminStudentDetailPage() {
   const params = useParams()
   const router = useRouter()
   const studentId = String(params?.id ?? '')
-  const active = useSearchParams().get('tab') === 'hours' ? 'hours' : 'account'
+  const tab = useSearchParams().get('tab')
+  const active = tab === 'hours' || tab === 'lessons' ? tab : 'account'
 
   const [student, setStudent] = React.useState<Student | null>(null)
   const [sections, setSections] = React.useState<Section[]>([])
@@ -502,7 +506,7 @@ export default function AdminStudentDetailPage() {
               </Button>
               <Button asChild variant='outline'>
                 <Link
-                  href={`/admin/feedback?feedbackAuthor=${studentId}&feedbackRole=student`}
+                  href={`/admin/feedback?feedbackAuthor=${studentId}&feedbackRole=student&from=/admin/students/${studentId}`}
                 >
                   Feedback
                 </Link>
@@ -968,6 +972,7 @@ export default function AdminStudentDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {active === 'lessons' && studentId && <AdminUserLessons role='student' userId={studentId} />}
     </SectionLayout>
   )
 }

@@ -505,7 +505,8 @@ export default function ProfilePage() {
                   <h2 className='text-lg font-semibold'>Dati personali</h2>
                   {isLimited && (
                     <p className='text-sm text-muted-foreground'>
-                      Se la classe o l&apos;email sono sbagliate scrivici a{' '}
+                      Per la tua sicurezza, alcuni dati non sono modificabili in autonomia. Se noti qualche errore,
+                      contattaci a{' '}
                       <a href='mailto:iepf@hensemberger.it' className='underline underline-offset-4'>iepf@hensemberger.it</a>.
                     </p>
                   )}

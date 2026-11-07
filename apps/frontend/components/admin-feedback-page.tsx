@@ -209,6 +209,9 @@ export default function AdminFeedbackPage() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  // Opened from a tutor, a student or a lesson: back leads there, not to the home.
+  const from = searchParams.get('from')
+  const backHref = from && /^\/admin\/(tutors|students|lessons)\/[\w-]+$/.test(from) ? from : '/admin'
   const searchParamsString = searchParams.toString()
 
   const [filters, setFilters] = React.useState<FeedbackFilters>(defaultFilters)
@@ -609,7 +612,7 @@ export default function AdminFeedbackPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
-          <PageHeader title='Gestione feedback' backHref='/admin' />
+          <PageHeader title='Gestione feedback' backHref={backHref} />
 
           <Tabs
             value={filters.authorRole}

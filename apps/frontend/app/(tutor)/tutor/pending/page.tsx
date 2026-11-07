@@ -3,8 +3,6 @@
 import { UserRoundX } from 'lucide-react'
 
 import { StatusBlock } from '@/components/status-block'
-import { Button } from '@/components/ui/button'
-import { logout } from '@/lib/auth-client'
 
 export default function TutorPendingPage() {
   return (
@@ -12,11 +10,6 @@ export default function TutorPendingPage() {
       <StatusBlock
         icon={UserRoundX}
         title='Account non attivo'
-        actions={<>
-          <Button variant='destructive' onClick={() => void logout()}>
-            Esci
-          </Button>
-        </>}
       >
         <p>
           Il tuo account non è ancora attivo oppure è stato disattivato.

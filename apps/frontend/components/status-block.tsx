@@ -12,7 +12,8 @@ export function StatusBlock({
   children,
   actions,
   footer,
-  wide = false
+  wide = false,
+  tone = 'muted'
 }: {
   icon: LucideIcon
   title: React.ReactNode
@@ -24,6 +25,8 @@ export function StatusBlock({
   footer?: React.ReactNode
   // For a footer that needs room.
   wide?: boolean
+  // warning: something the person still has to do.
+  tone?: 'muted' | 'warning'
 }) {
   return (
     <div className='flex min-h-[70dvh] w-full flex-1 items-center justify-center px-4 py-12'>
@@ -37,8 +40,13 @@ export function StatusBlock({
           draggable={false}
           priority
         />
-        <div className='mt-8 flex size-12 items-center justify-center rounded-full bg-muted'>
-          <Icon className='size-5 text-muted-foreground' aria-hidden />
+        <div
+          className={cn(
+            'mt-8 flex size-12 items-center justify-center rounded-full',
+            tone === 'warning' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' : 'bg-muted text-muted-foreground'
+          )}
+        >
+          <Icon className='size-5' aria-hidden />
         </div>
         <h1 className='mt-4 text-2xl font-semibold tracking-tight'>{title}</h1>
         {children && <div className='mt-3 max-w-md text-muted-foreground'>{children}</div>}

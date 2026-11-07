@@ -32,7 +32,7 @@ const USER_LABELS: Array<{ key: UserCategory, label: string, description: string
     key: 'lessons',
     label: 'Nuove lezioni',
     description: 'Nuove lezioni disponibili da prenotare.',
-    tutorDescription: 'Lezioni create per te dalla scuola o dal calendario settimanale.'
+    tutorDescription: 'Lezioni assegnate a te dalla scuola o dal calendario settimanale.'
   }
 ]
 

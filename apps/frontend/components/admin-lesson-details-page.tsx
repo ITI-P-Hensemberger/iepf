@@ -1162,7 +1162,7 @@ export default function AdminLessonDetailsPage() {
                     </Button>
                   )}
                   <Button asChild variant='outline'>
-                    <Link href={`/admin/feedback?feedbackLesson=${lesson.id}&feedbackRole=tutor`}>
+                    <Link href={`/admin/feedback?feedbackLesson=${lesson.id}&feedbackRole=tutor&from=/admin/lessons/${lesson.id}`}>
                       <MessageSquare className='h-4 w-4' /> Feedback
                     </Link>
                   </Button>

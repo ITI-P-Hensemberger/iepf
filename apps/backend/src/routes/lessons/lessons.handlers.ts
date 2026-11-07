@@ -451,13 +451,17 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
 
 export const listMyLessons: AppRouteHandler<ListMyLessonsRoute> = async (c) => {
   const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'student') {
+  const query = c.req.valid('query')
+  const isAdmin = currentUser?.role === 'admin' && currentUser.isActive === true
+  // A student sees their own bookings; an admin sees the ones of the student they ask for.
+  const studentId = currentUser?.role === 'student'
+    ? currentUser.id
+    : isAdmin ? query.studentId : undefined
+  if (!studentId) {
     forbid()
   }
 
-  const query = c.req.valid('query')
-
-  const conditions = [eq(lessonBookings.studentId, currentUser.id)]
+  const conditions = [eq(lessonBookings.studentId, studentId)]
   if (query.bookingStatus) {
     conditions.push(eq(lessonBookings.status, query.bookingStatus))
   }
