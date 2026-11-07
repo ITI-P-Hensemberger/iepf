@@ -52,8 +52,7 @@ IEPF Frontend is a Next.js 16 App Router project for an Italian educational plat
 - Backend responses often wrap `{ success, data }`
 - Helpers in `lib/backend-response.ts`:
   - `parseBackendPayload`, `unwrapBackendData`, `extractPayloadArray`
-- Example normalization: `app/api/lessons/route.ts` maps `dailyCapacity` -> `dailyAvailability`
-- Backend contract is stored in `api-doc.json`
+- Backend contract: `lib/api/schema.ts`, generated from the backend OpenAPI document (`pnpm --filter iepf-backend run api:types`); read response types with `ApiResponse<'/path'>` from `lib/api`
 - Route handlers call the backend through `backendFetch` (`lib/backend-fetch.ts`), and `lib/auth.ts` takes the request headers: the backend only sees this app, so without the client address all users share one rate-limit bucket and audit logs lose the IP
 
 ## UI & UX Conventions
@@ -83,7 +82,7 @@ IEPF Frontend is a Next.js 16 App Router project for an Italian educational plat
 - Use `formatItalianDate` (`lib/format-date.ts`) for date display
 
 ## Recent Feature Patterns
-- “Non prenotabile” badge for tutor lessons uses `dailyOccupancy >= dailySeats` (mapped from `dailyAvailability` or `dailyCapacity`) and shows only for `status === scheduled`
+- “Non prenotabile” badge for tutor lessons uses `dailyOccupancy >= dailySeats` (from `dailyCapacity`) and shows only for `status === scheduled`
 - Admin dashboard includes two lesson tables (today and scheduled) with similar UI
 - Admin stats uses Tabs on desktop and Select on mobile to avoid overflow
 

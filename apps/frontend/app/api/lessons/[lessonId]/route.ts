@@ -3,17 +3,8 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 import { parseBackendPayload } from '@/lib/backend-response'
+import type { ApiResponse } from '@/lib/api'
 import { AUTH_COOKIES } from '@/lib/auth'
-
-function normalizeLessonDailyFields(lesson: Record<string, unknown>) {
-  if (
-    lesson.dailyAvailability === undefined &&
-    lesson.dailyCapacity !== undefined
-  ) {
-    return { ...lesson, dailyAvailability: lesson.dailyCapacity }
-  }
-  return lesson
-}
 
 export async function GET(
   _request: Request,
@@ -48,11 +39,5 @@ export async function GET(
     )
   }
 
-  if (parsed.data && typeof parsed.data === 'object') {
-    return NextResponse.json(
-      normalizeLessonDailyFields(parsed.data as Record<string, unknown>)
-    )
-  }
-
-  return NextResponse.json(parsed.data ?? {})
+  return NextResponse.json(parsed.data as ApiResponse<'/lessons/{lessonId}'>)
 }

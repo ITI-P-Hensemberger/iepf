@@ -61,7 +61,6 @@ type Lesson = {
   startAt: string
   durationMinutes: number
   lessonCapacity: number
-  dailyAvailability?: number | null
   dailyOccupancy?: number | null
   availableSeats: number
   countsForTutor?: boolean | null

@@ -31,6 +31,9 @@ class ClassifyTests(unittest.TestCase):
     def test_app_change_only_touches_that_app(self):
         self.assertEqual(on(changes.classify(['apps/backend/src/app.ts'])), {'backend_checks', 'backend_release'})
         self.assertEqual(on(changes.classify(['apps/frontend/app/page.tsx'])), {'frontend_checks', 'frontend_release'})
+        # Editing the generated API types also reruns the backend check that compares them.
+        self.assertEqual(on(changes.classify(['apps/frontend/lib/api/schema.ts'])),
+                         {'frontend_checks', 'frontend_release', 'backend_checks'})
 
     def test_lockfile_rebuilds_both_apps(self):
         self.assertEqual(on(changes.classify(['pnpm-lock.yaml'])),

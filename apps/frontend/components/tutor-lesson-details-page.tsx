@@ -42,7 +42,6 @@ type Lesson = {
   durationMinutes: number
   lessonCapacity: number
   dailyCapacity?: number | null
-  dailyAvailability?: number | null
   dailyOccupancy?: number | null
   availableSeats: number
   status: string
@@ -123,9 +122,7 @@ function isLessonNonBookable(lesson?: Lesson | null) {
   if (status !== 'scheduled') {
     return false
   }
-  const dailySeats = parseNumeric(
-    lesson.dailyAvailability ?? lesson.dailyCapacity
-  )
+  const dailySeats = parseNumeric(lesson.dailyCapacity)
   const occupancy = parseNumeric(lesson.dailyOccupancy)
   if (dailySeats === null || occupancy === null) {
     return false

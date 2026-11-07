@@ -420,7 +420,8 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Stima:** M
   - **Dipendenze:** 3
 
-- [ ] **23. Generare un contratto API condiviso**
+- [x] **23. Generare un contratto API condiviso**
+  - **Stato:** i tipi sono generati in `apps/frontend/lib/api/schema.ts` da `pnpm --filter iepf-backend run api:types` e la CI fallisce se non sono allineati. `api-doc.json` è rimosso. Le rotte BFF delle lezioni non indovinano più il formato. Restano gli helper generici `extractPayloadArray` e `unwrapBackendData` nei componenti: spariranno con il punto 25.
   - **Problema:** `apps/frontend/api-doc.json` è statico (citato solo da `CODEBASE.md`) e le rotte
     `app/api` indovinano il formato delle risposte, come fa `LESSON_LIST_KEYS` in
     `app/api/lessons/route.ts`.

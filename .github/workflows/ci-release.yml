@@ -84,6 +84,13 @@ jobs:
       - run: pnpm --filter iepf-backend run typecheck
       - run: pnpm --filter iepf-backend run lint
       - run: pnpm --filter iepf-backend run build
+      - name: Check the frontend API types match the backend routes
+        run: |
+          pnpm --filter iepf-backend run api:types
+          git diff --exit-code -- apps/frontend/lib/api/schema.ts || {
+            echo '::error::apps/frontend/lib/api/schema.ts is stale: run pnpm --filter iepf-backend run api:types and commit it.'
+            exit 1
+          }
       - run: pnpm --filter iepf-backend run db:migrate
       - run: pnpm --filter iepf-backend run test
 
