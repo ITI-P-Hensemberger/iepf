@@ -2,6 +2,8 @@
 
 // One school day at a glance: every tutor's lessons (or every subject's), what is booked, what
 // is still open, and a click away from each lesson's details.
+import { StickyBar } from '@/components/sticky-bar'
+import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -87,7 +89,7 @@ export default function AdminDayPage() {
 
   return (
     <div className='space-y-4'>
-      <div className='flex flex-wrap items-center gap-2'>
+      <StickyBar className='flex flex-wrap items-center gap-2'>
         <Button variant='outline' size='icon' aria-label='Giorno precedente' onClick={() => setParam('day', stepSchoolDay(dayKey, -1))}>
           <ChevronLeft className='h-4 w-4' />
         </Button>
@@ -109,7 +111,7 @@ export default function AdminDayPage() {
             </SelectContent>
           </Select>
         </div>
-      </div>
+      </StickyBar>
 
       <DayOverview lessons={lessons} loading={loading} grouping={grouping} />
       <p className='text-xs text-muted-foreground'>
@@ -147,7 +149,7 @@ export function DayOverview({ lessons, loading, grouping, from }: { lessons: Sch
           <Skeleton className='h-16' />
         </div>
       ) : lessons.length === 0 ? (
-        <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>Nessuna lezione in questo giorno.</p>
+        <EmptyState>Nessuna lezione in questo giorno.</EmptyState>
       ) : (
         <div className='divide-y rounded-lg border bg-card'>
           {groups.map((group) => (

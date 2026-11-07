@@ -16,7 +16,7 @@ import { ArrowUpDown, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { BackButton } from '@/components/back-button'
+import { PageHeader } from '@/components/page-header'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -863,27 +863,22 @@ export default function AdminAdminsPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
-          <div className='mb-6 self-start'>
-            <BackButton href='/admin' />
-          </div>
-          <div className='mb-6 empty:hidden'>
+          <PageHeader
+            title='Gestione admin'
+            backHref='/admin'
+            actions={
+              <Button variant='outline' onClick={() => setShowInviteDialog(true)}>
+                Invita admin
+              </Button>
+            }
+          />
+          <div className='mt-6 empty:hidden'>
             <PushInviteCard
               userId={profile?.id}
               role={profile?.role}
               title='Ti avvisiamo quando un admin chiede l’accesso'
               description='Attiva le notifiche per approvare le nuove richieste senza aspettare l’email.'
             />
-          </div>
-          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-            <h1 className='text-2xl'>Gestione admin</h1>
-            <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
-              <Button
-                variant='outline'
-                onClick={() => setShowInviteDialog(true)}
-              >
-                Invita admin
-              </Button>
-            </div>
           </div>
           <div className='mt-8 space-y-6'>
             <Tabs defaultValue='active'>

@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Label } from '@/components/ui/label'
-import { BackButton } from '@/components/back-button'
+import { PageHeader } from '@/components/page-header'
 import {
   Select,
   SelectContent,
@@ -698,16 +698,14 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
-          <div className='mb-6 self-start'>
-            <BackButton href='/admin' />
-          </div>
-          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-            <h1 className='text-2xl'>Gestione lezioni</h1>
-            <div className='flex flex-wrap items-center gap-2'>
+          <PageHeader
+            title='Gestione lezioni'
+            backHref='/admin'
+            actions={<>
               {viewSwitch}
               <Button onClick={handleOpenCreate}>Crea lezione</Button>
-            </div>
-          </div>
+            </>}
+          />
 
           <form
             className='mt-6 rounded-lg border bg-card p-4 shadow-sm'

@@ -12,7 +12,7 @@ import { Search } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { BackButton } from '@/components/back-button'
+import { PageHeader } from '@/components/page-header'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import {
@@ -556,12 +556,7 @@ export default function AdminStudentsPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
-          <div className='mb-6 self-start'>
-            <BackButton href='/admin' />
-          </div>
-          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-            <h1 className='text-2xl'>Gestione studenti</h1>
-          </div>
+          <PageHeader title='Gestione studenti' backHref='/admin' />
           <div className='mt-8 space-y-6'>
             <Tabs defaultValue='active'>
               <TabsList>

@@ -2,6 +2,7 @@
 
 // The admin home: the way to every area, today's lessons at a glance and the bookings of
 // the coming days.
+import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
 import { BookOpen, ChevronRight, GraduationCap, MessageSquare, Users } from 'lucide-react'
@@ -110,7 +111,7 @@ export default function AdminPage() {
             {loading ? (
               <Skeleton className='h-24' />
             ) : booked.length === 0 ? (
-              <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>Nessuna prenotazione nei prossimi 7 giorni.</p>
+              <EmptyState>Nessuna prenotazione nei prossimi 7 giorni.</EmptyState>
             ) : (
               <ul className='divide-y rounded-lg border bg-card'>
                 {booked.map((lesson) => (

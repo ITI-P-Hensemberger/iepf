@@ -2,6 +2,7 @@
 
 // The tutor's home: today's lessons with presence, the bookings coming up, and the way to
 // the week and to availability and subjects.
+import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
 import { BookOpen, CalendarClock, CalendarDays, ChevronRight } from 'lucide-react'
@@ -105,7 +106,7 @@ export default function TutorPage() {
             {loading ? (
               <Skeleton className='h-28' />
             ) : today.length === 0 ? (
-              <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>Oggi non hai lezioni.</p>
+              <EmptyState>Oggi non hai lezioni.</EmptyState>
             ) : (
               <div className='rounded-lg border bg-card'>
                 <TutorLessonList lessons={today} onChanged={() => load(true)} from='home' />
@@ -123,9 +124,9 @@ export default function TutorPage() {
             {loading ? (
               <Skeleton className='h-20' />
             ) : booked.length === 0 ? (
-              <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>
+              <EmptyState>
                 Nessuna prenotazione nei prossimi giorni{open > 0 ? `: hai ${open} ${open === 1 ? 'orario libero' : 'orari liberi'}.` : '.'}
-              </p>
+              </EmptyState>
             ) : (
               <>
                 <ul className='divide-y rounded-lg border bg-card'>

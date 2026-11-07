@@ -2,6 +2,7 @@
 
 // The tutor's week: every lesson by day with who booked it and what for, presence for the
 // lesson under way, and cancelling a slot nobody booked.
+import { StickyBar } from '@/components/sticky-bar'
 import * as React from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -65,7 +66,7 @@ export default function TutorWeekPage() {
 
   return (
     <div className='space-y-4'>
-      <div className='flex flex-wrap items-center gap-2'>
+      <StickyBar className='flex flex-wrap items-center gap-2'>
         <Button variant='outline' size='icon' aria-label='Settimana precedente' onClick={() => goToWeek(addDaysToKey(mondayKey, -7))}>
           <ChevronLeft className='h-4 w-4' />
         </Button>
@@ -82,7 +83,7 @@ export default function TutorWeekPage() {
           {running.length} {running.length === 1 ? 'lezione' : 'lezioni'} · {students} {students === 1 ? 'studente' : 'studenti'}
           {capacity ? ` · ${capacity} ${capacity === 1 ? 'posto' : 'posti'} al giorno` : ''}
         </span>
-      </div>
+      </StickyBar>
 
       {loading ? (
         <div className='space-y-3'>

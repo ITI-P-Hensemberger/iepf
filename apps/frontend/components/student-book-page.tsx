@@ -33,7 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
-import { BackButton } from '@/components/back-button'
+import { PageHeader } from '@/components/page-header'
 import { LessonHoursBadge } from '@/components/lesson-hours-badge'
 import { NoHoursCard } from '@/components/no-hours-notice'
 import { openPushSetup, usePushSetup } from '@/components/push-prompt'
@@ -334,17 +334,13 @@ export default function StudentBookPage() {
     <main className='flex-1'>
       <div className='container mx-auto flex flex-col items-center px-4 py-10'>
         <div className='w-full max-w-3xl'>
-          <div className='mb-6'>
-            {/* Back follows the steps: from the lessons to the subjects, from the subjects home. */}
-            <BackButton
-              href={booked || !subjectId ? '/student' : weekOffset ? `${pathname}?week=next` : pathname}
-              label={booked || !subjectId ? 'Indietro' : 'Materie'}
-            />
-          </div>
-          <div className='flex flex-wrap items-center justify-between gap-3'>
-            <h1 className='text-2xl'>Prenota lezione</h1>
-            {tokens !== null && <LessonHoursBadge tokens={tokens} className='text-sm' />}
-          </div>
+          {/* Back follows the steps: from the lessons to the subjects, from the subjects home. */}
+          <PageHeader
+            title='Prenota lezione'
+            backHref={booked || !subjectId ? '/student' : weekOffset ? `${pathname}?week=next` : pathname}
+            backLabel={booked || !subjectId ? 'Indietro' : 'Materie'}
+            actions={tokens !== null && <div><LessonHoursBadge tokens={tokens} className='text-sm' /></div>}
+          />
 
           {/* Without hours nothing is bookable: say why instead of showing empty weeks. */}
           {hasNoHoursLeft(tokens) && !booked ? (

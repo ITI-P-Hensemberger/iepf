@@ -2,6 +2,7 @@
 
 // The student's home: book a lesson, the next one at a glance, what is coming and what is
 // waiting for a feedback.
+import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
 import { CalendarPlus, ChevronRight } from 'lucide-react'
@@ -109,9 +110,9 @@ export default function StudentPage() {
                     onFeedback={setFeedbackTarget}
                   />
                 ) : (
-                  <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>
+                  <EmptyState>
                     Non hai lezioni in programma.
-                  </p>
+                  </EmptyState>
                 )}
               </section>
 

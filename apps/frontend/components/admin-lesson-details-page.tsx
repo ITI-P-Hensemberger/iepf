@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
@@ -1136,7 +1137,7 @@ export default function AdminLessonDetailsPage() {
           {lessonLoading && !lesson ? (
             <Skeleton className='h-40' />
           ) : !lesson ? (
-            <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>Lezione non disponibile.</p>
+            <EmptyState>Lezione non disponibile.</EmptyState>
           ) : (
             <LessonSummary
               subjectName={lesson.subjectId ? (subjectLoading ? '…' : subject?.name ?? null) : null}
@@ -1246,9 +1247,9 @@ export default function AdminLessonDetailsPage() {
             {bookingsLoading ? (
               <Skeleton className='h-24' />
             ) : filteredBookings.length === 0 ? (
-              <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>
+              <EmptyState>
                 {bookingFilter === 'canceled' ? 'Nessuna prenotazione annullata.' : 'Nessuno ha prenotato questa lezione.'}
-              </p>
+              </EmptyState>
             ) : (
               filteredBookings.map((booking) => {
                 const student = studentMap.get(booking.studentId)

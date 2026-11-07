@@ -17,7 +17,7 @@ import {
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { BackButton } from '@/components/back-button'
+import { PageHeader } from '@/components/page-header'
 import { Calendar } from '@/components/ui/calendar'
 import { Field, FieldLabel } from '@/components/ui/field'
 import {
@@ -45,7 +45,7 @@ import { Label } from './ui/label'
 import { capitalizeFirst } from '@/lib/capitalize'
 import { FeedbackHistory, FeedbackHistoryToggle } from '@/components/feedback-history'
 import { StarRating } from '@/components/star-rating'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 
 const pageSize = 20
@@ -609,12 +609,7 @@ export default function AdminFeedbackPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
-          <div className='mb-6'>
-            <BackButton href='/admin' />
-          </div>
-          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-            <h1 className='text-2xl'>Gestione feedback</h1>
-          </div>
+          <PageHeader title='Gestione feedback' backHref='/admin' />
 
           <Tabs
             value={filters.authorRole}
@@ -997,7 +992,7 @@ export default function AdminFeedbackPage() {
             </TabsContent>
           </Tabs>
           <label className='mt-4 flex items-center gap-2 text-sm text-muted-foreground'>
-            <Checkbox checked={showDeleted} onCheckedChange={(value) => setShowDeleted(Boolean(value))} />
+            <Switch checked={showDeleted} onCheckedChange={setShowDeleted} />
             Mostra anche i feedback eliminati
           </label>
           <div className='mt-3 rounded-lg border'>

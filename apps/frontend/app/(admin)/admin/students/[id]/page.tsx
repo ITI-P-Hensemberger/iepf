@@ -2,14 +2,15 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { Hourglass, UserRound } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { BackButton } from '@/components/back-button'
+import { SectionLayout } from '@/components/section-layout'
 import {
   Accordion,
   AccordionContent,
@@ -103,10 +104,16 @@ type Student = {
 
 type TokenAdjustmentDirection = 'add' | 'remove'
 
+const SECTIONS = [
+  { value: 'account', label: 'Dati', icon: UserRound },
+  { value: 'hours', label: 'Ore di lezione', icon: Hourglass }
+] as const
+
 export default function AdminStudentDetailPage() {
   const params = useParams()
   const router = useRouter()
   const studentId = String(params?.id ?? '')
+  const active = useSearchParams().get('tab') === 'hours' ? 'hours' : 'account'
 
   const [student, setStudent] = React.useState<Student | null>(null)
   const [sections, setSections] = React.useState<Section[]>([])
@@ -473,21 +480,19 @@ export default function AdminStudentDetailPage() {
     }
   }
 
+  const changeSection = (value: string) => {
+    router.replace(value === 'account' ? `/admin/students/${studentId}` : `/admin/students/${studentId}?tab=${value}`, { scroll: false })
+  }
+
   return (
-    <main className='flex-1'>
-      <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
-        <div className='w-full max-w-6xl'>
-          <div className='mb-6'>
-            <BackButton href='/admin/students' />
-          </div>
-          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-            <div>
-              <h1 className='text-2xl'>Dettagli studente</h1>
-              <p className='mt-1 text-sm text-muted-foreground'>
-                Gestisci i dati dello studente.
-              </p>
-            </div>
-            <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+    <SectionLayout
+      title={student ? `${student.firstName} ${student.lastName}` : 'Dettagli studente'}
+      description={student?.email ?? 'Gestisci i dati dello studente.'}
+      backHref='/admin/students'
+      sections={SECTIONS}
+      value={active}
+      onValueChange={changeSection}
+      actions={<>
               <Button
                 variant='outline'
                 onClick={handleImpersonate}
@@ -502,9 +507,10 @@ export default function AdminStudentDetailPage() {
                   Feedback
                 </Link>
               </Button>
-            </div>
-          </div>
-          <Card className='mt-6'>
+      </>}
+    >
+          {active === 'account' && (
+          <Card>
             <CardContent className='pt-6'>
               {isLoading ? (
                 <p className='text-sm text-muted-foreground'>Caricamento...</p>
@@ -846,8 +852,9 @@ export default function AdminStudentDetailPage() {
               </Button>
             </CardFooter>
           </Card>
-          {!isLoading && student ? (
-            <Card className='mt-6'>
+          )}
+          {active === 'hours' && !isLoading && student ? (
+            <Card>
               <CardContent className='space-y-4 pt-6'>
                 <div>
                   <h2 className='text-base font-medium'>
@@ -907,8 +914,6 @@ export default function AdminStudentDetailPage() {
               </CardContent>
             </Card>
           ) : null}
-        </div>
-      </div>
 
       <AlertDialog open={showEmailAlert} onOpenChange={setShowEmailAlert}>
         <AlertDialogContent className='z-60'>
@@ -963,6 +968,6 @@ export default function AdminStudentDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </main>
+    </SectionLayout>
   )
 }

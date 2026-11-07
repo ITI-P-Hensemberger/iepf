@@ -2,14 +2,15 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { BookOpen, CalendarClock, UserRound } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { BackButton } from '@/components/back-button'
+import { SectionLayout } from '@/components/section-layout'
 import {
   Accordion,
   AccordionContent,
@@ -149,10 +150,18 @@ const WEEKDAYS = [
   { value: 5, label: 'Venerdì' }
 ] as const
 
+const SECTIONS = [
+  { value: 'account', label: 'Dati', icon: UserRound },
+  { value: 'availability', label: 'Disponibilità', icon: CalendarClock },
+  { value: 'subjects', label: 'Materie', icon: BookOpen }
+] as const
+
 export default function AdminTutorDetailPage() {
   const params = useParams()
   const router = useRouter()
   const tutorId = String(params?.id ?? '')
+  const tab = useSearchParams().get('tab')
+  const active = tab === 'availability' || tab === 'subjects' ? tab : 'account'
 
   const [tutor, setTutor] = React.useState<Tutor | null>(null)
   const [sections, setSections] = React.useState<Section[]>([])
@@ -846,21 +855,19 @@ export default function AdminTutorDetailPage() {
     }
   }
 
+  const changeSection = (value: string) => {
+    router.replace(value === 'account' ? `/admin/tutors/${tutorId}` : `/admin/tutors/${tutorId}?tab=${value}`, { scroll: false })
+  }
+
   return (
-    <main className='flex-1'>
-      <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
-        <div className='w-full max-w-6xl'>
-          <div className='mb-6'>
-            <BackButton href='/admin/tutors' />
-          </div>
-          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-            <div>
-              <h1 className='text-2xl'>Dettagli tutor</h1>
-              <p className='mt-1 text-sm text-muted-foreground'>
-                Gestisci i dati del tutor.
-              </p>
-            </div>
-            <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+    <SectionLayout
+      title={tutor ? `${tutor.firstName} ${tutor.lastName}` : 'Dettagli tutor'}
+      description={tutor?.email ?? 'Gestisci i dati del tutor.'}
+      backHref='/admin/tutors'
+      sections={SECTIONS}
+      value={active}
+      onValueChange={changeSection}
+      actions={<>
               <Button
                 variant='outline'
                 onClick={handleImpersonate}
@@ -875,9 +882,10 @@ export default function AdminTutorDetailPage() {
                   Feedback
                 </Link>
               </Button>
-            </div>
-          </div>
-          <Card className='mt-6'>
+      </>}
+    >
+          {active === 'account' && (
+          <Card>
             <CardContent className='pt-6'>
               {isLoading ? (
                 <p className='text-sm text-muted-foreground'>Caricamento...</p>
@@ -1243,10 +1251,10 @@ export default function AdminTutorDetailPage() {
               </Button>
             </CardFooter>
           </Card>
+          )}
 
-          {tutor && (
-            <>
-              <Card className='mt-6'>
+          {tutor && active === 'availability' && (
+              <Card>
                 <CardHeader>
                   <div className='space-y-1'>
                     <h2 className='text-lg font-semibold'>Disponibilità</h2>
@@ -1303,8 +1311,10 @@ export default function AdminTutorDetailPage() {
                   </Button>
                 </CardFooter>
               </Card>
+          )}
 
-              <Card className='mt-6'>
+          {tutor && active === 'subjects' && (
+              <Card>
                 <CardHeader>
                   <div className='space-y-1'>
                     <h2 className='text-lg font-semibold'>Materie</h2>
@@ -1356,10 +1366,7 @@ export default function AdminTutorDetailPage() {
                   </Button>
                 </CardFooter>
               </Card>
-            </>
           )}
-        </div>
-      </div>
 
       <AlertDialog open={showEmailAlert} onOpenChange={setShowEmailAlert}>
         <AlertDialogContent className='z-60'>
@@ -1414,6 +1421,6 @@ export default function AdminTutorDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </main>
+    </SectionLayout>
   )
 }

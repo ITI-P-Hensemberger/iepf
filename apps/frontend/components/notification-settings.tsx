@@ -146,8 +146,10 @@ export function NotificationSettings({ role, userId }: { role: 'student' | 'tuto
         <h2 className='text-lg font-semibold'>Notifiche</h2>
         <p className='text-sm text-muted-foreground'>
           {role === 'admin'
-            ? 'Scegli per ogni avviso se riceverlo come notifica, per email o in entrambi i modi. Le notifiche non mostrano nomi: i dettagli sono nell\'email e nell\'app.'
-            : 'Ricevi sul telefono o sul computer gli avvisi che oggi arrivano per email. Le email continuano ad arrivare comunque. Le notifiche mostrano solo materia e orario.'}
+            ? 'Scegli per ogni avviso se riceverlo come notifica, per email o in entrambi i modi.'
+            : role === 'tutor'
+              ? 'Ricevi sul telefono gli avvisi su nuove lezioni assegnate, prenotazioni, annullamenti, promemoria e feedback da lasciare.'
+              : 'Ricevi sul telefono o sul computer gli avvisi che oggi arrivano per email. Le email continuano ad arrivare comunque. Le notifiche mostrano solo materia e orario.'}
         </p>
       </div>
       <div className='flex flex-col gap-6'>
@@ -161,7 +163,7 @@ export function NotificationSettings({ role, userId }: { role: 'student' | 'tuto
           {(device === 'enabled' || device === 'done') && (
             <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
               <p className='text-sm text-muted-foreground'>
-                Le notifiche sono attive su questo dispositivo, anche quando esci dall&apos;account.
+                Le notifiche sono attive su questo dispositivo.
               </p>
               <Button type='button' variant='outline' onClick={handleDisable} disabled={busy}>
                 {busy ? 'Disattivazione...' : 'Disattiva'}

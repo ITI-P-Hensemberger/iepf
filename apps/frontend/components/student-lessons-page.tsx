@@ -2,13 +2,15 @@
 
 // "Le mie lezioni": what is coming, what took place (with feedback) and what was canceled,
 // grouped by day. The tab and the subject live in the URL.
+import { StickyBar } from '@/components/sticky-bar'
+import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CalendarPlus } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { BackButton } from '@/components/back-button'
+import { PageHeader } from '@/components/page-header'
 import { LessonHoursBadge } from '@/components/lesson-hours-badge'
 import {
   CancelBookingDialog,
@@ -114,16 +116,14 @@ export default function StudentLessonsPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10'>
         <div className='mx-auto max-w-3xl'>
-          <div className='mb-6'>
-            <BackButton href='/student' />
-          </div>
-          <div className='flex flex-wrap items-center justify-between gap-3'>
-            <h1 className='text-2xl'>Le mie lezioni</h1>
-            {profile?.role === 'student' && <LessonHoursBadge tokens={profile.lessonTokens} className='text-sm' />}
-          </div>
+          <PageHeader
+            title='Le mie lezioni'
+            backHref='/student'
+            actions={profile?.role === 'student' && <div><LessonHoursBadge tokens={profile.lessonTokens} className='text-sm' /></div>}
+          />
 
-          <div className='mt-6 flex flex-col gap-3 sm:flex-row sm:items-center'>
-            <div className='flex rounded-lg border p-0.5' role='tablist'>
+          <StickyBar className='mt-6 flex flex-col gap-3 sm:flex-row sm:items-center'>
+            <div className='flex rounded-lg border bg-background p-0.5' role='tablist'>
               {TABS.map((item) => (
                 <Button
                   key={item.key}
@@ -151,7 +151,7 @@ export default function StudentLessonsPage() {
                 </Select>
               </div>
             )}
-          </div>
+          </StickyBar>
 
           <div className='mt-6 space-y-6'>
             {loading && lessons.length === 0 ? (
@@ -160,16 +160,17 @@ export default function StudentLessonsPage() {
                 <Skeleton className='h-28' />
               </>
             ) : days.length === 0 ? (
-              <div className='flex flex-col items-center gap-3 rounded-lg border bg-card px-4 py-6 text-center text-sm text-muted-foreground sm:items-start sm:text-left'>
-                {tab === 'upcoming'
-                  ? 'Non hai lezioni in programma.'
-                  : tab === 'past' ? 'Non hai ancora fatto lezioni.' : 'Nessuna prenotazione annullata.'}
-                {tab === 'upcoming' && (
+              <EmptyState
+                action={tab === 'upcoming' && (
                   <Button asChild className='w-full sm:w-auto'>
                     <Link href='/student/book'><CalendarPlus className='h-4 w-4' /> Prenota una lezione</Link>
                   </Button>
                 )}
-              </div>
+              >
+                {tab === 'upcoming'
+                  ? 'Non hai lezioni in programma.'
+                  : tab === 'past' ? 'Non hai ancora fatto lezioni.' : 'Nessuna prenotazione annullata.'}
+              </EmptyState>
             ) : (
               days.map((dayLessons) => (
                 <section key={dayLessons[0].bookingId} className='space-y-2'>

@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { Mail, MessageSquare, XCircle } from 'lucide-react'
@@ -494,7 +495,7 @@ export default function TutorLessonDetailsPage() {
           {lessonLoading && !lesson ? (
             <Skeleton className='h-36' />
           ) : !lesson ? (
-            <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>Lezione non disponibile.</p>
+            <EmptyState>Lezione non disponibile.</EmptyState>
           ) : (
             <LessonSummary
               subjectName={subjectName}
@@ -524,7 +525,7 @@ export default function TutorLessonDetailsPage() {
             {bookingsLoading ? (
               <Skeleton className='h-24' />
             ) : filteredBookings.length === 0 ? (
-              <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>Nessuno ha prenotato questa lezione.</p>
+              <EmptyState>Nessuno ha prenotato questa lezione.</EmptyState>
             ) : (
               filteredBookings.map((booking) => {
                 const student = studentMap.get(booking.studentId)
