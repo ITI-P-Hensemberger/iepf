@@ -15,7 +15,7 @@ import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { users } from '@/db/schemas/users.schema'
 import { issueAdminInviteToken, lockAdminInviteToken } from '@/lib/admin-invite'
-import { createAccessToken } from '@/lib/auth'
+import { createAccessToken, verifyAccessToken } from '@/lib/auth'
 import { DEFAULT_LESSON_TOKENS, DEFAULT_TUTOR_SETTINGS, ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
 import { isUniqueConstraintError } from '@/lib/db-errors'
 import {
@@ -34,11 +34,12 @@ import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { sendMail } from '@/lib/mailer'
 import { buildPagedResponse } from '@/lib/pagination'
 import { hashPassword, verifyPassword } from '@/lib/password'
-import { consumePasswordResetToken, issuePasswordResetToken } from '@/lib/password-reset'
+import { consumePasswordResetToken, issuePasswordResetToken, passwordResetTokenOwner } from '@/lib/password-reset'
 import { issueRefreshToken, revokeRefreshToken, revokeUserRefreshTokens, rotateRefreshToken } from '@/lib/refresh-tokens'
 import { issueTutorInviteToken, lockTutorInviteToken } from '@/lib/tutor-invite'
 
 import type {
+  CheckPasswordResetRoute,
   ConfirmAdminInviteRoute,
   ConfirmEmailVerificationRoute,
   ConfirmPasswordResetRoute,
@@ -694,6 +695,17 @@ export const requestPasswordReset: AppRouteHandler<RequestPasswordResetRoute> = 
   )
 }
 
+export const checkPasswordReset: AppRouteHandler<CheckPasswordResetRoute> = async (c) => {
+  const { token } = c.req.valid('json')
+  const owner = await passwordResetTokenOwner(token)
+  let viewer: string | null = null
+  const [scheme, accessToken] = (c.req.header('authorization') ?? '').trim().split(/\s+/)
+  if (owner && scheme?.toLowerCase() === 'bearer' && accessToken) {
+    viewer = await verifyAccessToken(accessToken).then(payload => payload.sub, () => null)
+  }
+  return c.json({ valid: owner !== null, sameUser: owner !== null && viewer === owner }, HttpStatusCodes.OK)
+}
+
 export const confirmPasswordReset: AppRouteHandler<ConfirmPasswordResetRoute> = async (c) => {
   const payload = c.req.valid('json')
   const user = await consumePasswordResetToken(payload.token)
@@ -708,7 +720,8 @@ export const confirmPasswordReset: AppRouteHandler<ConfirmPasswordResetRoute> = 
     .set({ passwordHash })
     .where(eq(users.id, user.id))
 
-  await revokeUserRefreshTokens(user.id)
+  // Every other device is signed out; the one the change was made from stays in.
+  await revokeUserRefreshTokens(user.id, payload.keepRefreshToken)
   const message = buildPasswordChangedMessage()
   sendMail({
     to: user.email,
