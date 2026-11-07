@@ -45,7 +45,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ n
           />
           <h1 className='mt-8 text-3xl font-semibold tracking-tight text-balance sm:text-4xl'>
             Il supporto allo studio dell’
-            <span className='ml-[0.1em] whitespace-nowrap text-[var(--school)]'>ITI P. Hensemberger</span>
+            <a
+              href='https://hensemberger.edu.it/'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='ml-[0.1em] whitespace-nowrap text-[var(--school)] underline-offset-4 hover:underline'
+            >
+              ITI P. Hensemberger
+            </a>
           </h1>
           <p className='mt-4 text-lg text-muted-foreground text-pretty'>
             Lezioni pomeridiane con i tutor della scuola, per consolidare i
