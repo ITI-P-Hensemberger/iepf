@@ -1,5 +1,6 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
 import * as React from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
@@ -95,7 +96,7 @@ export function NotificationsTab() {
 
       <div className={loading ? 'space-y-6 opacity-60 transition-opacity' : 'space-y-6 transition-opacity'}>
         <ChartCard title='Notifiche push per tipo' description='Inviate ai dispositivi e aperte toccando la notifica.'>
-          {usage ? <PushChart payload={usage} /> : <EmptyChart>Caricamento...</EmptyChart>}
+          {usage ? <PushChart payload={usage} /> : <Skeleton className='h-64' />}
         </ChartCard>
         <ChartCard title='Notifiche toccate nel pannello' description='Dalla campanella, per tipo di notifica.'>
           <HorizontalBars rows={clicks} label='Tocchi' />
@@ -105,7 +106,7 @@ export function NotificationsTab() {
       <h2 className='text-lg font-medium'>Pannello, dispositivi e preferenze</h2>
 
       <ChartCard title='Notifiche nel pannello per tipo' description={`Tutte le notifiche degli ultimi ${stats?.keepDays ?? 90} giorni, lette o no.`}>
-        {stats ? <InboxChart stats={stats} /> : <EmptyChart>Caricamento...</EmptyChart>}
+        {stats ? <InboxChart stats={stats} /> : <Skeleton className='h-64' />}
       </ChartCard>
 
       <div className='grid gap-6 lg:grid-cols-2'>

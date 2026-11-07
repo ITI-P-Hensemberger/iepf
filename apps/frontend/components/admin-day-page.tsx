@@ -2,6 +2,7 @@
 
 // One school day at a glance: every tutor's lessons (or every subject's), what is booked, what
 // is still open, and a click away from each lesson's details.
+import { TILE } from '@/lib/tile'
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -222,7 +223,8 @@ function LessonChip({ lesson, grouping }: { lesson: ScheduleLesson, grouping: Gr
       title={students || undefined}
       className={cn(
         // A lesson tile: on the card colour with a light shadow, lifting under the pointer.
-        'flex min-w-36 flex-1 basis-0 flex-col gap-0.5 rounded-lg border bg-card px-3 py-2 text-sm shadow-xs transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md',
+        'flex min-w-36 flex-1 basis-0 flex-col gap-0.5 px-3 py-2 text-sm',
+        TILE,
         open && !canceled && 'border-dashed',
         canceled && 'text-muted-foreground line-through decoration-muted-foreground/60'
       )}

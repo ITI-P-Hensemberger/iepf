@@ -1,5 +1,6 @@
 'use client'
 
+import { BlockSkeleton } from '@/components/loading'
 import { SettingsSection } from '@/components/settings-section'
 import AdminAnnouncementsPage from '@/components/admin-announcements-page'
 import { AdminClosures } from '@/components/admin-closures'
@@ -925,9 +926,7 @@ export default function AdminSettingsPage() {
                 </CardHeader>
                 <CardContent>
                   {subjectsLoading ? (
-                    <div className='text-sm text-muted-foreground'>
-                      Caricamento materie...
-                    </div>
+                    <BlockSkeleton lines={4} />
                   ) : subjects.length === 0 ? (
                     <div className='text-sm text-muted-foreground'>
                       Nessuna materia disponibile.

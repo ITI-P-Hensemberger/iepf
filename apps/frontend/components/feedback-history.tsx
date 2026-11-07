@@ -1,5 +1,6 @@
 'use client'
 
+import { BlockSkeleton } from '@/components/loading'
 import * as React from 'react'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
@@ -91,7 +92,7 @@ export function FeedbackHistory({ feedbackId, audience }: { feedbackId: string, 
   }, [feedbackId])
 
   if (error) return <p className='text-sm text-destructive'>{error}</p>
-  if (!data) return <p className='text-sm text-muted-foreground'>Caricamento cronologia...</p>
+  if (!data) return <BlockSkeleton lines={2} />
 
   const { versions } = data
   return (

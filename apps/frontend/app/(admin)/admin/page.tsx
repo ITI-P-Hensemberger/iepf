@@ -2,6 +2,8 @@
 
 // The admin home: the way to every area, today's lessons at a glance and the bookings of
 // the coming days.
+import { TILE } from '@/lib/tile'
+import { cn } from '@/lib/utils'
 import { HomeHeader } from '@/components/home-header'
 import { withFrom } from '@/lib/back-link'
 import { EmptyState } from '@/components/empty-state'
@@ -92,7 +94,7 @@ export default function AdminPage() {
           <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
             {AREAS.map((area) => (
               // Tiles, not buttons: rounder, an orange icon, and they lift under the pointer.
-              <Link key={area.href} href={area.href} className='group flex items-center gap-3 rounded-xl border bg-card p-4 transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md'>
+              <Link key={area.href} href={area.href} className={cn('group flex items-center gap-3 p-4', TILE)}>
                 <span className='rounded-lg bg-primary/12 p-2.5'><area.icon className='h-4 w-4 text-[var(--primary-text)]' /></span>
                 <span className='font-medium'>{area.label}</span>
                 <ChevronRight className='ml-auto h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--primary-text)]' />

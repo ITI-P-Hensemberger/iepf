@@ -98,18 +98,60 @@ New and changed pages must keep this:
 - Tabs and sections change the URL with `useSetParam()`, which keeps `from` and the other params.
 - Never build a page URL from scratch where `from` could be dropped.
 
-### Page building blocks
+### UI guide: how to build a page that fits
 
-- `PageHeader` (back, title, actions); `HomeHeader` for the role homes.
-- `SectionLayout` (side menu / mobile dropdown sections).
-- Tabs: `components/ui/tabs` with content, `SegmentedTabs` for a switch without it. The open tab
-  of a list lives in `?tab=` (`useSetParam`).
-- Lists: `FilterForm` (filters apply as they change, no "Applica" button), `ListPagination`.
-- `StickyBar` (controls that stay under the header on a phone), `EmptyState`, `StatusBlock`
-  (maintenance, 404, error, pending), `Switch` for settings that save at once.
-- Loading: `PageSkeleton`, `BlockSkeleton`, `TableSkeletonRows` from `components/loading`; the word
-  "Caricamento..." only inside buttons or inline values.
-- Success toasts are short: "Profilo aggiornato.", not "… con successo".
+Every new or changed page uses these pieces; don't hand-roll a header, a tab bar, a filter form
+or a loading text. If something is missing, extend the shared component rather than copy it.
+
+**Pick the layout by page type**
+| Page | Layout |
+| --- | --- |
+| Role home | `HomeHeader` + sections (`text-lg font-semibold` titles) |
+| Inner page (list, detail, form) | `<main className='flex-1'>` › `container mx-auto px-4 pt-10 pb-16` › `mx-auto max-w-6xl` (student pages `max-w-3xl`) › `PageHeader` |
+| Page with several parts (profile, user details, settings) | `SectionLayout`, one `?tab=` per section; Danger zone last, `separatorBefore` |
+| Global settings section | `SettingsSection` (title, one line, actions on the right) |
+| Login, sign-up, reset, verify, onboarding | `AuthLayout` (`wide` for long forms, `backHref={null}` for a step to complete); outcomes in `ResultPanel` |
+| Maintenance, 404, error, pending | `StatusBlock` |
+| Public text (FAQ, privacy, terms) | `PageHeader` in a `max-w-3xl` column |
+
+**Navigation**: back leads where the user came from (see "Back navigation" above): `withFrom` on
+links into inner pages, `useSetParam` for tabs, nothing rebuilt from scratch.
+
+**Lists**: `FilterForm` (sticky search, other filters in the closed "Filtri" panel, applied as they
+change), sorting only from column headers (`SortableHead`, `TableHeader sticky`), `ListPagination`,
+list tabs in `?tab=`. Every list has a search; lesson searches accept dates ("13/11", "13 nov").
+
+**Controls**
+- Pills between views: `components/ui/tabs` or `SegmentedTabs` (never a row of Buttons).
+- On/off that saves at once: `Switch`; a choice inside a form saved by a button: `Checkbox`.
+- A clickable card is a tile (`TILE` from `lib/tile.ts`), not a button: rounder, lifts on hover.
+- Long forms: save button in the sticky footer (`STICKY_CARD_FOOTER` / `STICKY_SECTION_FOOTER`).
+- Irreversible actions: in a Danger zone section, confirmed in a dialog (user deletion: the
+  admin's password, `ConfirmDeleteDialog`).
+- Free text fields start with a capital (`capitalizeFirst`); search fields keep spaces as typed
+  and are trimmed only for the API.
+
+**States**: `PageSkeleton` / `BlockSkeleton` / `TableSkeletonRows` while loading (the word
+"Caricamento..." only in buttons and inline values), `EmptyState` when there is nothing, short
+toasts ("Profilo aggiornato.", never "… con successo").
+
+**Mobile**: controls that must stay reachable go in `StickyBar`; anything sticking below them
+uses `top-[var(--sticky-top)]` (bars publish their height through `lib/sticky.ts`). Check every
+page at 375px.
+
+**Colour (Grafite palette, `app/globals.css`)**
+- Only tokens: `bg-background`, `bg-card`, `bg-muted`, `text-muted-foreground`, `border`… Never
+  `bg-white`, `text-black`, `text-white/75` for UI chrome.
+- `primary` is the logo's orange: main buttons, active tabs and menu items, switches. Text in the
+  accent (links, active labels) uses `text-[var(--primary-text)]`, readable in both themes.
+- `--school` is the school's blue, for the school's name.
+- `bg-card` gets the card shadow by itself; a sticky label on a card uses `bg-[var(--card)]` so
+  it doesn't lift.
+- Status colours (emerald, amber, destructive) only for meaning: done, warning, danger.
+- Look at every change in both themes; light and dark must both read well.
+
+**Copy**: Italian, sentence case ("Domande frequenti", not "Domande Frequenti"), short helper lines
+ending with a full stop, buttons as verbs ("Salva modifiche", "Aggiungi domanda").
 
 ### General
 
