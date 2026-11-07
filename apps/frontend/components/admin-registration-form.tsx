@@ -1,5 +1,7 @@
 'use client'
 
+import { CircleCheck } from 'lucide-react'
+import { ResultPanel } from '@/components/result-panel'
 import * as React from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
@@ -134,21 +136,14 @@ export function AdminRegistrationForm({
 
   if (isSuccess) {
     return (
-      <Card className='w-full sm:max-w-md'>
-        <CardContent className='pt-6'>
-          <div className='flex flex-col gap-3 text-center'>
-            <h2 className='text-lg font-semibold'>Registrazione completata</h2>
-            <p className='text-muted-foreground text-sm'>
-              Il tuo account admin è stato creato. Ora puoi accedere.
-            </p>
-          </div>
-        </CardContent>
-        <CardFooter className='justify-center'>
-          <Button asChild>
-            <Link href='/auth/login'>Vai al login</Link>
-          </Button>
-        </CardFooter>
-      </Card>
+      <ResultPanel
+        icon={CircleCheck}
+        tone='success'
+        title='Registrazione completata'
+        action={<Button asChild><Link href='/auth/login'>Vai al login</Link></Button>}
+      >
+        Il tuo account admin è stato creato. Ora puoi accedere.
+      </ResultPanel>
     )
   }
 

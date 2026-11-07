@@ -1,5 +1,4 @@
-import { BackButton } from '@/components/back-button'
-import Image from 'next/image'
+import { PageHeader } from '@/components/page-header'
 
 const SECTIONS = [
   {
@@ -151,35 +150,21 @@ const SECTIONS = [
 export default function PrivacyPolicyPage() {
   return (
     <main className='flex-1'>
-      <div className='container mx-auto px-8 py-10 flex flex-col items-center'>
-        <div className='mb-6 self-start'>
-          <BackButton />
-        </div>
-        <Image
-          src='/logo.png'
-          alt='IEPF Logo'
-          width={125}
-          height={125}
-          style={{ width: 'auto', height: 'auto' }}
-          draggable={false}
-          priority
-        />
-        <h1 className='mt-6 text-2xl font-bold'>Informativa sulla Privacy</h1>
-        <p className='mt-2 text-center text-muted-foreground'>
-          ai sensi dell&apos;art. 13 del Regolamento UE 2016/679 (GDPR)
-        </p>
-        <p className='mt-4 max-w-3xl text-justify'>
+      <div className='container mx-auto px-4 pt-10 pb-16'>
+        <div className='mx-auto w-full max-w-3xl'>
+        <PageHeader title='Informativa sulla privacy' description='Ai sensi dell’art. 13 del Regolamento UE 2016/679 (GDPR).' />
+        <p className='mt-4'>
           La presente informativa descrive le modalità di trattamento dei dati
           personali degli utenti che accedono e utilizzano il sito web del
           progetto di supporto allo studio pomeridiano “Insieme È Più Facile”
           (di seguito, il “Sito”).
         </p>
-        <p className='mt-3 max-w-3xl text-justify'>
+        <p className='mt-3'>
           Il trattamento dei dati avviene nel rispetto dei principi di liceità,
           correttezza, trasparenza, minimizzazione e sicurezza, in conformità al
           Regolamento (UE) 2016/679 (GDPR) e alla normativa nazionale vigente.
         </p>
-        <div className='mt-8 w-full max-w-4xl space-y-6 text-justify'>
+        <div className='mt-8 w-full space-y-6'>
           {SECTIONS.map((section) => (
             <section key={section.title} className='space-y-2'>
               <h2 className='text-lg font-semibold text-start'>
@@ -201,6 +186,7 @@ export default function PrivacyPolicyPage() {
               )}
             </section>
           ))}
+        </div>
         </div>
       </div>
     </main>

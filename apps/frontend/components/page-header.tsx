@@ -7,6 +7,11 @@ import { useSearchParams } from 'next/navigation'
 import { BackButton } from '@/components/back-button'
 import { FROM_PARAM, safeFrom } from '@/lib/back-link'
 
+function Back({ backHref, backLabel, followFrom }: { backHref?: string, backLabel?: string, followFrom: boolean }) {
+  const cameFrom = safeFrom(useSearchParams().get(FROM_PARAM))
+  return <BackButton href={(followFrom && cameFrom) || backHref} label={backLabel} />
+}
+
 // The top of an inner page: the back button, the title with an optional line under it, and the
 // page's buttons beside the title (below it on a phone). Every inner page starts the same way.
 export function PageHeader({
@@ -29,10 +34,12 @@ export function PageHeader({
   followFrom?: boolean
   className?: string
 }) {
-  const cameFrom = safeFrom(useSearchParams().get(FROM_PARAM))
   return (
     <div className={className}>
-      <BackButton href={(followFrom && cameFrom) || backHref} label={backLabel} />
+      {/* Reading ?from= needs a Suspense boundary on pages built ahead of time (FAQ, privacy). */}
+      <React.Suspense fallback={<BackButton href={backHref} label={backLabel} />}>
+        <Back backHref={backHref} backLabel={backLabel} followFrom={followFrom} />
+      </React.Suspense>
       <div className='mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
         <div className='min-w-0'>
           <h1 className='text-2xl break-words'>{title}</h1>

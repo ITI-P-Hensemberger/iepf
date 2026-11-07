@@ -4,11 +4,13 @@ import * as React from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import * as z from 'zod'
-import Image from 'next/image'
+import { CircleCheck, CircleX } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
+import { AuthLayout } from '@/components/auth-layout'
+import { ResultPanel } from '@/components/result-panel'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import {
   Field,
@@ -112,108 +114,80 @@ export default function ResetPasswordPage() {
     }
   }
 
+  const login = <Button asChild><Link href='/auth/login'>Vai al login</Link></Button>
+
   return (
-    <main className='flex-1'>
-      <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
-        <Image
-          src='/logo.png'
-          alt='IEPF Logo'
-          width={125}
-          height={125}
-          style={{ width: 'auto', height: 'auto' }}
-          draggable={false}
-          priority
-        />
-        <h1 className='mt-6 text-2xl'>Reset password</h1>
-        <div className='w-full max-w-md mt-6'>
-          <Card>
-            <CardContent className='pt-6'>
-              {message && messageTone === 'success' && (
-                <div className='mb-4 rounded-lg border border-emerald-200/70 bg-emerald-50 px-3 py-2 text-center text-sm text-emerald-700'>
-                  {message}
-                </div>
-              )}
-              {message && messageTone === 'error' && (
-                <div className='mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-center text-sm text-destructive'>
-                  {message}
-                </div>
-              )}
-              {isSuccess ? (
-                <div className='text-center space-y-2'>
-                  <p className='text-sm text-muted-foreground'>
-                    Ora puoi accedere con la nuova password.
-                  </p>
-                </div>
-              ) : !hasToken ? (
-                <div className='text-center space-y-2'>
-                  <p className='text-sm text-muted-foreground'>
-                    Richiedi un nuovo link di reset dalla pagina di login.
-                  </p>
-                </div>
-              ) : (
-                <form
-                  id='reset-password-form'
-                  onSubmit={form.handleSubmit(onSubmit)}
-                  className='space-y-6'
-                >
-                  <FieldGroup>
-                    <Field data-invalid={!!form.formState.errors.password}>
-                      <FieldLabel htmlFor='reset-password'>
-                        Nuova password
-                      </FieldLabel>
-                      <Input
-                        id='reset-password'
-                        type='password'
-                        autoComplete='new-password'
-                        placeholder='********'
-                        {...form.register('password')}
-                      />
-                      {form.formState.errors.password && (
-                        <FieldError errors={[form.formState.errors.password]} />
-                      )}
-                    </Field>
-                    <Field
-                      data-invalid={!!form.formState.errors.confirm_password}
-                    >
-                      <FieldLabel htmlFor='reset-password-confirm'>
-                        Conferma password
-                      </FieldLabel>
-                      <Input
-                        id='reset-password-confirm'
-                        type='password'
-                        autoComplete='new-password'
-                        placeholder='********'
-                        {...form.register('confirm_password')}
-                      />
-                      {form.formState.errors.confirm_password && (
-                        <FieldError
-                          errors={[form.formState.errors.confirm_password]}
-                        />
-                      )}
-                    </Field>
-                  </FieldGroup>
-                </form>
-              )}
-            </CardContent>
-            <CardFooter className='flex flex-col gap-3'>
-              {!isSuccess && hasToken ? (
-                <Button
-                  type='submit'
-                  form='reset-password-form'
-                  className='w-full'
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? 'Aggiornamento...' : 'Aggiorna password'}
-                </Button>
-              ) : (
-                <Button asChild>
-                  <Link href='/auth/login'>Vai al login</Link>
-                </Button>
-              )}
-            </CardFooter>
-          </Card>
-        </div>
-      </div>
-    </main>
+    <AuthLayout
+      title='Nuova password'
+      description={!isSuccess && hasToken ? 'Scegli la nuova password del tuo account.' : undefined}
+      backHref='/auth/login'
+    >
+      {isSuccess ? (
+        <ResultPanel icon={CircleCheck} tone='success' title='Password aggiornata' action={login}>
+          Ora puoi accedere con la nuova password.
+        </ResultPanel>
+      ) : !hasToken ? (
+        <ResultPanel icon={CircleX} tone='error' title='Link non valido' action={login}>
+          Il link è incompleto o scaduto. Chiedine uno nuovo dalla pagina di accesso.
+        </ResultPanel>
+      ) : (
+        <Card>
+          <CardContent className='pt-6'>
+            {message && messageTone === 'error' && (
+              <div className='mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'>
+                {message}
+              </div>
+            )}
+          <form
+            id='reset-password-form'
+            onSubmit={form.handleSubmit(onSubmit)}
+            className='space-y-6'
+          >
+            <FieldGroup>
+              <Field data-invalid={!!form.formState.errors.password}>
+                <FieldLabel htmlFor='reset-password'>
+                  Nuova password
+                </FieldLabel>
+                <Input
+                  id='reset-password'
+                  type='password'
+                  autoComplete='new-password'
+                  placeholder='********'
+                  {...form.register('password')}
+                />
+                {form.formState.errors.password && (
+                  <FieldError errors={[form.formState.errors.password]} />
+                )}
+              </Field>
+              <Field
+                data-invalid={!!form.formState.errors.confirm_password}
+              >
+                <FieldLabel htmlFor='reset-password-confirm'>
+                  Conferma password
+                </FieldLabel>
+                <Input
+                  id='reset-password-confirm'
+                  type='password'
+                  autoComplete='new-password'
+                  placeholder='********'
+                  {...form.register('confirm_password')}
+                />
+                {form.formState.errors.confirm_password && (
+                  <FieldError
+                    errors={[form.formState.errors.confirm_password]}
+                  />
+                )}
+              </Field>
+            </FieldGroup>
+          </form>
+          </CardContent>
+          <CardFooter>
+            <Button type='submit' form='reset-password-form' className='w-full' disabled={isSubmitting}>
+              {isSubmitting ? 'Aggiornamento...' : 'Aggiorna password'}
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+    </AuthLayout>
   )
 }

@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Image from 'next/image'
+import { CircleCheck, CircleX, MailCheck } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardFooter } from '@/components/ui/card'
+import { AuthLayout } from '@/components/auth-layout'
+import { ResultPanel } from '@/components/result-panel'
 
 type VerifyStatus = 'idle' | 'loading' | 'success' | 'error'
 
@@ -75,48 +76,23 @@ export default function VerifyEmailPage() {
     }
   }, [token])
 
+  const login = <Button asChild><Link href='/auth/login'>Vai al login</Link></Button>
+
   return (
-    <main className='flex-1'>
-      <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
-        <Image
-          src='/logo.png'
-          alt='IEPF Logo'
-          width={125}
-          height={125}
-          style={{ width: 'auto', height: 'auto' }}
-          draggable={false}
-          priority
-        />
-        <h1 className='mt-6 text-2xl'>Verifica email</h1>
-        <div className='w-full max-w-md mt-6'>
-          <Card>
-            <CardContent className='pt-6'>
-              {status === 'loading' && (
-                <p className='text-center text-sm text-muted-foreground'>
-                  Verifica in corso...
-                </p>
-              )}
-              {status === 'success' && message && (
-                <div className='rounded-lg border border-emerald-200/70 bg-emerald-50 px-3 py-2 text-center text-sm text-emerald-700'>
-                  {message}
-                </div>
-              )}
-              {status === 'error' && message && (
-                <div className='rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-center text-sm text-destructive'>
-                  {message}
-                </div>
-              )}
-            </CardContent>
-            <CardFooter className='justify-center'>
-              {(status === 'success' || status === 'error') && (
-                <Button asChild>
-                  <Link href='/auth/login'>Vai al login</Link>
-                </Button>
-              )}
-            </CardFooter>
-          </Card>
-        </div>
-      </div>
-    </main>
+    <AuthLayout title='Verifica email'>
+      {status === 'success' ? (
+        <ResultPanel icon={CircleCheck} tone='success' title='Email verificata' action={login}>
+          Il tuo indirizzo è confermato: ora puoi accedere.
+        </ResultPanel>
+      ) : status === 'error' ? (
+        <ResultPanel icon={CircleX} tone='error' title='Verifica non riuscita' action={login}>
+          {message} Dal login puoi chiedere un nuovo link di verifica.
+        </ResultPanel>
+      ) : (
+        <ResultPanel icon={MailCheck} title='Verifica in corso…'>
+          Un attimo, stiamo controllando il link.
+        </ResultPanel>
+      )}
+    </AuthLayout>
   )
 }
