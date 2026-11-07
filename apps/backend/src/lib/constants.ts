@@ -8,7 +8,7 @@ export const ZOD_ERROR_MESSAGES = {
   NO_UPDATES: 'Nessun aggiornamento fornito',
   EXPECTED_STRING: 'Input non valido: stringa attesa, ricevuto undefined',
   EMAIL_ALREADY_EXISTS: 'Impossibile registrarsi con questa email',
-  CANONICAL_NAME_EXISTS: 'Esiste già una materia con questo nome canonico',
+  CANONICAL_NAME_EXISTS: 'Esiste già una materia con questo nome',
   TUTOR_SUBJECT_EXISTS: 'Il tutor è già assegnato a questa materia',
   CLASS_SECTION_EXISTS: 'Esiste già una sezione con questo nome'
 }

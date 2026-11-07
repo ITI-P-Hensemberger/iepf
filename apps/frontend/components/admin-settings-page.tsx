@@ -161,14 +161,10 @@ export default function AdminSettingsPage() {
     string | null
   >(null)
   const [newSubjectName, setNewSubjectName] = React.useState('')
-  const [newSubjectCanonicalName, setNewSubjectCanonicalName] =
-    React.useState('')
   const [editingSubjectId, setEditingSubjectId] = React.useState<string | null>(
     null
   )
   const [editingSubjectName, setEditingSubjectName] = React.useState('')
-  const [editingSubjectCanonicalName, setEditingSubjectCanonicalName] =
-    React.useState('')
   const [closureDates, setClosureDates] = React.useState<string[]>([])
 
   React.useEffect(() => {
@@ -297,10 +293,9 @@ export default function AdminSettingsPage() {
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
       const name = newSubjectName.trim()
-      const canonicalName = newSubjectCanonicalName.trim()
 
-      if (!name || !canonicalName) {
-        toast.error('Inserisci nome e nome canonico.')
+      if (!name) {
+        toast.error('Inserisci il nome della materia.')
         return
       }
 
@@ -309,7 +304,7 @@ export default function AdminSettingsPage() {
         const response = await fetch('/api/subjects', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, canonicalName })
+          body: JSON.stringify({ name })
         })
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
@@ -319,7 +314,6 @@ export default function AdminSettingsPage() {
         const created = (payload?.data ?? payload) as Subject
         setSubjects((prev) => [created, ...prev])
         setNewSubjectName('')
-        setNewSubjectCanonicalName('')
         toast.success('Materia creata.')
       } catch (err) {
         toast.error(
@@ -329,28 +323,25 @@ export default function AdminSettingsPage() {
         setSubjectsCreating(false)
       }
     },
-    [newSubjectCanonicalName, newSubjectName]
+    [newSubjectName]
   )
 
   const handleEditSubject = React.useCallback((subject: Subject) => {
     setEditingSubjectId(subject.id)
     setEditingSubjectName(subject.name)
-    setEditingSubjectCanonicalName(subject.canonicalName)
   }, [])
 
   const handleCancelEdit = React.useCallback(() => {
     setEditingSubjectId(null)
     setEditingSubjectName('')
-    setEditingSubjectCanonicalName('')
   }, [])
 
   const handleUpdateSubject = React.useCallback(
     async (subjectId: string) => {
       const name = editingSubjectName.trim()
-      const canonicalName = editingSubjectCanonicalName.trim()
 
-      if (!name || !canonicalName) {
-        toast.error('Inserisci nome e nome canonico.')
+      if (!name) {
+        toast.error('Inserisci il nome della materia.')
         return
       }
 
@@ -359,7 +350,7 @@ export default function AdminSettingsPage() {
         const response = await fetch(`/api/subjects/${subjectId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, canonicalName })
+          body: JSON.stringify({ name })
         })
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
@@ -384,7 +375,7 @@ export default function AdminSettingsPage() {
         setSubjectsSavingId(null)
       }
     },
-    [editingSubjectCanonicalName, editingSubjectName, handleCancelEdit]
+    [editingSubjectName, handleCancelEdit]
   )
 
   const handleDeleteSubject = React.useCallback(async (subject: Subject) => {
@@ -887,7 +878,7 @@ export default function AdminSettingsPage() {
                 </CardHeader>
                 <CardContent>
                   <form className='space-y-4' onSubmit={handleCreateSubject}>
-                    <div className='grid gap-4 md:grid-cols-2'>
+                    <div className='grid gap-4'>
                       <Field className='gap-2'>
                         <FieldLabel>Nome</FieldLabel>
                         <Input
@@ -896,17 +887,6 @@ export default function AdminSettingsPage() {
                             setNewSubjectName(capitalizeFirst(event.target.value))
                           }
                           placeholder='Es. Matematica'
-                          maxLength={120}
-                        />
-                      </Field>
-                      <Field className='gap-2'>
-                        <FieldLabel>Nome canonico</FieldLabel>
-                        <Input
-                          value={newSubjectCanonicalName}
-                          onChange={(event) =>
-                            setNewSubjectCanonicalName(event.target.value)
-                          }
-                          placeholder='Es. matematica'
                           maxLength={120}
                         />
                       </Field>
@@ -936,7 +916,6 @@ export default function AdminSettingsPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Nome</TableHead>
-                          <TableHead>Nome canonico</TableHead>
                           <TableHead></TableHead>
                         </TableRow>
                       </TableHeader>
@@ -957,21 +936,6 @@ export default function AdminSettingsPage() {
                                   />
                                 ) : (
                                   subject.name
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                {isEditing ? (
-                                  <Input
-                                    value={editingSubjectCanonicalName}
-                                    onChange={(event) =>
-                                      setEditingSubjectCanonicalName(
-                                        event.target.value
-                                      )
-                                    }
-                                    maxLength={120}
-                                  />
-                                ) : (
-                                  subject.canonicalName
                                 )}
                               </TableCell>
                               <TableCell className='text-right'>

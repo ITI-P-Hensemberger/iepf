@@ -1,7 +1,7 @@
 // Purpose: Subjects route handlers.
 import type { Context } from 'hono'
 
-import { and, eq, ilike, or, sql } from 'drizzle-orm'
+import { and, eq, ilike, ne, or, sql } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
@@ -14,6 +14,7 @@ import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { buildPagedResponse } from '@/lib/pagination'
+import { canonicalSubjectName } from '@/lib/subject-name'
 
 import type { CreateRoute, GetOneRoute, ListRoute, PatchRoute, RemoveRoute } from './subjects.routes'
 
@@ -25,11 +26,24 @@ function buildDuplicateCanonicalNameError() {
     issues: [
       {
         code: ZOD_ERROR_CODES.DUPLICATE_KEY,
-        path: ['canonicalName'],
+        path: ['name'],
         message: ZOD_ERROR_MESSAGES.CANONICAL_NAME_EXISTS
       }
     ]
   })
+}
+
+// Another subject with the same canonical name or the same name, letter case aside.
+async function sameSubject(canonicalName: string, name: string, exceptId?: string) {
+  const [row] = await db
+    .select({ id: subjects.id })
+    .from(subjects)
+    .where(and(
+      or(eq(subjects.canonicalName, canonicalName), sql`lower(${subjects.name}) = lower(${name.trim()})`),
+      exceptId ? ne(subjects.id, exceptId) : undefined
+    ))
+    .limit(1)
+  return row ?? null
 }
 
 function forbid(): never {
@@ -90,14 +104,10 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
 export const create: AppRouteHandler<CreateRoute> = async (c) => {
   ensureAdmin(c)
 
-  const payload = c.req.valid('json')
+  const { name } = c.req.valid('json')
+  const payload = { name, canonicalName: canonicalSubjectName(name) }
 
-  const existing = await db.query.subjects.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.canonicalName, payload.canonicalName)
-    },
-    columns: { id: true }
-  })
+  const existing = await sameSubject(payload.canonicalName, name)
 
   if (existing) {
     return c.json(buildDuplicateCanonicalNameError(), HttpStatusCodes.CONFLICT)
@@ -148,17 +158,13 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
   ensureAdmin(c)
 
   const { id } = c.req.valid('param')
-  const updates = c.req.valid('json')
+  const { name } = c.req.valid('json')
+  // Renaming makes the canonical name again from the new name.
+  const updates = name ? { name, canonicalName: canonicalSubjectName(name) } : {}
 
-  if (typeof updates.canonicalName === 'string') {
-    const existing = await db.query.subjects.findFirst({
-      where(fields, operators) {
-        return operators.eq(fields.canonicalName, updates.canonicalName)
-      },
-      columns: { id: true }
-    })
-
-    if (existing && existing.id !== id) {
+  if (updates.canonicalName) {
+    const existing = await sameSubject(updates.canonicalName, updates.name, id)
+    if (existing) {
       return c.json(buildDuplicateCanonicalNameError(), HttpStatusCodes.CONFLICT)
     }
   }
