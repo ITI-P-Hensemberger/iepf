@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { GuestTheme } from '@/components/guest-theme'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import Footer from '@/components/footer'
@@ -49,6 +50,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <GuestTheme />
           <SettingsProvider>
             <SessionRefresh />
             <div className='flex min-h-dvh flex-col'>
