@@ -8,7 +8,7 @@ const POINTS = [
   {
     icon: GraduationCap,
     title: 'Tutor del tuo istituto',
-    text: 'Studenti di terza, quarta e quinta, scelti per competenza e capacità di spiegare in modo chiaro e pratico.'
+    text: 'Studenti più grandi, scelti per competenza e capacità di spiegare in modo chiaro e pratico.'
   },
   {
     icon: Lightbulb,
@@ -41,8 +41,9 @@ export default function Home() {
             Il supporto allo studio dell&apos;ITI P. Hensemberger
           </h1>
           <p className='mt-4 text-lg text-muted-foreground text-pretty'>
-            Lezioni pomeridiane con i tutor della scuola, per consolidare i concetti fondamentali e
-            affrontare con più sicurezza le materie in cui sei in difficoltà.
+            Lezioni pomeridiane con i tutor della scuola, per consolidare i
+            concetti fondamentali e affrontare con più sicurezza le materie in
+            cui sei in difficoltà.
           </p>
           <div className='mt-8 flex w-full flex-col gap-3 sm:w-auto sm:flex-row'>
             <Button asChild size='lg'>
@@ -54,8 +55,11 @@ export default function Home() {
           </div>
         </section>
 
-        <section className='mx-auto mt-16 grid max-w-5xl gap-4 sm:grid-cols-3' aria-label='Come funziona'>
-          {POINTS.map(point => (
+        <section
+          className='mx-auto mt-16 grid max-w-5xl gap-4 sm:grid-cols-3'
+          aria-label='Come funziona'
+        >
+          {POINTS.map((point) => (
             <div key={point.title} className='rounded-lg border bg-card p-5'>
               <span className='flex size-10 items-center justify-center rounded-lg bg-primary/10'>
                 <point.icon className='size-5 text-primary' aria-hidden />
@@ -67,8 +71,12 @@ export default function Home() {
         </section>
 
         <p className='mt-12 text-center text-sm text-muted-foreground'>
-          Hai domande su costi, attivazione o lezioni?{' '}
-          <Link href='/faq' className='font-medium text-foreground underline underline-offset-4'>
+          Hai domande su costi, attivazione o lezioni?
+          <br />
+          <Link
+            href='/faq'
+            className='font-medium text-foreground underline underline-offset-4'
+          >
             Leggi le domande frequenti
           </Link>
         </p>

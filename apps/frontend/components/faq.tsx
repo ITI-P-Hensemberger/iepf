@@ -16,9 +16,9 @@ export default function FAQ() {
           Quanto costa il servizio e quante lezioni comprende il pacchetto?
         </AccordionTrigger>
         <AccordionContent>
-          Il contributo e il numero di lezioni del pacchetto sono indicati
-          nella circolare dell&apos;anno scolastico in corso, che trovi nel
-          registro elettronico.
+          Il contributo e il numero di lezioni del pacchetto sono indicati nella
+          circolare dell&apos;anno scolastico in corso, che trovi nel registro
+          elettronico.
         </AccordionContent>
       </AccordionItem>
       <AccordionItem value='attivazione'>
@@ -28,15 +28,8 @@ export default function FAQ() {
         <AccordionContent>
           <ol className='list-decimal space-y-2 pl-5'>
             <li>
-              Scarica il documento di{' '}
-              <Link
-                href={RELEASE_FORM_URL}
-                target='_blank'
-                className='underline underline-offset-4'
-              >
-                liberatoria e regolamento
-              </Link>
-              , che trovi anche nella circolare di inizio progetto.
+              Scarica il documento di liberatoria e regolamento che trovi nella
+              circolare di inizio progetto.
             </li>
             <li>
               Fai compilare e firmare la liberatoria da un genitore o un tutore
@@ -50,16 +43,9 @@ export default function FAQ() {
               simili.
             </li>
             <li>
-              Allega la ricevuta di pagamento e la liberatoria firmata al{' '}
-              <Link
-                href={ACTIVATION_FORM_URL}
-                target='_blank'
-                className='underline underline-offset-4'
-              >
-                form di attivazione
-              </Link>
-              . Una volta inviato il form, la segreteria attiverà il tuo account
-              e potrai prenotare le lezioni.
+              Allega la ricevuta di pagamento e la liberatoria firmata al form
+              di attivazione. Una volta inviato il form, la segreteria attiverà
+              il tuo account e potrai prenotare le lezioni.
             </li>
           </ol>
         </AccordionContent>
@@ -115,8 +101,8 @@ export default function FAQ() {
       </AccordionItem>
       <AccordionItem value='item-6'>
         <AccordionTrigger>
-          Cosa succede se non esaurisco il pacchetto di lezioni prima della
-          fine dell&apos;anno scolastico?
+          Cosa succede se non esaurisco il pacchetto di lezioni prima della fine
+          dell&apos;anno scolastico?
         </AccordionTrigger>
         <AccordionContent>
           Le lezioni non utilizzate non sono rimborsabili e non possono essere

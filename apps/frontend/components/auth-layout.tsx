@@ -4,8 +4,7 @@ import Image from 'next/image'
 import { BackButton } from '@/components/back-button'
 
 // Every page before the dashboard where someone signs in or signs up (login, registrations,
-// password reset, email check): the back button where every page has it, then a narrow
-// centred column with the logo, the title, a line on what to do, and the form.
+// password reset, email check): a narrow centred column with the back button at its edge, the logo, the title, a line on what to do, and the form.
 export function AuthLayout({
   title,
   description,
@@ -23,8 +22,9 @@ export function AuthLayout({
   return (
     <main className='flex-1'>
       <div className='container mx-auto px-4 pt-10 pb-16'>
-        <BackButton href={backHref} />
-        <div className='mx-auto mt-6 flex w-full max-w-md flex-col items-center text-center'>
+        <div className='mx-auto flex w-full max-w-md flex-col items-center text-center'>
+          {/* Lined up with the column below, as on the FAQ. */}
+          <BackButton href={backHref} className='self-start' />
           <Image
             src='/logo.png'
             alt='IEPF'
@@ -33,6 +33,7 @@ export function AuthLayout({
             style={{ width: 'auto', height: 'auto', maxHeight: 72 }}
             draggable={false}
             priority
+            className='mt-6'
           />
           <h1 className='mt-6 text-2xl font-semibold tracking-tight'>{title}</h1>
           {description && <p className='mt-2 text-muted-foreground'>{description}</p>}
