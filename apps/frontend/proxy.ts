@@ -157,7 +157,9 @@ export async function proxy(request: NextRequest) {
       pathname.startsWith(TUTOR_PENDING_PATH)
     )
   ) {
-    const destination = `/auth/login?next=${encodeURIComponent(`${pathname}${request.nextUrl.search}`)}`
+    // Signed out (logged out, session expired, bookmark): the landing, which hands `next` on to
+    // "Accedi" so the login still brings the user back here.
+    const destination = `/?next=${encodeURIComponent(`${pathname}${request.nextUrl.search}`)}`
     return NextResponse.redirect(new URL(destination, request.url))
   }
 

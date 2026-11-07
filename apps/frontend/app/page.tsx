@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { CalendarCheck, GraduationCap, Lightbulb, LogIn, UserPlus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { safeInternalPath } from '@/lib/safe-redirect'
 
 const POINTS = [
   {
@@ -22,8 +23,12 @@ const POINTS = [
   }
 ]
 
-// The first page anyone sees: what the project is, and the two ways in.
-export default function Home() {
+// The first page anyone sees: what the project is, and the two ways in. Signed-out users land
+// here too (logout, expired session) with `next`, which "Accedi" hands on to the login.
+export default async function Home({ searchParams }: { searchParams: Promise<{ next?: string | string[] }> }) {
+  const { next } = await searchParams
+  const nextPath = safeInternalPath(typeof next === 'string' ? next : null)
+  const loginHref = nextPath ? `/auth/login?next=${encodeURIComponent(nextPath)}` : '/auth/login'
   return (
     // On a computer the content sits in the middle of the screen, between header and footer.
     <main className='flex flex-1 flex-col'>
@@ -40,7 +45,14 @@ export default function Home() {
           />
           <h1 className='mt-8 text-3xl font-semibold tracking-tight text-balance sm:text-4xl'>
             Il supporto allo studio dell’
-            <span className='ml-[0.1em] whitespace-nowrap text-[var(--school)]'>ITI P. Hensemberger</span>
+            <a
+              href='https://hensemberger.edu.it/'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='ml-[0.1em] whitespace-nowrap text-[var(--school)] underline-offset-4 hover:underline'
+            >
+              ITI P. Hensemberger
+            </a>
           </h1>
           <p className='mt-4 text-lg text-muted-foreground text-pretty'>
             Lezioni pomeridiane con i tutor della scuola, per consolidare i
@@ -53,7 +65,7 @@ export default function Home() {
               <Link href='/auth/sign-up'><UserPlus className='size-5' /> Registrati</Link>
             </Button>
             <Button asChild size='lg' variant='outline' className='h-12 border-foreground/30 px-8 text-base sm:min-w-48'>
-              <Link href='/auth/login'><LogIn className='size-5' /> Accedi</Link>
+              <Link href={loginHref}><LogIn className='size-5' /> Accedi</Link>
             </Button>
           </div>
         </section>

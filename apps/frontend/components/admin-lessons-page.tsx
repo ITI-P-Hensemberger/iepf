@@ -713,7 +713,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     } finally {
       setIsCreating(false)
     }
-  }, [createForm, loadLessons, router])
+  }, [createForm, here, loadLessons, router])
 
 
   return (

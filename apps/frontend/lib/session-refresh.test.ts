@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { createRefreshingFetch, loginRedirect, needsSessionRefresh, NO_SESSION_HEADER } from './session-refresh'
+import { createRefreshingFetch, signedOutRedirect, needsSessionRefresh, NO_SESSION_HEADER } from './session-refresh'
 
 const origin = 'https://iepf.test'
 
@@ -111,10 +111,11 @@ describe('createRefreshingFetch', () => {
   })
 })
 
-describe('loginRedirect', () => {
-  it('never redirects from an auth page, so the login page cannot loop', () => {
-    expect(loginRedirect('/auth/login', '?next=%2Fstudent')).toBeNull()
-    expect(loginRedirect('/auth/register', '')).toBeNull()
-    expect(loginRedirect('/tutor/lessons/1', '?tab=feedback')).toBe('/auth/login?next=%2Ftutor%2Flessons%2F1%3Ftab%3Dfeedback')
+describe('signedOutRedirect', () => {
+  it('never redirects from the landing or an auth page, so they cannot loop', () => {
+    expect(signedOutRedirect('/', '?next=%2Fstudent')).toBeNull()
+    expect(signedOutRedirect('/auth/login', '?next=%2Fstudent')).toBeNull()
+    expect(signedOutRedirect('/auth/register', '')).toBeNull()
+    expect(signedOutRedirect('/tutor/lessons/1', '?tab=feedback')).toBe('/?next=%2Ftutor%2Flessons%2F1%3Ftab%3Dfeedback')
   })
 })

@@ -26,7 +26,7 @@ export default function ActivatorGuard({ children }: ActivatorGuardProps) {
     }
 
     if (!profile) {
-      router.replace('/auth/login')
+      router.replace('/')
       return
     }
 
