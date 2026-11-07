@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 
-import { createRefreshingFetch, loginRedirect } from '@/lib/session-refresh'
+import { createRefreshingFetch, signedOutRedirect } from '@/lib/session-refresh'
 
 const INSTALLED = Symbol.for('iepf.session-refresh')
 
@@ -18,7 +18,7 @@ export function SessionRefresh() {
       origin: window.location.origin,
       isImpersonating: () => document.cookie.split('; ').includes('iepf_impersonating=true'),
       onSessionLost: () => {
-        const destination = loginRedirect(window.location.pathname, window.location.search)
+        const destination = signedOutRedirect(window.location.pathname, window.location.search)
         if (!destination) return
         // A full load, like logout: nothing of the lost session stays in memory.
          

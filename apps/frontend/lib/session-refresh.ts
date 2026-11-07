@@ -14,11 +14,12 @@ export type RefreshOptions = {
   onSessionLost: () => void
 }
 
-// Where a lost session sends the user: never from the auth pages themselves, which would
-// reload the login page forever, and never with a `next` that is itself an auth page.
-export function loginRedirect(pathname: string, search: string) {
-  if (pathname.startsWith('/auth/')) return null
-  return `/auth/login?next=${encodeURIComponent(`${pathname}${search}`)}`
+// Where a lost session sends the user: the landing, which hands `next` on to "Accedi" so the
+// login brings them back. Never from the landing or the auth pages themselves, which would
+// reload them forever, and never with a `next` that is itself an auth page.
+export function signedOutRedirect(pathname: string, search: string) {
+  if (pathname === '/' || pathname.startsWith('/auth/')) return null
+  return `/?next=${encodeURIComponent(`${pathname}${search}`)}`
 }
 
 // Auth routes answer 401 on purpose (wrong password, no session) and refresh by themselves.

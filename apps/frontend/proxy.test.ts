@@ -50,9 +50,9 @@ describe('proxy', () => {
     vi.unstubAllGlobals()
   })
 
-  it('sends anonymous visitors to login and keeps the destination', async () => {
+  it('sends anonymous visitors to the landing and keeps the destination', async () => {
     const response = await proxy(page('/admin/stats?tab=feedback'))
-    expect(location(response)).toBe(`/auth/login?next=${encodeURIComponent('/admin/stats?tab=feedback')}`)
+    expect(location(response)).toBe(`/?next=${encodeURIComponent('/admin/stats?tab=feedback')}`)
   })
 
   it('leaves public pages open to anonymous visitors', async () => {

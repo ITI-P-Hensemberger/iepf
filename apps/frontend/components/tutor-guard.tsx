@@ -36,7 +36,7 @@ export default function TutorGuard({ children }: TutorGuardProps) {
     }
 
     if (!profile) {
-      router.replace('/auth/login')
+      router.replace('/')
       return
     }
 

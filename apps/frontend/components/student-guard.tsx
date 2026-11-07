@@ -28,7 +28,7 @@ export default function StudentGuard({ children }: StudentGuardProps) {
     }
 
     if (!profile) {
-      router.replace('/auth/login')
+      router.replace('/')
       return
     }
 

@@ -28,7 +28,7 @@ export default function AdminGuard({ children }: AdminGuardProps) {
     }
 
     if (!profile) {
-      router.replace('/auth/login')
+      router.replace('/')
       return
     }
 
