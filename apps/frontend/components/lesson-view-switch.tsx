@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 export function LessonViewSwitch({ views, current }: { views: Array<{ key: string, label: string }>, current: string }) {
   const pathname = usePathname()
   return (
-    <div className='inline-flex rounded-lg border p-0.5' role='group' aria-label='Vista'>
+    <div className='inline-flex rounded-lg border border-input bg-card p-0.5 shadow-xs dark:bg-transparent' role='group' aria-label='Vista'>
       {views.map((view, index) => (
         <Button
           key={view.key}

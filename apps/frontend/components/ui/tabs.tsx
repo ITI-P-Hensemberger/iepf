@@ -27,7 +27,7 @@ function TabsList({
       data-slot="tabs-list"
       className={cn(
         // One look for every switch between views of a page: a bordered row of pills.
-        "inline-flex w-fit max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border p-0.5",
+        "inline-flex w-fit max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-input bg-card p-0.5 shadow-xs dark:bg-transparent",
         className
       )}
       {...props}
