@@ -434,7 +434,8 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Stima:** L
   - **Dipendenze:** 21 (titolo API e `AppType`)
 
-- [ ] **24. Spezzare i file enormi**
+- [x] **24. Spezzare i file enormi**
+  - **Stato:** `lessons.handlers.ts` (2262 righe) è diviso in liste, prenotazioni, gestione e helper condivisi. `admin-lesson-details-page.tsx` passa da 1869 a 958 righe: tipi e helper, i dialoghi "Riprogramma" e "Prenota per conto studente" con i loro hook. `admin-stats-page.tsx` era già stato diviso in `components/admin-stats/`. Il codice è solo spostato. Restano grandi `admin/tutors/[id]/page.tsx` (1426), `admin-feedback-page.tsx` (1261), `admin-lessons-page.tsx` (1161) e `admin-tutors-page.tsx` (1135), da dividere quando li si tocca.
   - **Problema:** file troppo grandi da rivedere e modificare con sicurezza:
     `apps/frontend/components/admin-stats-page.tsx` (2412 righe),
     `apps/frontend/components/admin-lesson-details-page.tsx` (2076),
