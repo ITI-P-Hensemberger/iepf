@@ -117,6 +117,9 @@ const bookGeneratedLessonSchema = z.object({
 })
 
 const myLessonsQuerySchema = z.object({
+  // Admins only: whose bookings to list, for the student's page in the admin area.
+  studentId: z.uuid().optional(),
+  q: z.string().trim().min(1).max(100).optional(),
   from: z.iso.datetime().optional(),
   to: z.iso.datetime().optional(),
   lessonStatus: z.string().optional(),
@@ -138,7 +141,7 @@ const availableLessonsQuerySchema = z.object({
 })
 
 const listLessonsQuerySchema = z.object({
-  q: z.string().min(1).optional(),
+  q: z.string().trim().min(1).max(100).optional(),
   tutorId: z.uuid().optional(),
   subjectId: z.uuid().optional(),
   status: z.string().optional(),

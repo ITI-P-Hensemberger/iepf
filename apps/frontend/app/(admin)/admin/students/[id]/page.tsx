@@ -1,15 +1,25 @@
 'use client'
 
+import { STICKY_CARD_FOOTER } from '@/components/sticky-footer'
+import { cn } from '@/lib/utils'
+import { BlockSkeleton } from '@/components/loading'
 import * as React from 'react'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { History, Hourglass, TriangleAlert, UserRound } from 'lucide-react'
+
+import { AdminStudentHours } from '@/components/admin-student-hours'
+import { AdminUserLessons } from '@/components/admin-user-lessons'
+import { ConfirmDeleteDialog } from '@/components/confirm-delete-dialog'
+import { DangerAction, DangerZone } from '@/components/danger-zone'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { BackButton } from '@/components/back-button'
+import { SectionLayout } from '@/components/section-layout'
+import { useBackHref, useHere, useSetParam, withFrom } from '@/lib/back-link'
 import {
   Accordion,
   AccordionContent,
@@ -48,7 +58,6 @@ import {
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
 import { STUDENT_YEARS } from '@/lib/school-years'
-import { capitalizeFirst } from '@/lib/capitalize'
 
 function normalizeName(value: string) {
   const trimmed = value.trim()
@@ -101,12 +110,22 @@ type Student = {
   lessonTokens?: number | null
 }
 
-type TokenAdjustmentDirection = 'add' | 'remove'
+const SECTIONS = [
+  { value: 'account', label: 'Dati', icon: UserRound },
+  { value: 'hours', label: 'Ore di lezione', icon: Hourglass },
+  { value: 'lessons', label: 'Storico lezioni', icon: History },
+  { value: 'danger', label: 'Danger zone', icon: TriangleAlert, separatorBefore: true }
+] as const
 
 export default function AdminStudentDetailPage() {
   const params = useParams()
   const router = useRouter()
   const studentId = String(params?.id ?? '')
+  const tab = useSearchParams().get('tab')
+  const here = useHere()
+  const backHref = useBackHref('/admin/students')
+  const setParam = useSetParam()
+  const active = tab === 'hours' || tab === 'lessons' || tab === 'danger' ? tab : 'account'
 
   const [student, setStudent] = React.useState<Student | null>(null)
   const [sections, setSections] = React.useState<Section[]>([])
@@ -118,9 +137,6 @@ export default function AdminStudentDetailPage() {
   const [showDeleteAlert, setShowDeleteAlert] = React.useState(false)
   const [isDeleting, setIsDeleting] = React.useState(false)
   const [isImpersonating, setIsImpersonating] = React.useState(false)
-  const [tokenAmount, setTokenAmount] = React.useState('1')
-  const [tokenReason, setTokenReason] = React.useState('')
-  const [isAdjustingTokens, setIsAdjustingTokens] = React.useState(false)
 
   const form = useForm<StudentFormValues>({
     resolver: zodResolver(formSchema),
@@ -292,7 +308,7 @@ export default function AdminStudentDetailPage() {
         throw new Error(message)
       }
 
-      toast.success('Studente aggiornato con successo.')
+      toast.success('Studente aggiornato.')
       setStudent((prev) =>
         prev
           ? {
@@ -333,35 +349,34 @@ export default function AdminStudentDetailPage() {
     await submitStudent(values)
   }
 
-  async function handleDelete() {
+  // Returns the error to show in the dialog (a wrong password), or null.
+  async function handleDelete(password: string): Promise<string | null> {
     if (!studentId) {
-      return
+      return null
     }
     setIsDeleting(true)
     try {
       const response = await fetch(`/api/users/${studentId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
       })
-      if (!response.ok) {
-        let message = 'Impossibile eliminare lo studente.'
-        try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
-        } catch {
-          message = 'Impossibile eliminare lo studente.'
-        }
-        throw new Error(message)
+      if (response.status === 403) {
+        return 'Password non corretta.'
       }
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { message?: string } | null
+        throw new Error(payload?.message ?? 'Impossibile eliminare lo studente.')
+      }
+      setShowDeleteAlert(false)
       router.push('/admin/students')
+      return null
     } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile eliminare lo studente.'
-      )
+      toast.error(err instanceof Error ? err.message : 'Impossibile eliminare lo studente.')
+      setShowDeleteAlert(false)
+      return null
     } finally {
       setIsDeleting(false)
-      setShowDeleteAlert(false)
     }
   }
 
@@ -375,12 +390,12 @@ export default function AdminStudentDetailPage() {
         body: JSON.stringify({ userId: studentId })
       })
       if (!response.ok) {
-        let message = 'Impossibile avviare l\'impersonazione.'
+        let message = "Impossibile avviare l'impersonazione."
         try {
           const payload = (await response.json()) as { message?: string }
           message = payload.message ?? message
         } catch {
-          message = 'Impossibile avviare l\'impersonazione.'
+          message = "Impossibile avviare l'impersonazione."
         }
         throw new Error(message)
       }
@@ -394,521 +409,388 @@ export default function AdminStudentDetailPage() {
       toast.error(
         err instanceof Error
           ? err.message
-          : 'Impossibile avviare l\'impersonazione.'
+          : "Impossibile avviare l'impersonazione."
       )
     } finally {
       setIsImpersonating(false)
     }
   }
 
-  async function handleAdjustTokens(direction: TokenAdjustmentDirection) {
-    const amount = Number.parseInt(tokenAmount, 10)
-    const reason = tokenReason.trim()
-
-    if (!studentId) {
-      return
-    }
-
-    if (!Number.isInteger(amount) || amount <= 0) {
-      toast.error('Inserisci un numero di ore valido.')
-      return
-    }
-
-    if (!reason) {
-      toast.error('Inserisci una motivazione.')
-      return
-    }
-
-    setIsAdjustingTokens(true)
-
-    try {
-      const response = await fetch(`/api/users/${studentId}/tokens/adjust`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          delta: direction === 'add' ? amount : -amount,
-          reason
-        })
-      })
-
-      if (!response.ok) {
-        let message = 'Impossibile aggiornare le ore di lezione.'
-        try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
-        } catch {
-          message = 'Impossibile aggiornare le ore di lezione.'
-        }
-        throw new Error(message)
-      }
-
-      const payload = (await response.json()) as { lessonTokens?: number | null }
-      const nextTokens = payload.lessonTokens ?? 0
-
-      setStudent((prev) =>
-        prev
-          ? {
-              ...prev,
-              lessonTokens: nextTokens
-            }
-          : prev
-      )
-      setTokenAmount('1')
-      setTokenReason('')
-      toast.success(
-        direction === 'add'
-          ? 'Ore di lezione aggiunte.'
-          : 'Ore di lezione tolte.'
-      )
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile aggiornare le ore di lezione.'
-      )
-    } finally {
-      setIsAdjustingTokens(false)
-    }
-  }
+  const changeSection = (value: string) => setParam('tab', value === 'account' ? null : value)
 
   return (
-    <main className='flex-1'>
-      <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
-        <div className='w-full max-w-6xl'>
-          <div className='mb-6'>
-            <BackButton href='/admin/students' />
-          </div>
-          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-            <div>
-              <h1 className='text-2xl'>Dettagli studente</h1>
-              <p className='mt-1 text-sm text-muted-foreground'>
-                Gestisci i dati dello studente.
+    <SectionLayout
+      title={
+        student
+          ? `${student.firstName} ${student.lastName}`
+          : 'Dettagli studente'
+      }
+      description={student?.email ?? 'Gestisci i dati dello studente.'}
+      backHref={backHref}
+      sections={SECTIONS}
+      value={active}
+      onValueChange={changeSection}
+      actions={
+        <>
+          <Button
+            variant='outline'
+            onClick={handleImpersonate}
+            disabled={isImpersonating}
+          >
+            {isImpersonating ? 'Accesso...' : 'Impersona studente'}
+          </Button>
+          <Button asChild variant='outline'>
+            <Link
+              href={withFrom(`/admin/feedback?feedbackAuthor=${studentId}&feedbackRole=student`, here)}
+            >
+              Feedback
+            </Link>
+          </Button>
+        </>
+      }
+    >
+      {active === 'account' && (
+        <Card>
+          <CardContent className='pt-6'>
+            {isLoading ? (
+              <BlockSkeleton />
+            ) : !student ? (
+              <p className='text-sm text-muted-foreground'>
+                Studente non trovato.
               </p>
-            </div>
-            <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
-              <Button
-                variant='outline'
-                onClick={handleImpersonate}
-                disabled={isImpersonating}
-              >
-                {isImpersonating ? 'Accesso...' : 'Impersona studente'}
-              </Button>
-              <Button asChild variant='outline'>
-                <Link
-                  href={`/admin/feedback?feedbackAuthor=${studentId}&feedbackRole=student`}
-                >
-                  Feedback
-                </Link>
-              </Button>
-            </div>
-          </div>
-          <Card className='mt-6'>
-            <CardContent className='pt-6'>
-              {isLoading ? (
-                <p className='text-sm text-muted-foreground'>Caricamento...</p>
-              ) : !student ? (
-                <p className='text-sm text-muted-foreground'>
-                  Studente non trovato.
-                </p>
-              ) : (
+            ) : (
               <form
                 id='admin-student-form'
                 onSubmit={form.handleSubmit(onSubmit)}
                 className='space-y-6'
               >
-                  <FieldGroup>
-                    <Controller
-                      name='firstName'
-                      control={form.control}
-                      render={({ field, fieldState }) => (
-                        <Field data-invalid={fieldState.invalid}>
-                          <FieldLabel htmlFor='student-first-name'>
-                            Nome
-                          </FieldLabel>
-                          <Input
-                            {...field}
-                            id='student-first-name'
+                <FieldGroup>
+                  <Controller
+                    name='firstName'
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor='student-first-name'>
+                          Nome
+                        </FieldLabel>
+                        <Input
+                          {...field}
+                          id='student-first-name'
+                          aria-invalid={fieldState.invalid}
+                          autoComplete='given-name'
+                          onBlur={(event) => {
+                            field.onBlur()
+                            const normalized = normalizeName(event.target.value)
+                            form.setValue('firstName', normalized, {
+                              shouldDirty: normalized !== field.value
+                            })
+                          }}
+                        />
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    name='lastName'
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor='student-last-name'>
+                          Cognome
+                        </FieldLabel>
+                        <Input
+                          {...field}
+                          id='student-last-name'
+                          aria-invalid={fieldState.invalid}
+                          autoComplete='family-name'
+                          onBlur={(event) => {
+                            field.onBlur()
+                            const normalized = normalizeName(event.target.value)
+                            form.setValue('lastName', normalized, {
+                              shouldDirty: normalized !== field.value
+                            })
+                          }}
+                        />
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    name='email'
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor='student-email'>Email</FieldLabel>
+                        <Input
+                          {...field}
+                          id='student-email'
+                          aria-invalid={fieldState.invalid}
+                          autoComplete='email'
+                          onBlur={(event) => {
+                            field.onBlur()
+                            const normalized = normalizeEmail(
+                              event.target.value
+                            )
+                            form.setValue('email', normalized, {
+                              shouldDirty: normalized !== field.value
+                            })
+                          }}
+                        />
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    name='year'
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor='student-year'>Anno</FieldLabel>
+                        <Select
+                          onValueChange={(value) => field.onChange(value)}
+                          value={String(field.value)}
+                        >
+                          <SelectTrigger
+                            id='student-year'
                             aria-invalid={fieldState.invalid}
-                            autoComplete='given-name'
-                            onBlur={(event) => {
-                              field.onBlur()
-                              const normalized = normalizeName(
-                                event.target.value
-                              )
-                              form.setValue('firstName', normalized, {
-                                shouldDirty: normalized !== field.value
-                              })
-                            }}
-                          />
-                          {fieldState.invalid && (
-                            <FieldError errors={[fieldState.error]} />
-                          )}
-                        </Field>
-                      )}
-                    />
-                    <Controller
-                      name='lastName'
-                      control={form.control}
-                      render={({ field, fieldState }) => (
-                        <Field data-invalid={fieldState.invalid}>
-                          <FieldLabel htmlFor='student-last-name'>
-                            Cognome
-                          </FieldLabel>
-                          <Input
-                            {...field}
-                            id='student-last-name'
-                            aria-invalid={fieldState.invalid}
-                            autoComplete='family-name'
-                            onBlur={(event) => {
-                              field.onBlur()
-                              const normalized = normalizeName(
-                                event.target.value
-                              )
-                              form.setValue('lastName', normalized, {
-                                shouldDirty: normalized !== field.value
-                              })
-                            }}
-                          />
-                          {fieldState.invalid && (
-                            <FieldError errors={[fieldState.error]} />
-                          )}
-                        </Field>
-                      )}
-                    />
-                    <Controller
-                      name='email'
-                      control={form.control}
-                      render={({ field, fieldState }) => (
-                        <Field data-invalid={fieldState.invalid}>
-                          <FieldLabel htmlFor='student-email'>Email</FieldLabel>
-                          <Input
-                            {...field}
-                            id='student-email'
-                            aria-invalid={fieldState.invalid}
-                            autoComplete='email'
-                            onBlur={(event) => {
-                              field.onBlur()
-                              const normalized = normalizeEmail(
-                                event.target.value
-                              )
-                              form.setValue('email', normalized, {
-                                shouldDirty: normalized !== field.value
-                              })
-                            }}
-                          />
-                          {fieldState.invalid && (
-                            <FieldError errors={[fieldState.error]} />
-                          )}
-                        </Field>
-                      )}
-                    />
-                    <Controller
-                      name='year'
-                      control={form.control}
-                      render={({ field, fieldState }) => (
-                        <Field data-invalid={fieldState.invalid}>
-                          <FieldLabel htmlFor='student-year'>Anno</FieldLabel>
-                          <Select
-                            onValueChange={(value) => field.onChange(value)}
-                            value={String(field.value)}
                           >
-                            <SelectTrigger
-                              id='student-year'
-                              aria-invalid={fieldState.invalid}
-                            >
-                              <SelectValue placeholder="Seleziona l'anno" />
-                            </SelectTrigger>
-                            <SelectContent>
+                            <SelectValue placeholder="Seleziona l'anno" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectLabel>Anno</SelectLabel>
+                              {STUDENT_YEARS.map((year) => (
+                                <SelectItem key={year} value={String(year)}>
+                                  {year}° anno
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    name='sectionId'
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor='student-section'>
+                          Sezione
+                        </FieldLabel>
+                        <Select
+                          onValueChange={(value) => field.onChange(value)}
+                          value={String(field.value)}
+                        >
+                          <SelectTrigger
+                            id='student-section'
+                            aria-invalid={fieldState.invalid}
+                          >
+                            <SelectValue placeholder='Seleziona la sezione' />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {groupedSections.scient.length > 0 && (
                               <SelectGroup>
-                                <SelectLabel>Anno</SelectLabel>
-                                {STUDENT_YEARS.map((year) => (
-                                  <SelectItem key={year} value={String(year)}>{year}° anno</SelectItem>
+                                <SelectLabel>
+                                  Scientifico Scienze Applicate
+                                </SelectLabel>
+                                {groupedSections.scient.map((section) => (
+                                  <SelectItem
+                                    key={section.id}
+                                    value={section.id}
+                                  >
+                                    {section.name}
+                                  </SelectItem>
                                 ))}
                               </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                          {fieldState.invalid && (
-                            <FieldError errors={[fieldState.error]} />
-                          )}
-                        </Field>
-                      )}
-                    />
-                    <Controller
-                      name='sectionId'
-                      control={form.control}
-                      render={({ field, fieldState }) => (
-                        <Field data-invalid={fieldState.invalid}>
-                          <FieldLabel htmlFor='student-section'>
-                            Sezione
-                          </FieldLabel>
-                          <Select
-                            onValueChange={(value) => field.onChange(value)}
-                            value={String(field.value)}
-                          >
-                            <SelectTrigger
-                              id='student-section'
-                              aria-invalid={fieldState.invalid}
-                            >
-                              <SelectValue placeholder='Seleziona la sezione' />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {groupedSections.scient.length > 0 && (
-                                <SelectGroup>
-                                  <SelectLabel>
-                                    Scientifico Scienze Applicate
-                                  </SelectLabel>
-                                  {groupedSections.scient.map((section) => (
-                                    <SelectItem
-                                      key={section.id}
-                                      value={section.id}
-                                    >
-                                      {section.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              )}
-                              {groupedSections.mech.length > 0 && (
-                                <SelectGroup>
-                                  <SelectLabel>
-                                    Meccanica Meccatronica Energia
-                                  </SelectLabel>
-                                  {groupedSections.mech.map((section) => (
-                                    <SelectItem
-                                      key={section.id}
-                                      value={section.id}
-                                    >
-                                      {section.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              )}
-                              {groupedSections.elec.length > 0 && (
-                                <SelectGroup>
-                                  <SelectLabel>
-                                    Elettronica ed Elettrotecnica
-                                  </SelectLabel>
-                                  {groupedSections.elec.map((section) => (
-                                    <SelectItem
-                                      key={section.id}
-                                      value={section.id}
-                                    >
-                                      {section.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              )}
-                              {groupedSections.chem.length > 0 && (
-                                <SelectGroup>
-                                  <SelectLabel>
-                                    Chimica Biotecnologie Sanitarie
-                                  </SelectLabel>
-                                  {groupedSections.chem.map((section) => (
-                                    <SelectItem
-                                      key={section.id}
-                                      value={section.id}
-                                    >
-                                      {section.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              )}
-                              {groupedSections.info.length > 0 && (
-                                <SelectGroup>
-                                  <SelectLabel>
-                                    Informatica e Telecomunicazioni
-                                  </SelectLabel>
-                                  {groupedSections.info.map((section) => (
-                                    <SelectItem
-                                      key={section.id}
-                                      value={section.id}
-                                    >
-                                      {section.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              )}
-                            </SelectContent>
-                          </Select>
-                          {fieldState.invalid && (
-                            <FieldError errors={[fieldState.error]} />
-                          )}
-                        </Field>
-                      )}
-                    />
-                    <Controller
-                      name='isActive'
-                      control={form.control}
-                      render={({ field }) => (
-                        <Field orientation='horizontal'>
-                          <div className='flex items-center gap-2'>
-                            <Checkbox
-                              id='student-active'
-                              checked={field.value}
-                              onCheckedChange={(value) =>
-                                field.onChange(Boolean(value))
-                              }
-                            />
-                            <Label htmlFor='student-active'>Attivo</Label>
-                          </div>
-                        </Field>
-                      )}
-                    />
-                    <Field>
-                      <FieldLabel>Ore di lezione rimanenti</FieldLabel>
-                      <div className='text-sm text-muted-foreground'>
-                        {student.lessonTokens ?? '-'}
-                      </div>
-                    </Field>
-                  </FieldGroup>
-                  <Accordion type='single' collapsible className='w-full'>
-                    <AccordionItem value='tech-details'>
-                      <AccordionTrigger>Dettagli tecnici</AccordionTrigger>
-                      <AccordionContent>
-                        <div className='text-sm text-muted-foreground space-y-2'>
-                          <div>
-                            <span className='font-medium text-foreground'>
-                              ID:
-                            </span>{' '}
-                            {student?.id ?? '-'}
-                          </div>
-                          <div>
-                            <span className='font-medium text-foreground'>
-                              Ruolo:
-                            </span>{' '}
-                            {student?.role ?? '-'}
-                          </div>
-                          <div>
-                            <span className='font-medium text-foreground'>
-                              Email verificata:
-                            </span>{' '}
-                            {formatItalianDate(student?.emailVerifiedAt)}
-                          </div>
-                          <div>
-                            <span className='font-medium text-foreground'>
-                              Creato il:
-                            </span>{' '}
-                            {formatItalianDate(student?.createdAt)}
-                          </div>
-                          <div>
-                            <span className='font-medium text-foreground'>
-                              Aggiornato il:
-                            </span>{' '}
-                            {formatItalianDate(student?.updatedAt)}
-                          </div>
-                          <div>
-                            <span className='font-medium text-foreground'>
-                              Section ID:
-                            </span>{' '}
-                            {student?.sectionId ?? '-'}
-                          </div>
-                          <div>
-                            <span className='font-medium text-foreground'>
-                              Anno:
-                            </span>{' '}
-                            {student?.year ?? '-'}
-                          </div>
-                          <div>
-                            <span className='font-medium text-foreground'>
-                              Attivo:
-                            </span>{' '}
-                            {student?.isActive ? 'Si' : 'No'}
-                          </div>
-                          <div>
-                            <span className='font-medium text-foreground'>
-                              Ore di lezione rimanenti:
-                            </span>{' '}
-                            {student?.lessonTokens ?? '-'}
-                          </div>
+                            )}
+                            {groupedSections.mech.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>
+                                  Meccanica Meccatronica Energia
+                                </SelectLabel>
+                                {groupedSections.mech.map((section) => (
+                                  <SelectItem
+                                    key={section.id}
+                                    value={section.id}
+                                  >
+                                    {section.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            )}
+                            {groupedSections.elec.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>
+                                  Elettronica ed Elettrotecnica
+                                </SelectLabel>
+                                {groupedSections.elec.map((section) => (
+                                  <SelectItem
+                                    key={section.id}
+                                    value={section.id}
+                                  >
+                                    {section.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            )}
+                            {groupedSections.chem.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>
+                                  Chimica Biotecnologie Sanitarie
+                                </SelectLabel>
+                                {groupedSections.chem.map((section) => (
+                                  <SelectItem
+                                    key={section.id}
+                                    value={section.id}
+                                  >
+                                    {section.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            )}
+                            {groupedSections.info.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>
+                                  Informatica e Telecomunicazioni
+                                </SelectLabel>
+                                {groupedSections.info.map((section) => (
+                                  <SelectItem
+                                    key={section.id}
+                                    value={section.id}
+                                  >
+                                    {section.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    name='isActive'
+                    control={form.control}
+                    render={({ field }) => (
+                      <Field orientation='horizontal'>
+                        <div className='flex items-center gap-2'>
+                          <Checkbox
+                            id='student-active'
+                            checked={field.value}
+                            onCheckedChange={(value) =>
+                              field.onChange(Boolean(value))
+                            }
+                          />
+                          <Label htmlFor='student-active'>Attivo</Label>
                         </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                </form>
-              )}
-            </CardContent>
-            <CardFooter className='flex flex-col gap-3 items-start sm:flex-row sm:items-center sm:justify-between'>
-              <Button
-                type='submit'
-                form='admin-student-form'
-                disabled={isSubmitting || !form.formState.isDirty}
-              >
-                {isSubmitting ? 'Salvataggio...' : 'Salva modifiche'}
-              </Button>
-              <Button
-                type='button'
-                variant='destructive'
-                onClick={() => setShowDeleteAlert(true)}
-                disabled={isDeleting}
-              >
-                {isDeleting ? 'Eliminazione...' : 'Elimina account'}
-              </Button>
-            </CardFooter>
-          </Card>
-          {!isLoading && student ? (
-            <Card className='mt-6'>
-              <CardContent className='space-y-4 pt-6'>
-                <div>
-                  <h2 className='text-base font-medium'>
-                    Modifica ore di lezione
-                  </h2>
-                  <p className='text-sm text-muted-foreground'>
-                    Aggiungi o togli un numero preciso di ore di lezione.
-                  </p>
-                </div>
-                <div className='grid gap-4 md:grid-cols-[180px_minmax(0,1fr)]'>
+                      </Field>
+                    )}
+                  />
                   <Field>
-                    <FieldLabel htmlFor='student-token-amount'>
-                      Numero di ore
-                    </FieldLabel>
-                    <Input
-                      id='student-token-amount'
-                      type='number'
-                      min='1'
-                      step='1'
-                      inputMode='numeric'
-                      value={tokenAmount}
-                      onChange={(event) => setTokenAmount(event.target.value)}
-                      disabled={isAdjustingTokens}
-                    />
+                    <FieldLabel>Ore di lezione rimanenti</FieldLabel>
+                    <div className='text-sm text-muted-foreground'>
+                      {student.lessonTokens ?? '-'}
+                    </div>
                   </Field>
-                  <Field>
-                    <FieldLabel htmlFor='student-token-reason'>
-                      Motivazione
-                    </FieldLabel>
-                    <Input
-                      id='student-token-reason'
-                      className='truncate'
-                      value={tokenReason}
-                      onChange={(event) => setTokenReason(capitalizeFirst(event.target.value))}
-                      placeholder='Es. accredito manuale per recupero lezione'
-                      disabled={isAdjustingTokens}
-                    />
-                  </Field>
-                </div>
-                <div className='flex flex-col gap-2 sm:flex-row'>
-                  <Button
-                    type='button'
-                    onClick={() => void handleAdjustTokens('add')}
-                    disabled={isAdjustingTokens}
-                  >
-                    {isAdjustingTokens ? 'Aggiornamento...' : 'Aggiungi ore'}
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='outline'
-                    onClick={() => void handleAdjustTokens('remove')}
-                    disabled={isAdjustingTokens}
-                  >
-                    {isAdjustingTokens ? 'Aggiornamento...' : 'Togli ore'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : null}
-        </div>
-      </div>
+                </FieldGroup>
+                <Accordion type='single' collapsible className='w-full'>
+                  <AccordionItem value='tech-details'>
+                    <AccordionTrigger>Dettagli tecnici</AccordionTrigger>
+                    <AccordionContent>
+                      <div className='text-sm text-muted-foreground space-y-2'>
+                        <div>
+                          <span className='font-medium text-foreground'>
+                            ID:
+                          </span>{' '}
+                          {student?.id ?? '-'}
+                        </div>
+                        <div>
+                          <span className='font-medium text-foreground'>
+                            Ruolo:
+                          </span>{' '}
+                          {student?.role ?? '-'}
+                        </div>
+                        <div>
+                          <span className='font-medium text-foreground'>
+                            Email verificata:
+                          </span>{' '}
+                          {formatItalianDate(student?.emailVerifiedAt)}
+                        </div>
+                        <div>
+                          <span className='font-medium text-foreground'>
+                            Creato il:
+                          </span>{' '}
+                          {formatItalianDate(student?.createdAt)}
+                        </div>
+                        <div>
+                          <span className='font-medium text-foreground'>
+                            Aggiornato il:
+                          </span>{' '}
+                          {formatItalianDate(student?.updatedAt)}
+                        </div>
+                        <div>
+                          <span className='font-medium text-foreground'>
+                            Section ID:
+                          </span>{' '}
+                          {student?.sectionId ?? '-'}
+                        </div>
+                        <div>
+                          <span className='font-medium text-foreground'>
+                            Anno:
+                          </span>{' '}
+                          {student?.year ?? '-'}
+                        </div>
+                        <div>
+                          <span className='font-medium text-foreground'>
+                            Attivo:
+                          </span>{' '}
+                          {student?.isActive ? 'Si' : 'No'}
+                        </div>
+                        <div>
+                          <span className='font-medium text-foreground'>
+                            Ore di lezione rimanenti:
+                          </span>{' '}
+                          {student?.lessonTokens ?? '-'}
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </form>
+            )}
+          </CardContent>
+          <CardFooter className={cn('flex justify-end', STICKY_CARD_FOOTER)}>
+            <Button
+              type='submit'
+              form='admin-student-form'
+              disabled={isSubmitting || !form.formState.isDirty}
+            >
+              {isSubmitting ? 'Salvataggio...' : 'Salva modifiche'}
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+      {active === 'hours' && studentId && (
+        <AdminStudentHours
+          studentId={studentId}
+          onBalanceChange={(lessonTokens) =>
+            setStudent((prev) => (prev ? { ...prev, lessonTokens } : prev))
+          }
+        />
+      )}
 
       <AlertDialog open={showEmailAlert} onOpenChange={setShowEmailAlert}>
         <AlertDialogContent className='z-60'>
@@ -940,29 +822,29 @@ export default function AdminStudentDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
-        <AlertDialogContent className='z-60'>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare lo studente?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Questa azione è irreversibile. Lo studente perderà l&apos;accesso
-              all&apos;account.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(event) => {
-                event.preventDefault()
-                void handleDelete()
-              }}
-              disabled={isDeleting}
-            >
-              {isDeleting ? 'Eliminazione...' : 'Elimina'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </main>
+      <ConfirmDeleteDialog
+        open={showDeleteAlert}
+        onOpenChange={setShowDeleteAlert}
+        title='Eliminare lo studente?'
+        description='Lo studente perde l’accesso e l’account viene eliminato. Non si può annullare.'
+        onConfirm={handleDelete}
+      />
+      {active === 'lessons' && studentId && (
+        <AdminUserLessons role='student' userId={studentId} />
+      )}
+      {active === 'danger' && (
+        <DangerZone>
+          <DangerAction
+            title='Elimina account'
+            description='Lo studente perde l’accesso e l’account viene eliminato. Non si può annullare.'
+            action={
+              <Button variant='destructive' onClick={() => setShowDeleteAlert(true)} disabled={isDeleting}>
+                {isDeleting ? 'Eliminazione...' : 'Elimina account'}
+              </Button>
+            }
+          />
+        </DangerZone>
+      )}
+    </SectionLayout>
   )
 }

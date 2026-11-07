@@ -258,7 +258,7 @@ describe('delivery', () => {
     await waitForPendingPush()
 
     expect(sent).toHaveLength(1)
-    expect(sent[0].payload).toMatchObject({ title: 'Nuova lezione in calendario', url: `/tutor/lessons/${(await created.json()).lessonId}` })
+    expect(sent[0].payload).toMatchObject({ title: 'Nuova lezione assegnata', url: `/tutor/lessons/${(await created.json()).lessonId}` })
     expect(String(sent[0].payload.body)).toContain('Matematica demo')
   })
 

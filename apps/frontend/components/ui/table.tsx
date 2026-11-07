@@ -6,7 +6,8 @@ const Table = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement>
 >(({ className, ...props }, ref) => (
-  <div className='relative w-full overflow-auto'>
+  // From 1024px tables fit the page: no scroll box, so a sticky header can stick to the page.
+  <div className='relative w-full overflow-auto lg:overflow-visible'>
     <table
       ref={ref}
       className={cn('w-full caption-bottom text-sm', className)}
@@ -18,9 +19,21 @@ Table.displayName = 'Table'
 
 const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
-  React.HTMLAttributes<HTMLTableSectionElement>
->(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn('[&_tr]:border-b', className)} {...props} />
+  React.HTMLAttributes<HTMLTableSectionElement> & {
+    // The column names stay under the page's sticky bars while a long list scrolls (from
+    // 1024px; below that the table scrolls sideways in its own box).
+    sticky?: boolean
+  }
+>(({ className, sticky = false, ...props }, ref) => (
+  <thead
+    ref={ref}
+    className={cn(
+      '[&_tr]:border-b',
+      sticky && 'lg:[&_th]:sticky lg:[&_th]:top-[var(--sticky-top)] lg:[&_th]:z-20 lg:[&_th]:bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))] lg:[&_th]:shadow-[inset_0_-1px_0_var(--border)]',
+      className
+    )}
+    {...props}
+  />
 ))
 TableHeader.displayName = 'TableHeader'
 

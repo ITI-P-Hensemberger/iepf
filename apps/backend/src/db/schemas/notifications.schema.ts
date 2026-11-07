@@ -17,7 +17,9 @@ export const notifications = pgTable('notifications', {
   createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull(),
-  readAt: timestamp({ mode: 'date', withTimezone: true })
+  readAt: timestamp({ mode: 'date', withTimezone: true }),
+  // Removed from the panel by the user: kept (and counted as read), never shown again.
+  archivedAt: timestamp({ mode: 'date', withTimezone: true })
 }, table => [
   // Newest first, with id to break ties between rows written in the same instant.
   index('notifications_user_created_idx').on(table.userId, table.createdAt.desc(), table.id.desc()),

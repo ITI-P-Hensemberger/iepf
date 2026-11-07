@@ -1,10 +1,11 @@
 'use client'
 
+import { STICKY_TOP_ACTIONS } from '@/components/sticky-footer'
+import { cn } from '@/lib/utils'
 import * as React from 'react'
 import { toast } from 'sonner'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
-import { BackButton } from '@/components/back-button'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -702,7 +703,7 @@ export default function AdminSettingsPage() {
     <SectionLayout title='Impostazioni globali' backHref='/admin' sections={sections} value={activeTab} onValueChange={handleTabChange}>
           <Tabs value={activeTab} onValueChange={handleTabChange}>
             <TabsContent value='maintenance' className='mt-0 space-y-6'>
-              <div className='flex justify-end'>
+              <div className={cn('flex justify-end', STICKY_TOP_ACTIONS)}>
                 <Button
                   onClick={handleSaveMaintenance}
                   disabled={loading || savingMaintenance || !isMaintenanceDirty}
@@ -784,7 +785,7 @@ export default function AdminSettingsPage() {
             </TabsContent>
 
             <TabsContent value='messages' className='mt-0 space-y-6'>
-              <div className='flex justify-end'>
+              <div className={cn('flex justify-end', STICKY_TOP_ACTIONS)}>
                 <Button
                   onClick={handleSaveMessages}
                   disabled={loading || savingMessages || !isServiceDirty}
@@ -1081,7 +1082,7 @@ export default function AdminSettingsPage() {
             </TabsContent>
 
             <TabsContent value='closures' className='mt-0 space-y-6'>
-              <div className='flex justify-end'>
+              <div className={cn('flex justify-end', STICKY_TOP_ACTIONS)}>
                 <Button
                   onClick={handleSaveClosures}
                   disabled={loading || savingClosures || !isClosuresDirty}

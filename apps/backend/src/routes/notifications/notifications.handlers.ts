@@ -19,7 +19,7 @@ import * as notificationStream from '@/lib/notification-stream'
 import { getPushPublicKey, isPushEnabled, getPreferences as readPreferences, removeSubscription, saveSubscription } from '@/lib/push'
 import { isAllowedPushEndpoint, isValidSubscriptionKeys } from '@/lib/web-push'
 
-import type { GetDevicesRoute, GetInboxRoute, GetPreferencesRoute, GetPushConfigRoute, GetUnreadRoute, MarkAllReadRoute, MarkReadRoute, SendSetupLinkRoute, StreamInboxRoute, SubscribeRoute, UnsubscribeRoute, UpdatePreferencesRoute } from './notifications.routes'
+import type { ArchiveRoute, GetDevicesRoute, GetInboxRoute, GetPreferencesRoute, GetPushConfigRoute, GetUnreadRoute, MarkAllReadRoute, MarkReadRoute, SendSetupLinkRoute, StreamInboxRoute, SubscribeRoute, UnsubscribeRoute, UpdatePreferencesRoute } from './notifications.routes'
 
 // Activators get no notifications.
 const RECIPIENT_ROLES = new Set(['student', 'tutor', 'admin'])
@@ -240,6 +240,18 @@ export const markAllRead: AppRouteHandler<MarkAllReadRoute> = async (c) => {
   }
   if (!c.get('impersonation')) {
     await inbox.markAllRead(user.id)
+  }
+  return c.body(null, HttpStatusCodes.NO_CONTENT)
+}
+
+// Impersonating admins look without changing anything, as with reading.
+export const archive: AppRouteHandler<ArchiveRoute> = async (c) => {
+  const user = inboxUser(c)
+  if (!user) {
+    return forbidden(c)
+  }
+  if (!c.get('impersonation')) {
+    await inbox.archive(user.id, c.req.valid('param').id)
   }
   return c.body(null, HttpStatusCodes.NO_CONTENT)
 }

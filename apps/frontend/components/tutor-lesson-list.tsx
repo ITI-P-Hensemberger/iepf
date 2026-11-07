@@ -2,6 +2,7 @@
 
 // A tutor's lessons of one day: who booked and what for, presence while the lesson runs, and
 // cancelling a slot nobody booked. Used by the week view and the home.
+import { useHere, withFrom } from '@/lib/back-link'
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronRight, XCircle } from 'lucide-react'
@@ -39,7 +40,7 @@ function capitalize(value: string) {
 
 // onChanged reloads the lessons in place after a presence or a cancellation.
 // from: the page the lesson's details should lead back to, when it is not the week.
-export function TutorLessonList({ lessons, onChanged, from }: { lessons: ScheduleLesson[], onChanged: () => Promise<void> | void, from?: 'home' }) {
+export function TutorLessonList({ lessons, onChanged }: { lessons: ScheduleLesson[], onChanged: () => Promise<void> | void }) {
   const [saving, setSaving] = React.useState<string | null>(null)
   const [cancelTarget, setCancelTarget] = React.useState<ScheduleLesson | null>(null)
 
@@ -93,7 +94,6 @@ export function TutorLessonList({ lessons, onChanged, from }: { lessons: Schedul
             key={lesson.id}
             lesson={lesson}
             saving={saving}
-            from={from}
             onPresence={savePresence}
             onCancel={() => setCancelTarget(lesson)}
           />
@@ -129,13 +129,11 @@ export function TutorLessonList({ lessons, onChanged, from }: { lessons: Schedul
 function TutorLessonRow({
   lesson,
   saving,
-  from,
   onPresence,
   onCancel
 }: {
   lesson: ScheduleLesson
   saving: string | null
-  from?: 'home'
   onPresence: (lesson: ScheduleLesson, booking: ScheduleBooking, present: boolean) => void
   onCancel: () => void
 }) {
@@ -146,7 +144,8 @@ function TutorLessonRow({
   const past = end < new Date()
   const count = lesson.bookings.length
   const router = useRouter()
-  const open = () => router.push(`/tutor/lessons/${lesson.id}${from ? `?from=${from}` : ''}`)
+  const here = useHere()
+  const open = () => router.push(withFrom(`/tutor/lessons/${lesson.id}`, here))
   return (
     // The whole row opens the lesson; its buttons (presence, cancel) keep their own action.
     <li

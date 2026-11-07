@@ -5,7 +5,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { CalendarCheck, ChevronLeft, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -27,6 +27,9 @@ import {
 } from '@/lib/lesson-schedule'
 import { addDaysToKey, dateOfKey, dayKeyOf, dayRange } from '@/lib/school-week'
 import { cn } from '@/lib/utils'
+import { useHere, withFrom } from '@/lib/back-link'
+import { StickyBar } from '@/components/sticky-bar'
+import { EmptyState } from '@/components/empty-state'
 
 const timeFormat = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' })
 const dayFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -87,17 +90,27 @@ export default function AdminDayPage() {
 
   return (
     <div className='space-y-4'>
-      <div className='flex flex-wrap items-center gap-2'>
-        <Button variant='outline' size='icon' aria-label='Giorno precedente' onClick={() => setParam('day', stepSchoolDay(dayKey, -1))}>
-          <ChevronLeft className='h-4 w-4' />
-        </Button>
-        <span className='min-w-52 text-center font-medium'>{capitalize(dayFormat.format(dateOfKey(dayKey)))}</span>
-        <Button variant='outline' size='icon' aria-label='Giorno successivo' onClick={() => setParam('day', stepSchoolDay(dayKey, 1))}>
-          <ChevronRight className='h-4 w-4' />
-        </Button>
-        {dayKey !== firstSchoolDay(todayKey) && (
-          <Button variant='ghost' size='sm' onClick={() => setParam('day', firstSchoolDay(todayKey))}>Oggi</Button>
-        )}
+      <StickyBar className='flex flex-wrap items-center gap-2'>
+        {/* One row on a phone too: arrows, the day, and the jump back to today. */}
+        <div className='flex w-full items-center gap-2 sm:w-auto'>
+          <Button variant='outline' size='icon' aria-label='Giorno precedente' onClick={() => setParam('day', stepSchoolDay(dayKey, -1))}>
+            <ChevronLeft className='h-4 w-4' />
+          </Button>
+          <span className='min-w-0 flex-1 truncate text-center font-medium sm:min-w-52 sm:flex-none'>{capitalize(dayFormat.format(dateOfKey(dayKey)))}</span>
+          <Button variant='outline' size='icon' aria-label='Giorno successivo' onClick={() => setParam('day', stepSchoolDay(dayKey, 1))}>
+            <ChevronRight className='h-4 w-4' />
+          </Button>
+          <Button
+            variant='outline'
+            size='icon'
+            aria-label='Torna a oggi'
+            title='Oggi'
+            disabled={dayKey === firstSchoolDay(todayKey)}
+            onClick={() => setParam('day', firstSchoolDay(todayKey))}
+          >
+            <CalendarCheck className='h-4 w-4' />
+          </Button>
+        </div>
         <div className='w-full sm:ml-auto sm:w-44'>
           <Select value={grouping} onValueChange={(value) => setParam('group', value)}>
             <SelectTrigger className='w-full' aria-label='Raggruppa'>
@@ -109,7 +122,7 @@ export default function AdminDayPage() {
             </SelectContent>
           </Select>
         </div>
-      </div>
+      </StickyBar>
 
       <DayOverview lessons={lessons} loading={loading} grouping={grouping} />
       <p className='text-xs text-muted-foreground'>
@@ -123,7 +136,7 @@ export default function AdminDayPage() {
 // The figures and the lessons of one day, grouped by tutor or by subject: the day view and
 // the admin home both show it.
 // from: the page the lesson's details should lead back to, when it is not the day view.
-export function DayOverview({ lessons, loading, grouping, from }: { lessons: ScheduleLesson[], loading: boolean, grouping: Grouping, from?: 'home' }) {
+export function DayOverview({ lessons, loading, grouping }: { lessons: ScheduleLesson[], loading: boolean, grouping: Grouping }) {
   const summary = daySummary(lessons)
   const groups = grouping === 'tutor'
     ? [...groupBy(lessons, (lesson) => lesson.tutorId).values()]
@@ -147,11 +160,11 @@ export function DayOverview({ lessons, loading, grouping, from }: { lessons: Sch
           <Skeleton className='h-16' />
         </div>
       ) : lessons.length === 0 ? (
-        <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>Nessuna lezione in questo giorno.</p>
+        <EmptyState>Nessuna lezione in questo giorno.</EmptyState>
       ) : (
         <div className='divide-y rounded-lg border bg-card'>
           {groups.map((group) => (
-            <GroupRow key={grouping === 'tutor' ? group[0].tutorId : subjectLabel(group[0])} lessons={group} grouping={grouping} from={from} />
+            <GroupRow key={grouping === 'tutor' ? group[0].tutorId : subjectLabel(group[0])} lessons={group} grouping={grouping} />
           ))}
         </div>
       )}
@@ -168,12 +181,13 @@ function Figure({ label, value }: { label: string, value: number }) {
   )
 }
 
-function GroupRow({ lessons, grouping, from }: { lessons: ScheduleLesson[], grouping: Grouping, from?: 'home' }) {
+function GroupRow({ lessons, grouping }: { lessons: ScheduleLesson[], grouping: Grouping }) {
   const first = lessons[0]
   const booked = lessons.filter((lesson) => !isCanceled(lesson)).reduce((sum, lesson) => sum + lesson.bookings.length, 0)
   return (
     <div className='flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start'>
-      <div className='sm:w-48 sm:shrink-0'>
+      {/* The tutor or subject stays in view while its lessons scroll. */}
+      <div className='sticky top-[var(--sticky-top)] z-10 -mx-4 bg-card px-4 py-1 sm:mx-0 sm:w-48 sm:shrink-0 sm:self-start sm:bg-transparent sm:px-0 sm:py-0'>
         {grouping === 'tutor' ? (
           <>
             <div className='font-medium'>{first.tutorName}</div>
@@ -190,20 +204,21 @@ function GroupRow({ lessons, grouping, from }: { lessons: ScheduleLesson[], grou
       </div>
       {/* The lessons share the whole row equally, wrapping when they get too narrow. */}
       <div className='flex min-w-0 flex-1 flex-wrap gap-2'>
-        {lessons.map((lesson) => <LessonChip key={lesson.id} lesson={lesson} grouping={grouping} from={from} />)}
+        {lessons.map((lesson) => <LessonChip key={lesson.id} lesson={lesson} grouping={grouping} />)}
       </div>
     </div>
   )
 }
 
-function LessonChip({ lesson, grouping, from }: { lesson: ScheduleLesson, grouping: Grouping, from?: 'home' }) {
+function LessonChip({ lesson, grouping }: { lesson: ScheduleLesson, grouping: Grouping }) {
+  const here = useHere()
   const canceled = isCanceled(lesson)
   const count = lesson.bookings.length
   const open = !lesson.subjectId
   const students = lesson.bookings.map((booking) => `${booking.studentName}: ${booking.topic}`).join('\n')
   return (
     <Link
-      href={`/admin/lessons/${lesson.id}${from ? `?from=${from}` : ''}`}
+      href={withFrom(`/admin/lessons/${lesson.id}`, here)}
       title={students || undefined}
       className={cn(
         'flex min-w-36 flex-1 basis-0 flex-col gap-0.5 rounded-md border px-3 py-2 text-sm transition-colors hover:border-primary',

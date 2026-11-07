@@ -1,5 +1,9 @@
 'use client'
 
+import { SortableHead } from '@/components/sortable-head'
+import { usePageBar } from '@/lib/sticky'
+import { ListPagination } from '@/components/list-pagination'
+import { TableSkeletonRows } from '@/components/loading'
 import * as React from 'react'
 
 import { PushInviteCard } from '@/components/push-prompt'
@@ -12,11 +16,12 @@ import {
   getCoreRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { ArrowUpDown, Search, Trash2 } from 'lucide-react'
+import { Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { BackButton } from '@/components/back-button'
+import { PageHeader } from '@/components/page-header'
+import { useHere, useSetParam, withFrom } from '@/lib/back-link'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -135,6 +140,7 @@ function DataTable<TData>({
   total
 }: DataTableProps<TData>) {
   const router = useRouter()
+  const here = useHere()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const searchParamsString = searchParams.toString()
@@ -260,7 +266,8 @@ function DataTable<TData>({
     [pageKey, pathname, router, searchParamsString]
   )
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const searchBarRef = React.useRef<HTMLDivElement>(null)
+  usePageBar(searchBarRef)
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
@@ -277,11 +284,13 @@ function DataTable<TData>({
 
   return (
     <div className='space-y-4'>
-      <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-        <div className='relative max-w-xs'>
-          <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+      {/* The same search bar as every list: under the header while the list scrolls. */}
+      <div ref={searchBarRef} className='sticky top-[var(--app-header-bottom)] z-30 -mx-4 bg-background/95 px-4 py-3 backdrop-blur'>
+        <div className='relative'>
+          <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
           <Input
             type='search'
+            aria-label='Cerca'
             placeholder={searchPlaceholder}
             value={globalFilter}
             onChange={(event) => setGlobalFilter(event.target.value)}
@@ -291,7 +300,7 @@ function DataTable<TData>({
       </div>
       <div className='rounded-lg border'>
         <Table>
-          <TableHeader className='bg-muted/50'>
+          <TableHeader sticky className='bg-muted/50'>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
@@ -309,14 +318,7 @@ function DataTable<TData>({
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow>
-                <TableCell
-                  className='text-muted-foreground'
-                  colSpan={columns.length}
-                >
-                  Caricamento...
-                </TableCell>
-              </TableRow>
+              <TableSkeletonRows columns={columns.length} />
             ) : table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
@@ -327,12 +329,12 @@ function DataTable<TData>({
                     ? (event) => {
                         // Buttons and links inside the row keep their own action.
                         if ((event.target as HTMLElement).closest('a, button, input, [role="checkbox"]')) return
-                        router.push(rowHref(row.original))
+                        router.push(withFrom(rowHref(row.original), here))
                       }
                     : undefined}
                   onKeyDown={rowHref
                     ? (event) => {
-                        if (event.key === 'Enter' && event.target === event.currentTarget) router.push(rowHref(row.original))
+                        if (event.key === 'Enter' && event.target === event.currentTarget) router.push(withFrom(rowHref(row.original), here))
                       }
                     : undefined}
                 >
@@ -359,29 +361,7 @@ function DataTable<TData>({
           </TableBody>
         </Table>
       </div>
-      <div className='flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between'>
-        <span>
-          Pagina {page} di {totalPages} · Totale {total}
-        </span>
-        <div className='flex items-center gap-2'>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={() => updatePage(page - 1)}
-            disabled={page <= 1 || isLoading}
-          >
-            Precedente
-          </Button>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={() => updatePage(page + 1)}
-            disabled={page >= totalPages || isLoading}
-          >
-            Successiva
-          </Button>
-        </div>
-      </div>
+      <ListPagination page={page} pageSize={pageSize} total={total} onPageChange={(next) => updatePage(next)} loading={isLoading} />
     </div>
   )
 }
@@ -389,6 +369,9 @@ function DataTable<TData>({
 export default function AdminAdminsPage() {
   const { profile } = useSession()
   const searchParams = useSearchParams()
+  const setParam = useSetParam()
+  // The open tab lives in the URL, so it is still open after a trip to a detail page and back.
+  const listTab = (['inactive', 'invites'] as const).find((value) => value === searchParams.get('tab')) ?? 'active'
   const [activeAdmins, setActiveAdmins] = React.useState<Admin[]>([])
   const [inactiveAdmins, setInactiveAdmins] = React.useState<Admin[]>([])
   const [pendingInvites, setPendingInvites] = React.useState<PendingInvite[]>(
@@ -446,8 +429,8 @@ export default function AdminAdminsPage() {
       const params = new URLSearchParams()
       params.set('role', 'admin')
       params.set('isActive', String(isActive))
-      if (search) {
-        params.set('q', search)
+      if (search.trim()) {
+        params.set('q', search.trim())
       }
       if (sort) {
         params.set('sortBy', sort.sortBy)
@@ -499,8 +482,8 @@ export default function AdminAdminsPage() {
     }) => {
       const { search, sort, page } = options
       const params = new URLSearchParams()
-      if (search) {
-        params.set('q', search)
+      if (search.trim()) {
+        params.set('q', search.trim())
       }
       if (sort) {
         params.set('sortBy', sort.sortBy)
@@ -639,7 +622,7 @@ export default function AdminAdminsPage() {
       if (successes.length === valid.length) {
         // All succeeded
         toast.success(
-          `${successes.length} ${successes.length === 1 ? 'invito inviato' : 'inviti inviati'} con successo.`
+          `${successes.length} ${successes.length === 1 ? 'invito inviato' : 'inviti inviati'}.`
         )
         setInviteEmails('')
         setShowInviteDialog(false)
@@ -654,7 +637,7 @@ export default function AdminAdminsPage() {
           .map(({ email, error }) => `• ${email}: ${error}`)
           .join('\n')
         toast.error(
-          `${successes.length} ${successes.length === 1 ? 'invito inviato' : 'inviti inviati'} con successo.\n${failures.length} ${failures.length === 1 ? 'fallito' : 'falliti'}:\n${failureList}`
+          `${successes.length} ${successes.length === 1 ? 'invito inviato' : 'inviti inviati'}.\n${failures.length} ${failures.length === 1 ? 'fallito' : 'falliti'}:\n${failureList}`
         )
         // Don't close dialog, let admin retry failed ones
       } else {
@@ -721,26 +704,26 @@ export default function AdminAdminsPage() {
       {
         accessorKey: 'lastName',
         header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Cognome
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
+          <SortableHead
+            label='Cognome'
+            sortKey={column.id}
+            sortBy={column.getIsSorted() ? column.id : ''}
+            sortDir={column.getIsSorted() === 'desc' ? 'desc' : 'asc'}
+            onSort={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          />
         ),
         cell: ({ row }) => row.original.lastName
       },
       {
         accessorKey: 'firstName',
         header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Nome
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
+          <SortableHead
+            label='Nome'
+            sortKey={column.id}
+            sortBy={column.getIsSorted() ? column.id : ''}
+            sortDir={column.getIsSorted() === 'desc' ? 'desc' : 'asc'}
+            onSort={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          />
         ),
         cell: ({ row }) => row.original.firstName
       }
@@ -761,26 +744,26 @@ export default function AdminAdminsPage() {
       {
         accessorKey: 'createdAt',
         header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Invitato il
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
+          <SortableHead
+            label='Invitato il'
+            sortKey={column.id}
+            sortBy={column.getIsSorted() ? column.id : ''}
+            sortDir={column.getIsSorted() === 'desc' ? 'desc' : 'asc'}
+            onSort={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          />
         ),
         cell: ({ row }) => formatItalianDate(row.original.createdAt)
       },
       {
         accessorKey: 'expiresAt',
         header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Scade il
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
+          <SortableHead
+            label='Scade il'
+            sortKey={column.id}
+            sortBy={column.getIsSorted() ? column.id : ''}
+            sortDir={column.getIsSorted() === 'desc' ? 'desc' : 'asc'}
+            onSort={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          />
         ),
         cell: ({ row }) => formatItalianDate(row.original.expiresAt)
       },
@@ -863,10 +846,16 @@ export default function AdminAdminsPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
-          <div className='mb-6 self-start'>
-            <BackButton href='/admin' />
-          </div>
-          <div className='mb-6 empty:hidden'>
+          <PageHeader
+            title='Gestione admin'
+            backHref='/admin'
+            actions={
+              <Button variant='outline' onClick={() => setShowInviteDialog(true)}>
+                Invita admin
+              </Button>
+            }
+          />
+          <div className='mt-6 empty:hidden'>
             <PushInviteCard
               userId={profile?.id}
               role={profile?.role}
@@ -874,19 +863,8 @@ export default function AdminAdminsPage() {
               description='Attiva le notifiche per approvare le nuove richieste senza aspettare l’email.'
             />
           </div>
-          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-            <h1 className='text-2xl'>Gestione admin</h1>
-            <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
-              <Button
-                variant='outline'
-                onClick={() => setShowInviteDialog(true)}
-              >
-                Invita admin
-              </Button>
-            </div>
-          </div>
           <div className='mt-8 space-y-6'>
-            <Tabs defaultValue='active'>
+            <Tabs value={listTab} onValueChange={(value) => setParam('tab', value === 'active' ? null : value)}>
               <TabsList>
                 <TabsTrigger value='active'>Attivi ({activeTotal})</TabsTrigger>
                 <TabsTrigger value='inactive'>

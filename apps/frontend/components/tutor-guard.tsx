@@ -1,5 +1,6 @@
 'use client'
 
+import { PageSkeleton } from '@/components/loading'
 import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 
@@ -89,9 +90,7 @@ export default function TutorGuard({ children }: TutorGuardProps) {
 
   if (isLoading || isSettingsLoading) {
     return (
-      <div className='container mx-auto px-4 py-10 text-sm text-muted-foreground'>
-        Caricamento...
-      </div>
+      <PageSkeleton />
     )
   }
 
@@ -110,9 +109,7 @@ export default function TutorGuard({ children }: TutorGuardProps) {
   // Wait for onboarding check before rendering non-onboarding pages
   if (profile.isActive === true && !isOnboardingPage && isOnboardingLoading) {
     return (
-      <div className='container mx-auto px-4 py-10 text-sm text-muted-foreground'>
-        Caricamento...
-      </div>
+      <PageSkeleton />
     )
   }
 

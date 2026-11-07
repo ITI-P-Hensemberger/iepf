@@ -315,6 +315,35 @@ describe('booking integrity', () => {
     expect(responses.every(response => response.status === 200)).toBe(true)
     expect(await getStudentTokenBalance(student.id)).toBe(0)
   })
+
+  it('lists the manual changes with their author, newest first, and only to admins', async () => {
+    const student = await createStudent(2)
+    await request(`/students/${student.id}/tokens/adjust`, { token: adminToken, body: { delta: 3, reason: 'Recupero' } })
+    await request(`/students/${student.id}/tokens/adjust`, { token: adminToken, body: { delta: -1, reason: 'Correzione' } })
+
+    const response = await request(`/students/${student.id}/tokens/history`, { method: 'GET', token: adminToken })
+    expect(response.status).toBe(200)
+    const history = await response.json()
+    // The 2 hours of the start are automatic and stay out.
+    expect(history.lessonTokens).toBe(4)
+    expect(history.items.map((item: { delta: number, reason: string }) => [item.delta, item.reason]))
+      .toEqual([[-1, 'Correzione'], [3, 'Recupero']])
+    expect(history.items[0].adminName).toEqual(expect.any(String))
+
+    expect((await request(`/students/${student.id}/tokens/history`, { method: 'GET', token: tutorToken })).status).toBe(403)
+  })
+
+  it('deletes a user only with the admin\'s own password', async () => {
+    const student = await createStudent(0)
+    const remove = (body?: unknown) => request(`/users/${student.id}`, { method: 'DELETE', token: adminToken, body })
+
+    expect((await remove({ password: 'sbagliata' })).status).toBe(403)
+    expect((await remove()).status).not.toBe(204)
+    expect(await db.query.users.findFirst({ where: (fields, { eq }) => eq(fields.id, student.id) })).toBeDefined()
+
+    expect((await remove({ password: DEV_PASSWORD })).status).toBe(204)
+    expect(await db.query.users.findFirst({ where: (fields, { eq }) => eq(fields.id, student.id) })).toBeUndefined()
+  })
 })
 
 describe('one open lesson per time slot', () => {
@@ -710,6 +739,7 @@ describe('public and protected routes', () => {
     ['GET', '/subject-requests'],
     ['GET', '/subjects'],
     ['POST', '/students/00000000-0000-4000-8000-000000000000/tokens/adjust'],
+    ['GET', '/students/00000000-0000-4000-8000-000000000000/tokens/history'],
     ['GET', '/tutors/00000000-0000-4000-8000-000000000000/settings'],
     ['GET', '/tutors/00000000-0000-4000-8000-000000000000/subjects'],
     ['GET', '/tutors/00000000-0000-4000-8000-000000000000/weekday-availability'],

@@ -1,5 +1,7 @@
 'use client'
 
+import { STICKY_CARD_FOOTER } from '@/components/sticky-footer'
+import { cn } from '@/lib/utils'
 import * as React from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
@@ -238,7 +240,7 @@ function AvailabilityForm({
 
       setInitialWeekdays(normalizedWeekdays)
       form.reset({ weekdays: normalizedWeekdays })
-      toast.success('Disponibilità aggiornata con successo.')
+      toast.success('Disponibilità aggiornata.')
       setJustSaved(true)
     } catch (err) {
       toast.error(
@@ -288,7 +290,7 @@ function AvailabilityForm({
                 )}
               </form>
             </CardContent>
-            <CardFooter className='flex justify-end'>
+            <CardFooter className={cn('flex justify-end', STICKY_CARD_FOOTER)}>
               <Button
                 type='submit'
                 form='availability-form'

@@ -2,9 +2,12 @@
 
 // The tutor's home: today's lessons with presence, the bookings coming up, and the way to
 // the week and to availability and subjects.
+import { HomeHeader } from '@/components/home-header'
+import { withFrom } from '@/lib/back-link'
+import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
-import { BookOpen, CalendarClock, CalendarDays, ChevronRight } from 'lucide-react'
+import { CalendarClock, CalendarDays, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { PushInviteCard, TUTOR_ONBOARDED_FLAG as ONBOARDED_FLAG } from '@/components/push-prompt'
@@ -75,10 +78,11 @@ export default function TutorPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10'>
         <div className='mx-auto max-w-3xl space-y-8'>
-          <div>
-            <h1 className='text-2xl font-bold'>{!isProfileLoading && `Bentornatə, ${profile?.firstName}`}</h1>
-            <p className='text-muted-foreground'>Le tue lezioni di oggi e le prossime prenotazioni.</p>
-          </div>
+          <HomeHeader
+            firstName={profile?.firstName}
+            loading={isProfileLoading}
+            subtitle='Le tue lezioni di oggi e le prossime prenotazioni.'
+          />
           {justOnboarded && (
             <PushInviteCard
               userId={profile?.id}
@@ -88,15 +92,12 @@ export default function TutorPage() {
             />
           )}
 
-          <div className='grid gap-3 sm:grid-cols-3'>
+          <div className='grid gap-3 sm:grid-cols-2'>
             <Button asChild size='lg' className='h-12 w-full'>
               <Link href='/tutor/lessons'><CalendarDays className='h-5 w-5' /> La mia settimana</Link>
             </Button>
             <Button asChild size='lg' variant='outline' className='h-12 w-full'>
-              <Link href='/tutor/settings'><CalendarClock className='h-5 w-5' /> Disponibilità</Link>
-            </Button>
-            <Button asChild size='lg' variant='outline' className='h-12 w-full'>
-              <Link href='/tutor/settings?tab=subjects'><BookOpen className='h-5 w-5' /> Materie</Link>
+              <Link href={withFrom('/profile?tab=availability', '/tutor')}><CalendarClock className='h-5 w-5' /> Disponibilità</Link>
             </Button>
           </div>
 
@@ -105,10 +106,10 @@ export default function TutorPage() {
             {loading ? (
               <Skeleton className='h-28' />
             ) : today.length === 0 ? (
-              <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>Oggi non hai lezioni.</p>
+              <EmptyState>Oggi non hai lezioni.</EmptyState>
             ) : (
               <div className='rounded-lg border bg-card'>
-                <TutorLessonList lessons={today} onChanged={() => load(true)} from='home' />
+                <TutorLessonList lessons={today} onChanged={() => load(true)} />
               </div>
             )}
           </section>
@@ -123,15 +124,15 @@ export default function TutorPage() {
             {loading ? (
               <Skeleton className='h-20' />
             ) : booked.length === 0 ? (
-              <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>
+              <EmptyState>
                 Nessuna prenotazione nei prossimi giorni{open > 0 ? `: hai ${open} ${open === 1 ? 'orario libero' : 'orari liberi'}.` : '.'}
-              </p>
+              </EmptyState>
             ) : (
               <>
                 <ul className='divide-y rounded-lg border bg-card'>
                   {booked.map((lesson) => (
                     <li key={lesson.id}>
-                      <Link href={`/tutor/lessons/${lesson.id}?from=home`} className='flex items-center gap-3 px-4 py-3 hover:bg-muted/50'>
+                      <Link href={withFrom(`/tutor/lessons/${lesson.id}`, '/tutor')} className='flex items-center gap-3 px-4 py-3 hover:bg-muted/50'>
                         <div className='min-w-0 flex-1'>
                           <div className='font-medium'>
                             {capitalize(dayFormat.format(new Date(lesson.startAt)))} · {timeFormat.format(new Date(lesson.startAt))} · {subjectLabel(lesson)}

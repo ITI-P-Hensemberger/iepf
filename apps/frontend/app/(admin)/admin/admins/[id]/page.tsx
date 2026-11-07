@@ -1,14 +1,21 @@
 'use client'
 
+import { STICKY_CARD_FOOTER } from '@/components/sticky-footer'
+import { cn } from '@/lib/utils'
+import { BlockSkeleton } from '@/components/loading'
 import * as React from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { TriangleAlert, UserRound } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { BackButton } from '@/components/back-button'
+import { ConfirmDeleteDialog } from '@/components/confirm-delete-dialog'
+import { DangerAction, DangerZone } from '@/components/danger-zone'
+import { SectionLayout } from '@/components/section-layout'
+import { useBackHref, useSetParam } from '@/lib/back-link'
 import {
   Accordion,
   AccordionContent,
@@ -78,8 +85,16 @@ type Admin = {
   isActive?: boolean | null
 }
 
+const SECTIONS = [
+  { value: 'account', label: 'Dati', icon: UserRound },
+  { value: 'danger', label: 'Danger zone', icon: TriangleAlert, separatorBefore: true }
+] as const
+
 export default function AdminAdminDetailPage() {
   const params = useParams()
+  const backHref = useBackHref('/admin/admins')
+  const setParam = useSetParam()
+  const active = useSearchParams().get('tab') === 'danger' ? 'danger' : 'account'
   const router = useRouter()
   const adminId = String(params?.id ?? '')
 
@@ -187,7 +202,7 @@ export default function AdminAdminDetailPage() {
         throw new Error(message)
       }
 
-      toast.success('Admin aggiornato con successo.')
+      toast.success('Admin aggiornato.')
       setAdmin((prev) =>
         prev
           ? {
@@ -224,55 +239,53 @@ export default function AdminAdminDetailPage() {
     await submitAdmin(values)
   }
 
-  async function handleDelete() {
+  // Returns the error to show in the dialog (a wrong password), or null.
+  async function handleDelete(password: string): Promise<string | null> {
     if (!adminId) {
-      return
+      return null
     }
     setIsDeleting(true)
     try {
       const response = await fetch(`/api/users/${adminId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
       })
-      if (!response.ok) {
-        let message = "Impossibile eliminare l'admin."
-        try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
-        } catch {
-          message = "Impossibile eliminare l'admin."
-        }
-        throw new Error(message)
+      if (response.status === 403) {
+        return 'Password non corretta.'
       }
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { message?: string } | null
+        throw new Error(payload?.message ?? "Impossibile eliminare l'admin.")
+      }
+      setShowDeleteAlert(false)
       router.push('/admin/admins')
+      return null
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Impossibile eliminare l'admin."
-      )
+      toast.error(err instanceof Error ? err.message : "Impossibile eliminare l'admin.")
+      setShowDeleteAlert(false)
+      return null
     } finally {
       setIsDeleting(false)
-      setShowDeleteAlert(false)
     }
   }
 
+  const changeSection = (value: string) => setParam('tab', value === 'account' ? null : value)
+
   return (
-    <main className='flex-1'>
-      <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
-        <div className='w-full max-w-6xl'>
-          <div className='mb-6'>
-            <BackButton href='/admin/admins' />
-          </div>
-          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-            <div>
-              <h1 className='text-2xl'>Dettagli admin</h1>
-              <p className='mt-1 text-sm text-muted-foreground'>
-                Gestisci i dati dell&apos;admin.
-              </p>
-            </div>
-          </div>
-          <Card className='mt-6'>
+    <SectionLayout
+      title={admin ? `${admin.firstName} ${admin.lastName}` : 'Dettagli admin'}
+      description={admin?.email ?? 'Gestisci i dati dell’admin.'}
+      backHref={backHref}
+      sections={SECTIONS}
+      value={active}
+      onValueChange={changeSection}
+    >
+          {active === 'account' && (
+          <Card>
             <CardContent className='pt-6'>
               {isLoading ? (
-                <p className='text-sm text-muted-foreground'>Caricamento...</p>
+                <BlockSkeleton />
               ) : !admin ? (
                 <p className='text-sm text-muted-foreground'>
                   Admin non trovato.
@@ -436,7 +449,7 @@ export default function AdminAdminDetailPage() {
                 </form>
               )}
             </CardContent>
-            <CardFooter className='flex flex-col gap-3 items-start sm:flex-row sm:items-center sm:justify-between'>
+            <CardFooter className={cn('flex justify-end', STICKY_CARD_FOOTER)}>
               <Button
                 type='submit'
                 form='admin-admin-form'
@@ -444,18 +457,22 @@ export default function AdminAdminDetailPage() {
               >
                 {isSubmitting ? 'Salvataggio...' : 'Salva modifiche'}
               </Button>
-              <Button
-                type='button'
-                variant='destructive'
-                onClick={() => setShowDeleteAlert(true)}
-                disabled={isDeleting}
-              >
-                {isDeleting ? 'Eliminazione...' : 'Elimina account'}
-              </Button>
             </CardFooter>
           </Card>
-        </div>
-      </div>
+          )}
+          {active === 'danger' && (
+            <DangerZone>
+              <DangerAction
+                title='Elimina account'
+                description='L’admin perde l’accesso e l’account viene eliminato. Non si può annullare.'
+                action={
+                  <Button variant='destructive' onClick={() => setShowDeleteAlert(true)} disabled={isDeleting}>
+                    {isDeleting ? 'Eliminazione...' : 'Elimina account'}
+                  </Button>
+                }
+              />
+            </DangerZone>
+          )}
 
       <AlertDialog open={showEmailAlert} onOpenChange={setShowEmailAlert}>
         <AlertDialogContent className='z-60'>
@@ -487,29 +504,13 @@ export default function AdminAdminDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
-        <AlertDialogContent className='z-60'>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare il admin?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Questa azione e irreversibile. Il admin perdera l&apos;accesso
-              all&apos;account.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(event) => {
-                event.preventDefault()
-                void handleDelete()
-              }}
-              disabled={isDeleting}
-            >
-              {isDeleting ? 'Eliminazione...' : 'Elimina'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </main>
+      <ConfirmDeleteDialog
+        open={showDeleteAlert}
+        onOpenChange={setShowDeleteAlert}
+        title='Eliminare l’admin?'
+        description='L’admin perde l’accesso e l’account viene eliminato. Non si può annullare.'
+        onConfirm={handleDelete}
+      />
+    </SectionLayout>
   )
 }

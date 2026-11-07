@@ -117,7 +117,7 @@ describe('weekly lesson generation', () => {
 
   it('tells the tutor how many lessons it created', async () => {
     const [notice] = await db.select().from(notifications).where(eq(notifications.userId, tutorId))
-    expect(notice.body).toContain('3 lezioni create')
+    expect(notice.body).toContain('3 lezioni assegnate')
   })
 
   it('adds nothing, and notifies nobody again, when it runs a second time', async () => {

@@ -1,5 +1,5 @@
 // Purpose: Pin that every notification reaches the panel, whatever push says, and how it is read.
-import { like } from 'drizzle-orm'
+import { eq, like } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import app from '@/app'
@@ -158,6 +158,25 @@ describe('reading', () => {
 
     expect((await call('/notifications/inbox/read-all', { token: tokens.student, method: 'POST' })).status).toBe(204)
     expect((await inbox(tokens.student)).unread).toBe(0)
+  })
+
+  it('removes one from the panel as read, without deleting them', async () => {
+    await insertMany(ids.tutor, 3)
+    const before = await inbox(tokens.tutor)
+    const [newest, second] = before.items
+
+    // Someone else's id changes nothing.
+    expect((await call(`/notifications/inbox/${newest.id}/archive`, { token: tokens.student, method: 'POST' })).status).toBe(204)
+    expect((await inbox(tokens.tutor)).items).toHaveLength(before.items.length)
+
+    expect((await call(`/notifications/inbox/${newest.id}/archive`, { token: tokens.tutor, method: 'POST' })).status).toBe(204)
+    const afterOne = await inbox(tokens.tutor)
+    expect(afterOne.items.map(item => item.id)).not.toContain(newest.id)
+    expect(afterOne.items[0].id).toBe(second.id)
+    expect(afterOne.unread).toBe(before.unread - 1)
+    const [kept] = await db.select().from(notifications).where(eq(notifications.id, newest.id))
+    expect(kept.readAt).not.toBeNull()
+    expect(kept.archivedAt).not.toBeNull()
   })
 
   it('lets an impersonating admin look without marking anything read', async () => {

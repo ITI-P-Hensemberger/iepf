@@ -1,7 +1,7 @@
 // Purpose: Lesson feedback handlers for tutors, students, and admins.
 import type { Context } from 'hono'
 
-import { and, asc, desc, eq, gte, isNull, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
 import type { FeedbackEditorRole, FeedbackSummary } from '@/lib/feedback-history'
@@ -380,6 +380,25 @@ export const adminListFeedback: AppRouteHandler<AdminListFeedbackRoute> = async 
   }
   if (query.to) {
     conditions.push(lte(lessonFeedback.createdAt, new Date(query.to)))
+  }
+  if (query.q) {
+    const pattern = `%${query.q.replace(/[\\%_]/g, match => `\\${match}`)}%`
+    const people = db
+      .select({ id: users.id })
+      .from(users)
+      .where(or(
+        ilike(users.firstName, pattern),
+        ilike(users.lastName, pattern),
+        ilike(sql`${users.firstName} || ' ' || ${users.lastName}`, pattern),
+        ilike(sql`${users.lastName} || ' ' || ${users.firstName}`, pattern)
+      ))
+    const match = or(
+      inArray(lessonFeedback.authorUserId, people),
+      inArray(lessonFeedback.targetUserId, people),
+      ilike(lessonFeedback.text, pattern)
+    )
+    if (match)
+      conditions.push(match)
   }
 
   const whereClause = conditions.length ? and(...conditions) : undefined

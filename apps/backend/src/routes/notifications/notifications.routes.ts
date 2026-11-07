@@ -248,6 +248,20 @@ export const markRead = createRoute({
   }
 })
 
+export const archive = createRoute({
+  path: '/notifications/inbox/{id}/archive',
+  method: 'post',
+  tags,
+  security,
+  request: { params: IdUUIDParamsSchema },
+  responses: {
+    [HttpStatusCodes.NO_CONTENT]: { description: 'Read and archived: gone from the panel. Nothing happens for another user\'s notification' },
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(createErrorSchema(IdUUIDParamsSchema), 'Invalid id'),
+    [HttpStatusCodes.FORBIDDEN]: forbidden,
+    [HttpStatusCodes.UNAUTHORIZED]: unauthorized
+  }
+})
+
 export const markAllRead = createRoute({
   path: '/notifications/inbox/read-all',
   method: 'post',
@@ -272,3 +286,4 @@ export type SubscribeRoute = typeof subscribe
 export type UnsubscribeRoute = typeof unsubscribe
 export type GetPreferencesRoute = typeof getPreferences
 export type UpdatePreferencesRoute = typeof updatePreferences
+export type ArchiveRoute = typeof archive

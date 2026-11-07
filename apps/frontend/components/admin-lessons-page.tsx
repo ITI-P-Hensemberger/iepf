@@ -1,5 +1,8 @@
 'use client'
 
+import { nextSort, SortableHead } from '@/components/sortable-head'
+import { ListPagination } from '@/components/list-pagination'
+import { TableSkeletonRows } from '@/components/loading'
 import * as React from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CalendarIcon } from 'lucide-react'
@@ -19,7 +22,9 @@ import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Label } from '@/components/ui/label'
-import { BackButton } from '@/components/back-button'
+import { FilterForm } from '@/components/filter-form'
+import { PageHeader } from '@/components/page-header'
+import { useHere, withFrom } from '@/lib/back-link'
 import {
   Select,
   SelectContent,
@@ -78,6 +83,7 @@ type Subject = {
 }
 
 type LessonFilters = {
+  search: string
   tutorId: string
   subjectId: string
   status: string
@@ -87,6 +93,7 @@ type LessonFilters = {
 }
 
 const defaultFilters: LessonFilters = {
+  search: '',
   tutorId: '',
   subjectId: '',
   status: '',
@@ -192,6 +199,7 @@ function buildTutorOptionLabel(tutor: Tutor): string {
 
 export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.ReactNode } = {}) {
   const router = useRouter()
+  const here = useHere()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const searchParamsString = searchParams.toString()
@@ -238,6 +246,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     const fromParam = parseDateParam(searchParams.get('lessonFrom'))
     const toParam = parseDateParam(searchParams.get('lessonTo'))
     return {
+      search: searchParams.get('lessonQ') ?? '',
       tutorId: searchParams.get('lessonTutor') ?? '',
       subjectId: searchParams.get('lessonSubject') ?? '',
       status: searchParams.get('lessonStatus') ?? '',
@@ -256,6 +265,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
 
   React.useEffect(() => {
     setFilters({
+      search: currentFilters.search,
       tutorId: currentFilters.tutorId,
       subjectId: currentFilters.subjectId,
       status: currentFilters.status,
@@ -324,6 +334,10 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     }
     if (currentFilters.dateRange?.to) {
       params.set('to', endOfDayIso(currentFilters.dateRange.to))
+    }
+    // The field keeps what is typed (spaces included); the search ignores spaces at the ends.
+    if (currentFilters.search.trim()) {
+      params.set('q', currentFilters.search.trim())
     }
     params.set('sortBy', currentFilters.sortBy)
     params.set('sortDir', currentFilters.sortDir)
@@ -513,6 +527,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
 
   const appliedFilters = React.useMemo(
     () => ({
+      search: currentFilters.search,
       tutorId: currentFilters.tutorId,
       subjectId: currentFilters.subjectId,
       status: currentFilters.status,
@@ -529,6 +544,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
       base: LessonFilters = filters
     ) => {
       const params = new URLSearchParams(searchParamsString)
+      const nextSearch = updates.search ?? base.search
       const nextTutor = updates.tutorId ?? base.tutorId
       const nextSubject = updates.subjectId ?? base.subjectId
       const nextStatus = updates.status ?? base.status
@@ -536,6 +552,12 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
       const nextSortBy = updates.sortBy ?? base.sortBy
       const nextSortDir = updates.sortDir ?? base.sortDir
       const nextPage = updates.page ?? 1
+
+      if (nextSearch.trim()) {
+        params.set('lessonQ', nextSearch)
+      } else {
+        params.delete('lessonQ')
+      }
 
       if (nextTutor) {
         params.set('lessonTutor', nextTutor)
@@ -594,17 +616,18 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     setFilters(defaultFilters)
     updateParams(
       {
+        search: '',
         tutorId: '',
         subjectId: '',
         status: '',
-        sortBy: defaultFilters.sortBy,
-        sortDir: defaultFilters.sortDir,
+        sortBy: currentFilters.sortBy,
+        sortDir: currentFilters.sortDir,
         dateRange: undefined,
         page: 1
       },
       defaultFilters
     )
-  }, [updateParams])
+  }, [currentFilters.sortBy, currentFilters.sortDir, updateParams])
 
   const handleOpenCreate = React.useCallback(() => {
     setCreateForm({
@@ -679,7 +702,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
       toast.success('Lezione creata.')
       setIsCreateOpen(false)
       if (createdLessonId) {
-        router.push(`/admin/lessons/${createdLessonId}`)
+        router.push(withFrom(`/admin/lessons/${createdLessonId}`, here))
         return
       }
       await loadLessons()
@@ -692,29 +715,36 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     }
   }, [createForm, loadLessons, router])
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
-          <div className='mb-6 self-start'>
-            <BackButton href='/admin' />
-          </div>
-          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-            <h1 className='text-2xl'>Gestione lezioni</h1>
-            <div className='flex flex-wrap items-center gap-2'>
+          <PageHeader
+            title='Gestione lezioni'
+            backHref='/admin'
+            actions={<>
               {viewSwitch}
               <Button onClick={handleOpenCreate}>Crea lezione</Button>
-            </div>
-          </div>
+            </>}
+          />
 
-          <form
-            className='mt-6 rounded-lg border bg-card p-4 shadow-sm'
+          <FilterForm
+            className='mt-4'
+            values={filters}
+            applied={currentFilters}
             onSubmit={(event) => {
               event.preventDefault()
               handleApplyFilters()
             }}
+            search={{
+              id: 'lesson-search',
+              value: filters.search,
+              onChange: (value) => setFilters((prev) => ({ ...prev, search: value })),
+              placeholder: 'Data, tutor, studente, materia o argomento'
+            }}
+            activeFilters={[filters.tutorId, filters.subjectId, filters.status, filters.dateRange?.from].filter(Boolean).length}
+            onReset={handleClearFilters}
           >
             <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
               <Field className='gap-2'>
@@ -819,63 +849,25 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
                 </Button>
               </Field>
             </div>
-            <div className='mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between'>
-              <div className='flex flex-col gap-3 sm:flex-row sm:items-end'>
-                <Field className='gap-2'>
-                  <FieldLabel>Ordina per</FieldLabel>
-                  <Select
-                    value={filters.sortBy}
-                    onValueChange={(value) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        sortBy: value
-                      }))
-                    }
-                  >
-                    <SelectTrigger className='w-full sm:w-[180px]'>
-                      <SelectValue placeholder='Ordinamento' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='startAt'>Data lezione</SelectItem>
-                      <SelectItem value='createdAt'>Creazione</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field className='gap-2'>
-                  <FieldLabel>Direzione</FieldLabel>
-                  <Select
-                    value={filters.sortDir}
-                    onValueChange={(value) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        sortDir: value === 'desc' ? 'desc' : 'asc'
-                      }))
-                    }
-                  >
-                    <SelectTrigger className='w-full sm:w-[150px]'>
-                      <SelectValue placeholder='Direzione' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='asc'>Crescente</SelectItem>
-                      <SelectItem value='desc'>Decrescente</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </div>
-              <div className='flex flex-col gap-2 pt-2 sm:pt-0 sm:flex-row sm:items-end'>
-                <Button variant='outline' type='button' onClick={handleClearFilters}>
-                  Reset filtri
-                </Button>
-                <Button type='submit'>Applica filtri</Button>
-              </div>
-            </div>
-          </form>
+          </FilterForm>
 
           <div className='mt-6 rounded-lg border'>
             <Table>
-              <TableHeader className='bg-muted/50'>
+              <TableHeader sticky className='bg-muted/50'>
                 <TableRow>
-                  <TableHead className='whitespace-nowrap'>Data e ora</TableHead>
+                  <TableHead>
+                    <SortableHead
+                      label='Data e ora'
+                      sortKey='startAt'
+                      sortBy={currentFilters.sortBy}
+                      sortDir={currentFilters.sortDir}
+                      onSort={(key) => {
+                        const next = { ...filters, ...nextSort(currentFilters, key, 'desc') }
+                        setFilters(next)
+                        updateParams({ sortBy: next.sortBy, sortDir: next.sortDir, page: 1 }, next)
+                      }}
+                    />
+                  </TableHead>
                   <TableHead>Tutor</TableHead>
                   <TableHead>Materia</TableHead>
                   <TableHead className='whitespace-nowrap'>
@@ -886,11 +878,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className='text-muted-foreground'>
-                      Caricamento...
-                    </TableCell>
-                  </TableRow>
+                  <TableSkeletonRows columns={5} />
                 ) : lessons.length ? (
                   lessons.map((lesson) => {
                     const subject = lessonSubject(lesson.subjectId, subjectMap)
@@ -900,9 +888,9 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
                         key={lesson.id}
                         className='cursor-pointer'
                         tabIndex={0}
-                        onClick={() => router.push(`/admin/lessons/${lesson.id}`)}
+                        onClick={() => router.push(withFrom(`/admin/lessons/${lesson.id}`, here))}
                         onKeyDown={(event) => {
-                          if (event.key === 'Enter') router.push(`/admin/lessons/${lesson.id}`)
+                          if (event.key === 'Enter') router.push(withFrom(`/admin/lessons/${lesson.id}`, here))
                         }}
                       >
                         <TableCell>
@@ -940,39 +928,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
             </Table>
           </div>
 
-          <div className='mt-4 flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between'>
-            <span>
-              Pagina {currentFilters.page} di {totalPages} · Totale {total}
-            </span>
-            <div className='flex items-center gap-2'>
-              <Button
-                variant='outline'
-                size='sm'
-                onClick={() =>
-                  updateParams(
-                    { page: currentFilters.page - 1 },
-                    appliedFilters
-                  )
-                }
-                disabled={currentFilters.page <= 1 || isLoading}
-              >
-                Precedente
-              </Button>
-              <Button
-                variant='outline'
-                size='sm'
-                onClick={() =>
-                  updateParams(
-                    { page: currentFilters.page + 1 },
-                    appliedFilters
-                  )
-                }
-                disabled={currentFilters.page >= totalPages || isLoading}
-              >
-                Successiva
-              </Button>
-            </div>
-          </div>
+          <ListPagination page={currentFilters.page} pageSize={pageSize} total={total} onPageChange={(next) => updateParams({ page: next }, appliedFilters)} loading={isLoading} className='mt-4' />
         </div>
       </div>
 

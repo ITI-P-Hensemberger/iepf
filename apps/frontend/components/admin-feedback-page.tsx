@@ -1,5 +1,8 @@
 'use client'
 
+import { nextSort, SortableHead } from '@/components/sortable-head'
+import { ListPagination } from '@/components/list-pagination'
+import { TableSkeletonRows } from '@/components/loading'
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -17,7 +20,9 @@ import {
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { BackButton } from '@/components/back-button'
+import { FilterForm } from '@/components/filter-form'
+import { PageHeader } from '@/components/page-header'
+import { useBackHref, useHere, withFrom } from '@/lib/back-link'
 import { Calendar } from '@/components/ui/calendar'
 import { Field, FieldLabel } from '@/components/ui/field'
 import {
@@ -45,7 +50,7 @@ import { Label } from './ui/label'
 import { capitalizeFirst } from '@/lib/capitalize'
 import { FeedbackHistory, FeedbackHistoryToggle } from '@/components/feedback-history'
 import { StarRating } from '@/components/star-rating'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 
 const pageSize = 20
@@ -93,6 +98,7 @@ type PagedPayloadObject<T> = {
 }
 
 type FeedbackFilters = {
+  search: string
   lessonId: string
   authorUserId: string
   targetUserId: string
@@ -104,6 +110,7 @@ type FeedbackFilters = {
 }
 
 const defaultFilters: FeedbackFilters = {
+  search: '',
   lessonId: '',
   authorUserId: '',
   targetUserId: '',
@@ -209,6 +216,8 @@ export default function AdminFeedbackPage() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const backHref = useBackHref('/admin')
+  const here = useHere()
   const searchParamsString = searchParams.toString()
 
   const [filters, setFilters] = React.useState<FeedbackFilters>(defaultFilters)
@@ -266,6 +275,7 @@ export default function AdminFeedbackPage() {
     const roleParam =
       searchParams.get('feedbackRole') === 'tutor' ? 'tutor' : 'student'
     return {
+      search: searchParams.get('feedbackQ') ?? '',
       lessonId: searchParams.get('feedbackLesson') ?? '',
       authorUserId: searchParams.get('feedbackAuthor') ?? '',
       targetUserId: searchParams.get('feedbackTarget') ?? '',
@@ -287,6 +297,7 @@ export default function AdminFeedbackPage() {
   React.useEffect(() => {
     setFilters((prev) => {
       const next = {
+        search: currentFilters.search,
         lessonId: currentFilters.lessonId,
         authorUserId: currentFilters.authorUserId,
         targetUserId: currentFilters.targetUserId,
@@ -304,6 +315,11 @@ export default function AdminFeedbackPage() {
     (nextPage: number, nextFilters: FeedbackFilters) => {
       const params = new URLSearchParams(searchParamsString)
 
+      if (nextFilters.search.trim()) {
+        params.set('feedbackQ', nextFilters.search)
+      } else {
+        params.delete('feedbackQ')
+      }
       if (nextFilters.lessonId) {
         params.set('feedbackLesson', nextFilters.lessonId)
       } else {
@@ -383,6 +399,10 @@ export default function AdminFeedbackPage() {
     }
     if (currentFilters.dateRange?.to) {
       params.set('lessonTo', endOfDayIso(currentFilters.dateRange.to))
+    }
+    // The field keeps what is typed (spaces included); the search ignores spaces at the ends.
+    if (currentFilters.search.trim()) {
+      params.set('q', currentFilters.search.trim())
     }
     params.set('sortBy', currentFilters.sortBy)
     params.set('sortDir', currentFilters.sortDir)
@@ -529,7 +549,6 @@ export default function AdminFeedbackPage() {
     return `${name || user.id}`
   }, [])
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   const handleOpenEdit = React.useCallback((item: Feedback) => {
     setEditTarget(item)
@@ -605,16 +624,105 @@ export default function AdminFeedbackPage() {
     }
   }, [deleteTarget, loadFeedback])
 
+  // The list under either tab: the same rows, filtered by the open tab.
+  const results = (
+    <>
+        <label className='mt-4 flex items-center gap-2 text-sm text-muted-foreground'>
+          <Switch checked={showDeleted} onCheckedChange={setShowDeleted} />
+          Mostra anche i feedback eliminati
+        </label>
+        <div className='mt-3 rounded-lg border'>
+          <Table>
+            <TableHeader sticky className='bg-muted/50'>
+              <TableRow>
+                <TableHead>
+                    <SortableHead
+                      label='Lezione'
+                      sortKey='lessonStartAt'
+                      sortBy={currentFilters.sortBy}
+                      sortDir={currentFilters.sortDir}
+                      onSort={(key) => updateParams(1, { ...filters, ...nextSort(currentFilters, key, 'desc') as Pick<FeedbackFilters, 'sortBy' | 'sortDir'> })}
+                    />
+                  </TableHead>
+                <TableHead>Da</TableHead>
+                <TableHead>Per</TableHead>
+                <TableHead>
+                    <SortableHead
+                      label='Valutazione'
+                      sortKey='rating'
+                      sortBy={currentFilters.sortBy}
+                      sortDir={currentFilters.sortDir}
+                      onSort={(key) => updateParams(1, { ...filters, ...nextSort(currentFilters, key, 'asc') as Pick<FeedbackFilters, 'sortBy' | 'sortDir'> })}
+                    />
+                  </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableSkeletonRows columns={4} />
+              ) : feedback.length ? (
+                feedback.map((item) => {
+                  const lessonInfo = lessonMap[item.lessonId]
+                  const subjectName = lessonInfo?.subjectId
+                    ? subjectMap.get(lessonInfo.subjectId)?.name
+                    : undefined
+                  const edits = (item.versionCount ?? 1) - 1
+                  // The whole row opens the feedback: text, history and actions live in the dialog.
+                  return (
+                    <TableRow
+                      key={item.id}
+                      tabIndex={0}
+                      className={cn('cursor-pointer', item.deletedAt && 'opacity-60')}
+                      onClick={() => setDetailTarget(item)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setDetailTarget(item)
+                        }
+                      }}
+                    >
+                      <TableCell>
+                        <div className='text-sm'>{lessonInfo?.startAt ? formatItalianDate(lessonInfo.startAt) : shortId(item.lessonId)}</div>
+                        <div className='text-xs text-muted-foreground'>{subjectName ?? '-'}</div>
+                      </TableCell>
+                      <TableCell>{personName(item.authorUserId)}</TableCell>
+                      <TableCell>{personName(item.targetUserId)}</TableCell>
+                      <TableCell>
+                        <div className='flex flex-wrap items-center gap-2'>
+                          <StarRating value={item.rating} size='sm' />
+                          {item.deletedAt
+                            ? <span className='text-xs text-destructive'>Eliminato</span>
+                            : edits > 0 && (
+                              <span className='inline-flex items-center gap-1 text-xs text-muted-foreground' title={`${edits} ${edits === 1 ? 'modifica' : 'modifiche'}`}>
+                                <History className='h-3 w-3' aria-hidden />
+                                {edits}
+                              </span>
+                            )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} className='text-muted-foreground'>
+                    Nessun feedback trovato.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+  
+        <ListPagination page={currentFilters.page} pageSize={pageSize} total={total} onPageChange={(next) => updateParams(next, filters)} loading={isLoading} className='mt-4' />
+    </>
+  )
+
   return (
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
-          <div className='mb-6'>
-            <BackButton href='/admin' />
-          </div>
-          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-            <h1 className='text-2xl'>Gestione feedback</h1>
-          </div>
+          <PageHeader title='Gestione feedback' backHref={backHref} />
 
           <Tabs
             value={filters.authorRole}
@@ -638,12 +746,21 @@ export default function AdminFeedbackPage() {
               <TabsTrigger value='tutor'>Tutor → Studenti</TabsTrigger>
             </TabsList>
             <TabsContent value='student' className='mt-6'>
-              <form
-                className='rounded-lg border bg-card p-4 shadow-sm'
+              <FilterForm
+                values={filters}
+                applied={currentFilters}
                 onSubmit={(event) => {
                   event.preventDefault()
                   updateParams(1, filters)
                 }}
+                search={{
+                  id: `feedback-search-${filters.authorRole}`,
+                  value: filters.search,
+                  onChange: (value) => setFilters((prev) => ({ ...prev, search: value })),
+                  placeholder: 'Nome o testo del feedback'
+                }}
+                activeFilters={[filters.authorUserId, filters.targetUserId, filters.rating, filters.dateRange?.from].filter(Boolean).length}
+                onReset={() => updateParams(1, { ...defaultFilters, authorRole: filters.authorRole, sortBy: currentFilters.sortBy, sortDir: currentFilters.sortDir })}
               >
                 <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
                   <Field className='gap-2'>
@@ -752,77 +869,25 @@ export default function AdminFeedbackPage() {
                     </Button>
                   </Field>
                 </div>
-                <div className='mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between'>
-                  <div className='flex flex-col gap-3 sm:flex-row sm:items-end'>
-                    <Field className='gap-2'>
-                      <FieldLabel>Ordina per</FieldLabel>
-                      <Select
-                        value={filters.sortBy}
-                        onValueChange={(value) =>
-                          setFilters((prev) => ({
-                            ...prev,
-                            sortBy: value as FeedbackFilters['sortBy']
-                          }))
-                        }
-                      >
-                        <SelectTrigger className='w-full sm:w-[180px]'>
-                          <SelectValue placeholder='Ordinamento' />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value='lessonStartAt'>
-                            Data lezione
-                          </SelectItem>
-                          <SelectItem value='rating'>Rating</SelectItem>
-                          <SelectItem value='createdAt'>Creazione</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field className='gap-2'>
-                      <FieldLabel>Direzione</FieldLabel>
-                      <Select
-                        value={filters.sortDir}
-                        onValueChange={(value) =>
-                          setFilters((prev) => ({
-                            ...prev,
-                            sortDir: value === 'asc' ? 'asc' : 'desc'
-                          }))
-                        }
-                      >
-                        <SelectTrigger className='w-full sm:w-[150px]'>
-                          <SelectValue placeholder='Direzione' />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value='asc'>Crescente</SelectItem>
-                          <SelectItem value='desc'>Decrescente</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                  </div>
-                  <div className='flex flex-col gap-2 pt-2 sm:pt-0 sm:flex-row sm:items-end'>
-                    <Button
-                      variant='outline'
-                      type='button'
-                      onClick={() =>
-                        updateParams(1, {
-                          ...defaultFilters,
-                          authorRole: filters.authorRole
-                        })
-                      }
-                    >
-                      Reset filtri
-                    </Button>
-                    <Button type='submit'>Applica filtri</Button>
-                  </div>
-                </div>
-              </form>
+              </FilterForm>
+              {results}
             </TabsContent>
             <TabsContent value='tutor' className='mt-6'>
-              <form
-                className='rounded-lg border bg-card p-4 shadow-sm'
+              <FilterForm
+                values={filters}
+                applied={currentFilters}
                 onSubmit={(event) => {
                   event.preventDefault()
                   updateParams(1, filters)
                 }}
+                search={{
+                  id: `feedback-search-${filters.authorRole}`,
+                  value: filters.search,
+                  onChange: (value) => setFilters((prev) => ({ ...prev, search: value })),
+                  placeholder: 'Nome o testo del feedback'
+                }}
+                activeFilters={[filters.authorUserId, filters.targetUserId, filters.rating, filters.dateRange?.from].filter(Boolean).length}
+                onReset={() => updateParams(1, { ...defaultFilters, authorRole: filters.authorRole, sortBy: currentFilters.sortBy, sortDir: currentFilters.sortDir })}
               >
                 <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
                   <Field className='gap-2'>
@@ -931,169 +996,10 @@ export default function AdminFeedbackPage() {
                     </Button>
                   </Field>
                 </div>
-                <div className='mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between'>
-                  <div className='flex flex-col gap-3 sm:flex-row sm:items-end'>
-                    <Field className='gap-2'>
-                      <FieldLabel>Ordina per</FieldLabel>
-                      <Select
-                        value={filters.sortBy}
-                        onValueChange={(value) =>
-                          setFilters((prev) => ({
-                            ...prev,
-                            sortBy: value as FeedbackFilters['sortBy']
-                          }))
-                        }
-                      >
-                        <SelectTrigger className='w-full sm:w-[180px]'>
-                          <SelectValue placeholder='Ordinamento' />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value='lessonStartAt'>
-                            Data lezione
-                          </SelectItem>
-                          <SelectItem value='rating'>Rating</SelectItem>
-                          <SelectItem value='createdAt'>Creazione</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field className='gap-2'>
-                      <FieldLabel>Direzione</FieldLabel>
-                      <Select
-                        value={filters.sortDir}
-                        onValueChange={(value) =>
-                          setFilters((prev) => ({
-                            ...prev,
-                            sortDir: value === 'asc' ? 'asc' : 'desc'
-                          }))
-                        }
-                      >
-                        <SelectTrigger className='w-full sm:w-[150px]'>
-                          <SelectValue placeholder='Direzione' />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value='asc'>Crescente</SelectItem>
-                          <SelectItem value='desc'>Decrescente</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                  </div>
-                  <div className='flex flex-col gap-2 pt-2 sm:pt-0 sm:flex-row sm:items-end'>
-                    <Button
-                      variant='outline'
-                      type='button'
-                      onClick={() =>
-                        updateParams(1, {
-                          ...defaultFilters,
-                          authorRole: filters.authorRole
-                        })
-                      }
-                    >
-                      Reset filtri
-                    </Button>
-                    <Button type='submit'>Applica filtri</Button>
-                  </div>
-                </div>
-              </form>
+              </FilterForm>
+              {results}
             </TabsContent>
           </Tabs>
-          <label className='mt-4 flex items-center gap-2 text-sm text-muted-foreground'>
-            <Checkbox checked={showDeleted} onCheckedChange={(value) => setShowDeleted(Boolean(value))} />
-            Mostra anche i feedback eliminati
-          </label>
-          <div className='mt-3 rounded-lg border'>
-            <Table>
-              <TableHeader className='bg-muted/50'>
-                <TableRow>
-                  <TableHead>Lezione</TableHead>
-                  <TableHead>Da</TableHead>
-                  <TableHead>Per</TableHead>
-                  <TableHead>Valutazione</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className='text-muted-foreground'>
-                      Caricamento...
-                    </TableCell>
-                  </TableRow>
-                ) : feedback.length ? (
-                  feedback.map((item) => {
-                    const lessonInfo = lessonMap[item.lessonId]
-                    const subjectName = lessonInfo?.subjectId
-                      ? subjectMap.get(lessonInfo.subjectId)?.name
-                      : undefined
-                    const edits = (item.versionCount ?? 1) - 1
-                    // The whole row opens the feedback: text, history and actions live in the dialog.
-                    return (
-                      <TableRow
-                        key={item.id}
-                        tabIndex={0}
-                        className={cn('cursor-pointer', item.deletedAt && 'opacity-60')}
-                        onClick={() => setDetailTarget(item)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault()
-                            setDetailTarget(item)
-                          }
-                        }}
-                      >
-                        <TableCell>
-                          <div className='text-sm'>{lessonInfo?.startAt ? formatItalianDate(lessonInfo.startAt) : shortId(item.lessonId)}</div>
-                          <div className='text-xs text-muted-foreground'>{subjectName ?? '-'}</div>
-                        </TableCell>
-                        <TableCell>{personName(item.authorUserId)}</TableCell>
-                        <TableCell>{personName(item.targetUserId)}</TableCell>
-                        <TableCell>
-                          <div className='flex flex-wrap items-center gap-2'>
-                            <StarRating value={item.rating} size='sm' />
-                            {item.deletedAt
-                              ? <span className='text-xs text-destructive'>Eliminato</span>
-                              : edits > 0 && (
-                                <span className='inline-flex items-center gap-1 text-xs text-muted-foreground' title={`${edits} ${edits === 1 ? 'modifica' : 'modifiche'}`}>
-                                  <History className='h-3 w-3' aria-hidden />
-                                  {edits}
-                                </span>
-                              )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={4} className='text-muted-foreground'>
-                      Nessun feedback trovato.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          <div className='mt-4 flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between'>
-            <span>
-              Pagina {currentFilters.page} di {totalPages} · Totale {total}
-            </span>
-            <div className='flex items-center gap-2'>
-              <Button
-                variant='outline'
-                size='sm'
-                onClick={() => updateParams(currentFilters.page - 1, filters)}
-                disabled={currentFilters.page <= 1 || isLoading}
-              >
-                Precedente
-              </Button>
-              <Button
-                variant='outline'
-                size='sm'
-                onClick={() => updateParams(currentFilters.page + 1, filters)}
-                disabled={currentFilters.page >= totalPages || isLoading}
-              >
-                Successiva
-              </Button>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1297,7 +1203,7 @@ export default function AdminFeedbackPage() {
                     {lessonInfo?.startAt ? ` · lezione del ${formatItalianDate(lessonInfo.startAt)}` : ''}
                     {subjectName ? ` · ${subjectName}` : ''}
                     {' · '}
-                    <Link href={`/admin/lessons/${detailTarget.lessonId}`} className='underline underline-offset-4'>
+                    <Link href={withFrom(`/admin/lessons/${detailTarget.lessonId}`, here)} className='underline underline-offset-4'>
                       Apri lezione
                     </Link>
                   </AlertDialogDescription>

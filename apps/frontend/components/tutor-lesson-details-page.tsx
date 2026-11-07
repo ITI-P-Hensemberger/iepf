@@ -1,11 +1,12 @@
 'use client'
 
+import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { Mail, MessageSquare, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { BackButton } from '@/components/back-button'
+import { PageHeader } from '@/components/page-header'
 import { LessonSummary, lessonStateOf } from '@/components/lesson-summary'
 import { PresenceButtons } from '@/components/presence-buttons'
 import { usePresenceConfirm } from '@/components/presence-confirm'
@@ -143,7 +144,6 @@ function studentClassLabel(student?: Student | null) {
 
 export default function TutorLessonDetailsPage() {
   const params = useParams()
-  const fromHome = useSearchParams().get('from') === 'home'
   const lessonId = String(params?.id ?? '')
   const [lesson, setLesson] = React.useState<Lesson | null>(null)
   const [lessonLoading, setLessonLoading] = React.useState(true)
@@ -482,21 +482,26 @@ export default function TutorLessonDetailsPage() {
   const presence = usePresenceConfirm()
   const subjectName = lesson?.subjectId ? lessonSubject(lesson.subjectId, subjectMap)?.name ?? null : null
 
+  // Without ?from=, back leads to the week of this lesson.
+  const backFallback = lesson ? `/tutor/lessons?week=${mondayOf(dayKeyOf(new Date(lesson.startAt)))}` : '/tutor/lessons'
+
   return (
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10'>
-        <div className='mx-auto max-w-3xl space-y-6'>
-          <div>
-            {/* Back to the home when the tutor came from there, else to the week of this lesson. */}
-            <BackButton href={fromHome ? '/tutor' : lesson ? `/tutor/lessons?week=${mondayOf(dayKeyOf(new Date(lesson.startAt)))}` : '/tutor/lessons'} />
-          </div>
-
+        <div className='mx-auto max-w-6xl space-y-6'>
           {lessonLoading && !lesson ? (
-            <Skeleton className='h-36' />
+            <>
+              <PageHeader title='Lezione' backHref={backFallback} />
+              <Skeleton className='h-16' />
+            </>
           ) : !lesson ? (
-            <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>Lezione non disponibile.</p>
+            <>
+              <PageHeader title='Lezione' backHref={backFallback} />
+              <EmptyState>Lezione non disponibile.</EmptyState>
+            </>
           ) : (
             <LessonSummary
+              backHref={backFallback}
               subjectName={subjectName}
               startAt={lesson.startAt}
               durationMinutes={lesson.durationMinutes}
@@ -524,7 +529,7 @@ export default function TutorLessonDetailsPage() {
             {bookingsLoading ? (
               <Skeleton className='h-24' />
             ) : filteredBookings.length === 0 ? (
-              <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>Nessuno ha prenotato questa lezione.</p>
+              <EmptyState>Nessuno ha prenotato questa lezione.</EmptyState>
             ) : (
               filteredBookings.map((booking) => {
                 const student = studentMap.get(booking.studentId)

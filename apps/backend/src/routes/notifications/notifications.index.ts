@@ -28,6 +28,7 @@ router.openapi(routes.getInbox, handlers.getInbox)
 router.openapi(routes.getUnread, handlers.getUnread)
 router.openapi(routes.streamInbox, handlers.streamInbox)
 router.openapi(routes.markAllRead, handlers.markAllRead)
+router.openapi(routes.archive, handlers.archive)
 router.openapi(routes.markRead, handlers.markRead)
 
 export default router

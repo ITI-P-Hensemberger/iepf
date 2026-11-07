@@ -85,6 +85,34 @@ const form = useForm<FormValues>({
 
 ## Key Patterns
 
+### Back navigation: back leads where the user came from
+
+Every inner page's back button goes to the page the user opened it from, not to a fixed parent.
+New and changed pages must keep this:
+- A link or `router.push` to an inner page adds the current page as `?from=`:
+  `withFrom(href, useHere())` from `lib/back-link.ts` (path and query, so filters, tabs, days and
+  an earlier `from` survive: chains like student → lesson → feedback → back → back work).
+- `PageHeader` (and `SectionLayout`, which uses it) follows `?from=` by itself; `backHref` is only
+  the fallback for pages opened from the menu, a notification or a bookmark. A page drawing its
+  own `BackButton` uses `useBackHref(fallback)`.
+- Tabs and sections change the URL with `useSetParam()`, which keeps `from` and the other params.
+- Never build a page URL from scratch where `from` could be dropped.
+
+### Page building blocks
+
+- `PageHeader` (back, title, actions); `HomeHeader` for the role homes.
+- `SectionLayout` (side menu / mobile dropdown sections).
+- Tabs: `components/ui/tabs` with content, `SegmentedTabs` for a switch without it. The open tab
+  of a list lives in `?tab=` (`useSetParam`).
+- Lists: `FilterForm` (filters apply as they change, no "Applica" button), `ListPagination`.
+- `StickyBar` (controls that stay under the header on a phone), `EmptyState`, `StatusBlock`
+  (maintenance, 404, error, pending), `Switch` for settings that save at once.
+- Loading: `PageSkeleton`, `BlockSkeleton`, `TableSkeletonRows` from `components/loading`; the word
+  "Caricamento..." only inside buttons or inline values.
+- Success toasts are short: "Profilo aggiornato.", not "… con successo".
+
+### General
+
 - TypeScript strict mode throughout
 - Path alias: `@/*` maps to project root
 - Styling: Tailwind CSS with `cn()` utility from `lib/utils.ts`

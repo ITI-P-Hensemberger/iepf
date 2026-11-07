@@ -1,4 +1,5 @@
 // Purpose: Pin what GET /lessons returns across pages, filters and sort orders.
+import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import app from '@/app'
@@ -163,5 +164,79 @@ describe('listing lessons', () => {
     })
     // A canceled booking frees its seat, and the day's occupancy spans lessons off this page.
     expect(data[1]).toMatchObject({ id: ordered[2], availableSeats: 3, dailyOccupancy: 1 })
+  })
+})
+
+describe('listing a student\'s bookings', () => {
+  const window = {
+    from: firstStart.toISOString(),
+    to: new Date(firstStart.getTime() + 4 * HOUR).toISOString()
+  }
+
+  async function bookings(authToken: string, query: Record<string, string>) {
+    const params = new URLSearchParams({ ...window, ...query })
+    return app.request(`/lessons/me?${params}`, { headers: { Authorization: `Bearer ${authToken}` } })
+  }
+
+  it('lets an admin list the bookings of the student they ask for', async () => {
+    const [student] = await db.select({ id: users.id }).from(users).where(eq(users.email, 'student@example.test'))
+    const response = await bookings(token, { studentId: student.id })
+
+    expect(response.status).toBe(200)
+    const page = await response.json()
+    expect(page.data.map((item: { id: string }) => item.id)).toEqual([ordered[1], ordered[2]])
+    expect(page.data.map((item: { bookingStatus: string }) => item.bookingStatus)).toEqual(['confirmed', 'canceled'])
+  })
+
+  it('refuses an admin who names no student', async () => {
+    expect((await bookings(token, {})).status).toBe(403)
+  })
+
+  it('keeps a student to their own bookings', async () => {
+    resetRateLimiters()
+    const login = await app.request('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'student@example.test', password: DEV_PASSWORD })
+    })
+    const studentToken = (await login.json()).accessToken
+    const page = await (await bookings(studentToken, { studentId: tutorId })).json()
+
+    expect(page.data.map((item: { id: string }) => item.id)).toEqual([ordered[1], ordered[2]])
+  })
+})
+
+describe('searching lessons', () => {
+  const ids = async (query: Record<string, string>) => (await list(query)).data.map(({ id }) => id)
+
+  it('finds lessons by day, as people write it', async () => {
+    expect(await ids({ q: '03/03/2031' })).toEqual(ordered)
+    expect(await ids({ q: '3/3/2031' })).toEqual(ordered)
+    expect(await ids({ q: '03/03/31' })).toEqual(ordered)
+    expect(await ids({ q: '03-03' })).toEqual(ordered)
+    expect(await ids({ q: '3 marzo 2031' })).toEqual(ordered)
+    expect(await ids({ q: '3 mar' })).toEqual(ordered)
+    expect(await ids({ q: 'marzo 2031' })).toEqual(ordered)
+    expect(await ids({ q: '04/03/2031' })).toEqual([])
+  })
+
+  it('finds lessons by a booking\'s student, class or topic', async () => {
+    expect(await ids({ q: 'Demo student' })).toEqual([ordered[1], ordered[2]])
+    expect(await ids({ q: 'student@example' })).toEqual([ordered[1], ordered[2]])
+    expect(await ids({ q: 'ripasso' })).toEqual([ordered[1], ordered[2]])
+  })
+
+  it('finds a student\'s bookings by tutor, topic or day', async () => {
+    const [student] = await db.select({ id: users.id }).from(users).where(eq(users.email, 'student@example.test'))
+    const search = async (q: string) => {
+      const response = await app.request(`/lessons/me?${new URLSearchParams({ studentId: student.id, q })}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      return (await response.json()).data.map((item: { id: string }) => item.id)
+    }
+    expect(await search('Paginato')).toEqual([ordered[1], ordered[2]])
+    expect(await search('list-lessons-tutor@')).toEqual([ordered[1], ordered[2]])
+    expect(await search('ripasso')).toEqual(expect.arrayContaining([ordered[1], ordered[2]]))
+    expect(await search('03/03/2031')).toEqual([ordered[1], ordered[2]])
   })
 })

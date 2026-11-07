@@ -96,7 +96,7 @@ export function lessonActions(lesson: StudentLesson, now = new Date()) {
   }
 }
 
-function StatusBadge({ lesson }: { lesson: StudentLesson }) {
+export function StatusBadge({ lesson }: { lesson: StudentLesson }) {
   const { canceled, upcoming, running } = lessonActions(lesson)
   if (isCanceledStatus(lesson.lessonStatus)) return <Badge variant='destructive'>Lezione annullata</Badge>
   if (canceled) return <Badge variant='outline'>Prenotazione annullata</Badge>

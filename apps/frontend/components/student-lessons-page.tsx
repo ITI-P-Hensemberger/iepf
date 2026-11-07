@@ -2,13 +2,17 @@
 
 // "Le mie lezioni": what is coming, what took place (with feedback) and what was canceled,
 // grouped by day. The tab and the subject live in the URL.
+import { SegmentedTabs } from '@/components/segmented-tabs'
+import { SEARCH_DELAY, SearchField } from '@/components/search-field'
+import { StickyBar } from '@/components/sticky-bar'
+import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CalendarPlus } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { BackButton } from '@/components/back-button'
+import { PageHeader } from '@/components/page-header'
 import { LessonHoursBadge } from '@/components/lesson-hours-badge'
 import {
   CancelBookingDialog,
@@ -43,9 +47,10 @@ const TABS: Array<{ key: Tab, label: string }> = [
 
 const PAGE = 30
 
-function query(tab: Tab, offset: number) {
+function query(tab: Tab, offset: number, q: string) {
   const now = new Date().toISOString()
   const params = new URLSearchParams({ limit: String(PAGE), offset: String(offset) })
+  if (q.trim()) params.set('q', q.trim())
   if (tab === 'upcoming') {
     params.set('bookingStatus', 'confirmed')
     params.set('from', now)
@@ -70,6 +75,8 @@ export default function StudentLessonsPage() {
   const { profile, refresh } = useSession()
   const tab: Tab = (['past', 'canceled'] as const).find((key) => key === searchParams.get('tab')) ?? 'upcoming'
   const subjectId = searchParams.get('subject') ?? ''
+  const q = searchParams.get('q') ?? ''
+  const [search, setSearch] = React.useState(q)
 
   const [lessons, setLessons] = React.useState<StudentLesson[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -89,7 +96,7 @@ export default function StudentLessonsPage() {
   const load = React.useCallback(async (offset = 0) => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/lessons/me?${query(tab, offset)}`)
+      const response = await fetch(`/api/lessons/me?${query(tab, offset, q)}`)
       if (!response.ok) throw new Error('Impossibile caricare le lezioni.')
       const items = extractPayloadArray<StudentLesson>(await response.json())
       setLessons((prev) => (offset === 0 ? items : [...prev, ...items]))
@@ -99,11 +106,19 @@ export default function StudentLessonsPage() {
     } finally {
       setLoading(false)
     }
-  }, [tab])
+  }, [tab, q])
 
   React.useEffect(() => {
     void load()
   }, [load])
+
+  // The search reaches the URL (and the list) a moment after the last key.
+  React.useEffect(() => {
+    if (search === q) return
+    const timer = window.setTimeout(() => setParam('q', search), SEARCH_DELAY)
+    return () => window.clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, q])
 
   const subjects = [...new Map(lessons.map((lesson) => [lesson.subjectId, lesson.subjectName])).entries()]
     .sort(([, a], [, b]) => a.localeCompare(b, 'it'))
@@ -114,30 +129,27 @@ export default function StudentLessonsPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10'>
         <div className='mx-auto max-w-3xl'>
-          <div className='mb-6'>
-            <BackButton href='/student' />
-          </div>
-          <div className='flex flex-wrap items-center justify-between gap-3'>
-            <h1 className='text-2xl'>Le mie lezioni</h1>
-            {profile?.role === 'student' && <LessonHoursBadge tokens={profile.lessonTokens} className='text-sm' />}
-          </div>
+          <PageHeader
+            title='Le mie lezioni'
+            backHref='/student'
+            actions={profile?.role === 'student' && <div><LessonHoursBadge tokens={profile.lessonTokens} className='text-sm' /></div>}
+          />
 
-          <div className='mt-6 flex flex-col gap-3 sm:flex-row sm:items-center'>
-            <div className='flex rounded-lg border p-0.5' role='tablist'>
-              {TABS.map((item) => (
-                <Button
-                  key={item.key}
-                  role='tab'
-                  aria-selected={tab === item.key}
-                  size='sm'
-                  variant={tab === item.key ? 'secondary' : 'ghost'}
-                  className='flex-1'
-                  onClick={() => setParam('tab', item.key === 'upcoming' ? '' : item.key)}
-                >
-                  {item.label}
-                </Button>
-              ))}
-            </div>
+          <StickyBar className='mt-6 space-y-3'>
+            <SearchField
+              id='my-lessons-search'
+              value={search}
+              onChange={setSearch}
+              placeholder='Data, tutor, materia o argomento'
+            />
+            <div className='flex flex-col gap-3 sm:flex-row sm:items-center'>
+            <SegmentedTabs
+              label='Lezioni'
+              stretch
+              value={tab}
+              onValueChange={(value) => setParam('tab', value === 'upcoming' ? '' : value)}
+              options={TABS.map((item) => ({ value: item.key, label: item.label }))}
+            />
             {subjects.length > 1 && (
               <div className='sm:ml-auto sm:w-56'>
                 <Select value={subjectId || 'all'} onValueChange={(value) => setParam('subject', value === 'all' ? '' : value)}>
@@ -151,7 +163,8 @@ export default function StudentLessonsPage() {
                 </Select>
               </div>
             )}
-          </div>
+            </div>
+          </StickyBar>
 
           <div className='mt-6 space-y-6'>
             {loading && lessons.length === 0 ? (
@@ -160,20 +173,23 @@ export default function StudentLessonsPage() {
                 <Skeleton className='h-28' />
               </>
             ) : days.length === 0 ? (
-              <div className='flex flex-col items-center gap-3 rounded-lg border bg-card px-4 py-6 text-center text-sm text-muted-foreground sm:items-start sm:text-left'>
-                {tab === 'upcoming'
-                  ? 'Non hai lezioni in programma.'
-                  : tab === 'past' ? 'Non hai ancora fatto lezioni.' : 'Nessuna prenotazione annullata.'}
-                {tab === 'upcoming' && (
+              <EmptyState
+                action={tab === 'upcoming' && !q && (
                   <Button asChild className='w-full sm:w-auto'>
                     <Link href='/student/book'><CalendarPlus className='h-4 w-4' /> Prenota una lezione</Link>
                   </Button>
                 )}
-              </div>
+              >
+                {q
+                  ? 'Nessuna lezione trovata.'
+                  : tab === 'upcoming'
+                  ? 'Non hai lezioni in programma.'
+                  : tab === 'past' ? 'Non hai ancora fatto lezioni.' : 'Nessuna prenotazione annullata.'}
+              </EmptyState>
             ) : (
               days.map((dayLessons) => (
                 <section key={dayLessons[0].bookingId} className='space-y-2'>
-                  <h2 className='text-sm font-medium text-muted-foreground'>{lessonDayLabel(dayLessons[0].startAt)}</h2>
+                  <h2 className='sticky top-[var(--sticky-top)] z-10 -mx-4 bg-background/95 px-4 py-1.5 text-sm font-medium text-muted-foreground backdrop-blur'>{lessonDayLabel(dayLessons[0].startAt)}</h2>
                   {dayLessons.map((lesson) => (
                     <StudentLessonCard
                       key={lesson.bookingId}

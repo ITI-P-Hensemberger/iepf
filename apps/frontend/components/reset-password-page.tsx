@@ -97,7 +97,7 @@ export default function ResetPasswordPage() {
       }
 
       setIsSuccess(true)
-      setMessage('Password aggiornata con successo.')
+      setMessage('Password aggiornata.')
       setMessageTone('success')
       form.reset()
     } catch (err) {

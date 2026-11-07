@@ -128,7 +128,7 @@ export async function PATCH(
   return NextResponse.json(parsed.data ?? {})
 }
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:9999'
@@ -140,11 +140,15 @@ export async function DELETE(
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   }
 
+  // The admin's own password, which the backend checks before deleting.
+  const body = await request.text()
   const response = await backendFetch(`${apiBaseUrl}/users/${id}`, {
     method: 'DELETE',
     headers: {
-      Authorization: `Bearer ${accessToken}`
-    }
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: body || '{}'
   })
 
   const payloadText = await response.text()

@@ -58,7 +58,7 @@ export default function VerifyEmailPage() {
 
         if (isMounted) {
           setStatus('success')
-          setMessage('Email verificata con successo.')
+          setMessage('Email verificata.')
         }
       } catch {
         if (isMounted) {

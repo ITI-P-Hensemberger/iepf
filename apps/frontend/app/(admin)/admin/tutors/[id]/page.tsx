@@ -1,15 +1,24 @@
 'use client'
 
+import { STICKY_CARD_FOOTER } from '@/components/sticky-footer'
+import { cn } from '@/lib/utils'
+import { BlockSkeleton } from '@/components/loading'
 import * as React from 'react'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { BookOpen, CalendarClock, History, TriangleAlert, UserRound } from 'lucide-react'
+
+import { AdminUserLessons } from '@/components/admin-user-lessons'
+import { ConfirmDeleteDialog } from '@/components/confirm-delete-dialog'
+import { DangerAction, DangerZone } from '@/components/danger-zone'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { BackButton } from '@/components/back-button'
+import { SectionLayout } from '@/components/section-layout'
+import { useBackHref, useHere, useSetParam, withFrom } from '@/lib/back-link'
 import {
   Accordion,
   AccordionContent,
@@ -149,10 +158,26 @@ const WEEKDAYS = [
   { value: 5, label: 'Venerdì' }
 ] as const
 
+const SECTIONS = [
+  { value: 'account', label: 'Dati', icon: UserRound },
+  { value: 'availability', label: 'Disponibilità', icon: CalendarClock },
+  { value: 'subjects', label: 'Materie', icon: BookOpen },
+  { value: 'lessons', label: 'Storico lezioni', icon: History },
+  { value: 'danger', label: 'Danger zone', icon: TriangleAlert, separatorBefore: true }
+] as const
+
 export default function AdminTutorDetailPage() {
   const params = useParams()
   const router = useRouter()
   const tutorId = String(params?.id ?? '')
+  const tab = useSearchParams().get('tab')
+  const here = useHere()
+  const backHref = useBackHref('/admin/tutors')
+  const setParam = useSetParam()
+  const active =
+    tab === 'availability' || tab === 'subjects' || tab === 'lessons' || tab === 'danger'
+      ? tab
+      : 'account'
 
   const [tutor, setTutor] = React.useState<Tutor | null>(null)
   const [sections, setSections] = React.useState<Section[]>([])
@@ -313,12 +338,14 @@ export default function AdminTutorDetailPage() {
             : 1
         if (isMounted) {
           setOriginalDailyCapacity(dailyCapacity)
-          setDailyCapacityValue(String(dailyCapacity) as TutorFormValues['dailyCapacity'])
+          setDailyCapacityValue(
+            String(dailyCapacity) as TutorFormValues['dailyCapacity']
+          )
           form.setValue(
             'dailyCapacity',
             String(dailyCapacity) as TutorFormValues['dailyCapacity'],
             {
-            shouldDirty: false
+              shouldDirty: false
             }
           )
         }
@@ -529,7 +556,7 @@ export default function AdminTutorDetailPage() {
       }
 
       if (!options?.suppressToast) {
-        toast.success('Tutor aggiornato con successo.')
+        toast.success('Tutor aggiornato.')
       }
       setTutor((prev) =>
         prev
@@ -635,7 +662,7 @@ export default function AdminTutorDetailPage() {
     }
 
     if (showCombinedToast) {
-      toast.success('Tutor aggiornato con successo.')
+      toast.success('Tutor aggiornato.')
     }
   }
 
@@ -654,33 +681,34 @@ export default function AdminTutorDetailPage() {
     await handleConfirmedSubmit(values)
   }
 
-  async function handleDelete() {
+  // Returns the error to show in the dialog (a wrong password), or null.
+  async function handleDelete(password: string): Promise<string | null> {
     if (!tutorId) {
-      return
+      return null
     }
     setIsDeleting(true)
     try {
       const response = await fetch(`/api/users/${tutorId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
       })
-      if (!response.ok) {
-        let message = 'Impossibile eliminare il tutor.'
-        try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
-        } catch {
-          message = 'Impossibile eliminare il tutor.'
-        }
-        throw new Error(message)
+      if (response.status === 403) {
+        return 'Password non corretta.'
       }
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { message?: string } | null
+        throw new Error(payload?.message ?? 'Impossibile eliminare il tutor.')
+      }
+      setShowDeleteAlert(false)
       router.push('/admin/tutors')
+      return null
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile eliminare il tutor.'
-      )
+      toast.error(err instanceof Error ? err.message : 'Impossibile eliminare il tutor.')
+      setShowDeleteAlert(false)
+      return null
     } finally {
       setIsDeleting(false)
-      setShowDeleteAlert(false)
     }
   }
 
@@ -766,7 +794,7 @@ export default function AdminTutorDetailPage() {
 
       setAvailabilityWeekdays(normalizedWeekdays)
       availabilityForm.reset({ weekdays: normalizedWeekdays })
-      toast.success('Disponibilità aggiornata con successo.')
+      toast.success('Disponibilità aggiornata.')
     } catch (err) {
       toast.error(
         err instanceof Error
@@ -837,7 +865,7 @@ export default function AdminTutorDetailPage() {
           `Alcune operazioni non sono riuscite:\n${errors.join('\n')}`
         )
       } else {
-        toast.success('Materie aggiornate con successo.')
+        toast.success('Materie aggiornate.')
       }
     } catch {
       toast.error('Impossibile aggiornare le materie. Riprova.')
@@ -846,520 +874,498 @@ export default function AdminTutorDetailPage() {
     }
   }
 
+  const changeSection = (value: string) =>
+    setParam('tab', value === 'account' ? null : value)
+
   return (
-    <main className='flex-1'>
-      <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
-        <div className='w-full max-w-6xl'>
-          <div className='mb-6'>
-            <BackButton href='/admin/tutors' />
-          </div>
-          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-            <div>
-              <h1 className='text-2xl'>Dettagli tutor</h1>
-              <p className='mt-1 text-sm text-muted-foreground'>
-                Gestisci i dati del tutor.
+    <SectionLayout
+      title={tutor ? `${tutor.firstName} ${tutor.lastName}` : 'Dettagli tutor'}
+      description={tutor?.email ?? 'Gestisci i dati del tutor.'}
+      backHref={backHref}
+      sections={SECTIONS}
+      value={active}
+      onValueChange={changeSection}
+      actions={
+        <>
+          <Button
+            variant='outline'
+            onClick={handleImpersonate}
+            disabled={isImpersonating}
+          >
+            {isImpersonating ? 'Accesso...' : 'Impersona tutor'}
+          </Button>
+          <Button asChild variant='outline'>
+            <Link
+              href={withFrom(
+                `/admin/feedback?feedbackAuthor=${tutorId}&feedbackRole=tutor`,
+                here
+              )}
+            >
+              Feedback
+            </Link>
+          </Button>
+        </>
+      }
+    >
+      {active === 'account' && (
+        <Card>
+          <CardContent className='pt-6'>
+            {isLoading ? (
+              <BlockSkeleton />
+            ) : !tutor ? (
+              <p className='text-sm text-muted-foreground'>
+                Tutor non trovato.
               </p>
-            </div>
-            <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
-              <Button
-                variant='outline'
-                onClick={handleImpersonate}
-                disabled={isImpersonating}
+            ) : (
+              <form
+                id='admin-tutor-form'
+                onSubmit={form.handleSubmit(onSubmit)}
+                className='space-y-6'
               >
-                {isImpersonating ? 'Accesso...' : 'Impersona tutor'}
-              </Button>
-              <Button asChild variant='outline'>
-                <Link
-                  href={`/admin/feedback?feedbackAuthor=${tutorId}&feedbackRole=tutor`}
-                >
-                  Feedback
-                </Link>
-              </Button>
-            </div>
-          </div>
-          <Card className='mt-6'>
-            <CardContent className='pt-6'>
-              {isLoading ? (
-                <p className='text-sm text-muted-foreground'>Caricamento...</p>
-              ) : !tutor ? (
-                <p className='text-sm text-muted-foreground'>
-                  Tutor non trovato.
-                </p>
-              ) : (
-                <form
-                  id='admin-tutor-form'
-                  onSubmit={form.handleSubmit(onSubmit)}
-                  className='space-y-6'
-                >
-                  <FieldGroup>
-                    <Controller
-                      name='firstName'
-                      control={form.control}
-                      render={({ field, fieldState }) => (
-                        <Field data-invalid={fieldState.invalid}>
-                          <FieldLabel htmlFor='tutor-first-name'>
-                            Nome
-                          </FieldLabel>
-                          <Input
-                            {...field}
-                            id='tutor-first-name'
+                <FieldGroup>
+                  <Controller
+                    name='firstName'
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor='tutor-first-name'>Nome</FieldLabel>
+                        <Input
+                          {...field}
+                          id='tutor-first-name'
+                          aria-invalid={fieldState.invalid}
+                          autoComplete='given-name'
+                          onBlur={(event) => {
+                            field.onBlur()
+                            const normalized = normalizeName(event.target.value)
+                            form.setValue('firstName', normalized, {
+                              shouldDirty: normalized !== field.value
+                            })
+                          }}
+                        />
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    name='lastName'
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor='tutor-last-name'>
+                          Cognome
+                        </FieldLabel>
+                        <Input
+                          {...field}
+                          id='tutor-last-name'
+                          aria-invalid={fieldState.invalid}
+                          autoComplete='family-name'
+                          onBlur={(event) => {
+                            field.onBlur()
+                            const normalized = normalizeName(event.target.value)
+                            form.setValue('lastName', normalized, {
+                              shouldDirty: normalized !== field.value
+                            })
+                          }}
+                        />
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    name='email'
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor='tutor-email'>Email</FieldLabel>
+                        <Input
+                          {...field}
+                          id='tutor-email'
+                          aria-invalid={fieldState.invalid}
+                          autoComplete='email'
+                          onBlur={(event) => {
+                            field.onBlur()
+                            const normalized = normalizeEmail(
+                              event.target.value
+                            )
+                            form.setValue('email', normalized, {
+                              shouldDirty: normalized !== field.value
+                            })
+                          }}
+                        />
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    name='year'
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor='tutor-year'>Anno</FieldLabel>
+                        <Select
+                          onValueChange={(value) => field.onChange(value)}
+                          value={String(field.value)}
+                        >
+                          <SelectTrigger
+                            id='tutor-year'
                             aria-invalid={fieldState.invalid}
-                            autoComplete='given-name'
-                            onBlur={(event) => {
-                              field.onBlur()
-                              const normalized = normalizeName(
-                                event.target.value
-                              )
-                              form.setValue('firstName', normalized, {
-                                shouldDirty: normalized !== field.value
-                              })
-                            }}
-                          />
-                          {fieldState.invalid && (
-                            <FieldError errors={[fieldState.error]} />
-                          )}
-                        </Field>
-                      )}
-                    />
-                    <Controller
-                      name='lastName'
-                      control={form.control}
-                      render={({ field, fieldState }) => (
-                        <Field data-invalid={fieldState.invalid}>
-                          <FieldLabel htmlFor='tutor-last-name'>
-                            Cognome
-                          </FieldLabel>
-                          <Input
-                            {...field}
-                            id='tutor-last-name'
-                            aria-invalid={fieldState.invalid}
-                            autoComplete='family-name'
-                            onBlur={(event) => {
-                              field.onBlur()
-                              const normalized = normalizeName(
-                                event.target.value
-                              )
-                              form.setValue('lastName', normalized, {
-                                shouldDirty: normalized !== field.value
-                              })
-                            }}
-                          />
-                          {fieldState.invalid && (
-                            <FieldError errors={[fieldState.error]} />
-                          )}
-                        </Field>
-                      )}
-                    />
-                    <Controller
-                      name='email'
-                      control={form.control}
-                      render={({ field, fieldState }) => (
-                        <Field data-invalid={fieldState.invalid}>
-                          <FieldLabel htmlFor='tutor-email'>Email</FieldLabel>
-                          <Input
-                            {...field}
-                            id='tutor-email'
-                            aria-invalid={fieldState.invalid}
-                            autoComplete='email'
-                            onBlur={(event) => {
-                              field.onBlur()
-                              const normalized = normalizeEmail(
-                                event.target.value
-                              )
-                              form.setValue('email', normalized, {
-                                shouldDirty: normalized !== field.value
-                              })
-                            }}
-                          />
-                          {fieldState.invalid && (
-                            <FieldError errors={[fieldState.error]} />
-                          )}
-                        </Field>
-                      )}
-                    />
-                    <Controller
-                      name='year'
-                      control={form.control}
-                      render={({ field, fieldState }) => (
-                        <Field data-invalid={fieldState.invalid}>
-                          <FieldLabel htmlFor='tutor-year'>Anno</FieldLabel>
-                          <Select
-                            onValueChange={(value) => field.onChange(value)}
-                            value={String(field.value)}
                           >
-                            <SelectTrigger
-                              id='tutor-year'
-                              aria-invalid={fieldState.invalid}
-                            >
-                              <SelectValue placeholder="Seleziona l'anno" />
-                            </SelectTrigger>
-                            <SelectContent>
+                            <SelectValue placeholder="Seleziona l'anno" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectLabel>Anno</SelectLabel>
+                              {TUTOR_YEARS.map((year) => (
+                                <SelectItem key={year} value={String(year)}>
+                                  {year}° anno
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    name='sectionId'
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor='tutor-section'>Sezione</FieldLabel>
+                        <Select
+                          onValueChange={(value) => field.onChange(value)}
+                          value={String(field.value)}
+                        >
+                          <SelectTrigger
+                            id='tutor-section'
+                            aria-invalid={fieldState.invalid}
+                          >
+                            <SelectValue placeholder='Seleziona la sezione' />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {groupedSections.scient.length > 0 && (
                               <SelectGroup>
-                                <SelectLabel>Anno</SelectLabel>
-                                {TUTOR_YEARS.map((year) => (
-                                  <SelectItem key={year} value={String(year)}>{year}° anno</SelectItem>
-                                ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                          {fieldState.invalid && (
-                            <FieldError errors={[fieldState.error]} />
-                          )}
-                        </Field>
-                      )}
-                    />
-                    <Controller
-                      name='sectionId'
-                      control={form.control}
-                      render={({ field, fieldState }) => (
-                        <Field data-invalid={fieldState.invalid}>
-                          <FieldLabel htmlFor='tutor-section'>
-                            Sezione
-                          </FieldLabel>
-                          <Select
-                            onValueChange={(value) => field.onChange(value)}
-                            value={String(field.value)}
-                          >
-                            <SelectTrigger
-                              id='tutor-section'
-                              aria-invalid={fieldState.invalid}
-                            >
-                              <SelectValue placeholder='Seleziona la sezione' />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {groupedSections.scient.length > 0 && (
-                                <SelectGroup>
-                                  <SelectLabel>
-                                    Scientifico Scienze Applicate
-                                  </SelectLabel>
-                                  {groupedSections.scient.map((section) => (
-                                    <SelectItem
-                                      key={section.id}
-                                      value={section.id}
-                                    >
-                                      {section.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              )}
-                              {groupedSections.mech.length > 0 && (
-                                <SelectGroup>
-                                  <SelectLabel>
-                                    Meccanica Meccatronica Energia
-                                  </SelectLabel>
-                                  {groupedSections.mech.map((section) => (
-                                    <SelectItem
-                                      key={section.id}
-                                      value={section.id}
-                                    >
-                                      {section.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              )}
-                              {groupedSections.elec.length > 0 && (
-                                <SelectGroup>
-                                  <SelectLabel>
-                                    Elettronica ed Elettrotecnica
-                                  </SelectLabel>
-                                  {groupedSections.elec.map((section) => (
-                                    <SelectItem
-                                      key={section.id}
-                                      value={section.id}
-                                    >
-                                      {section.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              )}
-                              {groupedSections.chem.length > 0 && (
-                                <SelectGroup>
-                                  <SelectLabel>
-                                    Chimica Biotecnologie Sanitarie
-                                  </SelectLabel>
-                                  {groupedSections.chem.map((section) => (
-                                    <SelectItem
-                                      key={section.id}
-                                      value={section.id}
-                                    >
-                                      {section.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              )}
-                              {groupedSections.info.length > 0 && (
-                                <SelectGroup>
-                                  <SelectLabel>
-                                    Informatica e Telecomunicazioni
-                                  </SelectLabel>
-                                  {groupedSections.info.map((section) => (
-                                    <SelectItem
-                                      key={section.id}
-                                      value={section.id}
-                                    >
-                                      {section.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              )}
-                            </SelectContent>
-                          </Select>
-                          {fieldState.invalid && (
-                            <FieldError errors={[fieldState.error]} />
-                          )}
-                        </Field>
-                      )}
-                    />
-                    <Controller
-                      name='dailyCapacity'
-                      control={form.control}
-                      render={({ field, fieldState }) => (
-                        <Field data-invalid={fieldState.invalid}>
-                          <FieldLabel htmlFor='tutor-daily-capacity'>
-                            Capacità giornaliera
-                          </FieldLabel>
-                          <Select
-                            onValueChange={(value) => field.onChange(value)}
-                            value={field.value}
-                            disabled={settingsLoading}
-                          >
-                            <SelectTrigger
-                              id='tutor-daily-capacity'
-                              aria-invalid={fieldState.invalid}
-                            >
-                              <SelectValue placeholder='Seleziona' />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                <SelectLabel>Capacità</SelectLabel>
-                                {['1', '2', '3', '4'].map((value) => (
-                                  <SelectItem key={value} value={value}>
-                                    {value}
+                                <SelectLabel>
+                                  Scientifico Scienze Applicate
+                                </SelectLabel>
+                                {groupedSections.scient.map((section) => (
+                                  <SelectItem
+                                    key={section.id}
+                                    value={section.id}
+                                  >
+                                    {section.name}
                                   </SelectItem>
                                 ))}
                               </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                          {fieldState.invalid && (
-                            <FieldError errors={[fieldState.error]} />
-                          )}
-                        </Field>
-                      )}
-                    />
-                    <Controller
-                      name='isActive'
-                      control={form.control}
-                      render={({ field }) => (
-                        <Field orientation='horizontal'>
-                          <div className='flex items-center gap-2'>
-                            <Checkbox
-                              id='tutor-active'
-                              checked={field.value}
-                              onCheckedChange={(value) =>
-                                field.onChange(Boolean(value))
-                              }
-                            />
-                            <Label htmlFor='tutor-active'>Attivo</Label>
-                          </div>
-                        </Field>
-                      )}
-                    />
-                  </FieldGroup>
-                  <Accordion type='single' collapsible className='w-full'>
-                    <AccordionItem value='tech-details'>
-                      <AccordionTrigger>Dettagli tecnici</AccordionTrigger>
-                      <AccordionContent>
-                        <div className='text-sm text-muted-foreground space-y-2'>
-                          <div>
-                            <span className='font-medium text-foreground'>
-                              ID:
-                            </span>{' '}
-                            {tutor?.id ?? '-'}
-                          </div>
-                          <div>
-                            <span className='font-medium text-foreground'>
-                              Ruolo:
-                            </span>{' '}
-                            {tutor?.role ?? '-'}
-                          </div>
-                          <div>
-                            <span className='font-medium text-foreground'>
-                              Email verificata:
-                            </span>{' '}
-                            {formatItalianDate(tutor?.emailVerifiedAt)}
-                          </div>
-                          <div>
-                            <span className='font-medium text-foreground'>
-                              Creato il:
-                            </span>{' '}
-                            {formatItalianDate(tutor?.createdAt)}
-                          </div>
-                          <div>
-                            <span className='font-medium text-foreground'>
-                              Aggiornato il:
-                            </span>{' '}
-                            {formatItalianDate(tutor?.updatedAt)}
-                          </div>
-                          <div>
-                            <span className='font-medium text-foreground'>
-                              Section ID:
-                            </span>{' '}
-                            {tutor?.sectionId ?? '-'}
-                          </div>
-                          <div>
-                            <span className='font-medium text-foreground'>
-                              Anno:
-                            </span>{' '}
-                            {tutor?.year ?? '-'}
-                          </div>
-                          <div>
-                            <span className='font-medium text-foreground'>
-                              Attivo:
-                            </span>{' '}
-                            {tutor?.isActive ? 'Si' : 'No'}
-                          </div>
+                            )}
+                            {groupedSections.mech.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>
+                                  Meccanica Meccatronica Energia
+                                </SelectLabel>
+                                {groupedSections.mech.map((section) => (
+                                  <SelectItem
+                                    key={section.id}
+                                    value={section.id}
+                                  >
+                                    {section.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            )}
+                            {groupedSections.elec.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>
+                                  Elettronica ed Elettrotecnica
+                                </SelectLabel>
+                                {groupedSections.elec.map((section) => (
+                                  <SelectItem
+                                    key={section.id}
+                                    value={section.id}
+                                  >
+                                    {section.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            )}
+                            {groupedSections.chem.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>
+                                  Chimica Biotecnologie Sanitarie
+                                </SelectLabel>
+                                {groupedSections.chem.map((section) => (
+                                  <SelectItem
+                                    key={section.id}
+                                    value={section.id}
+                                  >
+                                    {section.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            )}
+                            {groupedSections.info.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>
+                                  Informatica e Telecomunicazioni
+                                </SelectLabel>
+                                {groupedSections.info.map((section) => (
+                                  <SelectItem
+                                    key={section.id}
+                                    value={section.id}
+                                  >
+                                    {section.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    name='dailyCapacity'
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor='tutor-daily-capacity'>
+                          Capacità giornaliera
+                        </FieldLabel>
+                        <Select
+                          onValueChange={(value) => field.onChange(value)}
+                          value={field.value}
+                          disabled={settingsLoading}
+                        >
+                          <SelectTrigger
+                            id='tutor-daily-capacity'
+                            aria-invalid={fieldState.invalid}
+                          >
+                            <SelectValue placeholder='Seleziona' />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectLabel>Capacità</SelectLabel>
+                              {['1', '2', '3', '4'].map((value) => (
+                                <SelectItem key={value} value={value}>
+                                  {value}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    name='isActive'
+                    control={form.control}
+                    render={({ field }) => (
+                      <Field orientation='horizontal'>
+                        <div className='flex items-center gap-2'>
+                          <Checkbox
+                            id='tutor-active'
+                            checked={field.value}
+                            onCheckedChange={(value) =>
+                              field.onChange(Boolean(value))
+                            }
+                          />
+                          <Label htmlFor='tutor-active'>Attivo</Label>
                         </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                </form>
-              )}
-            </CardContent>
-            <CardFooter className='flex flex-col gap-3 items-start sm:flex-row sm:items-center sm:justify-between'>
-              <Button
-                type='submit'
-                form='admin-tutor-form'
-                disabled={isSubmitting || !form.formState.isDirty}
+                      </Field>
+                    )}
+                  />
+                </FieldGroup>
+                <Accordion type='single' collapsible className='w-full'>
+                  <AccordionItem value='tech-details'>
+                    <AccordionTrigger>Dettagli tecnici</AccordionTrigger>
+                    <AccordionContent>
+                      <div className='text-sm text-muted-foreground space-y-2'>
+                        <div>
+                          <span className='font-medium text-foreground'>
+                            ID:
+                          </span>{' '}
+                          {tutor?.id ?? '-'}
+                        </div>
+                        <div>
+                          <span className='font-medium text-foreground'>
+                            Ruolo:
+                          </span>{' '}
+                          {tutor?.role ?? '-'}
+                        </div>
+                        <div>
+                          <span className='font-medium text-foreground'>
+                            Email verificata:
+                          </span>{' '}
+                          {formatItalianDate(tutor?.emailVerifiedAt)}
+                        </div>
+                        <div>
+                          <span className='font-medium text-foreground'>
+                            Creato il:
+                          </span>{' '}
+                          {formatItalianDate(tutor?.createdAt)}
+                        </div>
+                        <div>
+                          <span className='font-medium text-foreground'>
+                            Aggiornato il:
+                          </span>{' '}
+                          {formatItalianDate(tutor?.updatedAt)}
+                        </div>
+                        <div>
+                          <span className='font-medium text-foreground'>
+                            Section ID:
+                          </span>{' '}
+                          {tutor?.sectionId ?? '-'}
+                        </div>
+                        <div>
+                          <span className='font-medium text-foreground'>
+                            Anno:
+                          </span>{' '}
+                          {tutor?.year ?? '-'}
+                        </div>
+                        <div>
+                          <span className='font-medium text-foreground'>
+                            Attivo:
+                          </span>{' '}
+                          {tutor?.isActive ? 'Si' : 'No'}
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </form>
+            )}
+          </CardContent>
+          <CardFooter className={cn('flex justify-end', STICKY_CARD_FOOTER)}>
+            <Button
+              type='submit'
+              form='admin-tutor-form'
+              disabled={isSubmitting || !form.formState.isDirty}
+            >
+              {isSubmitting ? 'Salvataggio...' : 'Salva modifiche'}
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {tutor && active === 'availability' && (
+        <Card>
+          <CardHeader>
+            <div className='space-y-1'>
+              <h2 className='text-lg font-semibold'>Disponibilità</h2>
+              <p className='text-sm text-muted-foreground'>
+                Modifica i giorni in cui il tutor è disponibile.
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {availabilityLoading ? (
+              <BlockSkeleton />
+            ) : (
+              <form
+                id='admin-tutor-availability-form'
+                onSubmit={availabilityForm.handleSubmit(submitAvailability)}
               >
-                {isSubmitting ? 'Salvataggio...' : 'Salva modifiche'}
-              </Button>
-              <Button
-                type='button'
-                variant='destructive'
-                onClick={() => setShowDeleteAlert(true)}
-                disabled={isDeleting}
+                <Controller
+                  name='weekdays'
+                  control={availabilityForm.control}
+                  render={({ field }) => (
+                    <WeekdayAvailabilitySelector
+                      value={field.value}
+                      onChange={field.onChange}
+                      disabled={availabilitySubmitting}
+                    />
+                  )}
+                />
+                {availabilityForm.formState.errors.weekdays && (
+                  <p className='mt-2 text-sm text-destructive'>
+                    {availabilityForm.formState.errors.weekdays.message}
+                  </p>
+                )}
+              </form>
+            )}
+          </CardContent>
+          <CardFooter className={cn('flex justify-end', STICKY_CARD_FOOTER)}>
+            <Button
+              type='submit'
+              form='admin-tutor-availability-form'
+              className='w-full sm:w-auto'
+              disabled={
+                availabilityLoading ||
+                availabilitySubmitting ||
+                !availabilityForm.formState.isDirty
+              }
+            >
+              {availabilitySubmitting ? 'Salvataggio...' : 'Salva modifiche'}
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {tutor && active === 'subjects' && (
+        <Card>
+          <CardHeader>
+            <div className='space-y-1'>
+              <h2 className='text-lg font-semibold'>Materie</h2>
+              <p className='text-sm text-muted-foreground'>
+                Aggiorna le materie insegnate dal tutor.
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {subjectsLoading ? (
+              <BlockSkeleton />
+            ) : (
+              <form
+                id='admin-tutor-subjects-form'
+                onSubmit={subjectsForm.handleSubmit(submitSubjects)}
               >
-                {isDeleting ? 'Eliminazione...' : 'Elimina account'}
-              </Button>
-            </CardFooter>
-          </Card>
-
-          {tutor && (
-            <>
-              <Card className='mt-6'>
-                <CardHeader>
-                  <div className='space-y-1'>
-                    <h2 className='text-lg font-semibold'>Disponibilità</h2>
-                    <p className='text-sm text-muted-foreground'>
-                      Modifica i giorni in cui il tutor è disponibile.
-                    </p>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {availabilityLoading ? (
-                    <p className='text-sm text-muted-foreground'>
-                      Caricamento...
-                    </p>
-                  ) : (
-                    <form
-                      id='admin-tutor-availability-form'
-                      onSubmit={availabilityForm.handleSubmit(
-                        submitAvailability
-                      )}
-                    >
-                      <Controller
-                        name='weekdays'
-                        control={availabilityForm.control}
-                        render={({ field }) => (
-                          <WeekdayAvailabilitySelector
-                            value={field.value}
-                            onChange={field.onChange}
-                            disabled={availabilitySubmitting}
-                          />
-                        )}
-                      />
-                      {availabilityForm.formState.errors.weekdays && (
-                        <p className='mt-2 text-sm text-destructive'>
-                          {availabilityForm.formState.errors.weekdays.message}
-                        </p>
-                      )}
-                    </form>
+                <Controller
+                  name='subjectIds'
+                  control={subjectsForm.control}
+                  render={({ field }) => (
+                    <SubjectSelector
+                      value={field.value}
+                      onChange={field.onChange}
+                      disabled={subjectsLoading || subjectsSubmitting}
+                    />
                   )}
-                </CardContent>
-                <CardFooter className='flex justify-end'>
-                  <Button
-                    type='submit'
-                    form='admin-tutor-availability-form'
-                    className='w-full sm:w-auto'
-                    disabled={
-                      availabilityLoading ||
-                      availabilitySubmitting ||
-                      !availabilityForm.formState.isDirty
-                    }
-                  >
-                    {availabilitySubmitting
-                      ? 'Salvataggio...'
-                      : 'Salva modifiche'}
-                  </Button>
-                </CardFooter>
-              </Card>
+                />
 
-              <Card className='mt-6'>
-                <CardHeader>
-                  <div className='space-y-1'>
-                    <h2 className='text-lg font-semibold'>Materie</h2>
-                    <p className='text-sm text-muted-foreground'>
-                      Aggiorna le materie insegnate dal tutor.
-                    </p>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {subjectsLoading ? (
-                    <p className='text-sm text-muted-foreground'>
-                      Caricamento...
-                    </p>
-                  ) : (
-                    <form
-                      id='admin-tutor-subjects-form'
-                      onSubmit={subjectsForm.handleSubmit(submitSubjects)}
-                    >
-                      <Controller
-                        name='subjectIds'
-                        control={subjectsForm.control}
-                        render={({ field }) => (
-                          <SubjectSelector
-                            value={field.value}
-                            onChange={field.onChange}
-                            disabled={subjectsLoading || subjectsSubmitting}
-                          />
-                        )}
-                      />
-
-                      {subjectsForm.formState.errors.subjectIds && (
-                        <p className='mt-2 text-sm text-destructive'>
-                          {subjectsForm.formState.errors.subjectIds.message}
-                        </p>
-                      )}
-                    </form>
-                  )}
-                </CardContent>
-                <CardFooter className='flex justify-end'>
-                  <Button
-                    type='submit'
-                    form='admin-tutor-subjects-form'
-                    className='w-full sm:w-auto'
-                    disabled={
-                      subjectsLoading || subjectsSubmitting || !subjectsDirty
-                    }
-                  >
-                    {subjectsSubmitting ? 'Salvataggio...' : 'Salva modifiche'}
-                  </Button>
-                </CardFooter>
-              </Card>
-            </>
-          )}
-        </div>
-      </div>
+                {subjectsForm.formState.errors.subjectIds && (
+                  <p className='mt-2 text-sm text-destructive'>
+                    {subjectsForm.formState.errors.subjectIds.message}
+                  </p>
+                )}
+              </form>
+            )}
+          </CardContent>
+          <CardFooter className={cn('flex justify-end', STICKY_CARD_FOOTER)}>
+            <Button
+              type='submit'
+              form='admin-tutor-subjects-form'
+              className='w-full sm:w-auto'
+              disabled={subjectsLoading || subjectsSubmitting || !subjectsDirty}
+            >
+              {subjectsSubmitting ? 'Salvataggio...' : 'Salva modifiche'}
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
 
       <AlertDialog open={showEmailAlert} onOpenChange={setShowEmailAlert}>
         <AlertDialogContent className='z-60'>
@@ -1391,29 +1397,29 @@ export default function AdminTutorDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
-        <AlertDialogContent className='z-60'>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare il tutor?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Questa azione è irreversibile. Il tutor perderà l&apos;accesso
-              all&apos;account.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(event) => {
-                event.preventDefault()
-                void handleDelete()
-              }}
-              disabled={isDeleting}
-            >
-              {isDeleting ? 'Eliminazione...' : 'Elimina'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </main>
+      <ConfirmDeleteDialog
+        open={showDeleteAlert}
+        onOpenChange={setShowDeleteAlert}
+        title='Eliminare il tutor?'
+        description='Il tutor perde l’accesso e l’account viene eliminato. Non si può annullare.'
+        onConfirm={handleDelete}
+      />
+      {active === 'lessons' && tutorId && (
+        <AdminUserLessons role='tutor' userId={tutorId} />
+      )}
+      {active === 'danger' && (
+        <DangerZone>
+          <DangerAction
+            title='Elimina account'
+            description='Il tutor perde l’accesso e l’account viene eliminato. Non si può annullare.'
+            action={
+              <Button variant='destructive' onClick={() => setShowDeleteAlert(true)} disabled={isDeleting}>
+                {isDeleting ? 'Eliminazione...' : 'Elimina account'}
+              </Button>
+            }
+          />
+        </DangerZone>
+      )}
+    </SectionLayout>
   )
 }

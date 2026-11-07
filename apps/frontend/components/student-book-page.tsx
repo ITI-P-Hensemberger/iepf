@@ -2,6 +2,8 @@
 
 // Booking in four steps: pick a subject, pick a day and a lesson, confirm with a topic, done.
 // The step lives in the URL (?week, ?subject, ?day) so the back button walks back through it.
+import { BlockSkeleton } from '@/components/loading'
+import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -33,7 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
-import { BackButton } from '@/components/back-button'
+import { PageHeader } from '@/components/page-header'
 import { LessonHoursBadge } from '@/components/lesson-hours-badge'
 import { NoHoursCard } from '@/components/no-hours-notice'
 import { openPushSetup, usePushSetup } from '@/components/push-prompt'
@@ -138,8 +140,9 @@ export default function StudentBookPage() {
   const todayKey = React.useMemo(() => dayKeyOf(new Date()), [])
   const thisWeekOpen = React.useMemo(() => thisWeekBookable(new Date()), [])
   const thisMonday = mondayOf(todayKey)
-  // Lessons exist for this week and the next one only; past Thursday 20:00 this week is over.
-  const weekOffset = searchParams.get('week') === 'next' || !thisWeekOpen ? 1 : 0
+  // Only one week is ever bookable: this one until Thursday 20:00, the next one from Saturday
+  // noon, when its lessons are published. Before that the next week is empty.
+  const weekOffset = thisWeekOpen ? 0 : 1
   const mondayKey = addDaysToKey(thisMonday, weekOffset * 7)
   const subjectId = searchParams.get('subject') ?? ''
   const dayKey = searchParams.get('day') ?? ''
@@ -161,12 +164,10 @@ export default function StudentBookPage() {
   const [isRequesting, setIsRequesting] = React.useState(false)
 
   const setStep = React.useCallback(
-    (next: { week?: number, subject?: string, day?: string }, replace = false) => {
+    (next: { subject?: string, day?: string }, replace = false) => {
       const params = new URLSearchParams()
-      const week = next.week ?? weekOffset
       const subject = next.subject ?? subjectId
       const day = next.day ?? ''
-      if (week) params.set('week', 'next')
       if (subject) params.set('subject', subject)
       if (subject && day) params.set('day', day)
       const query = params.toString()
@@ -174,7 +175,7 @@ export default function StudentBookPage() {
       if (replace) router.replace(url, { scroll: false })
       else router.push(url, { scroll: false })
     },
-    [pathname, router, subjectId, weekOffset]
+    [pathname, router, subjectId]
   )
 
   // Every subject, for the request form: the steps only show subjects the student can book.
@@ -334,17 +335,14 @@ export default function StudentBookPage() {
     <main className='flex-1'>
       <div className='container mx-auto flex flex-col items-center px-4 py-10'>
         <div className='w-full max-w-3xl'>
-          <div className='mb-6'>
-            {/* Back follows the steps: from the lessons to the subjects, from the subjects home. */}
-            <BackButton
-              href={booked || !subjectId ? '/student' : weekOffset ? `${pathname}?week=next` : pathname}
-              label={booked || !subjectId ? 'Indietro' : 'Materie'}
-            />
-          </div>
-          <div className='flex flex-wrap items-center justify-between gap-3'>
-            <h1 className='text-2xl'>Prenota lezione</h1>
-            {tokens !== null && <LessonHoursBadge tokens={tokens} className='text-sm' />}
-          </div>
+          {/* Back follows the steps: from the lessons to the subjects, from the subjects home. */}
+          <PageHeader
+            title='Prenota lezione'
+            backHref={booked || !subjectId ? '/student' : pathname}
+            backLabel={booked || !subjectId ? 'Indietro' : 'Materie'}
+            followFrom={false}
+            actions={tokens !== null && <div><LessonHoursBadge tokens={tokens} className='text-sm' /></div>}
+          />
 
           {/* Without hours nothing is bookable: say why instead of showing empty weeks. */}
           {hasNoHoursLeft(tokens) && !booked ? (
@@ -362,17 +360,9 @@ export default function StudentBookPage() {
                 step={subjectId ? 2 : 1}
                 title={subjectId ? subjectName || 'Materia' : 'Cosa vuoi studiare?'}
               />
-              <div className='mt-4 flex items-center gap-2'>
-                {thisWeekOpen && (
-                  <WeekButton active={weekOffset === 0} onClick={() => setStep({ week: 0, day: '' })}>
-                    Questa settimana
-                  </WeekButton>
-                )}
-                <WeekButton active={weekOffset === 1} onClick={() => setStep({ week: 1, day: '' })}>
-                  Settimana prossima
-                </WeekButton>
-                <span className='ml-auto hidden text-sm text-muted-foreground sm:inline'>{weekLabel}</span>
-              </div>
+              <p className='mt-2 text-sm text-muted-foreground'>
+                {weekOffset === 0 ? 'Questa settimana' : 'Settimana prossima'} · {weekLabel}
+              </p>
 
               {!subjectId ? (
                 <SubjectStep
@@ -500,14 +490,6 @@ function StepHeader({ step, title }: { step: number, title: string }) {
   )
 }
 
-function WeekButton({ active, onClick, children }: { active: boolean, onClick: () => void, children: React.ReactNode }) {
-  return (
-    <Button size='sm' className='flex-1 sm:flex-none' variant={active ? 'default' : 'outline'} onClick={onClick} aria-pressed={active}>
-      {children}
-    </Button>
-  )
-}
-
 // Only subjects with something to book: a subject without lessons would be a dead end.
 function SubjectStep({
   weekOffset,
@@ -529,13 +511,11 @@ function SubjectStep({
   }
   if (subjects.length === 0) {
     return (
-      <Card className='mt-4'>
-        <CardContent className='py-4 text-sm text-muted-foreground'>
-          {weekOffset === 0
-            ? 'In questa settimana non ci sono lezioni che puoi prenotare. Prova la settimana prossima.'
-            : 'Le lezioni della settimana prossima non sono ancora disponibili: vengono pubblicate il sabato a mezzogiorno.'}
-        </CardContent>
-      </Card>
+      <EmptyState className='mt-4'>
+        {weekOffset === 0
+          ? 'In questa settimana non ci sono più lezioni che puoi prenotare. Quelle della settimana prossima vengono pubblicate il sabato a mezzogiorno.'
+          : 'Le lezioni della settimana prossima non sono ancora disponibili: vengono pubblicate il sabato a mezzogiorno.'}
+      </EmptyState>
     )
   }
   return (
@@ -627,13 +607,9 @@ function DayStep({
       )}
 
       {!dayKey ? (
-        <Card>
-          <CardContent className='py-6 text-sm text-muted-foreground'>
-            {summaryLoading
-              ? 'Caricamento...'
-              : `In questa settimana non ci sono lezioni di ${subjectName} che puoi prenotare. Prova la settimana dopo.`}
-          </CardContent>
-        </Card>
+        summaryLoading
+          ? <BlockSkeleton />
+          : <EmptyState>{`In questa settimana non ci sono lezioni di ${subjectName} che puoi prenotare.`}</EmptyState>
       ) : lessonsLoading ? (
         <div className='space-y-2'>
           <Skeleton className='h-16' />

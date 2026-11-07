@@ -1,5 +1,7 @@
 'use client'
 
+import { BlockSkeleton } from '@/components/loading'
+import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
@@ -7,7 +9,7 @@ import { CalendarIcon, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { AnnouncementCard } from '@/components/announcement-popup'
-import { BackButton } from '@/components/back-button'
+import { PageHeader } from '@/components/page-header'
 import { MarkdownEditor } from '@/components/markdown-editor'
 import {
   AlertDialog,
@@ -24,6 +26,7 @@ import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -610,21 +613,17 @@ export default function AdminAnnouncementsPage() {
     <main className='flex-1'>
       <div className='container mx-auto flex flex-col items-center px-4 py-10'>
         <div className='w-full max-w-6xl space-y-6'>
-          <BackButton href='/admin' />
-          <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-            <div>
-              <h1 className='text-2xl'>Popup</h1>
-              <p className='text-sm text-muted-foreground'>
-                Messaggi in primo piano per studenti, tutor o admin.
-              </p>
-            </div>
-            {!editing && (
+          <PageHeader
+            title='Popup'
+            description='Messaggi in primo piano per studenti, tutor o admin.'
+            backHref='/admin'
+            actions={!editing && (
               <Button onClick={() => openEditor(null, EMPTY_DRAFT)}>
                 <Plus className='size-4' />
                 Nuovo popup
               </Button>
             )}
-          </div>
+          />
 
           {editing && (
             <div ref={formRef} className='scroll-mt-20'>
@@ -639,13 +638,9 @@ export default function AdminAnnouncementsPage() {
           )}
 
           {isLoading ? (
-            <p className='text-sm text-muted-foreground'>Caricamento...</p>
+            <BlockSkeleton />
           ) : items.length === 0 ? (
-            <Card>
-              <CardContent className='py-10 text-center text-sm text-muted-foreground'>
-                Nessun popup.
-              </CardContent>
-            </Card>
+            <EmptyState>Nessun popup.</EmptyState>
           ) : (
             <ul className='space-y-3'>
               {items.map((item) => {
@@ -688,29 +683,12 @@ export default function AdminAnnouncementsPage() {
                         </div>
                         <div className='flex shrink-0 items-center gap-2'>
                           <label className='mr-2 flex items-center gap-2 text-sm'>
-                            <button
-                              type='button'
-                              role='switch'
-                              aria-checked={item.active}
-                              aria-label={
-                                item.active ? 'Disattiva popup' : 'Attiva popup'
-                              }
+                            <Switch
+                              checked={item.active}
+                              aria-label={item.active ? 'Disattiva popup' : 'Attiva popup'}
                               disabled={busyId === item.id}
-                              onClick={() => void toggleActive(item)}
-                              className={cn(
-                                'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50',
-                                item.active ? 'bg-primary' : 'bg-input'
-                              )}
-                            >
-                              <span
-                                className={cn(
-                                  'inline-block size-5 rounded-full bg-background shadow transition-transform',
-                                  item.active
-                                    ? 'translate-x-5.5'
-                                    : 'translate-x-0.5'
-                                )}
-                              />
-                            </button>
+                              onCheckedChange={() => void toggleActive(item)}
+                            />
                             {item.active ? 'Attivo' : 'Spento'}
                           </label>
                           <Button

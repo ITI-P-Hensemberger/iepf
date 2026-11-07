@@ -1,15 +1,22 @@
 'use client'
 
+import { STICKY_SECTION_FOOTER } from '@/components/sticky-footer'
+import { cn } from '@/lib/utils'
 import * as React from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import * as z from 'zod'
-import { KeyRound } from 'lucide-react'
+import { Bell, BookOpen, CalendarClock, KeyRound, UserRound } from 'lucide-react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { LessonHoursBadge } from '@/components/lesson-hours-badge'
-import { BackButton } from '@/components/back-button'
+import { EmptyState } from '@/components/empty-state'
+import { SETUP_PARAM } from '@/components/push-prompt'
+import { SectionLayout } from '@/components/section-layout'
+import { TutorAvailabilitySettings } from '@/components/tutor-availability-settings'
+import { TutorSubjectsSettings } from '@/components/tutor-subjects-settings'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -123,7 +130,27 @@ const ROLE_LABELS: Record<string, string> = {
   activator: 'Attivatore'
 }
 
+const SECTIONS = [
+  { value: 'account', label: 'Dati personali', icon: UserRound },
+  // Tutors only: what they teach and when.
+  { value: 'availability', label: 'Disponibilità', icon: CalendarClock },
+  { value: 'subjects', label: 'Materie', icon: BookOpen },
+  { value: 'notifications', label: 'Notifiche', icon: Bell },
+  { value: 'security', label: 'Password', icon: KeyRound }
+] as const
+
+const TUTOR_SECTIONS = ['availability', 'subjects']
+
 export default function ProfilePage() {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const tab = searchParams.get('tab')
+  // The push setup link (?attiva-notifiche=1) lands on the notifications.
+  const active = tab === 'security' || tab === 'notifications' || (tab && TUTOR_SECTIONS.includes(tab))
+    ? tab
+    : searchParams.has(SETUP_PARAM) ? 'notifications' : 'account'
+
   const { profile, isLoading, error, refresh } = useSession()
   const isAdmin = profile?.role === 'admin'
   const isLimited = !isAdmin
@@ -364,7 +391,7 @@ export default function ProfilePage() {
         }
       }
 
-      toast.success('Profilo aggiornato con successo.')
+      toast.success('Profilo aggiornato.')
       await refresh()
       window.location.reload()
     } catch (err) {
@@ -446,21 +473,31 @@ export default function ProfilePage() {
   const initials = `${profile?.firstName?.charAt(0) ?? ''}${profile?.lastName?.charAt(0) ?? ''}`.toUpperCase()
   const schoolClass = isLimited && !isLoadingSections ? classLabel(profile?.year, sectionName) : null
 
-  return (
-    <main className='flex-1'>
-      <div className='container mx-auto px-4 py-10'>
-        <div className='mx-auto max-w-3xl space-y-6'>
-          <div>
-            <BackButton href='/' />
-          </div>
+  const changeSection = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete(SETUP_PARAM)
+    if (value === 'account') params.delete('tab')
+    else params.set('tab', value)
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+  }
 
+  const hasNotifications = Boolean(profile?.id) && (profile?.role === 'student' || profile?.role === 'tutor' || profile?.role === 'admin')
+  const isTutor = profile?.role === 'tutor'
+  const menu = SECTIONS.filter(section =>
+    (section.value !== 'notifications' || hasNotifications) && (!TUTOR_SECTIONS.includes(section.value) || isTutor))
+  const shown = profile && !menu.some(section => section.value === active) ? 'account' : active
+
+  return (
+    <SectionLayout title='Profilo' backHref='/' sections={menu} value={shown} onValueChange={changeSection}>
+      <div className='space-y-6'>
           {isLoading ? (
             <Skeleton className='h-28' />
           ) : !profile ? (
-            <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>Nessun profilo disponibile.</p>
-          ) : (
+            <EmptyState>Nessun profilo disponibile.</EmptyState>
+          ) : shown === 'account' ? (
             <>
-              <div className='flex flex-wrap items-center gap-4 rounded-lg border bg-card p-4 sm:p-6'>
+              <div className='flex items-center gap-4 rounded-lg border bg-card p-4 sm:p-6'>
                 <div
                   className='flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-medium text-white'
                   style={{ backgroundImage: avatarGradient(profile.email) }}
@@ -468,12 +505,12 @@ export default function ProfilePage() {
                   {initials || '?'}
                 </div>
                 <div className='min-w-0 flex-1'>
-                  <h1 className='text-2xl'>{profile.firstName} {profile.lastName}</h1>
+                  <p className='text-xl font-medium break-words'>{profile.firstName} {profile.lastName}</p>
                   <p className='truncate text-sm text-muted-foreground'>
                     {[roleLabel, schoolClass, profile.email].filter(Boolean).join(' · ')}
                   </p>
+                  {profile.role === 'student' && <LessonHoursBadge tokens={profile.lessonTokens} className='mt-2 text-sm' />}
                 </div>
-                {profile.role === 'student' && <LessonHoursBadge tokens={profile.lessonTokens} className='text-sm' />}
               </div>
 
               <section className='space-y-4 rounded-lg border bg-card p-4 sm:p-6'>
@@ -481,7 +518,8 @@ export default function ProfilePage() {
                   <h2 className='text-lg font-semibold'>Dati personali</h2>
                   {isLimited && (
                     <p className='text-sm text-muted-foreground'>
-                      Se la classe o l&apos;email sono sbagliate scrivici a{' '}
+                      Per la tua sicurezza, alcuni dati non sono modificabili in autonomia. Se noti qualche errore,
+                      contattaci a{' '}
                       <a href='mailto:iepf@hensemberger.it' className='underline underline-offset-4'>iepf@hensemberger.it</a>.
                     </p>
                   )}
@@ -567,14 +605,19 @@ export default function ProfilePage() {
                       </Field>
                     )}
                   </div>
-                  <div className='flex justify-end'>
+                  <div className={cn('flex justify-end', STICKY_SECTION_FOOTER)}>
                     <Button type='submit' className='w-full sm:w-auto' disabled={isSubmitting || !canSave}>
                       {isSubmitting ? 'Salvataggio...' : 'Salva modifiche'}
                     </Button>
                   </div>
                 </form>
               </section>
-
+            </>
+          ) : shown === 'availability' ? (
+            <TutorAvailabilitySettings />
+          ) : shown === 'subjects' ? (
+            <TutorSubjectsSettings />
+          ) : shown === 'security' ? (
               <section className='flex flex-col gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6'>
                 <div className='space-y-1'>
                   <h2 className='text-lg font-semibold'>Password</h2>
@@ -593,13 +636,9 @@ export default function ProfilePage() {
                   {resetStatus === 'loading' ? 'Invio in corso...' : 'Cambia password'}
                 </Button>
               </section>
-
-              {profile.id && (profile.role === 'student' || profile.role === 'tutor' || profile.role === 'admin') && (
-                <NotificationSettings role={profile.role} userId={profile.id} />
-              )}
-            </>
+          ) : profile.id && (profile.role === 'student' || profile.role === 'tutor' || profile.role === 'admin') && (
+            <NotificationSettings role={profile.role} userId={profile.id} />
           )}
-        </div>
       </div>
 
       <AlertDialog open={showEmailAlert} onOpenChange={setShowEmailAlert}>
@@ -632,6 +671,6 @@ export default function ProfilePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </main>
+    </SectionLayout>
   )
 }

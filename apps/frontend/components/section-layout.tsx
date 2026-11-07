@@ -1,9 +1,10 @@
 'use client'
 
+import { StickyBar } from '@/components/sticky-bar'
 import * as React from 'react'
 import type { LucideIcon } from 'lucide-react'
 
-import { BackButton } from '@/components/back-button'
+import { PageHeader } from '@/components/page-header'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
@@ -20,13 +21,18 @@ export interface SectionItem {
 // header, while the back button and the title scroll away.
 export function SectionLayout({
   title,
+  description,
+  actions,
   backHref,
   sections,
   value,
   onValueChange,
   children
 }: {
-  title: string
+  title: React.ReactNode
+  // A line under the title, and buttons beside it (below it on a phone).
+  description?: React.ReactNode
+  actions?: React.ReactNode
   backHref: string
   sections: readonly SectionItem[]
   value: string
@@ -37,9 +43,8 @@ export function SectionLayout({
     <main className='flex-1'>
       <div className='container mx-auto px-4 pt-10 pb-16'>
         <div className='mx-auto w-full max-w-6xl'>
-          <BackButton href={backHref} />
-          <h1 className='mt-4 text-2xl'>{title}</h1>
-          <div className='sticky top-[var(--app-header-bottom)] z-30 -mx-4 mt-1 border-b bg-background/95 px-4 py-3 backdrop-blur lg:hidden'>
+          <PageHeader title={title} description={description} actions={actions} backHref={backHref} />
+          <StickyBar className='mt-1 lg:hidden'>
             <div>
               <Select value={value} onValueChange={onValueChange}>
                 <SelectTrigger className='w-full' aria-label='Sezione'>
@@ -52,10 +57,10 @@ export function SectionLayout({
                 </SelectContent>
               </Select>
             </div>
-          </div>
+          </StickyBar>
           <div className='mt-6 grid gap-8 lg:grid-cols-[200px_minmax(0,1fr)]'>
             <nav
-              aria-label={title}
+              aria-label='Sezioni'
               className='sticky top-[calc(var(--app-header-bottom)+1.5rem)] hidden max-h-[calc(100dvh-var(--app-header-bottom)-3rem)] flex-col gap-0.5 self-start overflow-y-auto lg:flex'
             >
               {sections.map((section) => {

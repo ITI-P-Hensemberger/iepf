@@ -2,6 +2,9 @@
 
 // The admin home: the way to every area, today's lessons at a glance and the bookings of
 // the coming days.
+import { HomeHeader } from '@/components/home-header'
+import { withFrom } from '@/lib/back-link'
+import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
 import { BookOpen, ChevronRight, GraduationCap, MessageSquare, Users } from 'lucide-react'
@@ -72,10 +75,11 @@ export default function AdminPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10'>
         <div className='mx-auto max-w-6xl space-y-8'>
-          <div>
-            <h1 className='text-2xl font-bold'>{!isProfileLoading && `Bentornatə, ${profile?.firstName}`}</h1>
-            <p className='text-muted-foreground'>Gestisci il progetto InsiemeÈ+Facile</p>
-          </div>
+          <HomeHeader
+            firstName={profile?.firstName}
+            loading={isProfileLoading}
+            subtitle='Gestisci il progetto InsiemeÈ+Facile.'
+          />
           <div className='empty:hidden'>
             <PushInviteCard
               userId={profile?.id}
@@ -102,7 +106,7 @@ export default function AdminPage() {
                 <Link href='/admin/lessons'>Apri la giornata <ChevronRight className='h-4 w-4' /></Link>
               </Button>
             </div>
-            <DayOverview lessons={todayShown} loading={loading} grouping='tutor' from='home' />
+            <DayOverview lessons={todayShown} loading={loading} grouping='tutor' />
           </section>
 
           <section className='space-y-3'>
@@ -110,12 +114,12 @@ export default function AdminPage() {
             {loading ? (
               <Skeleton className='h-24' />
             ) : booked.length === 0 ? (
-              <p className='rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground'>Nessuna prenotazione nei prossimi 7 giorni.</p>
+              <EmptyState>Nessuna prenotazione nei prossimi 7 giorni.</EmptyState>
             ) : (
               <ul className='divide-y rounded-lg border bg-card'>
                 {booked.map((lesson) => (
                   <li key={lesson.id}>
-                    <Link href={`/admin/lessons/${lesson.id}?from=home`} className='flex items-center gap-3 px-4 py-3 hover:bg-muted/50'>
+                    <Link href={withFrom(`/admin/lessons/${lesson.id}`, '/admin')} className='flex items-center gap-3 px-4 py-3 hover:bg-muted/50'>
                       <div className='min-w-0 flex-1'>
                         <div className='font-medium'>
                           {capitalize(dayFormat.format(new Date(lesson.startAt)))} · {timeFormat.format(new Date(lesson.startAt))} · {subjectLabel(lesson)}

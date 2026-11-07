@@ -1,5 +1,6 @@
 'use client'
 
+import { BlockSkeleton } from '@/components/loading'
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -10,7 +11,8 @@ import {
   MessageSquare,
   ShieldAlert,
   Sparkles,
-  UserCheck
+  UserCheck,
+  X
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -176,6 +178,15 @@ export function NotificationBell() {
     router.push(safeNotificationPath(item.url))
   }
 
+  // "Elimina": gone from the panel and counted as read; the server keeps it archived.
+  function removeItem(item: InboxItem) {
+    setItems(previous => previous.filter(other => other.id !== item.id))
+    if (!item.readAt) setUnread(count => Math.max(0, count - 1))
+    void fetch(`/api/notifications/inbox/${item.id}/archive`, { method: 'POST' })
+      .catch(() => undefined)
+      .finally(() => void refreshUnread())
+  }
+
   async function markAllRead() {
     markLocallyRead(null)
     setUnread(0)
@@ -206,16 +217,18 @@ export function NotificationBell() {
       >
         <div className='flex items-center justify-between gap-2 border-b px-4 py-3'>
           <h2 className='text-sm font-semibold'>Notifiche</h2>
-          {unread > 0 && (
-            <Button variant='ghost' size='sm' className='h-7 px-2 text-xs' onClick={() => void markAllRead()}>
-              Segna tutte come lette
-            </Button>
-          )}
+          <div className='flex items-center gap-1'>
+            {unread > 0 && (
+              <Button variant='ghost' size='sm' className='h-7 px-2 text-xs' onClick={() => void markAllRead()}>
+                Segna tutte come lette
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className='min-h-0 flex-1 overflow-y-auto'>
           {status === 'loading' && items.length === 0 ? (
-            <p className='px-4 py-8 text-center text-sm text-muted-foreground'>Caricamento...</p>
+            <div className='px-4 py-4'><BlockSkeleton lines={3} /></div>
           ) : status === 'error' && items.length === 0 ? (
             <p className='px-4 py-8 text-center text-sm text-muted-foreground'>Impossibile caricare le notifiche.</p>
           ) : items.length === 0 ? (
@@ -226,11 +239,11 @@ export function NotificationBell() {
                 const Icon = iconFor(item.category)
                 const isUnread = !item.readAt
                 return (
-                  <li key={item.id} className='border-b last:border-b-0'>
+                  <li key={item.id} className='group relative border-b last:border-b-0'>
                     <button
                       type='button'
                       onClick={() => openItem(item)}
-                      className='flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none'
+                      className='flex w-full items-start gap-3 py-3 pr-11 pl-4 text-left hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none'
                     >
                       <span
                         aria-hidden
@@ -250,6 +263,17 @@ export function NotificationBell() {
                         </span>
                       </span>
                     </button>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='icon'
+                      aria-label={`Elimina la notifica: ${item.title}`}
+                      title='Elimina'
+                      onClick={() => removeItem(item)}
+                      className='absolute top-2 right-2 size-7 text-muted-foreground hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100'
+                    >
+                      <X className='size-4' />
+                    </Button>
                   </li>
                 )
               })}

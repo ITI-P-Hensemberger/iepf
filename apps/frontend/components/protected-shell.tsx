@@ -1,5 +1,6 @@
 'use client'
 
+import { PageSkeleton } from '@/components/loading'
 import * as React from 'react'
 import { usePathname } from 'next/navigation'
 
@@ -21,9 +22,7 @@ export default function ProtectedShell({ children }: ProtectedShellProps) {
 
   if (isLoading || isSettingsLoading) {
     return (
-      <div className='container mx-auto px-4 py-10 text-sm text-muted-foreground'>
-        Caricamento...
-      </div>
+      <PageSkeleton />
     )
   }
 

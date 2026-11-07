@@ -1,5 +1,8 @@
 'use client'
 
+import { nextSort, SortableHead, type SortDir } from '@/components/sortable-head'
+import { ListPagination } from '@/components/list-pagination'
+import { TableSkeletonRows } from '@/components/loading'
 import * as React from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -8,20 +11,11 @@ import {
   getCoreRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { Search } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
-import { BackButton } from '@/components/back-button'
-import { Field, FieldLabel } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select'
+import { FilterForm } from '@/components/filter-form'
+import { PageHeader } from '@/components/page-header'
+import { useHere, useSetParam, withFrom } from '@/lib/back-link'
 import {
   Table,
   TableBody,
@@ -35,6 +29,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { classLabel } from '@/lib/class-label'
 
 const pageSize = 20
+
+const SORTABLE = ['lastName', 'firstName', 'year', 'lessonTokens'] as const
 
 type User = {
   id: string
@@ -60,6 +56,10 @@ type DataTableProps<TData> = {
   page: number
   pageSize: number
   total: number
+  // Columns whose header sorts the list, and the sort in use.
+  sortable?: readonly string[]
+  sort?: { sortBy: string, sortDir: SortDir }
+  onSort?: (key: string) => void
 }
 
 type PagedPayloadObject<T> = {
@@ -119,9 +119,13 @@ function DataTable<TData>({
   pageKey,
   page,
   pageSize,
-  total
+  total,
+  sortable,
+  sort,
+  onSort
 }: DataTableProps<TData>) {
   const router = useRouter()
+  const here = useHere()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const searchParamsString = searchParams.toString()
@@ -141,8 +145,6 @@ function DataTable<TData>({
     [pageKey, pathname, router, searchParamsString]
   )
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
-
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
@@ -154,7 +156,7 @@ function DataTable<TData>({
     <div className='space-y-4'>
       <div className='rounded-lg border'>
         <Table>
-          <TableHeader className='bg-muted/50'>
+          <TableHeader sticky className='bg-muted/50'>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
@@ -166,10 +168,20 @@ function DataTable<TData>({
                   >
                     {header.isPlaceholder
                       ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
+                      : sort && onSort && sortable?.includes(header.column.id)
+                        ? (
+                            <SortableHead
+                              label={flexRender(header.column.columnDef.header, header.getContext())}
+                              sortKey={header.column.id}
+                              sortBy={sort.sortBy}
+                              sortDir={sort.sortDir}
+                              onSort={onSort}
+                            />
+                          )
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
                   </TableHead>
                 ))}
               </TableRow>
@@ -177,14 +189,7 @@ function DataTable<TData>({
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow>
-                <TableCell
-                  className='text-muted-foreground'
-                  colSpan={columns.length}
-                >
-                  Caricamento...
-                </TableCell>
-              </TableRow>
+              <TableSkeletonRows columns={columns.length} />
             ) : table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
@@ -195,12 +200,12 @@ function DataTable<TData>({
                     ? (event) => {
                         // Buttons and links inside the row keep their own action.
                         if ((event.target as HTMLElement).closest('a, button, input, [role="checkbox"]')) return
-                        router.push(rowHref(row.original))
+                        router.push(withFrom(rowHref(row.original), here))
                       }
                     : undefined}
                   onKeyDown={rowHref
                     ? (event) => {
-                        if (event.key === 'Enter' && event.target === event.currentTarget) router.push(rowHref(row.original))
+                        if (event.key === 'Enter' && event.target === event.currentTarget) router.push(withFrom(rowHref(row.original), here))
                       }
                     : undefined}
                 >
@@ -234,29 +239,7 @@ function DataTable<TData>({
           </TableBody>
         </Table>
       </div>
-      <div className='flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between'>
-        <span>
-          Pagina {page} di {totalPages} · Totale {total}
-        </span>
-        <div className='flex items-center gap-2'>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={() => updatePage(page - 1)}
-            disabled={page <= 1 || isLoading}
-          >
-            Precedente
-          </Button>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={() => updatePage(page + 1)}
-            disabled={page >= totalPages || isLoading}
-          >
-            Successiva
-          </Button>
-        </div>
-      </div>
+      <ListPagination page={page} pageSize={pageSize} total={total} onPageChange={(next) => updatePage(next)} loading={isLoading} />
     </div>
   )
 }
@@ -277,6 +260,9 @@ export default function AdminStudentsPage() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const setParam = useSetParam()
+  // The open tab lives in the URL, so it is still open after a trip to a detail page and back.
+  const listTab = (['inactive'] as const).find((value) => value === searchParams.get('tab')) ?? 'active'
   const searchParamsString = searchParams.toString()
   const [activeStudents, setActiveStudents] = React.useState<User[]>([])
   const [inactiveStudents, setInactiveStudents] = React.useState<User[]>([])
@@ -403,28 +389,6 @@ export default function AdminStudentsPage() {
     [pathname, router, searchParamsString]
   )
 
-  const resetActiveFilters = React.useCallback(() => {
-    setActiveFilters(defaultFilters)
-    updateParams(
-      { searchKey: 'activeSearch', sortKey: 'activeSort', pageKey: 'activePage' },
-      defaultFilters,
-      1
-    )
-  }, [updateParams])
-
-  const resetInactiveFilters = React.useCallback(() => {
-    setInactiveFilters(defaultFilters)
-    updateParams(
-      {
-        searchKey: 'inactiveSearch',
-        sortKey: 'inactiveSort',
-        pageKey: 'inactivePage'
-      },
-      defaultFilters,
-      1
-    )
-  }, [updateParams])
-
   const loadStudents = React.useCallback(
     async (options: {
       isActive: boolean
@@ -436,8 +400,8 @@ export default function AdminStudentsPage() {
       const params = new URLSearchParams()
       params.set('role', 'student')
       params.set('isActive', String(isActive))
-      if (search) {
-        params.set('q', search)
+      if (search.trim()) {
+        params.set('q', search.trim())
       }
       params.set('sortBy', sort.sortBy)
       params.set('sortDir', sort.sortDir)
@@ -556,14 +520,9 @@ export default function AdminStudentsPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
         <div className='w-full max-w-6xl'>
-          <div className='mb-6 self-start'>
-            <BackButton href='/admin' />
-          </div>
-          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-            <h1 className='text-2xl'>Gestione studenti</h1>
-          </div>
+          <PageHeader title='Gestione studenti' backHref='/admin' />
           <div className='mt-8 space-y-6'>
-            <Tabs defaultValue='active'>
+            <Tabs value={listTab} onValueChange={(value) => setParam('tab', value === 'active' ? null : value)}>
               <TabsList>
                 <TabsTrigger value='active'>Attivi ({activeTotal})</TabsTrigger>
                 <TabsTrigger value='inactive'>
@@ -571,107 +530,29 @@ export default function AdminStudentsPage() {
                 </TabsTrigger>
               </TabsList>
               <TabsContent value='active' className='mt-6'>
-                <form
-                  className='rounded-lg border bg-card p-4 shadow-sm'
+                <FilterForm
+                  values={activeFilters}
+                  applied={currentActiveFilters}
                   onSubmit={(event) => {
                     event.preventDefault()
-                    updateParams(
-                      {
-                        searchKey: 'activeSearch',
-                        sortKey: 'activeSort',
-                        pageKey: 'activePage'
-                      },
-                      activeFilters,
-                      1
-                    )
+                    updateParams({ searchKey: 'activeSearch', sortKey: 'activeSort', pageKey: 'activePage' }, activeFilters, 1)
                   }}
-                >
-                  <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
-                    <Field className='gap-2 lg:col-span-2'>
-                      <FieldLabel htmlFor='active-student-search'>
-                        Cerca
-                      </FieldLabel>
-                      <div className='relative'>
-                        <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
-                        <Input
-                          id='active-student-search'
-                          type='search'
-                          placeholder='Nome, cognome o email'
-                          value={activeFilters.search}
-                          onChange={(event) =>
-                            setActiveFilters((prev) => ({
-                              ...prev,
-                              search: event.target.value
-                            }))
-                          }
-                          className='pl-9'
-                        />
-                      </div>
-                    </Field>
-                    <Field className='gap-2'>
-                      <FieldLabel>Ordina per</FieldLabel>
-                      <Select
-                        value={activeFilters.sortBy}
-                        onValueChange={(value) =>
-                          setActiveFilters((prev) => ({
-                            ...prev,
-                            sortBy: value
-                          }))
-                        }
-                      >
-                        <SelectTrigger className='w-full'>
-                          <SelectValue placeholder='Ordinamento' />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value='lastName'>Cognome</SelectItem>
-                          <SelectItem value='firstName'>Nome</SelectItem>
-                          <SelectItem value='year'>Classe</SelectItem>
-                          <SelectItem value='lessonTokens'>
-                            Ore di lezione rimanenti
-                          </SelectItem>
-                          <SelectItem value='createdAt'>Creazione</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field className='gap-2'>
-                      <FieldLabel>Direzione</FieldLabel>
-                      <Select
-                        value={activeFilters.sortDir}
-                        onValueChange={(value) =>
-                          setActiveFilters((prev) => ({
-                            ...prev,
-                            sortDir: value === 'desc' ? 'desc' : 'asc'
-                          }))
-                        }
-                      >
-                        <SelectTrigger className='w-full'>
-                          <SelectValue placeholder='Direzione' />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value='asc'>Crescente</SelectItem>
-                          <SelectItem value='desc'>Decrescente</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                  </div>
-                  <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between'>
-                    <div />
-                    <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
-                      <Button
-                        variant='outline'
-                        type='button'
-                        onClick={resetActiveFilters}
-                      >
-                        Reset filtri
-                      </Button>
-                      <Button type='submit'>
-                        Applica filtri
-                      </Button>
-                    </div>
-                  </div>
-                </form>
+                  search={{
+                    id: 'active-student-search',
+                    value: activeFilters.search,
+                    onChange: (value) => setActiveFilters((prev) => ({ ...prev, search: value })),
+                    placeholder: 'Nome, cognome o email'
+                  }}
+                />
                 <div className='mt-6'>
                   <DataTable
+                    sortable={SORTABLE}
+                    sort={{ sortBy: currentActiveFilters.sortBy, sortDir: currentActiveFilters.sortDir }}
+                    onSort={(key) => {
+                      const next = { ...activeFilters, ...nextSort(currentActiveFilters, key) }
+                      setActiveFilters(next)
+                      updateParams({ searchKey: 'activeSearch', sortKey: 'activeSort', pageKey: 'activePage' }, next, 1)
+                    }}
                     data={activeStudents}
                     columns={activeColumns}
                     rowHref={(row) => `/admin/students/${row.id}`}
@@ -685,107 +566,29 @@ export default function AdminStudentsPage() {
                 </div>
               </TabsContent>
               <TabsContent value='inactive' className='mt-6'>
-                <form
-                  className='rounded-lg border bg-card p-4 shadow-sm'
+                <FilterForm
+                  values={inactiveFilters}
+                  applied={currentInactiveFilters}
                   onSubmit={(event) => {
                     event.preventDefault()
-                    updateParams(
-                      {
-                        searchKey: 'inactiveSearch',
-                        sortKey: 'inactiveSort',
-                        pageKey: 'inactivePage'
-                      },
-                      inactiveFilters,
-                      1
-                    )
+                    updateParams({ searchKey: 'inactiveSearch', sortKey: 'inactiveSort', pageKey: 'inactivePage' }, inactiveFilters, 1)
                   }}
-                >
-                  <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
-                    <Field className='gap-2 lg:col-span-2'>
-                      <FieldLabel htmlFor='inactive-student-search'>
-                        Cerca
-                      </FieldLabel>
-                      <div className='relative'>
-                        <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
-                        <Input
-                          id='inactive-student-search'
-                          type='search'
-                          placeholder='Nome, cognome o email'
-                          value={inactiveFilters.search}
-                          onChange={(event) =>
-                            setInactiveFilters((prev) => ({
-                              ...prev,
-                              search: event.target.value
-                            }))
-                          }
-                          className='pl-9'
-                        />
-                      </div>
-                    </Field>
-                    <Field className='gap-2'>
-                      <FieldLabel>Ordina per</FieldLabel>
-                      <Select
-                        value={inactiveFilters.sortBy}
-                        onValueChange={(value) =>
-                          setInactiveFilters((prev) => ({
-                            ...prev,
-                            sortBy: value
-                          }))
-                        }
-                      >
-                        <SelectTrigger className='w-full'>
-                          <SelectValue placeholder='Ordinamento' />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value='lastName'>Cognome</SelectItem>
-                          <SelectItem value='firstName'>Nome</SelectItem>
-                          <SelectItem value='year'>Classe</SelectItem>
-                          <SelectItem value='lessonTokens'>
-                            Ore di lezione rimanenti
-                          </SelectItem>
-                          <SelectItem value='createdAt'>Creazione</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field className='gap-2'>
-                      <FieldLabel>Direzione</FieldLabel>
-                      <Select
-                        value={inactiveFilters.sortDir}
-                        onValueChange={(value) =>
-                          setInactiveFilters((prev) => ({
-                            ...prev,
-                            sortDir: value === 'desc' ? 'desc' : 'asc'
-                          }))
-                        }
-                      >
-                        <SelectTrigger className='w-full'>
-                          <SelectValue placeholder='Direzione' />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value='asc'>Crescente</SelectItem>
-                          <SelectItem value='desc'>Decrescente</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                  </div>
-                  <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between'>
-                    <div />
-                    <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
-                      <Button
-                        variant='outline'
-                        type='button'
-                        onClick={resetInactiveFilters}
-                      >
-                        Reset filtri
-                      </Button>
-                      <Button type='submit'>
-                        Applica filtri
-                      </Button>
-                    </div>
-                  </div>
-                </form>
+                  search={{
+                    id: 'inactive-student-search',
+                    value: inactiveFilters.search,
+                    onChange: (value) => setInactiveFilters((prev) => ({ ...prev, search: value })),
+                    placeholder: 'Nome, cognome o email'
+                  }}
+                />
                 <div className='mt-6'>
                   <DataTable
+                    sortable={SORTABLE}
+                    sort={{ sortBy: currentInactiveFilters.sortBy, sortDir: currentInactiveFilters.sortDir }}
+                    onSort={(key) => {
+                      const next = { ...inactiveFilters, ...nextSort(currentInactiveFilters, key) }
+                      setInactiveFilters(next)
+                      updateParams({ searchKey: 'inactiveSearch', sortKey: 'inactiveSort', pageKey: 'inactivePage' }, next, 1)
+                    }}
                     data={inactiveStudents}
                     columns={inactiveColumns}
                     rowHref={(row) => `/admin/students/${row.id}`}
