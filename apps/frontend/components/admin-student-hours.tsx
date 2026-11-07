@@ -1,5 +1,6 @@
 'use client'
 
+import { SegmentedTabs } from '@/components/segmented-tabs'
 import * as React from 'react'
 import { Minus, Plus } from 'lucide-react'
 import { toast } from 'sonner'
@@ -113,22 +114,15 @@ export function AdminStudentHours({
               ? <Skeleton className='mt-1 h-9 w-16' />
               : <p className='text-3xl font-semibold tabular-nums'>{balance ?? '-'}</p>}
           </div>
-          <div className='flex rounded-lg border p-0.5' role='tablist' aria-label='Operazione'>
-            {(['add', 'remove'] as const).map(key => (
-              <Button
-                key={key}
-                type='button'
-                role='tab'
-                aria-selected={direction === key}
-                size='sm'
-                variant={direction === key ? 'secondary' : 'ghost'}
-                onClick={() => setDirection(key)}
-              >
-                {key === 'add' ? <Plus className='size-4' /> : <Minus className='size-4' />}
-                {key === 'add' ? 'Aggiungi' : 'Togli'}
-              </Button>
-            ))}
-          </div>
+          <SegmentedTabs
+            label='Operazione'
+            value={direction}
+            onValueChange={(value) => setDirection(value as Direction)}
+            options={[
+              { value: 'add', label: <><Plus className='size-4' /> Aggiungi</> },
+              { value: 'remove', label: <><Minus className='size-4' /> Togli</> }
+            ]}
+          />
         </div>
 
         <form onSubmit={submit} className='mt-6 space-y-4'>

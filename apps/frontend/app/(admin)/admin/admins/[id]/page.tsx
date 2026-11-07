@@ -1,5 +1,6 @@
 'use client'
 
+import { BlockSkeleton } from '@/components/loading'
 import * as React from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -189,7 +190,7 @@ export default function AdminAdminDetailPage() {
         throw new Error(message)
       }
 
-      toast.success('Admin aggiornato con successo.')
+      toast.success('Admin aggiornato.')
       setAdmin((prev) =>
         prev
           ? {
@@ -268,7 +269,7 @@ export default function AdminAdminDetailPage() {
           <Card className='mt-6'>
             <CardContent className='pt-6'>
               {isLoading ? (
-                <p className='text-sm text-muted-foreground'>Caricamento...</p>
+                <BlockSkeleton />
               ) : !admin ? (
                 <p className='text-sm text-muted-foreground'>
                   Admin non trovato.

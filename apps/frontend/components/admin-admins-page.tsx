@@ -1,5 +1,7 @@
 'use client'
 
+import { ListPagination } from '@/components/list-pagination'
+import { TableSkeletonRows } from '@/components/loading'
 import * as React from 'react'
 
 import { PushInviteCard } from '@/components/push-prompt'
@@ -17,7 +19,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/page-header'
-import { useHere, withFrom } from '@/lib/back-link'
+import { useHere, useSetParam, withFrom } from '@/lib/back-link'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -262,7 +264,6 @@ function DataTable<TData>({
     [pageKey, pathname, router, searchParamsString]
   )
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
@@ -311,14 +312,7 @@ function DataTable<TData>({
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow>
-                <TableCell
-                  className='text-muted-foreground'
-                  colSpan={columns.length}
-                >
-                  Caricamento...
-                </TableCell>
-              </TableRow>
+              <TableSkeletonRows columns={columns.length} />
             ) : table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
@@ -361,29 +355,7 @@ function DataTable<TData>({
           </TableBody>
         </Table>
       </div>
-      <div className='flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between'>
-        <span>
-          Pagina {page} di {totalPages} · Totale {total}
-        </span>
-        <div className='flex items-center gap-2'>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={() => updatePage(page - 1)}
-            disabled={page <= 1 || isLoading}
-          >
-            Precedente
-          </Button>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={() => updatePage(page + 1)}
-            disabled={page >= totalPages || isLoading}
-          >
-            Successiva
-          </Button>
-        </div>
-      </div>
+      <ListPagination page={page} pageSize={pageSize} total={total} onPageChange={(next) => updatePage(next)} loading={isLoading} />
     </div>
   )
 }
@@ -391,6 +363,9 @@ function DataTable<TData>({
 export default function AdminAdminsPage() {
   const { profile } = useSession()
   const searchParams = useSearchParams()
+  const setParam = useSetParam()
+  // The open tab lives in the URL, so it is still open after a trip to a detail page and back.
+  const listTab = (['inactive', 'invites'] as const).find((value) => value === searchParams.get('tab')) ?? 'active'
   const [activeAdmins, setActiveAdmins] = React.useState<Admin[]>([])
   const [inactiveAdmins, setInactiveAdmins] = React.useState<Admin[]>([])
   const [pendingInvites, setPendingInvites] = React.useState<PendingInvite[]>(
@@ -641,7 +616,7 @@ export default function AdminAdminsPage() {
       if (successes.length === valid.length) {
         // All succeeded
         toast.success(
-          `${successes.length} ${successes.length === 1 ? 'invito inviato' : 'inviti inviati'} con successo.`
+          `${successes.length} ${successes.length === 1 ? 'invito inviato' : 'inviti inviati'}.`
         )
         setInviteEmails('')
         setShowInviteDialog(false)
@@ -656,7 +631,7 @@ export default function AdminAdminsPage() {
           .map(({ email, error }) => `• ${email}: ${error}`)
           .join('\n')
         toast.error(
-          `${successes.length} ${successes.length === 1 ? 'invito inviato' : 'inviti inviati'} con successo.\n${failures.length} ${failures.length === 1 ? 'fallito' : 'falliti'}:\n${failureList}`
+          `${successes.length} ${successes.length === 1 ? 'invito inviato' : 'inviti inviati'}.\n${failures.length} ${failures.length === 1 ? 'fallito' : 'falliti'}:\n${failureList}`
         )
         // Don't close dialog, let admin retry failed ones
       } else {
@@ -883,7 +858,7 @@ export default function AdminAdminsPage() {
             />
           </div>
           <div className='mt-8 space-y-6'>
-            <Tabs defaultValue='active'>
+            <Tabs value={listTab} onValueChange={(value) => setParam('tab', value === 'active' ? null : value)}>
               <TabsList>
                 <TabsTrigger value='active'>Attivi ({activeTotal})</TabsTrigger>
                 <TabsTrigger value='inactive'>

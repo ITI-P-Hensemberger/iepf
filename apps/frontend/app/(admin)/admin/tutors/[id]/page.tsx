@@ -1,5 +1,6 @@
 'use client'
 
+import { BlockSkeleton } from '@/components/loading'
 import * as React from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -550,7 +551,7 @@ export default function AdminTutorDetailPage() {
       }
 
       if (!options?.suppressToast) {
-        toast.success('Tutor aggiornato con successo.')
+        toast.success('Tutor aggiornato.')
       }
       setTutor((prev) =>
         prev
@@ -656,7 +657,7 @@ export default function AdminTutorDetailPage() {
     }
 
     if (showCombinedToast) {
-      toast.success('Tutor aggiornato con successo.')
+      toast.success('Tutor aggiornato.')
     }
   }
 
@@ -787,7 +788,7 @@ export default function AdminTutorDetailPage() {
 
       setAvailabilityWeekdays(normalizedWeekdays)
       availabilityForm.reset({ weekdays: normalizedWeekdays })
-      toast.success('Disponibilità aggiornata con successo.')
+      toast.success('Disponibilità aggiornata.')
     } catch (err) {
       toast.error(
         err instanceof Error
@@ -858,7 +859,7 @@ export default function AdminTutorDetailPage() {
           `Alcune operazioni non sono riuscite:\n${errors.join('\n')}`
         )
       } else {
-        toast.success('Materie aggiornate con successo.')
+        toast.success('Materie aggiornate.')
       }
     } catch {
       toast.error('Impossibile aggiornare le materie. Riprova.')
@@ -904,7 +905,7 @@ export default function AdminTutorDetailPage() {
         <Card>
           <CardContent className='pt-6'>
             {isLoading ? (
-              <p className='text-sm text-muted-foreground'>Caricamento...</p>
+              <BlockSkeleton />
             ) : !tutor ? (
               <p className='text-sm text-muted-foreground'>
                 Tutor non trovato.
@@ -1275,7 +1276,7 @@ export default function AdminTutorDetailPage() {
           </CardHeader>
           <CardContent>
             {availabilityLoading ? (
-              <p className='text-sm text-muted-foreground'>Caricamento...</p>
+              <BlockSkeleton />
             ) : (
               <form
                 id='admin-tutor-availability-form'
@@ -1329,7 +1330,7 @@ export default function AdminTutorDetailPage() {
           </CardHeader>
           <CardContent>
             {subjectsLoading ? (
-              <p className='text-sm text-muted-foreground'>Caricamento...</p>
+              <BlockSkeleton />
             ) : (
               <form
                 id='admin-tutor-subjects-form'

@@ -1,6 +1,7 @@
 'use client'
 
-import { useBackHref, useHere, withFrom } from '@/lib/back-link'
+import { SegmentedTabs } from '@/components/segmented-tabs'
+import { useHere, withFrom } from '@/lib/back-link'
 import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
@@ -60,7 +61,7 @@ import { dayKeyOf } from '@/lib/school-week'
 import { cn } from '@/lib/utils'
 import { type SubjectOption } from '@/lib/lesson-subject'
 import { extractPayloadArray } from '@/lib/backend-response'
-import { BackButton } from '@/components/back-button'
+import { PageHeader } from '@/components/page-header'
 import { capitalizeFirst } from '@/lib/capitalize'
 
 const AVAILABLE_TIMES = ['13:00', '14:00', '15:00', '16:00']
@@ -302,7 +303,6 @@ function extractErrorMessage(payload: unknown, fallback: string) {
 export default function AdminLessonDetailsPage() {
   const params = useParams()
   const here = useHere()
-  const cameFrom = useBackHref('')
   const lessonId = params?.id as string
 
   const [lesson, setLesson] = React.useState<Lesson | null>(null)
@@ -1127,21 +1127,26 @@ export default function AdminLessonDetailsPage() {
   const lessonCanceled = isCanceledStatus(lesson?.status)
   const presence = usePresenceConfirm()
 
+  // Without ?from=, back leads to the day of this lesson.
+  const backFallback = lesson ? `/admin/lessons?day=${dayKeyOf(new Date(lesson.startAt))}` : '/admin/lessons'
+
   return (
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10'>
-        <div className='mx-auto max-w-4xl space-y-6'>
-          <div>
-            {/* Back to the home when the admin came from there, else to the day of this lesson. */}
-            <BackButton href={cameFrom || (lesson ? `/admin/lessons?day=${dayKeyOf(new Date(lesson.startAt))}` : '/admin/lessons')} />
-          </div>
-
+        <div className='mx-auto max-w-6xl space-y-6'>
           {lessonLoading && !lesson ? (
-            <Skeleton className='h-40' />
+            <>
+              <PageHeader title='Lezione' backHref={backFallback} />
+              <Skeleton className='h-16' />
+            </>
           ) : !lesson ? (
-            <EmptyState>Lezione non disponibile.</EmptyState>
+            <>
+              <PageHeader title='Lezione' backHref={backFallback} />
+              <EmptyState>Lezione non disponibile.</EmptyState>
+            </>
           ) : (
             <LessonSummary
+              backHref={backFallback}
               subjectName={lesson.subjectId ? (subjectLoading ? '…' : subject?.name ?? null) : null}
               startAt={lesson.startAt}
               durationMinutes={lesson.durationMinutes}
@@ -1230,21 +1235,12 @@ export default function AdminLessonDetailsPage() {
           <section className='space-y-3'>
             <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
               <h2 className='text-lg font-semibold'>Studenti</h2>
-              <div className='flex rounded-lg border p-0.5' role='tablist'>
-                {([['confirmed', 'Confermate'], ['canceled', 'Annullate'], ['all', 'Tutte']] as const).map(([value, label]) => (
-                  <Button
-                    key={value}
-                    role='tab'
-                    aria-selected={bookingFilter === value}
-                    size='sm'
-                    variant={bookingFilter === value ? 'secondary' : 'ghost'}
-                    className='flex-1'
-                    onClick={() => setBookingFilter(value)}
-                  >
-                    {label}
-                  </Button>
-                ))}
-              </div>
+              <SegmentedTabs
+                label='Prenotazioni'
+                value={bookingFilter}
+                onValueChange={(value) => setBookingFilter(value as typeof bookingFilter)}
+                options={[{ value: 'confirmed', label: 'Confermate' }, { value: 'canceled', label: 'Annullate' }, { value: 'all', label: 'Tutte' }]}
+              />
             </div>
             {bookingsLoading ? (
               <Skeleton className='h-24' />

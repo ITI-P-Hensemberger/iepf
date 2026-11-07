@@ -1,5 +1,6 @@
 'use client'
 
+import { PageSkeleton } from '@/components/loading'
 import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 
@@ -58,9 +59,7 @@ export default function StudentGuard({ children }: StudentGuardProps) {
 
   if (isLoading || isSettingsLoading) {
     return (
-      <div className='container mx-auto px-4 py-10 text-sm text-muted-foreground'>
-        Caricamento...
-      </div>
+      <PageSkeleton />
     )
   }
 

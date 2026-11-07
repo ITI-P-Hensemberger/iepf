@@ -2,6 +2,7 @@
 
 // The tutor's home: today's lessons with presence, the bookings coming up, and the way to
 // the week and to availability and subjects.
+import { HomeHeader } from '@/components/home-header'
 import { withFrom } from '@/lib/back-link'
 import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
@@ -77,10 +78,11 @@ export default function TutorPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10'>
         <div className='mx-auto max-w-3xl space-y-8'>
-          <div>
-            <h1 className='text-2xl font-bold'>{!isProfileLoading && `Bentornatə, ${profile?.firstName}`}</h1>
-            <p className='text-muted-foreground'>Le tue lezioni di oggi e le prossime prenotazioni.</p>
-          </div>
+          <HomeHeader
+            firstName={profile?.firstName}
+            loading={isProfileLoading}
+            subtitle='Le tue lezioni di oggi e le prossime prenotazioni.'
+          />
           {justOnboarded && (
             <PushInviteCard
               userId={profile?.id}

@@ -2,6 +2,7 @@
 
 // "Le mie lezioni": what is coming, what took place (with feedback) and what was canceled,
 // grouped by day. The tab and the subject live in the URL.
+import { SegmentedTabs } from '@/components/segmented-tabs'
 import { StickyBar } from '@/components/sticky-bar'
 import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
@@ -123,21 +124,13 @@ export default function StudentLessonsPage() {
           />
 
           <StickyBar className='mt-6 flex flex-col gap-3 sm:flex-row sm:items-center'>
-            <div className='flex rounded-lg border bg-background p-0.5' role='tablist'>
-              {TABS.map((item) => (
-                <Button
-                  key={item.key}
-                  role='tab'
-                  aria-selected={tab === item.key}
-                  size='sm'
-                  variant={tab === item.key ? 'secondary' : 'ghost'}
-                  className='flex-1'
-                  onClick={() => setParam('tab', item.key === 'upcoming' ? '' : item.key)}
-                >
-                  {item.label}
-                </Button>
-              ))}
-            </div>
+            <SegmentedTabs
+              label='Lezioni'
+              stretch
+              value={tab}
+              onValueChange={(value) => setParam('tab', value === 'upcoming' ? '' : value)}
+              options={TABS.map((item) => ({ value: item.key, label: item.label }))}
+            />
             {subjects.length > 1 && (
               <div className='sm:ml-auto sm:w-56'>
                 <Select value={subjectId || 'all'} onValueChange={(value) => setParam('subject', value === 'all' ? '' : value)}>

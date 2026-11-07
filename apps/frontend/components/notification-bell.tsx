@@ -1,5 +1,6 @@
 'use client'
 
+import { BlockSkeleton } from '@/components/loading'
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -215,7 +216,7 @@ export function NotificationBell() {
 
         <div className='min-h-0 flex-1 overflow-y-auto'>
           {status === 'loading' && items.length === 0 ? (
-            <p className='px-4 py-8 text-center text-sm text-muted-foreground'>Caricamento...</p>
+            <div className='px-4 py-4'><BlockSkeleton lines={3} /></div>
           ) : status === 'error' && items.length === 0 ? (
             <p className='px-4 py-8 text-center text-sm text-muted-foreground'>Impossibile caricare le notifiche.</p>
           ) : items.length === 0 ? (

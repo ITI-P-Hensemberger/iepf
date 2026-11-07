@@ -1,5 +1,7 @@
 'use client'
 
+import { ListPagination } from '@/components/list-pagination'
+import { TableSkeletonRows } from '@/components/loading'
 import * as React from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CalendarIcon } from 'lucide-react'
@@ -19,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Label } from '@/components/ui/label'
+import { FilterForm } from '@/components/filter-form'
 import { PageHeader } from '@/components/page-header'
 import { useHere, withFrom } from '@/lib/back-link'
 import {
@@ -694,7 +697,6 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     }
   }, [createForm, loadLessons, router])
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
     <main className='flex-1'>
@@ -709,8 +711,10 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
             </>}
           />
 
-          <form
-            className='mt-6 rounded-lg border bg-card p-4 shadow-sm'
+          <FilterForm
+            className='mt-6'
+            values={filters}
+            applied={currentFilters}
             onSubmit={(event) => {
               event.preventDefault()
               handleApplyFilters()
@@ -863,13 +867,12 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
                 </Field>
               </div>
               <div className='flex flex-col gap-2 pt-2 sm:pt-0 sm:flex-row sm:items-end'>
-                <Button variant='outline' type='button' onClick={handleClearFilters}>
-                  Reset filtri
-                </Button>
-                <Button type='submit'>Applica filtri</Button>
+                <Button variant='ghost' size='sm' type='button' onClick={handleClearFilters}>
+                        Azzera filtri
+                      </Button>
               </div>
             </div>
-          </form>
+          </FilterForm>
 
           <div className='mt-6 rounded-lg border'>
             <Table>
@@ -886,11 +889,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className='text-muted-foreground'>
-                      Caricamento...
-                    </TableCell>
-                  </TableRow>
+                  <TableSkeletonRows columns={5} />
                 ) : lessons.length ? (
                   lessons.map((lesson) => {
                     const subject = lessonSubject(lesson.subjectId, subjectMap)
@@ -940,39 +939,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
             </Table>
           </div>
 
-          <div className='mt-4 flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between'>
-            <span>
-              Pagina {currentFilters.page} di {totalPages} · Totale {total}
-            </span>
-            <div className='flex items-center gap-2'>
-              <Button
-                variant='outline'
-                size='sm'
-                onClick={() =>
-                  updateParams(
-                    { page: currentFilters.page - 1 },
-                    appliedFilters
-                  )
-                }
-                disabled={currentFilters.page <= 1 || isLoading}
-              >
-                Precedente
-              </Button>
-              <Button
-                variant='outline'
-                size='sm'
-                onClick={() =>
-                  updateParams(
-                    { page: currentFilters.page + 1 },
-                    appliedFilters
-                  )
-                }
-                disabled={currentFilters.page >= totalPages || isLoading}
-              >
-                Successiva
-              </Button>
-            </div>
-          </div>
+          <ListPagination page={currentFilters.page} pageSize={pageSize} total={total} onPageChange={(next) => updateParams({ page: next }, appliedFilters)} loading={isLoading} className='mt-4' />
         </div>
       </div>
 

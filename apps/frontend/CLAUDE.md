@@ -100,9 +100,16 @@ New and changed pages must keep this:
 
 ### Page building blocks
 
-`PageHeader` (back, title, actions), `SectionLayout` (side menu / mobile dropdown sections),
-`StickyBar` (controls that stay under the header on a phone), `EmptyState`, `StatusBlock`
-(maintenance, 404, error, pending), `Switch` for settings that save at once.
+- `PageHeader` (back, title, actions); `HomeHeader` for the role homes.
+- `SectionLayout` (side menu / mobile dropdown sections).
+- Tabs: `components/ui/tabs` with content, `SegmentedTabs` for a switch without it. The open tab
+  of a list lives in `?tab=` (`useSetParam`).
+- Lists: `FilterForm` (filters apply as they change, no "Applica" button), `ListPagination`.
+- `StickyBar` (controls that stay under the header on a phone), `EmptyState`, `StatusBlock`
+  (maintenance, 404, error, pending), `Switch` for settings that save at once.
+- Loading: `PageSkeleton`, `BlockSkeleton`, `TableSkeletonRows` from `components/loading`; the word
+  "Caricamento..." only inside buttons or inline values.
+- Success toasts are short: "Profilo aggiornato.", not "… con successo".
 
 ### General
 

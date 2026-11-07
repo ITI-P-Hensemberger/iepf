@@ -238,7 +238,7 @@ function AvailabilityForm({
 
       setInitialWeekdays(normalizedWeekdays)
       form.reset({ weekdays: normalizedWeekdays })
-      toast.success('Disponibilità aggiornata con successo.')
+      toast.success('Disponibilità aggiornata.')
       setJustSaved(true)
     } catch (err) {
       toast.error(

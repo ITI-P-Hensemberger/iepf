@@ -149,7 +149,7 @@ export function TutorSubjectsSettings() {
           `Alcune operazioni non sono riuscite:\n${errors.join('\n')}`
         )
       } else {
-        toast.success('Materie aggiornate con successo.')
+        toast.success('Materie aggiornate.')
       }
     } catch {
       toast.error('Impossibile aggiornare le materie. Riprova.')

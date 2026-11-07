@@ -1,5 +1,8 @@
 'use client'
 
+import { ListPagination } from '@/components/list-pagination'
+import { TableSkeletonRows } from '@/components/loading'
+import { FilterForm } from '@/components/filter-form'
 import * as React from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -41,6 +44,7 @@ import {
 } from '@/components/ui/table'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useSetParam } from '@/lib/back-link'
 import { Checkbox } from './ui/checkbox'
 import { logout } from '@/lib/auth-client'
 import { classLabel } from '@/lib/class-label'
@@ -187,7 +191,6 @@ function DataTable<TData>({
     [pageKey, pathname, router, searchParamsString]
   )
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
@@ -241,14 +244,7 @@ function DataTable<TData>({
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow>
-                <TableCell
-                  className='text-muted-foreground'
-                  colSpan={columns.length}
-                >
-                  Caricamento...
-                </TableCell>
-              </TableRow>
+              <TableSkeletonRows columns={columns.length} />
             ) : table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id}>
@@ -275,31 +271,7 @@ function DataTable<TData>({
           </TableBody>
         </Table>
       </div>
-      <div className='flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between'>
-        <span>
-          Pagina {page} di {totalPages} · Totale {total} <br />
-          {table.getFilteredSelectedRowModel().rows.length} di{' '}
-          {table.getFilteredRowModel().rows.length} righe selezionate
-        </span>
-        <div className='flex items-center gap-2'>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={() => updatePage(page - 1)}
-            disabled={page <= 1 || isLoading}
-          >
-            Precedente
-          </Button>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={() => updatePage(page + 1)}
-            disabled={page >= totalPages || isLoading}
-          >
-            Successiva
-          </Button>
-        </div>
-      </div>
+      <ListPagination page={page} pageSize={pageSize} total={total} onPageChange={(next) => updatePage(next)} loading={isLoading} />
     </div>
   )
 }
@@ -320,6 +292,9 @@ export default function ActivatorStudentsPage() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const setParam = useSetParam()
+  // The open tab lives in the URL, so it is still open after a trip to a detail page and back.
+  const listTab = (['active'] as const).find((value) => value === searchParams.get('tab')) ?? 'inactive'
   const searchParamsString = searchParams.toString()
   const [activeStudents, setActiveStudents] = React.useState<User[]>([])
   const [inactiveStudents, setInactiveStudents] = React.useState<User[]>([])
@@ -711,7 +686,7 @@ export default function ActivatorStudentsPage() {
             </Button>
           </div>
           <div className='mt-8 space-y-6'>
-            <Tabs defaultValue='inactive'>
+            <Tabs value={listTab} onValueChange={(value) => setParam('tab', value === 'inactive' ? null : value)}>
               <TabsList>
                 <TabsTrigger value='inactive'>
                   Inattivi ({inactiveTotal})
@@ -719,8 +694,9 @@ export default function ActivatorStudentsPage() {
                 <TabsTrigger value='active'>Attivi ({activeTotal})</TabsTrigger>
               </TabsList>
               <TabsContent value='active' className='mt-6'>
-                <form
-                  className='rounded-lg border bg-card p-4 shadow-sm'
+                <FilterForm
+                  values={activeFilters}
+                  applied={currentActiveFilters}
                   onSubmit={(event) => {
                     event.preventDefault()
                     updateParams(
@@ -803,19 +779,12 @@ export default function ActivatorStudentsPage() {
                   <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between'>
                     <div />
                     <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
-                      <Button
-                        variant='outline'
-                        type='button'
-                        onClick={resetActiveFilters}
-                      >
-                        Reset filtri
-                      </Button>
-                      <Button type='submit'>
-                        Applica filtri
+                      <Button variant='ghost' size='sm' type='button' onClick={resetActiveFilters}>
+                        Azzera filtri
                       </Button>
                     </div>
                   </div>
-                </form>
+                </FilterForm>
                 <div className='mt-6'>
                   <DataTable
                     data={activeStudents}
@@ -833,8 +802,9 @@ export default function ActivatorStudentsPage() {
                 </div>
               </TabsContent>
               <TabsContent value='inactive' className='mt-6'>
-                <form
-                  className='rounded-lg border bg-card p-4 shadow-sm'
+                <FilterForm
+                  values={inactiveFilters}
+                  applied={currentInactiveFilters}
                   onSubmit={(event) => {
                     event.preventDefault()
                     updateParams(
@@ -917,19 +887,12 @@ export default function ActivatorStudentsPage() {
                   <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between'>
                     <div />
                     <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
-                      <Button
-                        variant='outline'
-                        type='button'
-                        onClick={resetInactiveFilters}
-                      >
-                        Reset filtri
-                      </Button>
-                      <Button type='submit'>
-                        Applica filtri
+                      <Button variant='ghost' size='sm' type='button' onClick={resetInactiveFilters}>
+                        Azzera filtri
                       </Button>
                     </div>
                   </div>
-                </form>
+                </FilterForm>
                 <div className='mt-6'>
                   <DataTable
                     data={inactiveStudents}

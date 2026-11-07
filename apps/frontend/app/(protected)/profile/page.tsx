@@ -380,7 +380,7 @@ export default function ProfilePage() {
         }
       }
 
-      toast.success('Profilo aggiornato con successo.')
+      toast.success('Profilo aggiornato.')
       await refresh()
       window.location.reload()
     } catch (err) {

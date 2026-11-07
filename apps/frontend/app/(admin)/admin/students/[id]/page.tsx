@@ -1,5 +1,6 @@
 'use client'
 
+import { BlockSkeleton } from '@/components/loading'
 import * as React from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -302,7 +303,7 @@ export default function AdminStudentDetailPage() {
         throw new Error(message)
       }
 
-      toast.success('Studente aggiornato con successo.')
+      toast.success('Studente aggiornato.')
       setStudent((prev) =>
         prev
           ? {
@@ -448,7 +449,7 @@ export default function AdminStudentDetailPage() {
         <Card>
           <CardContent className='pt-6'>
             {isLoading ? (
-              <p className='text-sm text-muted-foreground'>Caricamento...</p>
+              <BlockSkeleton />
             ) : !student ? (
               <p className='text-sm text-muted-foreground'>
                 Studente non trovato.

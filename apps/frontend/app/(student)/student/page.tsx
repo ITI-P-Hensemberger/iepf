@@ -2,6 +2,7 @@
 
 // The student's home: book a lesson, the next one at a glance, what is coming and what is
 // waiting for a feedback.
+import { HomeHeader } from '@/components/home-header'
 import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
@@ -71,13 +72,12 @@ export default function StudentPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10'>
         <div className='mx-auto max-w-3xl space-y-8'>
-          <div className='flex flex-wrap items-center justify-between gap-3'>
-            <div>
-              <h1 className='text-2xl font-bold'>{!isProfileLoading && `Bentornatə, ${profile?.firstName}`}</h1>
-              <p className='text-muted-foreground'>Questa è la tua area studente.</p>
-            </div>
-            {tokens !== null && <LessonHoursBadge tokens={tokens} className='text-sm' />}
-          </div>
+          <HomeHeader
+            firstName={profile?.firstName}
+            loading={isProfileLoading}
+            subtitle='Questa è la tua area studente.'
+            aside={tokens !== null && <LessonHoursBadge tokens={tokens} className='text-sm' />}
+          />
 
           {hasNoHoursLeft(tokens) ? (
             <NoHoursCard />

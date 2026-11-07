@@ -1,5 +1,6 @@
 // The top of a lesson's page for tutors and admins: what, when, with whom, how full, and the
 // actions that fit its state.
+import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
@@ -36,7 +37,8 @@ export function LessonSummary({
   seats,
   tutorName,
   note,
-  actions
+  actions,
+  backHref
 }: {
   subjectName: string | null
   startAt: string
@@ -47,30 +49,32 @@ export function LessonSummary({
   tutorName?: string
   note?: React.ReactNode
   actions?: React.ReactNode
+  // Where back leads when the page was not opened from another one (?from= wins).
+  backHref: string
 }) {
   const start = new Date(startAt)
   const end = new Date(start.getTime() + durationMinutes * 60_000)
   const state = lessonStateOf({ status, startAt, durationMinutes })
   return (
-    <div className='space-y-4 rounded-lg border bg-card p-4 sm:p-6'>
-      <div className='flex flex-wrap items-start justify-between gap-3'>
-        <div className='min-w-0 space-y-1'>
-          <div className='flex flex-wrap items-center gap-2'>
-            <h1 className='text-2xl'>{subjectName ?? 'Lezione'}</h1>
-            <Badge variant={STATE_BADGE[state].variant}>{STATE_BADGE[state].label}</Badge>
-          </div>
-          <p className='text-muted-foreground'>
-            {capitalize(dayFormat.format(start))}, {timeFormat.format(start)}–{timeFormat.format(end)}
-            {tutorName ? ` · ${tutorName}` : ''}
-          </p>
+    <div className='space-y-4'>
+      <PageHeader
+        title={(
+          <span className='flex flex-wrap items-center gap-2'>
+            {subjectName ?? 'Lezione'}
+            <Badge variant={STATE_BADGE[state].variant} className='text-xs'>{STATE_BADGE[state].label}</Badge>
+          </span>
+        )}
+        description={`${capitalize(dayFormat.format(start))}, ${timeFormat.format(start)}–${timeFormat.format(end)}${tutorName ? ` · ${tutorName}` : ''}`}
+        backHref={backHref}
+        actions={actions}
+      />
+      <div className='flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border bg-card px-4 py-3'>
+        <div className='flex items-baseline gap-2'>
+          <span className='text-2xl font-medium tabular-nums'>{booked}/{seats}</span>
+          <span className='text-sm text-muted-foreground'>studenti</span>
         </div>
-        <div className='text-right'>
-          <div className='text-2xl font-medium'>{booked}/{seats}</div>
-          <div className='text-xs text-muted-foreground'>studenti</div>
-        </div>
+        {note && <p className={cn('text-sm text-muted-foreground')}>{note}</p>}
       </div>
-      {note && <div className='text-sm text-muted-foreground'>{note}</div>}
-      {actions && <div className='flex flex-wrap gap-2'>{actions}</div>}
     </div>
   )
 }

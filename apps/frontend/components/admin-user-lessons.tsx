@@ -1,5 +1,6 @@
 'use client'
 
+import { SegmentedTabs } from '@/components/segmented-tabs'
 import * as React from 'react'
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
@@ -115,20 +116,12 @@ export function AdminUserLessons({ role, userId }: { role: 'tutor' | 'student', 
   return (
     <section className='space-y-4'>
       <div className='flex flex-wrap items-center justify-between gap-3'>
-        <div className='flex rounded-lg border p-0.5' role='tablist'>
-          {(['past', 'upcoming'] as const).map(key => (
-            <Button
-              key={key}
-              role='tab'
-              aria-selected={when === key}
-              size='sm'
-              variant={when === key ? 'secondary' : 'ghost'}
-              onClick={() => setWhen(key)}
-            >
-              {key === 'past' ? pastLabel : 'In programma'}
-            </Button>
-          ))}
-        </div>
+        <SegmentedTabs
+          label='Periodo'
+          value={when}
+          onValueChange={(value) => setWhen(value as When)}
+          options={[{ value: 'past', label: pastLabel }, { value: 'upcoming', label: 'In programma' }]}
+        />
         {!loading && !error && (
           <span className='text-sm text-muted-foreground'>
             {total} {total === 1 ? 'lezione' : 'lezioni'}

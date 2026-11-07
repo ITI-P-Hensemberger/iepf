@@ -1,5 +1,6 @@
 'use client'
 
+import { BlockSkeleton } from '@/components/loading'
 import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import { format } from 'date-fns'
@@ -637,7 +638,7 @@ export default function AdminAnnouncementsPage() {
           )}
 
           {isLoading ? (
-            <p className='text-sm text-muted-foreground'>Caricamento...</p>
+            <BlockSkeleton />
           ) : items.length === 0 ? (
             <EmptyState>Nessun popup.</EmptyState>
           ) : (

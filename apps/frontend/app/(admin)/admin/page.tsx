@@ -2,6 +2,7 @@
 
 // The admin home: the way to every area, today's lessons at a glance and the bookings of
 // the coming days.
+import { HomeHeader } from '@/components/home-header'
 import { withFrom } from '@/lib/back-link'
 import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
@@ -74,10 +75,11 @@ export default function AdminPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10'>
         <div className='mx-auto max-w-6xl space-y-8'>
-          <div>
-            <h1 className='text-2xl font-bold'>{!isProfileLoading && `Bentornatə, ${profile?.firstName}`}</h1>
-            <p className='text-muted-foreground'>Gestisci il progetto InsiemeÈ+Facile</p>
-          </div>
+          <HomeHeader
+            firstName={profile?.firstName}
+            loading={isProfileLoading}
+            subtitle='Gestisci il progetto InsiemeÈ+Facile.'
+          />
           <div className='empty:hidden'>
             <PushInviteCard
               userId={profile?.id}

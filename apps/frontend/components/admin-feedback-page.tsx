@@ -1,5 +1,7 @@
 'use client'
 
+import { ListPagination } from '@/components/list-pagination'
+import { TableSkeletonRows } from '@/components/loading'
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -17,6 +19,7 @@ import {
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { FilterForm } from '@/components/filter-form'
 import { PageHeader } from '@/components/page-header'
 import { useBackHref, useHere, withFrom } from '@/lib/back-link'
 import { Calendar } from '@/components/ui/calendar'
@@ -532,7 +535,6 @@ export default function AdminFeedbackPage() {
     return `${name || user.id}`
   }, [])
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   const handleOpenEdit = React.useCallback((item: Feedback) => {
     setEditTarget(item)
@@ -636,8 +638,9 @@ export default function AdminFeedbackPage() {
               <TabsTrigger value='tutor'>Tutor → Studenti</TabsTrigger>
             </TabsList>
             <TabsContent value='student' className='mt-6'>
-              <form
-                className='rounded-lg border bg-card p-4 shadow-sm'
+              <FilterForm
+                values={filters}
+                applied={currentFilters}
                 onSubmit={(event) => {
                   event.preventDefault()
                   updateParams(1, filters)
@@ -798,7 +801,8 @@ export default function AdminFeedbackPage() {
                   </div>
                   <div className='flex flex-col gap-2 pt-2 sm:pt-0 sm:flex-row sm:items-end'>
                     <Button
-                      variant='outline'
+                      variant='ghost'
+                      size='sm'
                       type='button'
                       onClick={() =>
                         updateParams(1, {
@@ -807,16 +811,16 @@ export default function AdminFeedbackPage() {
                         })
                       }
                     >
-                      Reset filtri
+                      Azzera filtri
                     </Button>
-                    <Button type='submit'>Applica filtri</Button>
                   </div>
                 </div>
-              </form>
+              </FilterForm>
             </TabsContent>
             <TabsContent value='tutor' className='mt-6'>
-              <form
-                className='rounded-lg border bg-card p-4 shadow-sm'
+              <FilterForm
+                values={filters}
+                applied={currentFilters}
                 onSubmit={(event) => {
                   event.preventDefault()
                   updateParams(1, filters)
@@ -977,7 +981,8 @@ export default function AdminFeedbackPage() {
                   </div>
                   <div className='flex flex-col gap-2 pt-2 sm:pt-0 sm:flex-row sm:items-end'>
                     <Button
-                      variant='outline'
+                      variant='ghost'
+                      size='sm'
                       type='button'
                       onClick={() =>
                         updateParams(1, {
@@ -986,12 +991,11 @@ export default function AdminFeedbackPage() {
                         })
                       }
                     >
-                      Reset filtri
+                      Azzera filtri
                     </Button>
-                    <Button type='submit'>Applica filtri</Button>
                   </div>
                 </div>
-              </form>
+              </FilterForm>
             </TabsContent>
           </Tabs>
           <label className='mt-4 flex items-center gap-2 text-sm text-muted-foreground'>
@@ -1010,11 +1014,7 @@ export default function AdminFeedbackPage() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className='text-muted-foreground'>
-                      Caricamento...
-                    </TableCell>
-                  </TableRow>
+                  <TableSkeletonRows columns={4} />
                 ) : feedback.length ? (
                   feedback.map((item) => {
                     const lessonInfo = lessonMap[item.lessonId]
@@ -1069,29 +1069,7 @@ export default function AdminFeedbackPage() {
             </Table>
           </div>
 
-          <div className='mt-4 flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between'>
-            <span>
-              Pagina {currentFilters.page} di {totalPages} · Totale {total}
-            </span>
-            <div className='flex items-center gap-2'>
-              <Button
-                variant='outline'
-                size='sm'
-                onClick={() => updateParams(currentFilters.page - 1, filters)}
-                disabled={currentFilters.page <= 1 || isLoading}
-              >
-                Precedente
-              </Button>
-              <Button
-                variant='outline'
-                size='sm'
-                onClick={() => updateParams(currentFilters.page + 1, filters)}
-                disabled={currentFilters.page >= totalPages || isLoading}
-              >
-                Successiva
-              </Button>
-            </div>
-          </div>
+          <ListPagination page={currentFilters.page} pageSize={pageSize} total={total} onPageChange={(next) => updateParams(next, filters)} loading={isLoading} className='mt-4' />
         </div>
       </div>
 
