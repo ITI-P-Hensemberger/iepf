@@ -55,13 +55,13 @@ export async function waitForPendingMail() {
 }
 
 async function deliverMail(payload: MailPayload) {
-  const info = await transport.sendMail({
+  const info = await retryTemporarySmtpErrors(async () => transport.sendMail({
     from: env.SMTP_FROM ?? 'no-reply@example.com',
     to: payload.to,
     subject: payload.subject,
     text: payload.text,
     html: payload.html
-  }).catch((error: unknown) => {
+  })).catch((error: unknown) => {
     throw redactSendError(error)
   })
 
@@ -77,6 +77,34 @@ async function deliverMail(payload: MailPayload) {
     if (preview) {
       // eslint-disable-next-line no-console
       console.log(`Email preview to ${payload.to}: ${preview}`)
+    }
+  }
+}
+
+// A 4xx reply means "not now": Office 365 answers 432 when the mailbox has too many connections
+// or messages in flight at once, which happens when a job and the backend send together.
+export function isTemporarySmtpError(error: unknown) {
+  const { responseCode } = (error ?? {}) as { responseCode?: number }
+  return typeof responseCode === 'number' && responseCode >= 400 && responseCode < 500
+}
+
+const RETRY_DELAYS_MS = [5_000, 20_000]
+
+export async function retryTemporarySmtpErrors<T>(
+  attempt: () => Promise<T>,
+  delays: readonly number[] = RETRY_DELAYS_MS,
+  wait: (ms: number) => Promise<void> = ms => new Promise(resolve => setTimeout(resolve, ms))
+) {
+  for (let tried = 0; ; tried++) {
+    try {
+      return await attempt()
+    }
+    catch (error) {
+      if (tried >= delays.length || !isTemporarySmtpError(error)) {
+        throw error
+      }
+      console.warn(`SMTP temporary failure (${(error as { responseCode: number }).responseCode}), retrying in ${delays[tried] / 1000}s`)
+      await wait(delays[tried])
     }
   }
 }
