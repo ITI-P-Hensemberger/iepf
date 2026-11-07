@@ -1,7 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { AlertTriangle, Download, ExternalLink, Hourglass } from 'lucide-react'
+import {
+  AlertTriangle,
+  Download,
+  ExternalLink,
+  Hourglass,
+  InfoIcon
+} from 'lucide-react'
 
 import { StatusBlock } from '@/components/status-block'
 import { Button } from '@/components/ui/button'
@@ -89,10 +95,22 @@ export default function StudentPendingPage() {
                   n={4}
                   title='Invia ricevuta e liberatoria firmata nel form'
                 >
-                  <p>
-                    Dopo l&apos;invio la segreteria attiva l&apos;account e
-                    potrai prenotare le lezioni.
-                  </p>
+                  <div>
+                    Dopo l&apos;invio la segreteria attiver&agrave;
+                    l&apos;account e potrai prenotare le lezioni.
+                    <div className='flex gap-2'>
+                      <InfoIcon
+                        className='mt-0.5 size-4 shrink-0'
+                        aria-hidden
+                      />
+                      <p>
+                        La segreteria attiva gli account una volta alla
+                        settimana: se dopo qualche giorno il tuo account non
+                        è ancora attivo, pazienta ancora un po&apos;. Grazie
+                        per la comprensione.
+                      </p>
+                    </div>
+                  </div>
                   <Button asChild size='sm'>
                     <Link href={ACTIVATION_FORM_URL} target='_blank'>
                       Apri il form di attivazione{' '}
