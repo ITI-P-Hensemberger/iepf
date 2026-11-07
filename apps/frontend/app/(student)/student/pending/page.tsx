@@ -54,6 +54,17 @@ export default function StudentPendingPage() {
               <p className='mt-1 text-sm text-muted-foreground'>
                 Se non l&apos;hai già fatto, completa questi quattro passaggi.
               </p>
+              <div className='mt-3 flex items-start gap-2 rounded-lg bg-muted p-3 text-sm'>
+                <InfoIcon className='mt-0.5 size-4 shrink-0' aria-hidden />
+                <p>
+                  Per aprire la liberatoria e il form di attivazione devi
+                  accedere con{' '}
+                  <span className='font-medium'>
+                    l&apos;account @hensemberger.it dello studente
+                  </span>
+                  .
+                </p>
+              </div>
               <ol className='mt-5 space-y-5'>
                 <Step n={1} title='Scarica la liberatoria e il regolamento'>
                   <p>La trovi anche nella circolare di inizio progetto.</p>
