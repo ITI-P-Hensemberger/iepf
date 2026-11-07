@@ -13,6 +13,8 @@ CI_SCRIPTS = 'infra/ci/'
 # Exactly the files that form the production bundle.
 DEPLOY_FILES = {'infra/deploy/compose.yaml', 'infra/deploy/apply.sh', 'infra/deploy/job.sh', 'infra/deploy/backup.sh', 'infra/deploy/alert.sh', 'infra/deploy/install-timers.sh'}
 DEPLOY_DIRS = ('infra/deploy/systemd/',)
+# Generated from the backend routes: the backend checks regenerate and compare it.
+API_TYPES = 'apps/frontend/lib/api/schema.ts'
 OUTPUTS = [f'{name}_{kind}' for name in (*APPS, 'infra') for kind in ('checks', 'release')]
 
 
@@ -33,6 +35,8 @@ def classify(paths):
             if path in DEPLOY_FILES or path.startswith(DEPLOY_DIRS):
                 result['infra_release'] = True
         else:
+            if path == API_TYPES:
+                result['backend_checks'] = True
             for app in APPS:
                 if path.startswith(f'apps/{app}/'):
                     result[f'{app}_checks'] = True

@@ -75,7 +75,7 @@ type Lesson = {
   startAt: string
   durationMinutes: number
   lessonCapacity: number
-  dailyAvailability?: number | null
+  dailyCapacity?: number | null
   dailyOccupancy?: number | null
   availableSeats: number
   countsForTutor?: boolean | null
@@ -253,7 +253,7 @@ function lessonDailySeatsLabel(lesson?: Lesson | null) {
     return '-'
   }
   const occupancy = parseNumeric(lesson.dailyOccupancy)
-  const availability = parseNumeric(lesson.dailyAvailability)
+  const availability = parseNumeric(lesson.dailyCapacity)
   if (occupancy === null || availability === null) {
     return '-'
   }

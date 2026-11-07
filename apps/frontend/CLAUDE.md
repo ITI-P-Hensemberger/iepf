@@ -76,6 +76,7 @@ const form = useForm<FormValues>({
 - Backend URL configured via `API_BASE_URL` environment variable
 - Response utilities in `lib/backend-response.ts` handle the `{ success, data }` envelope
 - **API documentation available at http://localhost:9999/doc** (consult for endpoint contracts)
+- Response types come from `lib/api/schema.ts`, generated from the backend OpenAPI document: use `ApiResponse<'/path'>` from `lib/api` instead of guessing the shape. After changing a backend route run `pnpm --filter iepf-backend run api:types` and commit the result; CI fails when the file is stale.
 
 ### UI Components
 
