@@ -15,7 +15,8 @@ export function LessonViewSwitch({ views, current }: { views: Array<{ key: strin
           key={view.key}
           asChild
           size='sm'
-          variant={view.key === current ? 'secondary' : 'ghost'}
+          variant='ghost'
+          className={view.key === current ? 'bg-primary/15 text-[var(--primary-text)] hover:bg-primary/20 hover:text-[var(--primary-text)]' : 'text-muted-foreground'}
           aria-pressed={view.key === current}
         >
           <Link href={index === 0 ? pathname : `${pathname}?view=${view.key}`} scroll={false}>

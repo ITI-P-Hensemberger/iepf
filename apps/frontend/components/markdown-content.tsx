@@ -25,7 +25,7 @@ function renderInline(nodes: InlineNode[]): React.ReactNode[] {
           <a
             key={index}
             href={node.href}
-            className='font-medium text-primary underline underline-offset-4 break-words'
+            className='font-medium text-[var(--primary-text)] underline underline-offset-4 break-words'
             {...(isExternalHref(node.href) ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
           >
             {renderInline(node.children)}
