@@ -2,8 +2,6 @@
 
 // One school day at a glance: every tutor's lessons (or every subject's), what is booked, what
 // is still open, and a click away from each lesson's details.
-import { StickyBar } from '@/components/sticky-bar'
-import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -29,6 +27,9 @@ import {
 } from '@/lib/lesson-schedule'
 import { addDaysToKey, dateOfKey, dayKeyOf, dayRange } from '@/lib/school-week'
 import { cn } from '@/lib/utils'
+import { useHere, withFrom } from '@/lib/back-link'
+import { StickyBar } from '@/components/sticky-bar'
+import { EmptyState } from '@/components/empty-state'
 
 const timeFormat = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' })
 const dayFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -125,7 +126,7 @@ export default function AdminDayPage() {
 // The figures and the lessons of one day, grouped by tutor or by subject: the day view and
 // the admin home both show it.
 // from: the page the lesson's details should lead back to, when it is not the day view.
-export function DayOverview({ lessons, loading, grouping, from }: { lessons: ScheduleLesson[], loading: boolean, grouping: Grouping, from?: 'home' }) {
+export function DayOverview({ lessons, loading, grouping }: { lessons: ScheduleLesson[], loading: boolean, grouping: Grouping }) {
   const summary = daySummary(lessons)
   const groups = grouping === 'tutor'
     ? [...groupBy(lessons, (lesson) => lesson.tutorId).values()]
@@ -153,7 +154,7 @@ export function DayOverview({ lessons, loading, grouping, from }: { lessons: Sch
       ) : (
         <div className='divide-y rounded-lg border bg-card'>
           {groups.map((group) => (
-            <GroupRow key={grouping === 'tutor' ? group[0].tutorId : subjectLabel(group[0])} lessons={group} grouping={grouping} from={from} />
+            <GroupRow key={grouping === 'tutor' ? group[0].tutorId : subjectLabel(group[0])} lessons={group} grouping={grouping} />
           ))}
         </div>
       )}
@@ -170,7 +171,7 @@ function Figure({ label, value }: { label: string, value: number }) {
   )
 }
 
-function GroupRow({ lessons, grouping, from }: { lessons: ScheduleLesson[], grouping: Grouping, from?: 'home' }) {
+function GroupRow({ lessons, grouping }: { lessons: ScheduleLesson[], grouping: Grouping }) {
   const first = lessons[0]
   const booked = lessons.filter((lesson) => !isCanceled(lesson)).reduce((sum, lesson) => sum + lesson.bookings.length, 0)
   return (
@@ -192,20 +193,21 @@ function GroupRow({ lessons, grouping, from }: { lessons: ScheduleLesson[], grou
       </div>
       {/* The lessons share the whole row equally, wrapping when they get too narrow. */}
       <div className='flex min-w-0 flex-1 flex-wrap gap-2'>
-        {lessons.map((lesson) => <LessonChip key={lesson.id} lesson={lesson} grouping={grouping} from={from} />)}
+        {lessons.map((lesson) => <LessonChip key={lesson.id} lesson={lesson} grouping={grouping} />)}
       </div>
     </div>
   )
 }
 
-function LessonChip({ lesson, grouping, from }: { lesson: ScheduleLesson, grouping: Grouping, from?: 'home' }) {
+function LessonChip({ lesson, grouping }: { lesson: ScheduleLesson, grouping: Grouping }) {
+  const here = useHere()
   const canceled = isCanceled(lesson)
   const count = lesson.bookings.length
   const open = !lesson.subjectId
   const students = lesson.bookings.map((booking) => `${booking.studentName}: ${booking.topic}`).join('\n')
   return (
     <Link
-      href={`/admin/lessons/${lesson.id}${from ? `?from=${from}` : ''}`}
+      href={withFrom(`/admin/lessons/${lesson.id}`, here)}
       title={students || undefined}
       className={cn(
         'flex min-w-36 flex-1 basis-0 flex-col gap-0.5 rounded-md border px-3 py-2 text-sm transition-colors hover:border-primary',

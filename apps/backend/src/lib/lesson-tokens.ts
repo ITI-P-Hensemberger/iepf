@@ -8,6 +8,15 @@ import { users } from '@/db/schemas/users.schema'
 export type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 export type DbExecutor = typeof db | DbTransaction
 
+// Reasons written by the system; any other reason is an admin's manual change.
+export const AUTOMATIC_TOKEN_REASONS = [
+  'initial_grant',
+  'lesson_booking',
+  'lesson_cancel_student',
+  'lesson_cancel_admin',
+  'lesson_counts_adjusted'
+] as const
+
 const balanceExpression = sql<number>`coalesce(sum(${tokenLedger.delta}), 0)`
 
 export async function getStudentTokenBalance(studentId: string, executor: DbExecutor = db): Promise<number> {

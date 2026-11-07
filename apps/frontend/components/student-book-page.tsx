@@ -339,6 +339,7 @@ export default function StudentBookPage() {
             title='Prenota lezione'
             backHref={booked || !subjectId ? '/student' : weekOffset ? `${pathname}?week=next` : pathname}
             backLabel={booked || !subjectId ? 'Indietro' : 'Materie'}
+            followFrom={false}
             actions={tokens !== null && <div><LessonHoursBadge tokens={tokens} className='text-sm' /></div>}
           />
 

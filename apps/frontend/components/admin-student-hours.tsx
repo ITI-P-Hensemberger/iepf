@@ -1,0 +1,250 @@
+'use client'
+
+import * as React from 'react'
+import { Minus, Plus } from 'lucide-react'
+import { toast } from 'sonner'
+
+import { EmptyState } from '@/components/empty-state'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
+import { capitalizeFirst } from '@/lib/capitalize'
+import { formatItalianDate } from '@/lib/format-date'
+import { cn } from '@/lib/utils'
+
+type Direction = 'add' | 'remove'
+
+type HistoryItem = {
+  id: string
+  delta: number
+  reason: string
+  createdAt: string
+  adminName: string | null
+}
+
+const REASONS: Record<Direction, string[]> = {
+  add: ['Recupero lezione', 'Ore aggiuntive pagate', 'Correzione'],
+  remove: ['Correzione', 'Lezione svolta fuori piattaforma']
+}
+
+function hoursLabel(n: number) {
+  return `${n} ${n === 1 ? 'ora' : 'ore'}`
+}
+
+// The "Ore di lezione" section of a student in the admin area: the balance, a form to add or
+// remove hours by hand with a preview of the result, and every manual change made so far.
+export function AdminStudentHours({
+  studentId,
+  onBalanceChange
+}: {
+  studentId: string
+  onBalanceChange?: (balance: number) => void
+}) {
+  const [balance, setBalance] = React.useState<number | null>(null)
+  const [history, setHistory] = React.useState<HistoryItem[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [direction, setDirection] = React.useState<Direction>('add')
+  const [amount, setAmount] = React.useState(1)
+  const [reason, setReason] = React.useState('')
+  const [saving, setSaving] = React.useState(false)
+
+  const load = React.useCallback(async () => {
+    try {
+      const response = await fetch(`/api/users/${studentId}/tokens/history`)
+      if (!response.ok) throw new Error()
+      const payload = (await response.json()) as { lessonTokens: number, items: HistoryItem[] }
+      setBalance(payload.lessonTokens)
+      setHistory(payload.items)
+    } catch {
+      toast.error('Impossibile caricare lo storico delle ore.')
+    } finally {
+      setLoading(false)
+    }
+  }, [studentId])
+
+  React.useEffect(() => {
+    void load()
+  }, [load])
+
+  const delta = direction === 'add' ? amount : -amount
+  // The balance never goes below zero: the backend applies only what is there.
+  const after = balance === null ? null : Math.max(0, balance + delta)
+  const valid = Number.isInteger(amount) && amount > 0 && reason.trim().length > 0
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault()
+    if (!valid) {
+      toast.error(reason.trim() ? 'Inserisci un numero di ore valido.' : 'Inserisci una motivazione.')
+      return
+    }
+    setSaving(true)
+    try {
+      const response = await fetch(`/api/users/${studentId}/tokens/adjust`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delta, reason: reason.trim() })
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { message?: string } | null
+        throw new Error(payload?.message ?? 'Impossibile aggiornare le ore di lezione.')
+      }
+      const payload = (await response.json()) as { lessonTokens?: number | null }
+      const next = payload.lessonTokens ?? 0
+      setBalance(next)
+      onBalanceChange?.(next)
+      setAmount(1)
+      setReason('')
+      toast.success(direction === 'add' ? `${capitalizeFirst(hoursLabel(amount))} aggiunte.` : `${capitalizeFirst(hoursLabel(amount))} tolte.`)
+      void load()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Impossibile aggiornare le ore di lezione.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className='space-y-6'>
+      <section className='rounded-lg border bg-card p-4 sm:p-6'>
+        <div className='flex flex-wrap items-end justify-between gap-4'>
+          <div>
+            <p className='text-sm text-muted-foreground'>Ore disponibili</p>
+            {loading && balance === null
+              ? <Skeleton className='mt-1 h-9 w-16' />
+              : <p className='text-3xl font-semibold tabular-nums'>{balance ?? '-'}</p>}
+          </div>
+          <div className='flex rounded-lg border p-0.5' role='tablist' aria-label='Operazione'>
+            {(['add', 'remove'] as const).map(key => (
+              <Button
+                key={key}
+                type='button'
+                role='tab'
+                aria-selected={direction === key}
+                size='sm'
+                variant={direction === key ? 'secondary' : 'ghost'}
+                onClick={() => setDirection(key)}
+              >
+                {key === 'add' ? <Plus className='size-4' /> : <Minus className='size-4' />}
+                {key === 'add' ? 'Aggiungi' : 'Togli'}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <form onSubmit={submit} className='mt-6 space-y-4'>
+          <div className='grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]'>
+            <div className='space-y-2'>
+              <label htmlFor='hours-amount' className='text-sm font-medium'>Ore</label>
+              <div className='flex items-center gap-1'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='icon'
+                  aria-label='Una in meno'
+                  disabled={amount <= 1 || saving}
+                  onClick={() => setAmount(value => Math.max(1, value - 1))}
+                >
+                  <Minus className='size-4' />
+                </Button>
+                <Input
+                  id='hours-amount'
+                  type='number'
+                  min={1}
+                  step={1}
+                  inputMode='numeric'
+                  className='w-16 text-center tabular-nums'
+                  value={Number.isNaN(amount) ? '' : amount}
+                  onChange={event => setAmount(Number.parseInt(event.target.value, 10))}
+                  disabled={saving}
+                />
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='icon'
+                  aria-label='Una in più'
+                  disabled={saving}
+                  onClick={() => setAmount(value => (Number.isNaN(value) ? 1 : value + 1))}
+                >
+                  <Plus className='size-4' />
+                </Button>
+              </div>
+            </div>
+            <div className='space-y-2'>
+              <label htmlFor='hours-reason' className='text-sm font-medium'>Motivazione</label>
+              <Input
+                id='hours-reason'
+                value={reason}
+                maxLength={200}
+                onChange={event => setReason(capitalizeFirst(event.target.value))}
+                placeholder='Es. recupero della lezione del 12 marzo'
+                disabled={saving}
+              />
+              <div className='flex flex-wrap gap-1.5'>
+                {REASONS[direction].map(suggestion => (
+                  <button
+                    key={suggestion}
+                    type='button'
+                    className='rounded-full border px-2.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+                    onClick={() => setReason(suggestion)}
+                    disabled={saving}
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className='flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between'>
+            <p className='text-sm text-muted-foreground'>
+              {balance !== null && after !== null && Number.isInteger(amount) && amount > 0 ? (
+                <>
+                  Dopo: <span className='font-medium text-foreground tabular-nums'>{balance} → {after}</span>
+                  {direction === 'remove' && balance + delta < 0 && ' (non si scende sotto zero)'}
+                </>
+              ) : 'Scegli quante ore e perché.'}
+            </p>
+            <Button type='submit' disabled={saving || !valid} className='w-full sm:w-auto'>
+              {saving
+                ? 'Aggiornamento...'
+                : `${direction === 'add' ? 'Aggiungi' : 'Togli'} ${Number.isInteger(amount) && amount > 0 ? hoursLabel(amount) : 'ore'}`}
+            </Button>
+          </div>
+        </form>
+      </section>
+
+      <section className='space-y-3'>
+        <h2 className='text-lg font-semibold'>Modifiche manuali</h2>
+        {loading ? (
+          <div className='space-y-2'>
+            <Skeleton className='h-14' />
+            <Skeleton className='h-14' />
+          </div>
+        ) : history.length === 0 ? (
+          <EmptyState>Nessuna modifica manuale: le ore sono cambiate solo con prenotazioni e annullamenti.</EmptyState>
+        ) : (
+          <ul className='divide-y rounded-lg border bg-card'>
+            {history.map(item => (
+              <li key={item.id} className='flex items-start gap-3 px-4 py-3'>
+                <span
+                  className={cn(
+                    'w-12 shrink-0 text-right font-semibold tabular-nums',
+                    item.delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'
+                  )}
+                >
+                  {item.delta > 0 ? `+${item.delta}` : `−${Math.abs(item.delta)}`}
+                </span>
+                <div className='min-w-0 flex-1'>
+                  <p className='break-words'>{item.reason}</p>
+                  <p className='text-sm text-muted-foreground'>
+                    {[formatItalianDate(item.createdAt), item.adminName].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  )
+}

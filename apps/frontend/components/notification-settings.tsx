@@ -23,32 +23,93 @@ import {
 import { type PushSetupState, pushSetupState } from '@/lib/push-platform'
 import { setOptedOut } from '@/lib/push-prompt'
 
-const USER_LABELS: Array<{ key: UserCategory, label: string, description: string, tutorDescription?: string }> = [
-  { key: 'bookings', label: 'Prenotazioni', description: 'Conferme, annullamenti e spostamenti delle lezioni.' },
-  { key: 'reminders', label: 'Promemoria', description: 'Le lezioni del giorno e del giorno dopo.' },
-  { key: 'feedback', label: 'Feedback', description: 'Lezioni concluse che aspettano il tuo feedback.' },
-  { key: 'account', label: 'Account', description: 'Attivazione o disattivazione del tuo account.' },
+const USER_LABELS: Array<{
+  key: UserCategory
+  label: string
+  description: string
+  tutorDescription?: string
+}> = [
+  {
+    key: 'bookings',
+    label: 'Prenotazioni',
+    description: 'Conferme, annullamenti e spostamenti delle lezioni.'
+  },
+  {
+    key: 'reminders',
+    label: 'Promemoria',
+    description: 'Le lezioni del giorno e del giorno dopo.'
+  },
+  {
+    key: 'feedback',
+    label: 'Feedback',
+    description: 'Lezioni concluse che aspettano il tuo feedback.'
+  },
+  {
+    key: 'account',
+    label: 'Account',
+    description: 'Attivazione o disattivazione del tuo account.'
+  },
   {
     key: 'lessons',
     label: 'Nuove lezioni',
     description: 'Nuove lezioni disponibili da prenotare.',
-    tutorDescription: 'Lezioni assegnate a te dalla scuola o dal calendario settimanale.'
+    tutorDescription: 'Lezioni assegnate a te automaticamente o dai gestori.'
   }
 ]
 
-const ADMIN_LABELS: Array<{ key: AdminCategory, label: string, description: string }> = [
-  { key: 'adminLowFeedback', label: 'Feedback bassi', description: 'Voto 2 o meno, dato da uno studente o da un tutor.' },
-  { key: 'adminLateCancellations', label: 'Annullamenti dell\'ultimo momento', description: 'Uno studente annulla una lezione il giorno stesso.' },
-  { key: 'adminAbsences', label: 'Assenze', description: 'Ogni volta che uno studente viene segnato assente.' },
-  { key: 'adminEmptyWeek', label: 'Settimana senza lezioni', description: 'La generazione del sabato non crea lezioni per una settimana con giorni di scuola.' },
-  { key: 'adminPendingAdmins', label: 'Admin in attesa', description: 'Ogni mattina, se qualcuno ha accettato l\'invito e aspetta l\'attivazione.' },
-  { key: 'adminSubjectRequests', label: 'Richieste di materie', description: 'Ogni mattina, le richieste delle ultime 24 ore.' }
+const ADMIN_LABELS: Array<{
+  key: AdminCategory
+  label: string
+  description: string
+}> = [
+  {
+    key: 'adminLowFeedback',
+    label: 'Feedback bassi',
+    description: 'Voto 2 o meno, dato da uno studente o da un tutor.'
+  },
+  {
+    key: 'adminLateCancellations',
+    label: "Annullamenti dell'ultimo momento",
+    description: 'Uno studente annulla una lezione il giorno stesso.'
+  },
+  {
+    key: 'adminAbsences',
+    label: 'Assenze',
+    description: 'Ogni volta che uno studente viene segnato assente.'
+  },
+  {
+    key: 'adminEmptyWeek',
+    label: 'Settimana senza lezioni',
+    description:
+      'La generazione del sabato non crea lezioni per una settimana con giorni di scuola.'
+  },
+  {
+    key: 'adminPendingAdmins',
+    label: 'Admin in attesa',
+    description:
+      "Ogni mattina, se qualcuno ha accettato l'invito e aspetta l'attivazione."
+  },
+  {
+    key: 'adminSubjectRequests',
+    label: 'Richieste di materie',
+    description: 'Ogni mattina, le richieste delle ultime 24 ore.'
+  }
 ]
 
-export function NotificationSettings({ role, userId }: { role: 'student' | 'tutor' | 'admin', userId: string }) {
-  const [device, setDevice] = React.useState<PushSetupState | 'done' | 'loading'>('loading')
+export function NotificationSettings({
+  role,
+  userId
+}: {
+  role: 'student' | 'tutor' | 'admin'
+  userId: string
+}) {
+  const [device, setDevice] = React.useState<
+    PushSetupState | 'done' | 'loading'
+  >('loading')
   const [deviceCount, setDeviceCount] = React.useState<number | null>(null)
-  const [preferences, setPreferences] = React.useState<PushPreferences | null>(null)
+  const [preferences, setPreferences] = React.useState<PushPreferences | null>(
+    null
+  )
   const [busy, setBusy] = React.useState(false)
 
   const evaluate = React.useCallback(async () => {
@@ -67,9 +128,11 @@ export function NotificationSettings({ role, userId }: { role: 'student' | 'tuto
 
   React.useEffect(() => {
     void (async () => {
-      const response = await fetch('/api/notifications/preferences', { cache: 'no-store' })
+      const response = await fetch('/api/notifications/preferences', {
+        cache: 'no-store'
+      })
       if (response.ok) {
-        setPreferences(await response.json() as PushPreferences)
+        setPreferences((await response.json()) as PushPreferences)
       }
     })()
   }, [])
@@ -88,7 +151,11 @@ export function NotificationSettings({ role, userId }: { role: 'student' | 'tuto
       toast.success('Notifiche attivate su questo computer.')
       changed()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Non è stato possibile attivare le notifiche.')
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Non è stato possibile attivare le notifiche.'
+      )
     } finally {
       setBusy(false)
     }
@@ -110,13 +177,18 @@ export function NotificationSettings({ role, userId }: { role: 'student' | 'tuto
   }
 
   // Avvisi admin che non arriverebbero da nessuna parte: email spenta e nessun dispositivo.
-  const unreachable = role === 'admin' && preferences && deviceCount === 0
-    ? ADMIN_LABELS.filter(category => !preferences[emailPreference(category.key)])
-    : []
+  const unreachable =
+    role === 'admin' && preferences && deviceCount === 0
+      ? ADMIN_LABELS.filter(
+          (category) => !preferences[emailPreference(category.key)]
+        )
+      : []
 
   async function handleToggle(key: PreferenceKey, value: boolean) {
     const previous = preferences
-    setPreferences(current => (current ? { ...current, [key]: value } : current))
+    setPreferences((current) =>
+      current ? { ...current, [key]: value } : current
+    )
     const response = await fetch('/api/notifications/preferences', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -124,21 +196,29 @@ export function NotificationSettings({ role, userId }: { role: 'student' | 'tuto
     })
     if (!response.ok) {
       setPreferences(previous)
-      toast.error(response.status === 403
-        ? 'Le preferenze si cambiano solo dal proprio account.'
-        : 'Non è stato possibile salvare la preferenza.')
+      toast.error(
+        response.status === 403
+          ? 'Le preferenze si cambiano solo dal proprio account.'
+          : 'Non è stato possibile salvare la preferenza.'
+      )
       return
     }
     // Saved at once: a short confirmation, no "Save" button.
-    toast.success('Preferenza salvata.', { id: 'notification-preference', duration: 1500 })
+    toast.success('Preferenza salvata.', {
+      id: 'notification-preference',
+      duration: 1500
+    })
   }
 
-  const userCategories = USER_LABELS
-    .filter(category => role !== 'admin' || category.key === 'account')
-    .map(category => ({
-      ...category,
-      description: role === 'tutor' ? category.tutorDescription ?? category.description : category.description
-    }))
+  const userCategories = USER_LABELS.filter(
+    (category) => role !== 'admin' || category.key === 'account'
+  ).map((category) => ({
+    ...category,
+    description:
+      role === 'tutor'
+        ? (category.tutorDescription ?? category.description)
+        : category.description
+  }))
 
   return (
     <section className='space-y-4 rounded-lg border bg-card p-4 sm:p-6'>
@@ -165,7 +245,12 @@ export function NotificationSettings({ role, userId }: { role: 'student' | 'tuto
               <p className='text-sm text-muted-foreground'>
                 Le notifiche sono attive su questo dispositivo.
               </p>
-              <Button type='button' variant='outline' onClick={handleDisable} disabled={busy}>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={handleDisable}
+                disabled={busy}
+              >
                 {busy ? 'Disattivazione...' : 'Disattiva'}
               </Button>
             </div>
@@ -179,37 +264,58 @@ export function NotificationSettings({ role, userId }: { role: 'student' | 'tuto
               </p>
               <div className='flex flex-col gap-2 sm:flex-row'>
                 {deviceCount === 0 && (
-                  <Button type='button' onClick={openPushSetup}>Attivale sul telefono</Button>
+                  <Button type='button' onClick={openPushSetup}>
+                    Attivale sul telefono
+                  </Button>
                 )}
-                <Button type='button' variant='outline' onClick={() => void handleEnableHere()} disabled={busy}>
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={() => void handleEnableHere()}
+                  disabled={busy}
+                >
                   {busy ? 'Attivazione...' : 'Attiva su questo computer'}
                 </Button>
               </div>
             </div>
           )}
-          {device !== 'loading' && device !== 'unsupported' && device !== 'enabled' && device !== 'done' && device !== 'desktop' && (
-            <PushSetupGuide
-              state={device}
-              userId={userId}
-              role={role}
-              showReason={false}
-              onStateChange={next => {
-                setDevice(next)
-                if (next === 'done') changed()
-              }}
-            />
-          )}
+          {device !== 'loading' &&
+            device !== 'unsupported' &&
+            device !== 'enabled' &&
+            device !== 'done' &&
+            device !== 'desktop' && (
+              <PushSetupGuide
+                state={device}
+                userId={userId}
+                role={role}
+                showReason={false}
+                onStateChange={(next) => {
+                  setDevice(next)
+                  if (next === 'done') changed()
+                }}
+              />
+            )}
         </div>
 
         {unreachable.length > 0 && (
           <div className='rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100'>
-            <p className='font-medium'>Questi avvisi non ti arrivano da nessuna parte</p>
+            <p className='font-medium'>
+              Questi avvisi non ti arrivano da nessuna parte
+            </p>
             <p className='mt-1'>
-              Hai spento l&apos;email per {unreachable.map(category => category.label.toLowerCase()).join(', ')} e
-              non hai le notifiche attive su nessun dispositivo.
+              Hai spento l&apos;email per{' '}
+              {unreachable
+                .map((category) => category.label.toLowerCase())
+                .join(', ')}{' '}
+              e non hai le notifiche attive su nessun dispositivo.
             </p>
             {device !== 'unsupported' && (
-              <Button type='button' size='sm' className='mt-3' onClick={openPushSetup}>
+              <Button
+                type='button'
+                size='sm'
+                className='mt-3'
+                onClick={openPushSetup}
+              >
                 Attiva le notifiche
               </Button>
             )}
@@ -218,47 +324,71 @@ export function NotificationSettings({ role, userId }: { role: 'student' | 'tuto
 
         {preferences && (
           <div className='flex flex-col gap-3'>
-            <p className='text-sm font-medium'>Cosa ricevere (su tutti i tuoi dispositivi)</p>
-            {userCategories.map(category => (
-              <div key={category.key} className='flex items-start justify-between gap-4'>
+            <p className='text-sm font-medium'>
+              Cosa ricevere (su tutti i tuoi dispositivi)
+            </p>
+            {userCategories.map((category) => (
+              <div
+                key={category.key}
+                className='flex items-start justify-between gap-4'
+              >
                 <div className='grid gap-1'>
-                  <Label htmlFor={`push-${category.key}`}>{category.label}</Label>
-                  <p className='text-sm text-muted-foreground'>{category.description}</p>
+                  <Label htmlFor={`push-${category.key}`}>
+                    {category.label}
+                  </Label>
+                  <p className='text-sm text-muted-foreground'>
+                    {category.description}
+                  </p>
                 </div>
                 <Switch
                   id={`push-${category.key}`}
                   className='mt-0.5'
                   checked={preferences[category.key]}
-                  onCheckedChange={value => void handleToggle(category.key, value)}
+                  onCheckedChange={(value) =>
+                    void handleToggle(category.key, value)
+                  }
                 />
               </div>
             ))}
-            {role === 'admin' && ADMIN_LABELS.map(category => (
-              <div key={category.key} className='flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between'>
-                <div className='grid gap-1'>
-                  <p className='text-sm font-medium'>{category.label}</p>
-                  <p className='text-sm text-muted-foreground'>{category.description}</p>
-                </div>
-                <div className='flex gap-5 sm:shrink-0'>
-                  <div className='flex items-center gap-2'>
-                    <Switch
-                      id={`push-${category.key}`}
-                      checked={preferences[category.key]}
-                      onCheckedChange={value => void handleToggle(category.key, value)}
-                    />
-                    <Label htmlFor={`push-${category.key}`}>Notifica</Label>
+            {role === 'admin' &&
+              ADMIN_LABELS.map((category) => (
+                <div
+                  key={category.key}
+                  className='flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between'
+                >
+                  <div className='grid gap-1'>
+                    <p className='text-sm font-medium'>{category.label}</p>
+                    <p className='text-sm text-muted-foreground'>
+                      {category.description}
+                    </p>
                   </div>
-                  <div className='flex items-center gap-2'>
-                    <Switch
-                      id={`email-${category.key}`}
-                      checked={preferences[emailPreference(category.key)]}
-                      onCheckedChange={value => void handleToggle(emailPreference(category.key), value)}
-                    />
-                    <Label htmlFor={`email-${category.key}`}>Email</Label>
+                  <div className='flex gap-5 sm:shrink-0'>
+                    <div className='flex items-center gap-2'>
+                      <Switch
+                        id={`push-${category.key}`}
+                        checked={preferences[category.key]}
+                        onCheckedChange={(value) =>
+                          void handleToggle(category.key, value)
+                        }
+                      />
+                      <Label htmlFor={`push-${category.key}`}>Notifica</Label>
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <Switch
+                        id={`email-${category.key}`}
+                        checked={preferences[emailPreference(category.key)]}
+                        onCheckedChange={(value) =>
+                          void handleToggle(
+                            emailPreference(category.key),
+                            value
+                          )
+                        }
+                      />
+                      <Label htmlFor={`email-${category.key}`}>Email</Label>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         )}
       </div>

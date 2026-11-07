@@ -7,7 +7,15 @@ import { StatusBlock } from '@/components/status-block'
 import { Button } from '@/components/ui/button'
 import { ACTIVATION_FORM_URL, RELEASE_FORM_URL } from '@/lib/student-activation'
 
-function Step({ n, title, children }: { n: number, title: string, children: React.ReactNode }) {
+function Step({
+  n,
+  title,
+  children
+}: {
+  n: number
+  title: string
+  children: React.ReactNode
+}) {
   return (
     <li className='flex items-start gap-3'>
       <span className='flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground'>
@@ -34,7 +42,9 @@ export default function StudentPendingPage() {
         footer={
           <div className='space-y-6 text-left'>
             <section className='rounded-lg border-2 border-primary/40 bg-card p-4 sm:p-6'>
-              <h2 className='text-lg font-semibold'>Cosa devi fare per essere attivato</h2>
+              <h2 className='text-lg font-semibold'>
+                Cosa devi fare per essere attivato
+              </h2>
               <p className='mt-1 text-sm text-muted-foreground'>
                 Se non l&apos;hai già fatto, completa questi quattro passaggi.
               </p>
@@ -47,28 +57,46 @@ export default function StudentPendingPage() {
                     </Link>
                   </Button>
                 </Step>
-                <Step n={2} title='Falla firmare da un genitore o tutore legale'>
+                <Step
+                  n={2}
+                  title='Falla firmare da un genitore o tutore legale'
+                >
                   <p>È obbligatorio per partecipare al progetto.</p>
                 </Step>
-                <Step n={3} title='Paga quando ricevi l’avviso della segreteria'>
+                <Step
+                  n={3}
+                  title='Paga quando ricevi l’avviso della segreteria'
+                >
                   <p>
-                    L&apos;importo è nella circolare dell&apos;anno scolastico in corso. Conserva la ricevuta.
+                    L&apos;importo è nella circolare dell&apos;anno scolastico
+                    in corso. Conserva la ricevuta.
                   </p>
                   <div className='flex items-start gap-2 rounded-lg bg-amber-100 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200'>
-                    <AlertTriangle className='mt-0.5 size-4 shrink-0' aria-hidden />
+                    <AlertTriangle
+                      className='mt-0.5 size-4 shrink-0'
+                      aria-hidden
+                    />
                     <p>
                       L&apos;avviso può arrivare dopo alcuni giorni.{' '}
                       <span className='font-semibold'>
-                        Non pagare prima di aver ricevuto l&apos;avviso con la dicitura &quot;InsiemeÈ+Facile&quot; o simili.
+                        Non pagare prima di aver ricevuto l&apos;avviso con la
+                        dicitura &quot;InsiemeÈ+Facile&quot; o simili.
                       </span>
                     </p>
                   </div>
                 </Step>
-                <Step n={4} title='Invia ricevuta e liberatoria firmata nel form'>
-                  <p>Dopo l&apos;invio la segreteria attiva l&apos;account e potrai prenotare le lezioni.</p>
+                <Step
+                  n={4}
+                  title='Invia ricevuta e liberatoria firmata nel form'
+                >
+                  <p>
+                    Dopo l&apos;invio la segreteria attiva l&apos;account e
+                    potrai prenotare le lezioni.
+                  </p>
                   <Button asChild size='sm'>
                     <Link href={ACTIVATION_FORM_URL} target='_blank'>
-                      Apri il form di attivazione <ExternalLink className='size-4' />
+                      Apri il form di attivazione{' '}
+                      <ExternalLink className='size-4' />
                     </Link>
                   </Button>
                 </Step>
@@ -76,16 +104,27 @@ export default function StudentPendingPage() {
             </section>
             <p className='text-center text-sm text-muted-foreground'>
               Hai dubbi? Leggi le{' '}
-              <Link href='/faq' className='underline underline-offset-4'>domande frequenti</Link>.
-              Il tuo account era già attivo ed è stato disattivato? Scrivici a{' '}
-              <Link href='mailto:iepf@hensemberger.it' className='underline underline-offset-4'>iepf@hensemberger.it</Link>.
+              <Link href='/faq' className='underline underline-offset-4'>
+                domande frequenti
+              </Link>
+              . Il tuo account era già attivo ed è stato disattivato? Scrivici a{' '}
+              <Link
+                href='mailto:iepf@hensemberger.it'
+                className='underline underline-offset-4'
+              >
+                iepf@hensemberger.it
+              </Link>
+              .
             </p>
           </div>
         }
       >
         <p>
-          Il tuo account è stato creato, ma <span className='font-medium text-foreground'>non puoi ancora prenotare lezioni</span>.
-          Ti scriviamo una mail appena viene attivato.
+          Il tuo account è stato creato, ma{' '}
+          <span className='font-medium text-foreground'>
+            non puoi ancora prenotare lezioni
+          </span>
+          . Riceverai una mail appena viene attivato.
         </p>
       </StatusBlock>
     </main>

@@ -1,18 +1,20 @@
 // Purpose: Token adjustment handlers for admins.
 import type { Context } from 'hono'
 
+import { and, desc, eq, notInArray } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
+import { users } from '@/db/schemas/users.schema'
 import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
-import { getStudentTokenBalance, lockUsers } from '@/lib/lesson-tokens'
+import { AUTOMATIC_TOKEN_REASONS, getStudentTokenBalance, lockUsers } from '@/lib/lesson-tokens'
 
-import type { AdjustTokensRoute } from './tokens.routes'
+import type { AdjustTokensRoute, TokenHistoryRoute } from './tokens.routes'
 
 type HandlerContext = Context<AppBindings>
 
@@ -34,7 +36,7 @@ function ensureAdmin(c: HandlerContext) {
 export const adjustTokens: AppRouteHandler<AdjustTokensRoute> = async (c) => {
   const { studentId } = c.req.valid('param')
   const payload = c.req.valid('json')
-  ensureAdmin(c)
+  const admin = ensureAdmin(c)
 
   const student = await db.query.users.findFirst({
     where(fields, operators) {
@@ -60,7 +62,8 @@ export const adjustTokens: AppRouteHandler<AdjustTokensRoute> = async (c) => {
       await tx.insert(tokenLedger).values({
         studentId,
         delta: appliedDelta,
-        reason: payload.reason
+        reason: payload.reason,
+        createdById: admin.id
       })
     }
 
@@ -68,4 +71,40 @@ export const adjustTokens: AppRouteHandler<AdjustTokensRoute> = async (c) => {
   })
 
   return c.json({ studentId, lessonTokens: nextTokens }, HttpStatusCodes.OK)
+}
+
+// The hours an admin added or removed by hand, newest first, with who did it and why.
+export const tokenHistory: AppRouteHandler<TokenHistoryRoute> = async (c) => {
+  const { studentId } = c.req.valid('param')
+  ensureAdmin(c)
+
+  const rows = await db
+    .select({
+      id: tokenLedger.id,
+      delta: tokenLedger.delta,
+      reason: tokenLedger.reason,
+      createdAt: tokenLedger.createdAt,
+      adminFirstName: users.firstName,
+      adminLastName: users.lastName
+    })
+    .from(tokenLedger)
+    .leftJoin(users, eq(tokenLedger.createdById, users.id))
+    .where(and(
+      eq(tokenLedger.studentId, studentId),
+      notInArray(tokenLedger.reason, [...AUTOMATIC_TOKEN_REASONS])
+    ))
+    .orderBy(desc(tokenLedger.createdAt))
+    .limit(200)
+
+  return c.json({
+    studentId,
+    lessonTokens: await getStudentTokenBalance(studentId),
+    items: rows.map(row => ({
+      id: row.id,
+      delta: row.delta,
+      reason: row.reason,
+      createdAt: row.createdAt.toISOString(),
+      adminName: row.adminFirstName ? `${row.adminFirstName} ${row.adminLastName ?? ''}`.trim() : null
+    }))
+  }, HttpStatusCodes.OK)
 }

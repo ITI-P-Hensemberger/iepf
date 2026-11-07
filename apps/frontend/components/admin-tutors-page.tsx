@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/page-header'
+import { useHere, withFrom } from '@/lib/back-link'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -139,6 +140,7 @@ function DataTable<TData>({
   total
 }: DataTableProps<TData>) {
   const router = useRouter()
+  const here = useHere()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const searchParamsString = searchParams.toString()
@@ -212,12 +214,12 @@ function DataTable<TData>({
                     ? (event) => {
                         // Buttons and links inside the row keep their own action.
                         if ((event.target as HTMLElement).closest('a, button, input, [role="checkbox"]')) return
-                        router.push(rowHref(row.original))
+                        router.push(withFrom(rowHref(row.original), here))
                       }
                     : undefined}
                   onKeyDown={rowHref
                     ? (event) => {
-                        if (event.key === 'Enter' && event.target === event.currentTarget) router.push(rowHref(row.original))
+                        if (event.key === 'Enter' && event.target === event.currentTarget) router.push(withFrom(rowHref(row.original), here))
                       }
                     : undefined}
                 >

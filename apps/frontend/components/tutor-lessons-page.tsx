@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { PageHeader } from '@/components/page-header'
+import { useHere, withFrom } from '@/lib/back-link'
 import {
   Select,
   SelectContent,
@@ -182,6 +183,7 @@ function isLessonNonBookable(lesson: Lesson) {
 
 export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.ReactNode } = {}) {
   const router = useRouter()
+  const here = useHere()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const searchParamsString = searchParams.toString()
@@ -557,9 +559,9 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
                         key={lesson.id}
                         className='cursor-pointer'
                         tabIndex={0}
-                        onClick={() => router.push(`/tutor/lessons/${lesson.id}`)}
+                        onClick={() => router.push(withFrom(`/tutor/lessons/${lesson.id}`, here))}
                         onKeyDown={(event) => {
-                          if (event.key === 'Enter') router.push(`/tutor/lessons/${lesson.id}`)
+                          if (event.key === 'Enter') router.push(withFrom(`/tutor/lessons/${lesson.id}`, here))
                         }}
                       >
                         <TableCell>

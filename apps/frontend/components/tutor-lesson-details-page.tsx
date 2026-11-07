@@ -1,8 +1,9 @@
 'use client'
 
+import { useBackHref } from '@/lib/back-link'
 import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { Mail, MessageSquare, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -144,7 +145,7 @@ function studentClassLabel(student?: Student | null) {
 
 export default function TutorLessonDetailsPage() {
   const params = useParams()
-  const fromHome = useSearchParams().get('from') === 'home'
+  const cameFrom = useBackHref('')
   const lessonId = String(params?.id ?? '')
   const [lesson, setLesson] = React.useState<Lesson | null>(null)
   const [lessonLoading, setLessonLoading] = React.useState(true)
@@ -489,7 +490,7 @@ export default function TutorLessonDetailsPage() {
         <div className='mx-auto max-w-3xl space-y-6'>
           <div>
             {/* Back to the home when the tutor came from there, else to the week of this lesson. */}
-            <BackButton href={fromHome ? '/tutor' : lesson ? `/tutor/lessons?week=${mondayOf(dayKeyOf(new Date(lesson.startAt)))}` : '/tutor/lessons'} />
+            <BackButton href={cameFrom || (lesson ? `/tutor/lessons?week=${mondayOf(dayKeyOf(new Date(lesson.startAt)))}` : '/tutor/lessons')} />
           </div>
 
           {lessonLoading && !lesson ? (

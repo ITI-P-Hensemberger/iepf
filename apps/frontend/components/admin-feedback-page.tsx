@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/page-header'
+import { useBackHref, useHere, withFrom } from '@/lib/back-link'
 import { Calendar } from '@/components/ui/calendar'
 import { Field, FieldLabel } from '@/components/ui/field'
 import {
@@ -209,9 +210,8 @@ export default function AdminFeedbackPage() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  // Opened from a tutor, a student or a lesson: back leads there, not to the home.
-  const from = searchParams.get('from')
-  const backHref = from && /^\/admin\/(tutors|students|lessons)\/[\w-]+$/.test(from) ? from : '/admin'
+  const backHref = useBackHref('/admin')
+  const here = useHere()
   const searchParamsString = searchParams.toString()
 
   const [filters, setFilters] = React.useState<FeedbackFilters>(defaultFilters)
@@ -1295,7 +1295,7 @@ export default function AdminFeedbackPage() {
                     {lessonInfo?.startAt ? ` · lezione del ${formatItalianDate(lessonInfo.startAt)}` : ''}
                     {subjectName ? ` · ${subjectName}` : ''}
                     {' · '}
-                    <Link href={`/admin/lessons/${detailTarget.lessonId}`} className='underline underline-offset-4'>
+                    <Link href={withFrom(`/admin/lessons/${detailTarget.lessonId}`, here)} className='underline underline-offset-4'>
                       Apri lezione
                     </Link>
                   </AlertDialogDescription>

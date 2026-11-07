@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/page-header'
+import { useBackHref } from '@/lib/back-link'
 import {
   Accordion,
   AccordionContent,
@@ -80,6 +81,7 @@ type Admin = {
 
 export default function AdminAdminDetailPage() {
   const params = useParams()
+  const backHref = useBackHref('/admin/admins')
   const router = useRouter()
   const adminId = String(params?.id ?? '')
 
@@ -261,7 +263,7 @@ export default function AdminAdminDetailPage() {
           <PageHeader
             title={admin ? `${admin.firstName} ${admin.lastName}` : 'Dettagli admin'}
             description={admin?.email ?? 'Gestisci i dati dell’admin.'}
-            backHref='/admin/admins'
+            backHref={backHref}
           />
           <Card className='mt-6'>
             <CardContent className='pt-6'>

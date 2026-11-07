@@ -2,6 +2,7 @@
 
 // The admin home: the way to every area, today's lessons at a glance and the bookings of
 // the coming days.
+import { withFrom } from '@/lib/back-link'
 import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
@@ -103,7 +104,7 @@ export default function AdminPage() {
                 <Link href='/admin/lessons'>Apri la giornata <ChevronRight className='h-4 w-4' /></Link>
               </Button>
             </div>
-            <DayOverview lessons={todayShown} loading={loading} grouping='tutor' from='home' />
+            <DayOverview lessons={todayShown} loading={loading} grouping='tutor' />
           </section>
 
           <section className='space-y-3'>
@@ -116,7 +117,7 @@ export default function AdminPage() {
               <ul className='divide-y rounded-lg border bg-card'>
                 {booked.map((lesson) => (
                   <li key={lesson.id}>
-                    <Link href={`/admin/lessons/${lesson.id}?from=home`} className='flex items-center gap-3 px-4 py-3 hover:bg-muted/50'>
+                    <Link href={withFrom(`/admin/lessons/${lesson.id}`, '/admin')} className='flex items-center gap-3 px-4 py-3 hover:bg-muted/50'>
                       <div className='min-w-0 flex-1'>
                         <div className='font-medium'>
                           {capitalize(dayFormat.format(new Date(lesson.startAt)))} · {timeFormat.format(new Date(lesson.startAt))} · {subjectLabel(lesson)}

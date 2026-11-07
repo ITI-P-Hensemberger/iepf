@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 
 import { EmptyState } from '@/components/empty-state'
+import { useHere, withFrom } from '@/lib/back-link'
 import { StatusBadge, type StudentLesson } from '@/components/student-lesson-ui'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -40,6 +41,7 @@ function tutorBadge(lesson: TutorLesson, when: When) {
 // Every lesson a tutor taught or a student booked, newest first, each a click away from its
 // details: the "Lezioni" section of the user's page in the admin area.
 export function AdminUserLessons({ role, userId }: { role: 'tutor' | 'student', userId: string }) {
+  const here = useHere()
   const [when, setWhen] = React.useState<When>('past')
   const [rows, setRows] = React.useState<Row[]>([])
   const [total, setTotal] = React.useState(0)
@@ -157,7 +159,7 @@ export function AdminUserLessons({ role, userId }: { role: 'tutor' | 'student', 
             {rows.map(row => (
               <li key={`${row.id}-${row.startAt}`}>
                 <Link
-                  href={`/admin/lessons/${row.id}`}
+                  href={withFrom(`/admin/lessons/${row.id}`, here)}
                   className='flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50'
                 >
                   <div className='min-w-0 flex-1'>

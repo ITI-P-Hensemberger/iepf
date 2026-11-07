@@ -20,6 +20,7 @@ import { Calendar } from '@/components/ui/calendar'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Label } from '@/components/ui/label'
 import { PageHeader } from '@/components/page-header'
+import { useHere, withFrom } from '@/lib/back-link'
 import {
   Select,
   SelectContent,
@@ -192,6 +193,7 @@ function buildTutorOptionLabel(tutor: Tutor): string {
 
 export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.ReactNode } = {}) {
   const router = useRouter()
+  const here = useHere()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const searchParamsString = searchParams.toString()
@@ -679,7 +681,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
       toast.success('Lezione creata.')
       setIsCreateOpen(false)
       if (createdLessonId) {
-        router.push(`/admin/lessons/${createdLessonId}`)
+        router.push(withFrom(`/admin/lessons/${createdLessonId}`, here))
         return
       }
       await loadLessons()
@@ -898,9 +900,9 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
                         key={lesson.id}
                         className='cursor-pointer'
                         tabIndex={0}
-                        onClick={() => router.push(`/admin/lessons/${lesson.id}`)}
+                        onClick={() => router.push(withFrom(`/admin/lessons/${lesson.id}`, here))}
                         onKeyDown={(event) => {
-                          if (event.key === 'Enter') router.push(`/admin/lessons/${lesson.id}`)
+                          if (event.key === 'Enter') router.push(withFrom(`/admin/lessons/${lesson.id}`, here))
                         }}
                       >
                         <TableCell>

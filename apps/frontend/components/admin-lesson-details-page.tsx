@@ -1,9 +1,10 @@
 'use client'
 
+import { useBackHref, useHere, withFrom } from '@/lib/back-link'
 import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import {
   CalendarClock,
   CalendarIcon,
@@ -300,7 +301,8 @@ function extractErrorMessage(payload: unknown, fallback: string) {
 
 export default function AdminLessonDetailsPage() {
   const params = useParams()
-  const fromHome = useSearchParams().get('from') === 'home'
+  const here = useHere()
+  const cameFrom = useBackHref('')
   const lessonId = params?.id as string
 
   const [lesson, setLesson] = React.useState<Lesson | null>(null)
@@ -1131,7 +1133,7 @@ export default function AdminLessonDetailsPage() {
         <div className='mx-auto max-w-4xl space-y-6'>
           <div>
             {/* Back to the home when the admin came from there, else to the day of this lesson. */}
-            <BackButton href={fromHome ? '/admin' : lesson ? `/admin/lessons?day=${dayKeyOf(new Date(lesson.startAt))}` : '/admin/lessons'} />
+            <BackButton href={cameFrom || (lesson ? `/admin/lessons?day=${dayKeyOf(new Date(lesson.startAt))}` : '/admin/lessons')} />
           </div>
 
           {lessonLoading && !lesson ? (
@@ -1162,7 +1164,7 @@ export default function AdminLessonDetailsPage() {
                     </Button>
                   )}
                   <Button asChild variant='outline'>
-                    <Link href={`/admin/feedback?feedbackLesson=${lesson.id}&feedbackRole=tutor&from=/admin/lessons/${lesson.id}`}>
+                    <Link href={withFrom(`/admin/feedback?feedbackLesson=${lesson.id}&feedbackRole=tutor`, here)}>
                       <MessageSquare className='h-4 w-4' /> Feedback
                     </Link>
                   </Button>
@@ -1191,7 +1193,7 @@ export default function AdminLessonDetailsPage() {
               ) : tutor ? (
                 <div className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between'>
                   <div className='space-y-1'>
-                    <Link className='font-medium text-primary hover:underline' href={`/admin/tutors/${tutor.id}`}>
+                    <Link className='font-medium text-primary hover:underline' href={withFrom(`/admin/tutors/${tutor.id}`, here)}>
                       {tutor.firstName} {tutor.lastName}
                     </Link>
                     {tutorClassLabel(tutor) && <div className='text-sm text-muted-foreground'>{tutorClassLabel(tutor)}</div>}
@@ -1261,7 +1263,7 @@ export default function AdminLessonDetailsPage() {
                     <div className='flex items-start justify-between gap-2'>
                       <div className='min-w-0'>
                         {student ? (
-                          <Link className='inline-flex items-center gap-1 font-medium text-primary hover:underline' href={`/admin/students/${student.id}`}>
+                          <Link className='inline-flex items-center gap-1 font-medium text-primary hover:underline' href={withFrom(`/admin/students/${student.id}`, here)}>
                             {studentLabel(student)}
                           </Link>
                         ) : (

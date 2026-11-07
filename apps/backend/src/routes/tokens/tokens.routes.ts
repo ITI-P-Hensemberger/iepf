@@ -70,3 +70,46 @@ export const adjustTokens = createRoute({
 })
 
 export type AdjustTokensRoute = typeof adjustTokens
+
+export const tokenHistorySchema = z.object({
+  studentId: z.string(),
+  lessonTokens: z.number().int(),
+  items: z.array(z.object({
+    id: z.string(),
+    delta: z.number().int(),
+    reason: z.string(),
+    createdAt: z.string(),
+    // Null for changes made before the author was recorded.
+    adminName: z.string().nullable()
+  }))
+})
+
+export const tokenHistory = createRoute({
+  path: '/students/{studentId}/tokens/history',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  request: {
+    params: StudentIdParamsSchema
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      tokenHistorySchema,
+      'Manual hour changes, newest first'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Admin access required'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(StudentIdParamsSchema),
+      'Validation error(s)'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
+export type TokenHistoryRoute = typeof tokenHistory

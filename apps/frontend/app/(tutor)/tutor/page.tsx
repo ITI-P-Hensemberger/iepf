@@ -2,6 +2,7 @@
 
 // The tutor's home: today's lessons with presence, the bookings coming up, and the way to
 // the week and to availability and subjects.
+import { withFrom } from '@/lib/back-link'
 import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
@@ -109,7 +110,7 @@ export default function TutorPage() {
               <EmptyState>Oggi non hai lezioni.</EmptyState>
             ) : (
               <div className='rounded-lg border bg-card'>
-                <TutorLessonList lessons={today} onChanged={() => load(true)} from='home' />
+                <TutorLessonList lessons={today} onChanged={() => load(true)} />
               </div>
             )}
           </section>
@@ -132,7 +133,7 @@ export default function TutorPage() {
                 <ul className='divide-y rounded-lg border bg-card'>
                   {booked.map((lesson) => (
                     <li key={lesson.id}>
-                      <Link href={`/tutor/lessons/${lesson.id}?from=home`} className='flex items-center gap-3 px-4 py-3 hover:bg-muted/50'>
+                      <Link href={withFrom(`/tutor/lessons/${lesson.id}`, '/tutor')} className='flex items-center gap-3 px-4 py-3 hover:bg-muted/50'>
                         <div className='min-w-0 flex-1'>
                           <div className='font-medium'>
                             {capitalize(dayFormat.format(new Date(lesson.startAt)))} · {timeFormat.format(new Date(lesson.startAt))} · {subjectLabel(lesson)}

@@ -11,5 +11,6 @@ router.use('/students', authenticate())
 router.use('/students/*', authenticate())
 
 router.openapi(routes.adjustTokens, handlers.adjustTokens)
+router.openapi(routes.tokenHistory, handlers.tokenHistory)
 
 export default router

@@ -1,0 +1,2 @@
+ALTER TABLE "token_ledger" ADD COLUMN "created_by_id" uuid;--> statement-breakpoint
+ALTER TABLE "token_ledger" ADD CONSTRAINT "token_ledger_created_by_id_users_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;

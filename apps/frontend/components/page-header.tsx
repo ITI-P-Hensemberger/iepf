@@ -1,6 +1,11 @@
+'use client'
+
 import * as React from 'react'
 
+import { useSearchParams } from 'next/navigation'
+
 import { BackButton } from '@/components/back-button'
+import { FROM_PARAM, safeFrom } from '@/lib/back-link'
 
 // The top of an inner page: the back button, the title with an optional line under it, and the
 // page's buttons beside the title (below it on a phone). Every inner page starts the same way.
@@ -10,6 +15,7 @@ export function PageHeader({
   actions,
   backHref,
   backLabel,
+  followFrom = true,
   className
 }: {
   title: React.ReactNode
@@ -18,11 +24,15 @@ export function PageHeader({
   // Without it the button goes back in the history.
   backHref?: string
   backLabel?: string
+  // The page this one was opened from (?from=) wins over backHref, which is only the fallback.
+  // Off for pages whose back button walks their own steps.
+  followFrom?: boolean
   className?: string
 }) {
+  const cameFrom = safeFrom(useSearchParams().get(FROM_PARAM))
   return (
     <div className={className}>
-      <BackButton href={backHref} label={backLabel} />
+      <BackButton href={(followFrom && cameFrom) || backHref} label={backLabel} />
       <div className='mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
         <div className='min-w-0'>
           <h1 className='text-2xl break-words'>{title}</h1>

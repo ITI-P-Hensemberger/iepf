@@ -12,6 +12,8 @@ export const tokenLedger = pgTable('token_ledger', {
   lessonId: uuid().references(() => lessons.id, { onDelete: 'set null' }),
   delta: integer().notNull(),
   reason: text().notNull(),
+  // The admin who changed the hours by hand; empty for automatic entries and older rows.
+  createdById: uuid().references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull()
