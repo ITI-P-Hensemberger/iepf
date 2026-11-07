@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { isCanceled, lessonsByDay, type ScheduleLesson } from '@/lib/lesson-schedule'
-import { addDaysToKey, dateOfKey, dayKeyOf, mondayOf, schoolDays, weekRange } from '@/lib/school-week'
+import { addDaysToKey, currentLessonMonday, dateOfKey, dayKeyOf, mondayOf, schoolDays, weekRange } from '@/lib/school-week'
 import { cn } from '@/lib/utils'
 
 const dayFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -29,7 +29,9 @@ export default function TutorWeekPage() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const todayKey = dayKeyOf(new Date())
-  const mondayKey = mondayOf(searchParams.get('week') ?? todayKey)
+  // From Saturday noon the next week's lessons are out: that is the week to show first.
+  const currentMonday = currentLessonMonday(new Date())
+  const mondayKey = mondayOf(searchParams.get('week') ?? currentMonday)
 
   const [lessons, setLessons] = React.useState<ScheduleLesson[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -83,8 +85,8 @@ export default function TutorWeekPage() {
             size='icon'
             aria-label='Torna a questa settimana'
             title='Questa settimana'
-            disabled={mondayKey === mondayOf(todayKey)}
-            onClick={() => goToWeek(todayKey)}
+            disabled={mondayKey === currentMonday}
+            onClick={() => goToWeek(currentMonday)}
           >
             <CalendarCheck className='h-4 w-4' />
           </Button>
