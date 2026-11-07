@@ -2,9 +2,10 @@
 
 import type * as React from 'react'
 
-import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
+import { TableSkeletonRows } from '@/components/loading'
+import { ListPagination } from '@/components/list-pagination'
+import { SortableHead } from '@/components/sortable-head'
 
-import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
@@ -33,16 +34,7 @@ type DataTableProps<T> = {
   onSort?: (sortKey: string) => void
 }
 
-function SortIcon({ active, dir }: { active: boolean, dir: SortDir }) {
-  if (!active) return <ArrowUpDown className='size-3.5 opacity-40' aria-hidden />
-  return dir === 'asc' ? <ArrowUp className='size-3.5' aria-hidden /> : <ArrowDown className='size-3.5' aria-hidden />
-}
-
 export function DataTable<T>({ rows, rowKey, columns, isLoading, emptyMessage, page, pageSize, total, onPageChange, sort, onSort }: DataTableProps<T>) {
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const first = total === 0 ? 0 : (page - 1) * pageSize + 1
-  const last = Math.min(total, page * pageSize)
-
   return (
     <div className='space-y-3'>
       <div className='overflow-x-auto rounded-lg border'>
@@ -59,14 +51,14 @@ export function DataTable<T>({ rows, rowKey, columns, isLoading, emptyMessage, p
                   >
                     {column.sortKey && onSort
                       ? (
-                          <button
-                            type='button'
-                            onClick={() => onSort(column.sortKey!)}
-                            className={cn('inline-flex items-center gap-1 rounded-sm hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', column.numeric && 'flex-row-reverse', active && 'text-foreground')}
-                          >
-                            {column.header}
-                            <SortIcon active={active} dir={sort?.sortDir ?? 'asc'} />
-                          </button>
+                          <SortableHead
+                            label={column.header}
+                            sortKey={column.sortKey}
+                            sortBy={sort?.sortBy ?? ''}
+                            sortDir={sort?.sortDir ?? 'asc'}
+                            onSort={onSort}
+                            className={cn(column.numeric && 'flex-row-reverse')}
+                          />
                         )
                       : column.header}
                   </TableHead>
@@ -75,11 +67,13 @@ export function DataTable<T>({ rows, rowKey, columns, isLoading, emptyMessage, p
             </TableRow>
           </TableHeader>
           <TableBody className={cn(isLoading && rows.length > 0 && 'opacity-60 transition-opacity')}>
-            {rows.length === 0
+            {isLoading && rows.length === 0
+              ? <TableSkeletonRows columns={columns.length} />
+              : rows.length === 0
               ? (
                   <TableRow>
                     <TableCell className='py-8 text-center text-muted-foreground' colSpan={columns.length}>
-                      {isLoading ? 'Caricamento...' : emptyMessage}
+                      {emptyMessage}
                     </TableCell>
                   </TableRow>
                 )
@@ -93,16 +87,7 @@ export function DataTable<T>({ rows, rowKey, columns, isLoading, emptyMessage, p
           </TableBody>
         </Table>
       </div>
-      <div className='flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between'>
-        <span className='tabular-nums'>{total === 0 ? 'Nessun risultato' : `${first}–${last} di ${total}`}</span>
-        {totalPages > 1 && (
-          <div className='flex items-center gap-2'>
-            <Button variant='outline' size='sm' onClick={() => onPageChange(page - 1)} disabled={page <= 1 || isLoading}>Precedente</Button>
-            <span className='tabular-nums'>{page} / {totalPages}</span>
-            <Button variant='outline' size='sm' onClick={() => onPageChange(page + 1)} disabled={page >= totalPages || isLoading}>Successiva</Button>
-          </div>
-        )}
-      </div>
+      <ListPagination page={page} pageSize={pageSize} total={total} onPageChange={onPageChange} loading={isLoading} />
     </div>
   )
 }

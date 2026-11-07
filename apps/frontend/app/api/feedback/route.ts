@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
   const targetParams = new URLSearchParams()
   const incomingParams = incomingUrl.searchParams
   const passthroughKeys = [
+    'q',
     'lessonId',
     'bookingId',
     'authorUserId',
@@ -52,6 +53,7 @@ export async function GET(request: NextRequest) {
   })
 
   const mappedParams: Record<string, string> = {
+    feedbackQ: 'q',
     feedbackLesson: 'lessonId',
     feedbackAuthor: 'authorUserId',
     feedbackTarget: 'targetUserId',

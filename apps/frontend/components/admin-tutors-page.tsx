@@ -1,5 +1,6 @@
 'use client'
 
+import { nextSort, SortableHead, type SortDir } from '@/components/sortable-head'
 import { ListPagination } from '@/components/list-pagination'
 import { TableSkeletonRows } from '@/components/loading'
 import * as React from 'react'
@@ -10,7 +11,7 @@ import {
   getCoreRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { Search, Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -27,15 +28,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
-import { Field, FieldLabel } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Table,
@@ -50,6 +42,8 @@ import { formatItalianDate } from '@/lib/format-date'
 import { classLabel } from '@/lib/class-label'
 
 const pageSize = 20
+
+const SORTABLE = ['lastName', 'firstName', 'year', 'email', 'createdAt', 'expiresAt'] as const
 
 type Tutor = {
   id: string
@@ -81,6 +75,10 @@ type DataTableProps<TData> = {
   page: number
   pageSize: number
   total: number
+  // Columns whose header sorts the list, and the sort in use.
+  sortable?: readonly string[]
+  sort?: { sortBy: string, sortDir: SortDir }
+  onSort?: (key: string) => void
 }
 
 type PagedPayloadObject<T> = {
@@ -140,7 +138,10 @@ function DataTable<TData>({
   pageKey,
   page,
   pageSize,
-  total
+  total,
+  sortable,
+  sort,
+  onSort
 }: DataTableProps<TData>) {
   const router = useRouter()
   const here = useHere()
@@ -162,7 +163,6 @@ function DataTable<TData>({
     },
     [pageKey, pathname, router, searchParamsString]
   )
-
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
@@ -187,10 +187,20 @@ function DataTable<TData>({
                   >
                     {header.isPlaceholder
                       ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
+                      : sort && onSort && sortable?.includes(header.column.id)
+                        ? (
+                            <SortableHead
+                              label={flexRender(header.column.columnDef.header, header.getContext())}
+                              sortKey={header.column.id}
+                              sortBy={sort.sortBy}
+                              sortDir={sort.sortDir}
+                              onSort={onSort}
+                            />
+                          )
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
                   </TableHead>
                 ))}
               </TableRow>
@@ -465,45 +475,6 @@ export default function AdminTutorsPage() {
     },
     [pathname, router, searchParamsString]
   )
-
-  const resetActiveFilters = React.useCallback(() => {
-    setActiveFilters(defaultTutorFilters)
-    updateParams(
-      {
-        searchKey: 'activeTutorSearch',
-        sortKey: 'activeTutorSort',
-        pageKey: 'activeTutorPage'
-      },
-      defaultTutorFilters,
-      1
-    )
-  }, [updateParams])
-
-  const resetInactiveFilters = React.useCallback(() => {
-    setInactiveFilters(defaultTutorFilters)
-    updateParams(
-      {
-        searchKey: 'inactiveTutorSearch',
-        sortKey: 'inactiveTutorSort',
-        pageKey: 'inactiveTutorPage'
-      },
-      defaultTutorFilters,
-      1
-    )
-  }, [updateParams])
-
-  const resetPendingFilters = React.useCallback(() => {
-    setPendingFilters(defaultInviteFilters)
-    updateParams(
-      {
-        searchKey: 'pendingTutorSearch',
-        sortKey: 'pendingTutorSort',
-        pageKey: 'pendingTutorPage'
-      },
-      defaultInviteFilters,
-      1
-    )
-  }, [updateParams])
 
   const loadTutors = React.useCallback(
     async (options: {
@@ -961,93 +932,24 @@ export default function AdminTutorsPage() {
                   applied={currentActiveFilters}
                   onSubmit={(event) => {
                     event.preventDefault()
-                    updateParams(
-                      {
-                        searchKey: 'activeTutorSearch',
-                        sortKey: 'activeTutorSort',
-                        pageKey: 'activeTutorPage'
-                      },
-                      activeFilters,
-                      1
-                    )
+                    updateParams({ searchKey: 'activeTutorSearch', sortKey: 'activeTutorSort', pageKey: 'activeTutorPage' }, activeFilters, 1)
                   }}
-                >
-                  <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
-                    <Field className='gap-2 lg:col-span-2'>
-                      <FieldLabel htmlFor='active-tutor-search'>
-                        Cerca
-                      </FieldLabel>
-                      <div className='relative'>
-                        <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
-                        <Input
-                          id='active-tutor-search'
-                          type='search'
-                          placeholder='Nome, cognome o email'
-                          value={activeFilters.search}
-                          onChange={(event) =>
-                            setActiveFilters((prev) => ({
-                              ...prev,
-                              search: event.target.value
-                            }))
-                          }
-                          className='pl-9'
-                        />
-                      </div>
-                    </Field>
-                    <Field className='gap-2'>
-                      <FieldLabel>Ordina per</FieldLabel>
-                      <Select
-                        value={activeFilters.sortBy}
-                        onValueChange={(value) =>
-                          setActiveFilters((prev) => ({
-                            ...prev,
-                            sortBy: value
-                          }))
-                        }
-                      >
-                        <SelectTrigger className='w-full'>
-                          <SelectValue placeholder='Ordinamento' />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value='lastName'>Cognome</SelectItem>
-                          <SelectItem value='firstName'>Nome</SelectItem>
-                          <SelectItem value='year'>Classe</SelectItem>
-                          <SelectItem value='createdAt'>Creazione</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field className='gap-2'>
-                      <FieldLabel>Direzione</FieldLabel>
-                      <Select
-                        value={activeFilters.sortDir}
-                        onValueChange={(value) =>
-                          setActiveFilters((prev) => ({
-                            ...prev,
-                            sortDir: value === 'desc' ? 'desc' : 'asc'
-                          }))
-                        }
-                      >
-                        <SelectTrigger className='w-full'>
-                          <SelectValue placeholder='Direzione' />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value='asc'>Crescente</SelectItem>
-                          <SelectItem value='desc'>Decrescente</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                  </div>
-                  <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between'>
-                    <div />
-                    <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
-                      <Button variant='ghost' size='sm' type='button' onClick={resetActiveFilters}>
-                        Azzera filtri
-                      </Button>
-                    </div>
-                  </div>
-                </FilterForm>
+                  search={{
+                    id: 'active-tutor-search',
+                    value: activeFilters.search,
+                    onChange: (value) => setActiveFilters((prev) => ({ ...prev, search: value })),
+                    placeholder: 'Nome, cognome o email'
+                  }}
+                />
                 <div className='mt-6'>
                   <DataTable
+                    sortable={SORTABLE}
+                    sort={{ sortBy: currentActiveFilters.sortBy, sortDir: currentActiveFilters.sortDir }}
+                    onSort={(key) => {
+                      const next = { ...activeFilters, ...nextSort(currentActiveFilters, key) }
+                      setActiveFilters(next)
+                      updateParams({ searchKey: 'activeTutorSearch', sortKey: 'activeTutorSort', pageKey: 'activeTutorPage' }, next, 1)
+                    }}
                     data={activeTutors}
                     columns={columns}
                     rowHref={(row) => `/admin/tutors/${row.id}`}
@@ -1066,93 +968,24 @@ export default function AdminTutorsPage() {
                   applied={currentInactiveFilters}
                   onSubmit={(event) => {
                     event.preventDefault()
-                    updateParams(
-                      {
-                        searchKey: 'inactiveTutorSearch',
-                        sortKey: 'inactiveTutorSort',
-                        pageKey: 'inactiveTutorPage'
-                      },
-                      inactiveFilters,
-                      1
-                    )
+                    updateParams({ searchKey: 'inactiveTutorSearch', sortKey: 'inactiveTutorSort', pageKey: 'inactiveTutorPage' }, inactiveFilters, 1)
                   }}
-                >
-                  <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
-                    <Field className='gap-2 lg:col-span-2'>
-                      <FieldLabel htmlFor='inactive-tutor-search'>
-                        Cerca
-                      </FieldLabel>
-                      <div className='relative'>
-                        <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
-                        <Input
-                          id='inactive-tutor-search'
-                          type='search'
-                          placeholder='Nome, cognome o email'
-                          value={inactiveFilters.search}
-                          onChange={(event) =>
-                            setInactiveFilters((prev) => ({
-                              ...prev,
-                              search: event.target.value
-                            }))
-                          }
-                          className='pl-9'
-                        />
-                      </div>
-                    </Field>
-                    <Field className='gap-2'>
-                      <FieldLabel>Ordina per</FieldLabel>
-                      <Select
-                        value={inactiveFilters.sortBy}
-                        onValueChange={(value) =>
-                          setInactiveFilters((prev) => ({
-                            ...prev,
-                            sortBy: value
-                          }))
-                        }
-                      >
-                        <SelectTrigger className='w-full'>
-                          <SelectValue placeholder='Ordinamento' />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value='lastName'>Cognome</SelectItem>
-                          <SelectItem value='firstName'>Nome</SelectItem>
-                          <SelectItem value='year'>Classe</SelectItem>
-                          <SelectItem value='createdAt'>Creazione</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field className='gap-2'>
-                      <FieldLabel>Direzione</FieldLabel>
-                      <Select
-                        value={inactiveFilters.sortDir}
-                        onValueChange={(value) =>
-                          setInactiveFilters((prev) => ({
-                            ...prev,
-                            sortDir: value === 'desc' ? 'desc' : 'asc'
-                          }))
-                        }
-                      >
-                        <SelectTrigger className='w-full'>
-                          <SelectValue placeholder='Direzione' />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value='asc'>Crescente</SelectItem>
-                          <SelectItem value='desc'>Decrescente</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                  </div>
-                  <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between'>
-                    <div />
-                    <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
-                      <Button variant='ghost' size='sm' type='button' onClick={resetInactiveFilters}>
-                        Azzera filtri
-                      </Button>
-                    </div>
-                  </div>
-                </FilterForm>
+                  search={{
+                    id: 'inactive-tutor-search',
+                    value: inactiveFilters.search,
+                    onChange: (value) => setInactiveFilters((prev) => ({ ...prev, search: value })),
+                    placeholder: 'Nome, cognome o email'
+                  }}
+                />
                 <div className='mt-6'>
                   <DataTable
+                    sortable={SORTABLE}
+                    sort={{ sortBy: currentInactiveFilters.sortBy, sortDir: currentInactiveFilters.sortDir }}
+                    onSort={(key) => {
+                      const next = { ...inactiveFilters, ...nextSort(currentInactiveFilters, key) }
+                      setInactiveFilters(next)
+                      updateParams({ searchKey: 'inactiveTutorSearch', sortKey: 'inactiveTutorSort', pageKey: 'inactiveTutorPage' }, next, 1)
+                    }}
                     data={inactiveTutors}
                     columns={columns}
                     rowHref={(row) => `/admin/tutors/${row.id}`}
@@ -1172,94 +1005,24 @@ export default function AdminTutorsPage() {
                     applied={currentPendingFilters}
                     onSubmit={(event) => {
                       event.preventDefault()
-                      updateParams(
-                        {
-                          searchKey: 'pendingTutorSearch',
-                          sortKey: 'pendingTutorSort',
-                          pageKey: 'pendingTutorPage'
-                        },
-                        pendingFilters,
-                        1
-                      )
+                      updateParams({ searchKey: 'pendingTutorSearch', sortKey: 'pendingTutorSort', pageKey: 'pendingTutorPage' }, pendingFilters, 1)
                     }}
-                  >
-                    <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
-                      <Field className='gap-2 lg:col-span-2'>
-                        <FieldLabel htmlFor='pending-tutor-search'>
-                          Cerca
-                        </FieldLabel>
-                        <div className='relative'>
-                          <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
-                          <Input
-                            id='pending-tutor-search'
-                            type='search'
-                            placeholder='Email'
-                            value={pendingFilters.search}
-                            onChange={(event) =>
-                              setPendingFilters((prev) => ({
-                                ...prev,
-                                search: event.target.value
-                              }))
-                            }
-                            className='pl-9'
-                          />
-                        </div>
-                      </Field>
-                      <Field className='gap-2'>
-                        <FieldLabel>Ordina per</FieldLabel>
-                        <Select
-                          value={pendingFilters.sortBy}
-                          onValueChange={(value) =>
-                            setPendingFilters((prev) => ({
-                              ...prev,
-                              sortBy: value
-                            }))
-                          }
-                        >
-                          <SelectTrigger className='w-full'>
-                            <SelectValue placeholder='Ordinamento' />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value='createdAt'>
-                              Invitato il
-                            </SelectItem>
-                            <SelectItem value='expiresAt'>Scade il</SelectItem>
-                            <SelectItem value='email'>Email</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </Field>
-                      <Field className='gap-2'>
-                        <FieldLabel>Direzione</FieldLabel>
-                        <Select
-                          value={pendingFilters.sortDir}
-                          onValueChange={(value) =>
-                            setPendingFilters((prev) => ({
-                              ...prev,
-                              sortDir: value === 'desc' ? 'desc' : 'asc'
-                            }))
-                          }
-                        >
-                          <SelectTrigger className='w-full'>
-                            <SelectValue placeholder='Direzione' />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value='asc'>Crescente</SelectItem>
-                            <SelectItem value='desc'>Decrescente</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </Field>
-                    </div>
-                    <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between'>
-                      <div />
-                      <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
-                        <Button variant='ghost' size='sm' type='button' onClick={resetPendingFilters}>
-                        Azzera filtri
-                      </Button>
-                      </div>
-                    </div>
-                  </FilterForm>
+                    search={{
+                      id: 'pending-tutor-search',
+                      value: pendingFilters.search,
+                      onChange: (value) => setPendingFilters((prev) => ({ ...prev, search: value })),
+                      placeholder: 'Email'
+                    }}
+                  />
                   <div className='mt-6'>
                     <DataTable
+                      sortable={SORTABLE}
+                      sort={{ sortBy: currentPendingFilters.sortBy, sortDir: currentPendingFilters.sortDir }}
+                      onSort={(key) => {
+                        const next = { ...pendingFilters, ...nextSort(currentPendingFilters, key) }
+                        setPendingFilters(next)
+                        updateParams({ searchKey: 'pendingTutorSearch', sortKey: 'pendingTutorSort', pageKey: 'pendingTutorPage' }, next, 1)
+                      }}
                       data={pendingInvites}
                       columns={pendingColumns}
                       isLoading={pendingLoading}

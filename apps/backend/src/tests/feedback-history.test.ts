@@ -152,3 +152,21 @@ describe('feedback history', () => {
     expect((await call(`/lessons/${lessonId}/feedback`, { token: tokens.tutor, body: { bookingId, rating: 3, text: 'Nuovo' } })).status).toBe(200)
   })
 })
+
+describe('searching feedback', () => {
+  it('finds feedback by the author\'s or the recipient\'s name and by its text', async () => {
+    const { lessonId, bookingId } = await lessonWithBooking()
+    const created = await (await call(`/lessons/${lessonId}/feedback`, { token: tokens.tutor, body: { bookingId, rating: 4, text: 'Ottimo lavoro sulle frazioni_100%' } })).json()
+    const search = async (q: string) => {
+      const page = await (await call(`/feedback?${new URLSearchParams({ q, lessonId })}`, { token: tokens.admin })).json()
+      return page.data.map((item: { id: string }) => item.id)
+    }
+
+    expect(await search('frazioni')).toEqual([created.id])
+    expect(await search('Demo tutor')).toEqual([created.id])
+    expect(await search('student')).toEqual([created.id])
+    expect(await search('_100%')).toEqual([created.id])
+    expect(await search('geometria')).toEqual([])
+    expect((await call('/feedback?q=demo', { token: tokens.tutor })).status).toBe(403)
+  })
+})

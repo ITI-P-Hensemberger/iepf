@@ -1,5 +1,6 @@
 'use client'
 
+import { SortableHead } from '@/components/sortable-head'
 import { ListPagination } from '@/components/list-pagination'
 import { TableSkeletonRows } from '@/components/loading'
 import * as React from 'react'
@@ -73,14 +74,18 @@ type Subject = {
 }
 
 type LessonFilters = {
+  search: string
   subjectId: string
   status: string
+  sortDir: 'asc' | 'desc'
   dateRange?: DateRange
 }
 
 const defaultFilters: LessonFilters = {
+  search: '',
   subjectId: '',
   status: '',
+  sortDir: 'desc',
   dateRange: undefined
 }
 
@@ -218,8 +223,10 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     const fromParam = parseDateParam(searchParams.get('lessonFrom'))
     const toParam = parseDateParam(searchParams.get('lessonTo'))
     return {
+      search: searchParams.get('lessonQ') ?? '',
       subjectId: searchParams.get('lessonSubject') ?? '',
       status: searchParams.get('lessonStatus') ?? '',
+      sortDir: (searchParams.get('lessonSort') === 'asc' ? 'asc' : 'desc') as 'asc' | 'desc',
       dateRange:
         fromParam || toParam
           ? {
@@ -233,8 +240,10 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
 
   React.useEffect(() => {
     setFilters({
+      search: currentFilters.search,
       subjectId: currentFilters.subjectId,
       status: currentFilters.status,
+      sortDir: currentFilters.sortDir,
       dateRange: currentFilters.dateRange
     })
   }, [currentFilters])
@@ -274,7 +283,10 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
       params.set('to', endOfDayIso(currentFilters.dateRange.to))
     }
     params.set('sortBy', 'startAt')
-    params.set('sortDir', 'desc')
+    if (currentFilters.search) {
+      params.set('q', currentFilters.search)
+    }
+    params.set('sortDir', currentFilters.sortDir)
     params.set('limit', String(pageSize))
     params.set('offset', String((currentFilters.page - 1) * pageSize))
 
@@ -357,8 +369,10 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
 
   const appliedFilters = React.useMemo(
     () => ({
+      search: currentFilters.search,
       subjectId: currentFilters.subjectId,
       status: currentFilters.status,
+      sortDir: currentFilters.sortDir,
       dateRange: currentFilters.dateRange
     }),
     [currentFilters]
@@ -370,10 +384,24 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
       base: LessonFilters = filters
     ) => {
       const params = new URLSearchParams(searchParamsString)
+      const nextSearch = updates.search ?? base.search
+      const nextSortDir = updates.sortDir ?? base.sortDir
       const nextSubject = updates.subjectId ?? base.subjectId
       const nextStatus = updates.status ?? base.status
       const nextRange = updates.dateRange ?? base.dateRange
       const nextPage = updates.page ?? 1
+
+      if (nextSearch.trim()) {
+        params.set('lessonQ', nextSearch.trim())
+      } else {
+        params.delete('lessonQ')
+      }
+
+      if (nextSortDir === 'asc') {
+        params.set('lessonSort', 'asc')
+      } else {
+        params.delete('lessonSort')
+      }
 
       if (nextSubject) {
         params.set('lessonSubject', nextSubject)
@@ -420,14 +448,16 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     setFilters(defaultFilters)
     updateParams(
       {
+        search: '',
         subjectId: '',
         status: '',
+        sortDir: currentFilters.sortDir,
         dateRange: undefined,
         page: 1
       },
       defaultFilters
     )
-  }, [updateParams])
+  }, [currentFilters.sortDir, updateParams])
 
 
 
@@ -446,13 +476,21 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
           </div>
 
           <FilterForm
-            className='mt-6'
+            className='mt-4'
             values={filters}
             applied={currentFilters}
             onSubmit={(event) => {
               event.preventDefault()
               handleApplyFilters()
             }}
+            search={{
+              id: 'lesson-search',
+              value: filters.search,
+              onChange: (value) => setFilters((prev) => ({ ...prev, search: value })),
+              placeholder: 'Materia'
+            }}
+            activeFilters={[filters.subjectId, filters.status, filters.dateRange?.from].filter(Boolean).length}
+            onReset={handleClearFilters}
           >
             <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-3'>
               <Field className='gap-2'>
@@ -530,18 +568,25 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
                 </Button>
               </Field>
             </div>
-            <div className='mt-4 flex flex-col gap-2 pt-2 sm:pt-0 sm:flex-row sm:items-end sm:justify-end'>
-              <Button variant='ghost' size='sm' type='button' onClick={handleClearFilters}>
-                        Azzera filtri
-                      </Button>
-            </div>
           </FilterForm>
 
           <div className='mt-6 rounded-lg border'>
             <Table>
               <TableHeader className='bg-muted/50'>
                 <TableRow>
-                  <TableHead className='whitespace-nowrap'>Data e ora</TableHead>
+                  <TableHead>
+                    <SortableHead
+                      label='Data e ora'
+                      sortKey='startAt'
+                      sortBy='startAt'
+                      sortDir={currentFilters.sortDir}
+                      onSort={() => {
+                        const next = { ...filters, sortDir: currentFilters.sortDir === 'asc' ? 'desc' as const : 'asc' as const }
+                        setFilters(next)
+                        updateParams({ sortDir: next.sortDir, page: 1 }, next)
+                      }}
+                    />
+                  </TableHead>
                   <TableHead>Materia</TableHead>
                   <TableHead className='whitespace-nowrap'>Posti occupati</TableHead>
                   <TableHead>Stato</TableHead>

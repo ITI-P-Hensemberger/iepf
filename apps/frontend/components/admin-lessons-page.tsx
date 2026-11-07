@@ -1,5 +1,6 @@
 'use client'
 
+import { nextSort, SortableHead } from '@/components/sortable-head'
 import { ListPagination } from '@/components/list-pagination'
 import { TableSkeletonRows } from '@/components/loading'
 import * as React from 'react'
@@ -82,6 +83,7 @@ type Subject = {
 }
 
 type LessonFilters = {
+  search: string
   tutorId: string
   subjectId: string
   status: string
@@ -91,6 +93,7 @@ type LessonFilters = {
 }
 
 const defaultFilters: LessonFilters = {
+  search: '',
   tutorId: '',
   subjectId: '',
   status: '',
@@ -243,6 +246,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     const fromParam = parseDateParam(searchParams.get('lessonFrom'))
     const toParam = parseDateParam(searchParams.get('lessonTo'))
     return {
+      search: searchParams.get('lessonQ') ?? '',
       tutorId: searchParams.get('lessonTutor') ?? '',
       subjectId: searchParams.get('lessonSubject') ?? '',
       status: searchParams.get('lessonStatus') ?? '',
@@ -261,6 +265,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
 
   React.useEffect(() => {
     setFilters({
+      search: currentFilters.search,
       tutorId: currentFilters.tutorId,
       subjectId: currentFilters.subjectId,
       status: currentFilters.status,
@@ -329,6 +334,9 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     }
     if (currentFilters.dateRange?.to) {
       params.set('to', endOfDayIso(currentFilters.dateRange.to))
+    }
+    if (currentFilters.search) {
+      params.set('q', currentFilters.search)
     }
     params.set('sortBy', currentFilters.sortBy)
     params.set('sortDir', currentFilters.sortDir)
@@ -518,6 +526,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
 
   const appliedFilters = React.useMemo(
     () => ({
+      search: currentFilters.search,
       tutorId: currentFilters.tutorId,
       subjectId: currentFilters.subjectId,
       status: currentFilters.status,
@@ -534,6 +543,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
       base: LessonFilters = filters
     ) => {
       const params = new URLSearchParams(searchParamsString)
+      const nextSearch = updates.search ?? base.search
       const nextTutor = updates.tutorId ?? base.tutorId
       const nextSubject = updates.subjectId ?? base.subjectId
       const nextStatus = updates.status ?? base.status
@@ -541,6 +551,12 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
       const nextSortBy = updates.sortBy ?? base.sortBy
       const nextSortDir = updates.sortDir ?? base.sortDir
       const nextPage = updates.page ?? 1
+
+      if (nextSearch.trim()) {
+        params.set('lessonQ', nextSearch.trim())
+      } else {
+        params.delete('lessonQ')
+      }
 
       if (nextTutor) {
         params.set('lessonTutor', nextTutor)
@@ -599,17 +615,18 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     setFilters(defaultFilters)
     updateParams(
       {
+        search: '',
         tutorId: '',
         subjectId: '',
         status: '',
-        sortBy: defaultFilters.sortBy,
-        sortDir: defaultFilters.sortDir,
+        sortBy: currentFilters.sortBy,
+        sortDir: currentFilters.sortDir,
         dateRange: undefined,
         page: 1
       },
       defaultFilters
     )
-  }, [updateParams])
+  }, [currentFilters.sortBy, currentFilters.sortDir, updateParams])
 
   const handleOpenCreate = React.useCallback(() => {
     setCreateForm({
@@ -712,13 +729,21 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
           />
 
           <FilterForm
-            className='mt-6'
+            className='mt-4'
             values={filters}
             applied={currentFilters}
             onSubmit={(event) => {
               event.preventDefault()
               handleApplyFilters()
             }}
+            search={{
+              id: 'lesson-search',
+              value: filters.search,
+              onChange: (value) => setFilters((prev) => ({ ...prev, search: value })),
+              placeholder: 'Tutor o materia'
+            }}
+            activeFilters={[filters.tutorId, filters.subjectId, filters.status, filters.dateRange?.from].filter(Boolean).length}
+            onReset={handleClearFilters}
           >
             <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
               <Field className='gap-2'>
@@ -823,62 +848,25 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
                 </Button>
               </Field>
             </div>
-            <div className='mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between'>
-              <div className='flex flex-col gap-3 sm:flex-row sm:items-end'>
-                <Field className='gap-2'>
-                  <FieldLabel>Ordina per</FieldLabel>
-                  <Select
-                    value={filters.sortBy}
-                    onValueChange={(value) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        sortBy: value
-                      }))
-                    }
-                  >
-                    <SelectTrigger className='w-full sm:w-[180px]'>
-                      <SelectValue placeholder='Ordinamento' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='startAt'>Data lezione</SelectItem>
-                      <SelectItem value='createdAt'>Creazione</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field className='gap-2'>
-                  <FieldLabel>Direzione</FieldLabel>
-                  <Select
-                    value={filters.sortDir}
-                    onValueChange={(value) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        sortDir: value === 'desc' ? 'desc' : 'asc'
-                      }))
-                    }
-                  >
-                    <SelectTrigger className='w-full sm:w-[150px]'>
-                      <SelectValue placeholder='Direzione' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='asc'>Crescente</SelectItem>
-                      <SelectItem value='desc'>Decrescente</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </div>
-              <div className='flex flex-col gap-2 pt-2 sm:pt-0 sm:flex-row sm:items-end'>
-                <Button variant='ghost' size='sm' type='button' onClick={handleClearFilters}>
-                        Azzera filtri
-                      </Button>
-              </div>
-            </div>
           </FilterForm>
 
           <div className='mt-6 rounded-lg border'>
             <Table>
               <TableHeader className='bg-muted/50'>
                 <TableRow>
-                  <TableHead className='whitespace-nowrap'>Data e ora</TableHead>
+                  <TableHead>
+                    <SortableHead
+                      label='Data e ora'
+                      sortKey='startAt'
+                      sortBy={currentFilters.sortBy}
+                      sortDir={currentFilters.sortDir}
+                      onSort={(key) => {
+                        const next = { ...filters, ...nextSort(currentFilters, key, 'desc') }
+                        setFilters(next)
+                        updateParams({ sortBy: next.sortBy, sortDir: next.sortDir, page: 1 }, next)
+                      }}
+                    />
+                  </TableHead>
                   <TableHead>Tutor</TableHead>
                   <TableHead>Materia</TableHead>
                   <TableHead className='whitespace-nowrap'>

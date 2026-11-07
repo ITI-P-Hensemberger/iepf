@@ -4,7 +4,7 @@ import * as React from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import * as z from 'zod'
-import { Bell, KeyRound, UserRound } from 'lucide-react'
+import { Bell, BookOpen, CalendarClock, KeyRound, UserRound } from 'lucide-react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 
@@ -13,6 +13,8 @@ import { LessonHoursBadge } from '@/components/lesson-hours-badge'
 import { EmptyState } from '@/components/empty-state'
 import { SETUP_PARAM } from '@/components/push-prompt'
 import { SectionLayout } from '@/components/section-layout'
+import { TutorAvailabilitySettings } from '@/components/tutor-availability-settings'
+import { TutorSubjectsSettings } from '@/components/tutor-subjects-settings'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -128,9 +130,14 @@ const ROLE_LABELS: Record<string, string> = {
 
 const SECTIONS = [
   { value: 'account', label: 'Dati personali', icon: UserRound },
-  { value: 'security', label: 'Password', icon: KeyRound },
-  { value: 'notifications', label: 'Notifiche', icon: Bell }
+  // Tutors only: what they teach and when.
+  { value: 'availability', label: 'Disponibilità', icon: CalendarClock },
+  { value: 'subjects', label: 'Materie', icon: BookOpen },
+  { value: 'notifications', label: 'Notifiche', icon: Bell },
+  { value: 'security', label: 'Password', icon: KeyRound }
 ] as const
+
+const TUTOR_SECTIONS = ['availability', 'subjects']
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -138,7 +145,9 @@ export default function ProfilePage() {
   const searchParams = useSearchParams()
   const tab = searchParams.get('tab')
   // The push setup link (?attiva-notifiche=1) lands on the notifications.
-  const active = tab === 'security' || tab === 'notifications' ? tab : searchParams.has(SETUP_PARAM) ? 'notifications' : 'account'
+  const active = tab === 'security' || tab === 'notifications' || (tab && TUTOR_SECTIONS.includes(tab))
+    ? tab
+    : searchParams.has(SETUP_PARAM) ? 'notifications' : 'account'
 
   const { profile, isLoading, error, refresh } = useSession()
   const isAdmin = profile?.role === 'admin'
@@ -472,8 +481,10 @@ export default function ProfilePage() {
   }
 
   const hasNotifications = Boolean(profile?.id) && (profile?.role === 'student' || profile?.role === 'tutor' || profile?.role === 'admin')
-  const menu = hasNotifications ? SECTIONS : SECTIONS.filter(section => section.value !== 'notifications')
-  const shown = active === 'notifications' && profile && !hasNotifications ? 'account' : active
+  const isTutor = profile?.role === 'tutor'
+  const menu = SECTIONS.filter(section =>
+    (section.value !== 'notifications' || hasNotifications) && (!TUTOR_SECTIONS.includes(section.value) || isTutor))
+  const shown = profile && !menu.some(section => section.value === active) ? 'account' : active
 
   return (
     <SectionLayout title='Profilo' backHref='/' sections={menu} value={shown} onValueChange={changeSection}>
@@ -600,6 +611,10 @@ export default function ProfilePage() {
                 </form>
               </section>
             </>
+          ) : shown === 'availability' ? (
+            <TutorAvailabilitySettings />
+          ) : shown === 'subjects' ? (
+            <TutorSubjectsSettings />
           ) : shown === 'security' ? (
               <section className='flex flex-col gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6'>
                 <div className='space-y-1'>

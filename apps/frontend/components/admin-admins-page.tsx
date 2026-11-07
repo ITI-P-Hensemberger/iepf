@@ -1,5 +1,6 @@
 'use client'
 
+import { SortableHead } from '@/components/sortable-head'
 import { ListPagination } from '@/components/list-pagination'
 import { TableSkeletonRows } from '@/components/loading'
 import * as React from 'react'
@@ -14,7 +15,7 @@ import {
   getCoreRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { ArrowUpDown, Search, Trash2 } from 'lucide-react'
+import { Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -264,7 +265,6 @@ function DataTable<TData>({
     [pageKey, pathname, router, searchParamsString]
   )
 
-
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
@@ -280,11 +280,13 @@ function DataTable<TData>({
 
   return (
     <div className='space-y-4'>
-      <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-        <div className='relative max-w-xs'>
-          <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+      {/* The same search bar as every list: under the header while the list scrolls. */}
+      <div className='sticky top-[var(--app-header-bottom)] z-30 -mx-4 bg-background/95 px-4 py-3 backdrop-blur'>
+        <div className='relative'>
+          <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
           <Input
             type='search'
+            aria-label='Cerca'
             placeholder={searchPlaceholder}
             value={globalFilter}
             onChange={(event) => setGlobalFilter(event.target.value)}
@@ -698,26 +700,26 @@ export default function AdminAdminsPage() {
       {
         accessorKey: 'lastName',
         header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Cognome
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
+          <SortableHead
+            label='Cognome'
+            sortKey={column.id}
+            sortBy={column.getIsSorted() ? column.id : ''}
+            sortDir={column.getIsSorted() === 'desc' ? 'desc' : 'asc'}
+            onSort={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          />
         ),
         cell: ({ row }) => row.original.lastName
       },
       {
         accessorKey: 'firstName',
         header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Nome
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
+          <SortableHead
+            label='Nome'
+            sortKey={column.id}
+            sortBy={column.getIsSorted() ? column.id : ''}
+            sortDir={column.getIsSorted() === 'desc' ? 'desc' : 'asc'}
+            onSort={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          />
         ),
         cell: ({ row }) => row.original.firstName
       }
@@ -738,26 +740,26 @@ export default function AdminAdminsPage() {
       {
         accessorKey: 'createdAt',
         header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Invitato il
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
+          <SortableHead
+            label='Invitato il'
+            sortKey={column.id}
+            sortBy={column.getIsSorted() ? column.id : ''}
+            sortDir={column.getIsSorted() === 'desc' ? 'desc' : 'asc'}
+            onSort={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          />
         ),
         cell: ({ row }) => formatItalianDate(row.original.createdAt)
       },
       {
         accessorKey: 'expiresAt',
         header: ({ column }) => (
-          <Button
-            variant='ghost'
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Scade il
-            <ArrowUpDown className='ml-2 h-4 w-4' />
-          </Button>
+          <SortableHead
+            label='Scade il'
+            sortKey={column.id}
+            sortBy={column.getIsSorted() ? column.id : ''}
+            sortDir={column.getIsSorted() === 'desc' ? 'desc' : 'asc'}
+            onSort={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          />
         ),
         cell: ({ row }) => formatItalianDate(row.original.expiresAt)
       },

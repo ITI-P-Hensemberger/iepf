@@ -1,7 +1,11 @@
 'use client'
 
 import * as React from 'react'
+import { ChevronDown, Search, SlidersHorizontal } from 'lucide-react'
 
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
 function differs(draft: object, applied: object) {
@@ -9,14 +13,18 @@ function differs(draft: object, applied: object) {
   return Object.entries(draft).some(([key, value]) => JSON.stringify(value ?? null) !== JSON.stringify(a[key] ?? null))
 }
 
-// A list's filters, applied as they change: no "Applica" button. The form submits itself a
-// moment after the last change (so typing a search does not reload at every letter), and only
-// when the fields differ from the filters already applied, so filling the fields from the URL
-// (on load, or back from a detail page) does not send the list back to page one.
+// The top of every list: a search field that stays under the header while the list scrolls,
+// and the other filters in a panel closed by default. Filters apply as they change, a moment
+// after the last one (so typing does not reload at every letter), and only when they differ
+// from the ones already applied: refilling the fields from the URL (on load, or back from a
+// detail page) keeps the page the list was on. Sorting is on the column headers.
 export function FilterForm({
   values,
   applied,
   onSubmit,
+  search,
+  activeFilters = 0,
+  onReset,
   delay = 400,
   className,
   children
@@ -24,11 +32,18 @@ export function FilterForm({
   values: object
   applied: object
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void
+  search: { id: string, value: string, onChange: (value: string) => void, placeholder: string }
+  // How many filters in the panel are set, shown on its button.
+  activeFilters?: number
+  onReset?: () => void
   delay?: number
   className?: string
-  children: React.ReactNode
+  // The filters in the panel; without them there is only the search.
+  children?: React.ReactNode
 }) {
   const ref = React.useRef<HTMLFormElement>(null)
+  const [open, setOpen] = React.useState(false)
+  const panelId = React.useId()
   const key = JSON.stringify(values)
   const latest = React.useRef({ values, applied })
   React.useEffect(() => {
@@ -44,8 +59,48 @@ export function FilterForm({
   }, [key, delay])
 
   return (
-    <form ref={ref} onSubmit={onSubmit} className={cn('rounded-lg border bg-card p-4', className)}>
-      {children}
+    // contents: the bar sticks along the whole list that follows the form, not only the form.
+    <form ref={ref} onSubmit={onSubmit} className='contents'>
+      <div className={cn('sticky top-[var(--app-header-bottom)] z-30 -mx-4 bg-background/95 px-4 py-3 backdrop-blur', className)}>
+        <div className='flex gap-2'>
+          <div className='relative min-w-0 flex-1'>
+            <Search className='pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground' aria-hidden />
+            <Input
+              id={search.id}
+              type='search'
+              aria-label='Cerca'
+              placeholder={search.placeholder}
+              value={search.value}
+              onChange={event => search.onChange(event.target.value)}
+              className='pl-9'
+            />
+          </div>
+          {children && (
+            <Button
+              type='button'
+              variant='outline'
+              aria-expanded={open}
+              aria-controls={panelId}
+              onClick={() => setOpen(value => !value)}
+            >
+              <SlidersHorizontal className='size-4' />
+              <span className='hidden sm:inline'>Filtri</span>
+              {activeFilters > 0 && <Badge variant='secondary' className='px-1.5'>{activeFilters}</Badge>}
+              <ChevronDown className={cn('size-4 transition-transform', open && 'rotate-180')} aria-hidden />
+            </Button>
+          )}
+        </div>
+      </div>
+      {children && open && (
+        <div id={panelId} className='mb-4 rounded-lg border bg-card p-4'>
+          {children}
+          {onReset && (
+            <div className='mt-4 flex justify-end'>
+              <Button variant='ghost' size='sm' type='button' onClick={onReset}>Azzera filtri</Button>
+            </div>
+          )}
+        </div>
+      )}
     </form>
   )
 }

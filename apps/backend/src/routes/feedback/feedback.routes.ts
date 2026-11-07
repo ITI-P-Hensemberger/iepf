@@ -92,6 +92,8 @@ const listMyFeedbackQuerySchema = z.object({
 })
 
 const adminListFeedbackQuerySchema = z.object({
+  // Free text: the author's or the recipient's name, or the feedback's text.
+  q: z.string().trim().min(1).max(100).optional(),
   lessonId: z.uuid().optional(),
   bookingId: z.uuid().optional(),
   authorUserId: z.uuid().optional(),

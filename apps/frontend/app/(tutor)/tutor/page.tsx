@@ -7,7 +7,7 @@ import { withFrom } from '@/lib/back-link'
 import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
-import { BookOpen, CalendarClock, CalendarDays, ChevronRight } from 'lucide-react'
+import { CalendarClock, CalendarDays, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { PushInviteCard, TUTOR_ONBOARDED_FLAG as ONBOARDED_FLAG } from '@/components/push-prompt'
@@ -92,15 +92,12 @@ export default function TutorPage() {
             />
           )}
 
-          <div className='grid gap-3 sm:grid-cols-3'>
+          <div className='grid gap-3 sm:grid-cols-2'>
             <Button asChild size='lg' className='h-12 w-full'>
               <Link href='/tutor/lessons'><CalendarDays className='h-5 w-5' /> La mia settimana</Link>
             </Button>
             <Button asChild size='lg' variant='outline' className='h-12 w-full'>
-              <Link href='/tutor/settings'><CalendarClock className='h-5 w-5' /> Disponibilità</Link>
-            </Button>
-            <Button asChild size='lg' variant='outline' className='h-12 w-full'>
-              <Link href='/tutor/settings?tab=subjects'><BookOpen className='h-5 w-5' /> Materie</Link>
+              <Link href={withFrom('/profile?tab=availability', '/tutor')}><CalendarClock className='h-5 w-5' /> Disponibilità</Link>
             </Button>
           </div>
 
