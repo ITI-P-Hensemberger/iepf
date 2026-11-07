@@ -37,8 +37,8 @@ export function SortableHead({
     <button
       type='button'
       onClick={() => onSort(sortKey)}
-      aria-label={`Ordina per ${typeof label === 'string' ? label.toLowerCase() : sortKey}`}
-      aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
+      // aria-sort belongs to the header cell, not to a button: the order is in the label instead.
+      aria-label={`Ordina per ${typeof label === 'string' ? label.toLowerCase() : sortKey}${active ? (sortDir === 'asc' ? ', ora crescente' : ', ora decrescente') : ''}`}
       className={cn(
         '-mx-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1 font-medium whitespace-nowrap transition-colors hover:bg-muted hover:text-foreground',
         active ? 'text-foreground' : 'text-muted-foreground',
