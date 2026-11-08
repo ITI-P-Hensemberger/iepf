@@ -61,7 +61,7 @@ function DeactivatedPage({ reason }: { reason: string | null }) {
         )}
       >
         <p>
-          Il tuo account era attivo ed è stato disattivato dalla scuola:{' '}
+          Il tuo account era attivo ed è stato disattivato dagli organizzatori:{' '}
           <span className='font-medium text-foreground'>non puoi prenotare lezioni</span>.
           Riceverai una mail se viene riattivato.
         </p>

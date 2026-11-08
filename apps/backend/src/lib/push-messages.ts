@@ -196,7 +196,7 @@ export function activationChangedPush(isActive: boolean, reason: string | null =
       ? 'Il tuo account IEPF è attivo: ora puoi usare la piattaforma.'
       : reason
         ? `Il tuo account IEPF è stato disattivato.\nMotivo: ${reason}`
-        : 'Il tuo account IEPF è stato disattivato. Per informazioni contatta la scuola.',
+        : 'Il tuo account IEPF è stato disattivato. Per informazioni contatta gli organizzatori.',
     url: '/',
     tag: 'account'
   }
