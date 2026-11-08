@@ -358,13 +358,13 @@ describe('reschedule texts', () => {
   it('name the one thing that changed', () => {
     expect(lessonChangedPush('student', before, { ...before, lessonId: 'new', startAt: new Date('2031-05-07T13:00:00Z') }, false)?.title).toBe('Lezione spostata')
     expect(lessonChangedPush('student', before, { ...before, durationMinutes: 90 }, false)).toMatchObject({ title: 'Durata cambiata', body: expect.stringContaining('90 minuti') })
-    expect(lessonChangedPush('student', before, { ...before, subjectName: 'Fisica' }, false)).toMatchObject({ title: 'Materia cambiata', body: expect.stringContaining('ora è Fisica (prima Matematica)') })
+    expect(lessonChangedPush('student', before, { ...before, subjectName: 'Fisica' }, false)).toMatchObject({ title: 'Materia cambiata', body: expect.stringContaining('Ora è Fisica (prima Matematica).') })
     expect(lessonChangedPush('student', before, before, true)?.title).toBe('Tutor cambiato')
   })
 
   it('sum up several changes, and say nothing when nothing changed', () => {
     const moved = { ...before, subjectName: 'Fisica', startAt: new Date('2031-05-07T13:00:00Z') }
-    expect(lessonChangedPush('student', before, moved, true)).toMatchObject({ title: 'Lezione modificata', body: expect.stringContaining('con un altro tutor') })
+    expect(lessonChangedPush('student', before, moved, true)).toMatchObject({ title: 'Lezione modificata', body: expect.stringContaining('Con un altro tutor') })
     expect(lessonChangedPush('student', before, before, false)).toBeNull()
     // The tutor hears about a change of tutor from the reassignment messages instead.
     expect(lessonChangedPush('tutor', before, before, true)).toBeNull()
@@ -384,7 +384,7 @@ describe('reschedule texts', () => {
       expect(body).toBeTruthy()
       expect(body).not.toMatch(/null|Materia a scelta|^,|^:/)
     }
-    expect(lessonReassignedPush(open).body).toMatch(/^La lezione di /)
+    expect(lessonReassignedPush(open).body).toMatch(/^[A-Z][a-zì]+ \d+ /)
     // Going back to no subject is not news for whoever stays on the lesson.
     expect(lessonChangedPush('student', before, { ...before, subjectName: null }, false)).toBeNull()
   })

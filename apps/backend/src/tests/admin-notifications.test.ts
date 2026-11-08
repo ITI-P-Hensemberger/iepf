@@ -133,7 +133,7 @@ describe('low feedback', () => {
     expect(JSON.stringify(adminPushes())).not.toContain('Demo')
     expect(adminMails()).toHaveLength(1)
     expect(adminMails()[0].subject).toBe('Feedback basso da uno studente')
-    expect(adminMails()[0].text).toContain('ha dato 2/5 al tutor Demo tutor')
+    expect(adminMails()[0].text).toMatch(/Voto: 2\/5\nTutor: Demo tutor\n/)
   })
 
   it('names the other direction when the tutor rates the student', async () => {
@@ -142,7 +142,7 @@ describe('low feedback', () => {
     await settle()
 
     expect(adminPushes().map(push => push.payload.title)).toEqual(['Feedback basso da un tutor'])
-    expect(adminMails()[0].text).toContain('Il tutor Demo tutor ha dato 1/5 a Demo student')
+    expect(adminMails()[0].text).toMatch(/^Un tutor ha dato un voto basso a uno studente\.[\s\S]*Voto: 1\/5\nTutor: Demo tutor\nStudente: Demo student/)
     expect(adminMails()[0].text).not.toContain('preparato')
   })
 
@@ -322,7 +322,7 @@ describe('daily digest', () => {
     ])
 
     expect(await runDigest(now)).toMatchObject({ subjectRequests: 1 })
-    expect(adminPushes().find(push => push.payload.title === 'Nuove richieste di materie')?.payload.body).toBe('Matematica demo (3)')
+    expect(adminPushes().find(push => push.payload.title === 'Nuove richieste di materie')?.payload.body).toBe('Matematica demo: 3')
     expect(adminMails().find(mail => mail.subject === 'Nuove richieste di materie')?.text).toContain('Matematica demo: 3 (4 in totale)')
   })
 })

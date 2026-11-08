@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildActivationChangedMessage,
   buildLessonBookingCanceledMessage,
   buildLessonBookingConfirmedMessage,
   buildLessonCanceledMessage,
@@ -10,7 +11,8 @@ import {
   buildLessonReminderStudentMessage,
   buildLessonReminderTutorMessage,
   buildLessonRescheduledMessage,
-  buildLessonsGeneratedMessage
+  buildLowFeedbackAdminMessage,
+  buildSubjectRequestsAdminMessage
 } from '@/lib/email-templates'
 
 const SCRIPT = '<script>alert(1)</script>'
@@ -44,7 +46,7 @@ describe('email templates escape user-written values in HTML', () => {
     }
   })
 
-  it('escapes topic, names, classes and subjects in every lesson email', () => {
+  it('escapes topics, names, classes, subjects and reasons in every email that shows them', () => {
     const htmls = [
       buildLessonBookingConfirmedMessage({ recipientRole: 'student', lessonStartAt: startAt, subjectName: SCRIPT, topic: LINK, tutorName: SCRIPT, studentName: LINK, studentClass: SCRIPT }).html,
       buildLessonBookingConfirmedMessage({ recipientRole: 'tutor', lessonStartAt: startAt, subjectName: SCRIPT, topic: LINK, tutorName: SCRIPT, studentName: LINK, studentClass: SCRIPT }).html,
@@ -59,7 +61,9 @@ describe('email templates escape user-written values in HTML', () => {
       buildLessonCreatedMessage({ lessonId: 'lesson-1', lessonStartAt: startAt, subjectName: SCRIPT, tutorName: LINK }).html,
       buildLessonReassignedMessage({ lessonStartAt: startAt, subjectName: SCRIPT, tutorName: LINK }).html,
       buildLessonPresenceUpdatedMessage({ lessonStartAt: startAt, subjectName: SCRIPT, tutorName: LINK, present: false }).html,
-      buildLessonsGeneratedMessage({ tutorName: SCRIPT, count: 2, weekStart: startAt }).html
+      buildLowFeedbackAdminMessage({ authorRole: 'student', rating: 1, subjectName: SCRIPT, lessonStartAt: startAt, tutorName: LINK, studentName: SCRIPT, studentClass: null }).html,
+      buildSubjectRequestsAdminMessage([{ subjectName: SCRIPT, count: 1, total: 1 }]).html,
+      buildActivationChangedMessage(false, LINK).html
     ]
     for (const html of htmls) {
       expectEscaped(html)
@@ -80,7 +84,7 @@ describe('email templates escape user-written values in HTML', () => {
 describe('lesson messages without a subject yet', () => {
   it('leave the subject out instead of naming a placeholder', () => {
     const reassigned = buildLessonReassignedMessage({ lessonStartAt: startAt, subjectName: null, tutorName: 'Sara' })
-    expect(reassigned.text).toContain('Ciao Sara, la lezione del ')
+    expect(reassigned.text).toMatch(/^Un amministratore ha affidato questa lezione a un altro tutor: non devi più tenerla\.\n\nLezione\n/)
     for (const recipientRole of ['student', 'tutor'] as const) {
       const moved = buildLessonRescheduledMessage({ recipientRole, oldStartAt: startAt, newStartAt: startAt, oldSubjectName: null, newSubjectName: null, oldTutorName: 'Sara', newTutorName: 'Luca', students: [] })
       expect(moved.text).not.toContain('Materia')
@@ -88,6 +92,6 @@ describe('lesson messages without a subject yet', () => {
       expect(moved.text).not.toContain('null')
     }
     const named = buildLessonRescheduledMessage({ recipientRole: 'tutor', oldStartAt: startAt, newStartAt: startAt, oldSubjectName: null, newSubjectName: 'Fisica', oldTutorName: 'Sara', newTutorName: 'Luca', students: [] })
-    expect(named.text).toContain('Materia: Fisica.')
+    expect(named.text).toContain('\n\nFisica\nPrima: ')
   })
 })
