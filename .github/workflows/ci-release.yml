@@ -95,6 +95,8 @@ jobs:
           key: backend-eslint-${{ hashFiles('pnpm-lock.yaml', 'apps/backend/eslint.config.*') }}-${{ github.sha }}
           restore-keys: backend-eslint-${{ hashFiles('pnpm-lock.yaml', 'apps/backend/eslint.config.*') }}-
       # A fresh checkout resets file times, so the cache compares contents.
+      # shortcut: the cache key covers only pnpm-lock.yaml and eslint.config.*. Rules loaded from any
+      # other file (a local plugin, a shared config) can leave stale results: add that file to the key.
       - if: matrix.task == 'lint'
         run: pnpm --filter iepf-backend run lint --cache --cache-strategy content
       # build runs tsc, which checks the types as well.
