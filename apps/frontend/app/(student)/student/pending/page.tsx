@@ -17,16 +17,23 @@ import { Button } from '@/components/ui/button'
 import { ACTIVATION_FORM_URL, RELEASE_FORM_URL } from '@/lib/student-activation'
 import { useSession } from '@/lib/use-session'
 
-type Deactivation = { deactivatedAt?: string | null, deactivationReason?: string | null }
+type Deactivation = {
+  deactivatedAt?: string | null
+  deactivationReason?: string | null
+}
 
 // Reads whether this account was active once and was turned off, and why; undefined while loading.
 function useDeactivation() {
   const { profile } = useSession()
-  const [state, setState] = React.useState<Deactivation | null | undefined>(undefined)
+  const [state, setState] = React.useState<Deactivation | null | undefined>(
+    undefined
+  )
   React.useEffect(() => {
     if (!profile?.id) return
     fetch(`/api/users/${profile.id}`, { cache: 'no-store' })
-      .then(response => (response.ok ? response.json() as Promise<Deactivation> : null))
+      .then((response) =>
+        response.ok ? (response.json() as Promise<Deactivation>) : null
+      )
       .catch(() => null)
       .then(setState)
   }, [profile?.id])
@@ -34,7 +41,10 @@ function useDeactivation() {
 }
 
 const contact = (
-  <Link href='mailto:iepf@hensemberger.it' className='underline underline-offset-4'>
+  <Link
+    href='mailto:iepf@hensemberger.it'
+    className='underline underline-offset-4'
+  >
     iepf@hensemberger.it
   </Link>
 )
@@ -46,23 +56,29 @@ function DeactivatedPage({ reason }: { reason: string | null }) {
         icon={Ban}
         tone='warning'
         title='Account disattivato'
-        footer={(
+        footer={
           <div className='space-y-4 text-left'>
             {reason && (
               <div className='rounded-lg border bg-card p-4 text-sm'>
                 <p className='font-medium'>Motivo</p>
-                <p className='mt-1 whitespace-pre-line text-muted-foreground'>{reason}</p>
+                <p className='mt-1 whitespace-pre-line text-muted-foreground'>
+                  {reason}
+                </p>
               </div>
             )}
             <p className='text-center text-sm text-muted-foreground'>
-              Per chiarimenti o per chiedere la riattivazione scrivi a {contact}.
+              Per chiarimenti scrivi a {contact}.
             </p>
           </div>
-        )}
+        }
       >
         <p>
           Il tuo account era attivo ed è stato disattivato dagli organizzatori:{' '}
-          <span className='font-medium text-foreground'>non puoi prenotare lezioni</span>.
+          <span className='font-medium text-foreground'>
+            non puoi prenotare lezioni
+          </span>
+          .
+          <br />
           Riceverai una mail se viene riattivato.
         </p>
       </StatusBlock>
@@ -98,7 +114,8 @@ function Step({
 export default function StudentPendingPage() {
   const deactivation = useDeactivation()
   if (deactivation === undefined) return <PageSkeleton />
-  if (deactivation?.deactivatedAt) return <DeactivatedPage reason={deactivation.deactivationReason ?? null} />
+  if (deactivation?.deactivatedAt)
+    return <DeactivatedPage reason={deactivation.deactivationReason ?? null} />
   return (
     <main className='flex flex-1'>
       <StatusBlock
