@@ -1,8 +1,6 @@
-import { backendFetch } from '@/lib/backend-fetch'
+import { forwardToBackend } from '@/lib/backend-proxy'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-
-import { parseBackendPayload } from '@/lib/backend-response'
 
 import { AUTH_COOKIES, getUserIdFromToken } from '@/lib/auth'
 
@@ -15,17 +13,16 @@ type UpdateProfileBody = {
 }
 
 export async function PATCH(request: Request) {
-  const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:9999'
   const cookieStore = await cookies()
   const accessToken = cookieStore.get(AUTH_COOKIES.access)?.value
 
   if (!accessToken) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ message: 'Sessione scaduta. Accedi di nuovo.' }, { status: 401 })
   }
 
   const userId = getUserIdFromToken(accessToken)
   if (!userId) {
-    return NextResponse.json({ message: 'Invalid token.' }, { status: 400 })
+    return NextResponse.json({ message: 'Sessione non valida. Accedi di nuovo.' }, { status: 400 })
   }
 
   let body: UpdateProfileBody | null = null
@@ -33,7 +30,7 @@ export async function PATCH(request: Request) {
   try {
     body = (await request.json()) as UpdateProfileBody
   } catch {
-    return NextResponse.json({ message: 'Invalid body.' }, { status: 400 })
+    return NextResponse.json({ message: 'Corpo richiesta non valido.' }, { status: 400 })
   }
 
   const payload: UpdateProfileBody = {}
@@ -55,30 +52,8 @@ export async function PATCH(request: Request) {
   }
 
   if (Object.keys(payload).length === 0) {
-    return NextResponse.json({ message: 'No valid fields.' }, { status: 400 })
+    return NextResponse.json({ message: 'Nessun campo da aggiornare.' }, { status: 400 })
   }
 
-  const response = await backendFetch(`${apiBaseUrl}/users/${userId}`, {
-    method: 'PATCH',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  })
-
-  const payloadText = await response.text()
-  const parsed = parseBackendPayload(payloadText)
-
-  if (!response.ok) {
-    return NextResponse.json(
-      {
-        message: parsed.errorMessage || 'Failed to update profile.',
-        error: parsed.errorPayload
-      },
-      { status: response.status }
-    )
-  }
-
-  return NextResponse.json(parsed.data ?? {})
+  return forwardToBackend(`/users/${userId}`, { method: 'PATCH', body: JSON.stringify(payload) })
 }

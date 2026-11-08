@@ -52,7 +52,7 @@ export async function POST(
   const remember = cookieStore.get(AUTH_COOKIES.remember)?.value
 
   if (!accessToken) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ message: 'Sessione scaduta. Accedi di nuovo.' }, { status: 401 })
   }
 
   let body: ImpersonateRequest | null = null
@@ -60,7 +60,7 @@ export async function POST(
   try {
     body = (await request.json()) as ImpersonateRequest
   } catch {
-    return NextResponse.json({ message: 'Invalid body.' }, { status: 400 })
+    return NextResponse.json({ message: 'Corpo richiesta non valido.' }, { status: 400 })
   }
 
   if (!body?.userId) {
@@ -82,7 +82,7 @@ export async function POST(
   if (!response.ok) {
     return NextResponse.json(
       {
-        message: parsed.errorMessage || 'Failed to impersonate user.',
+        message: parsed.errorMessage || "Impossibile avviare l'impersonazione.",
         error: parsed.errorPayload
       },
       { status: response.status }
@@ -92,7 +92,7 @@ export async function POST(
   const data = (parsed.data ?? {}) as ImpersonateResponse
   if (!data.token) {
     return NextResponse.json(
-      { message: 'Invalid impersonation response.' },
+      { message: 'Risposta del server non valida.' },
       { status: 502 }
     )
   }

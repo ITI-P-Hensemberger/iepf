@@ -37,7 +37,7 @@ export async function POST() {
   const accessToken = cookieStore.get(AUTH_COOKIES.access)?.value
 
   if (!accessToken) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ message: 'Sessione scaduta. Accedi di nuovo.' }, { status: 401 })
   }
 
   const response = await backendFetch(`${apiBaseUrl}/admin/impersonate/end`, {
@@ -53,7 +53,7 @@ export async function POST() {
   if (!response.ok) {
     return NextResponse.json(
       {
-        message: parsed.errorMessage || 'Failed to end impersonation.',
+        message: parsed.errorMessage || "Impossibile terminare l'impersonazione.",
         error: parsed.errorPayload
       },
       { status: response.status }
@@ -63,7 +63,7 @@ export async function POST() {
   const data = (parsed.data ?? {}) as EndImpersonationResponse
   if (!data.token) {
     return NextResponse.json(
-      { message: 'Invalid impersonation response.' },
+      { message: 'Risposta del server non valida.' },
       { status: 502 }
     )
   }

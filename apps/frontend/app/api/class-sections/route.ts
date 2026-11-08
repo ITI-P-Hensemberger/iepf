@@ -17,7 +17,7 @@ export async function GET() {
   if (!response.ok) {
     return NextResponse.json(
       {
-        message: parsed.errorMessage || 'Failed to fetch class sections.',
+        message: parsed.errorMessage || 'Impossibile caricare le classi.',
         error: parsed.errorPayload
       },
       { status: response.status }

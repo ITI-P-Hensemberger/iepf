@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:9999'
   const accessToken = (await cookies()).get(AUTH_COOKIES.access)?.value
   if (!accessToken) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ message: 'Sessione scaduta. Accedi di nuovo.' }, { status: 401 })
   }
 
   let upstream: Response

@@ -8,7 +8,7 @@ import { parseBackendPayload } from '@/lib/backend-response'
 // The first confirmation of the reset: checks password and report, deletes nothing.
 export async function POST(request: Request) {
   const token = (await cookies()).get(AUTH_COOKIES.access)?.value
-  if (!token) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+  if (!token) return NextResponse.json({ message: 'Sessione scaduta. Accedi di nuovo.' }, { status: 401 })
   const response = await backendFetch(`${process.env.API_BASE_URL ?? 'http://localhost:9999'}/settings/school-year/reset/check`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
