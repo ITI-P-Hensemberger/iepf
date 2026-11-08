@@ -656,8 +656,8 @@ export default function AdminFeedbackPage() {
                   </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
-              {isLoading ? (
+            <TableBody className={cn(isLoading && 'opacity-60 transition-opacity')} aria-busy={isLoading}>
+              {isLoading && !feedback.length ? (
                 <TableSkeletonRows columns={4} />
               ) : feedback.length ? (
                 feedback.map((item) => {

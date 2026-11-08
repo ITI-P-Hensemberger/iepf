@@ -1,6 +1,7 @@
 'use client'
 
 import { DateRangePicker } from '@/components/date-picker'
+import { cn } from '@/lib/utils'
 
 import { SortableHead } from '@/components/sortable-head'
 import { ListPagination } from '@/components/list-pagination'
@@ -569,8 +570,8 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
                   <TableHead>Stato</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
-                {isLoading ? (
+              <TableBody className={cn(isLoading && 'opacity-60 transition-opacity')} aria-busy={isLoading}>
+                {isLoading && !lessons.length ? (
                   <TableSkeletonRows columns={4} />
                 ) : lessons.length ? (
                   lessons.map((lesson) => {
