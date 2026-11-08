@@ -1,10 +1,11 @@
 'use client'
 
 import { DateRangePicker } from '@/components/date-picker'
+import { cn } from '@/lib/utils'
 
 import { SortableHead } from '@/components/sortable-head'
 import { ListPagination } from '@/components/list-pagination'
-import { TableSkeletonRows } from '@/components/loading'
+import { TableSkeletonRows, useFirstLoad } from '@/components/loading'
 import * as React from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CalendarIcon } from 'lucide-react'
@@ -458,6 +459,7 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
 
 
 
+  const firstLoad = useFirstLoad(isLoading)
   return (
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10 flex flex-col items-center'>
@@ -569,8 +571,8 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
                   <TableHead>Stato</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
-                {isLoading ? (
+              <TableBody className={cn(isLoading && 'opacity-60 transition-opacity')} aria-busy={isLoading}>
+                {firstLoad ? (
                   <TableSkeletonRows columns={4} />
                 ) : lessons.length ? (
                   lessons.map((lesson) => {

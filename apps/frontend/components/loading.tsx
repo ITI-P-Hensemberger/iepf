@@ -32,6 +32,14 @@ export function BlockSkeleton({ lines = 3 }: { lines?: number }) {
 }
 
 // Rows of a table that is still loading.
+// True until a list has finished loading once: only then is there nothing to show but a skeleton.
+// Later reloads keep what is on screen (rows, or the empty message), dimmed, so the table holds still.
+export function useFirstLoad(isLoading: boolean) {
+  const [loaded, setLoaded] = React.useState(!isLoading)
+  if (!isLoading && !loaded) setLoaded(true)
+  return !loaded
+}
+
 export function TableSkeletonRows({ columns, rows = 5 }: { columns: number, rows?: number }) {
   return (
     <>
