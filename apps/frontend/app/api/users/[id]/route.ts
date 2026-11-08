@@ -10,7 +10,6 @@ type UpdateUserBody = {
   email?: string
   firstName?: string
   lastName?: string
-  password?: string
   sectionId?: string
   year?: number
   isActive?: boolean
@@ -82,9 +81,6 @@ export async function PATCH(
   }
   if (typeof body.lastName === 'string') {
     payload.lastName = body.lastName
-  }
-  if (typeof body.password === 'string') {
-    payload.password = body.password
   }
   if (typeof body.sectionId === 'string') {
     payload.sectionId = body.sectionId

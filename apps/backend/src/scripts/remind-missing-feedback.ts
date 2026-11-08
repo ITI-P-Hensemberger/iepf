@@ -1,5 +1,5 @@
 // Purpose: Send reminder emails for missing lesson feedback on the current day.
-import { and, gte, inArray, lt } from 'drizzle-orm'
+import { and, gte, inArray, isNull, lt } from 'drizzle-orm'
 
 import db, { closeDb } from '@/db'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
@@ -66,7 +66,8 @@ async function remindMissingFeedback() {
       authorRole: lessonFeedback.authorRole
     })
     .from(lessonFeedback)
-    .where(inArray(lessonFeedback.bookingId, bookingIds))
+    // A feedback an admin deleted is missing again: its author may write a new one.
+    .where(and(inArray(lessonFeedback.bookingId, bookingIds), isNull(lessonFeedback.deletedAt)))
 
   const feedbackByBooking = new Map<string, { student: boolean, tutor: boolean }>()
 

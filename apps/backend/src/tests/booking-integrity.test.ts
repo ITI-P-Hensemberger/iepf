@@ -2,6 +2,8 @@
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
+import type { AuthenticatedUser } from '@/lib/types'
+
 import app from '@/app'
 import db, { closeDb } from '@/db'
 import { auditLogs } from '@/db/schemas/audit-logs.schema'
@@ -19,6 +21,7 @@ import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'
 import env from '@/env'
 import { issueAdminInviteToken } from '@/lib/admin-invite'
+import { createImpersonationToken } from '@/lib/auth'
 import { cleanDatabase } from '@/lib/db-cleanup'
 import { isUniqueConstraintError } from '@/lib/db-errors'
 import { DEV_PASSWORD, seedDevelopmentData } from '@/lib/dev-seed'
@@ -888,9 +891,10 @@ describe('school year reset', () => {
       emailVerifiedAt: new Date()
     }).returning({ id: users.id })
     await db.execute(sql`insert into admin_profiles (id, user_id, is_active) values (${crypto.randomUUID()}, ${otherAdmin.id}, true)`)
-    const impersonated = await request('/admin/impersonate', { token: adminToken, body: { userId: otherAdmin.id } })
-    expect(impersonated.status).toBe(200)
-    const { token } = await impersonated.json()
+    // Admins cannot be impersonated any more; a token minted directly still checks the reset's own guard.
+    expect((await request('/admin/impersonate', { token: adminToken, body: { userId: otherAdmin.id } })).status).toBe(403)
+    const admin = await db.query.users.findFirst({ where: (fields, ops) => ops.eq(fields.email, 'admin@example.test') })
+    const { token } = await createImpersonationToken(admin as AuthenticatedUser, { id: otherAdmin.id, email: 'other@example.test', role: 'admin' } as AuthenticatedUser)
     const response = await request(path, { token, body: { confirmation: 'RESET', password: 'Integrity123!' } })
     expect(response.status).toBe(403)
     const after = await counts()

@@ -99,7 +99,6 @@ export const patchUsersSchema = toZodV4SchemaTyped(z.object({
   email: schoolEmailSchema.optional(),
   firstName: z.string().min(1).max(100).optional(),
   lastName: z.string().min(1).max(100).optional(),
-  password: z.string().min(8).max(200).optional(),
   sectionId: z.uuid().optional(),
   year: z.number().int().optional(),
   isActive: z.boolean().optional()

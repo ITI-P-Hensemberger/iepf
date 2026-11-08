@@ -14841,7 +14841,6 @@ export interface paths {
                         email?: string;
                         firstName?: string;
                         lastName?: string;
-                        password?: string;
                         /** Format: uuid */
                         sectionId?: string;
                         year?: number;
