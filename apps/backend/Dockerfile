@@ -2,7 +2,7 @@
 # Build context is the repository root:
 #   docker build -f apps/backend/Dockerfile .
 
-FROM node:25-bookworm-slim AS base
+FROM node:26-bookworm-slim AS base
 WORKDIR /app
 RUN npm install --global pnpm@10.28.2
 
@@ -18,15 +18,6 @@ RUN pnpm run build
 
 FROM build AS migrate
 CMD ["npm", "run", "db:migrate"]
-
-FROM build AS cron-generate-lessons
-CMD ["npm", "run", "generate:lessons"]
-
-FROM build AS cron-remind-feedback
-CMD ["npm", "run", "remind:feedback"]
-
-FROM build AS cron-remind-lessons
-CMD ["npm", "run", "remind:lessons"]
 
 FROM deps AS prod-deps
 RUN rm -rf node_modules apps/backend/node_modules \

@@ -99,14 +99,16 @@ def node_environment():
     candidates = []
     if shutil.which('node'):
         candidates.append(Path(shutil.which('node')))
+    # The major version CI and the images use: .nvmrc at the repository root.
+    major = (ROOT / '.nvmrc').read_text().strip()
     nvm = Path(os.environ.get('NVM_DIR', Path.home() / '.nvm')) / 'versions/node'
-    candidates.extend(sorted(nvm.glob('v22.*/bin/node'), key=lambda p: tuple(map(int, p.parts[-3][1:].split('.'))), reverse=True))
+    candidates.extend(sorted(nvm.glob(f'v{major}.*/bin/node'), key=lambda p: tuple(map(int, p.parts[-3][1:].split('.'))), reverse=True))
     for node in candidates:
         version = subprocess.check_output([str(node), '--version'], text=True).strip()
-        if version.startswith('v22.'):
+        if version.startswith(f'v{major}.'):
             env['PATH'] = str(node.parent) + os.pathsep + env['PATH']
             return env
-    raise RuntimeError('Node 22 is required. Run: nvm install 22 && nvm use 22')
+    raise RuntimeError(f'Node {major} is required. Run: nvm install {major} && nvm use {major}')
 
 
 def run(args, cwd=INFRA, env=None, **kwargs):

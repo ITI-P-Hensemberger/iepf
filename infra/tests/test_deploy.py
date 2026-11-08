@@ -25,13 +25,14 @@ class DeployTests(unittest.TestCase):
         self.bin = self.base / 'bin'
         for p in [self.root / 'shared', self.root / 'releases', self.bundle, self.bin]:
             p.mkdir(parents=True)
-        for name in ['apply.sh', 'backup.sh', 'job.sh', 'alert.sh', 'install-timers.sh', 'compose.yaml']:
+        for name in ['apply.sh', 'backup.sh', 'restore-test.sh', 'job.sh', 'alert.sh', 'install-timers.sh', 'compose.yaml']:
             text = (SOURCE / name).read_text().replace('ROOT=/opt/iepf', f'ROOT={self.root}')
             (self.bundle / name).write_text(text)
         import shutil
         shutil.copytree(SOURCE / 'systemd', self.bundle / 'systemd')
         for name in ['host.env', 'backend.env', 'postgres.env']:
             (self.root / 'shared' / name).write_text('TEST=true\n')
+        (self.root / 'shared' / 'backup.key').write_text('test-passphrase\n')
         self.previous = self.root / 'releases' / '100-1'
         self.previous.mkdir()
         self.state = '\n'.join([
@@ -50,9 +51,11 @@ name=os.path.basename(sys.argv[0]); args=sys.argv[1:]
 with open(os.environ['COMMAND_LOG'],'a') as f: f.write(json.dumps([name]+args)+'\\n')
 fail=os.environ.get('FAIL','')
 if name=='docker':
+    if args[0]=='logs': print('ready to accept connections\\nready to accept connections')
     if args[0]=='exec':
         if fail=='backup': sys.exit(1)
-        print('-- test dump')
+        if 'select count(*) from users' in args: print('0' if fail=='restore' else '3')
+        elif not ('-i' in args and fail==''): print('-- test dump')
     if 'db:migrate' in args and fail=='migration': sys.exit(1)
     if 'up' in args and 'traefik' in args and fail=='activation': sys.exit(1)
 if name=='rclone' and fail=='upload': sys.exit(1)
@@ -182,6 +185,27 @@ if name=='curl' and fail=='http': sys.exit(1)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn('Backup heartbeat failed', r.stderr)
 
+    def test_backup_keeps_an_encrypted_copy_of_the_configuration(self):
+        r = subprocess.run(['bash', str(self.bundle / 'backup.sh')], env=self.env, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        archive = next((self.root / 'shared' / 'backups').glob('iepf-config-*.tar.gz.gpg'))
+        self.assertNotIn(b'TEST=true', archive.read_bytes())
+        self.assertTrue(any(c[:2] == ['rclone', 'copy'] and c[-1].endswith('/config') for c in self.commands()))
+        (self.root / 'shared' / 'backup.key').unlink()
+        r = subprocess.run(['bash', str(self.bundle / 'backup.sh')], env=self.env, capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('Missing shared/backup.key', r.stderr)
+
+    def test_restore_test_loads_the_newest_backup(self):
+        backups = self.root / 'shared' / 'backups'
+        backups.mkdir()
+        (backups / 'iepf-20261101T010000-1.sql.gz').write_bytes(subprocess.run(['gzip', '-c'], input=b'-- dump', capture_output=True).stdout)
+        r = subprocess.run(['bash', str(self.bundle / 'restore-test.sh')], env=self.env, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('3 users', r.stdout)
+        r = subprocess.run(['bash', str(self.bundle / 'restore-test.sh')], env=dict(self.env, FAIL='restore'), capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0)
+
     def run_install_timers(self, crontab):
         (self.previous / 'systemd').mkdir()
         (self.previous / 'alert.sh').write_text('')
@@ -215,7 +239,7 @@ if name=='curl' and fail=='http': sys.exit(1)
             self.assertEqual(script.count(timer.name), 2, timer.name)
 
     def test_scheduled_units_alert_on_failure(self):
-        for name in ['iepf-job@.service', 'iepf-backup.service']:
+        for name in ['iepf-job@.service', 'iepf-backup.service', 'iepf-restore-test.service']:
             self.assertIn('OnFailure=iepf-alert@%n.service', (SOURCE / 'systemd' / name).read_text())
 
 if __name__ == '__main__':

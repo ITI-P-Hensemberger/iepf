@@ -1,0 +1,10 @@
+[Unit]
+Description=IEPF backup restore test
+Requires=docker.service
+After=docker.service
+OnFailure=iepf-alert@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/iepf/current/restore-test.sh
+TimeoutStartSec=30min

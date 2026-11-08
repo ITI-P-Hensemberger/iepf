@@ -105,8 +105,10 @@ Rollback da GitHub: avviare manualmente `CI and release` da `main`, scegliere
 `component=rollback` e indicare un ID presente in `/opt/iepf/releases`. Vengono
 ripristinati i digest e la configurazione di quella release; non si eseguono
 migrazioni inverse. Verificare la compatibilità con lo schema attuale prima di
-scegliere una release precedente. Le release vengono conservate finché utili
-per recupero e diagnosi; non è previsto cleanup automatico delle immagini Docker.
+scegliere una release precedente. Le cartelle delle release restano (pochi KB l'una). Dopo ogni attivazione
+riuscita `apply.sh` cancella le immagini delle app che la release attiva non usa: un
+rollback riscarica da GHCR le immagini della release scelta, per digest. Le immagini su
+GHCR non vanno quindi cancellate finché le release che le usano possono servire.
 
 Monitoraggio: un timer fallito attiva `iepf-alert@.service`, che manda un POST di testo
 a `ALERT_WEBHOOK_URL`; dopo ogni backup riuscito `backup.sh` chiama
@@ -116,6 +118,29 @@ nel journal. La disponibilità del sito va controllata da un servizio esterno su
 `https://iepf.hensemberger.it/auth/login`, perché il backend non è esposto. Per provare
 l'avviso: `systemctl start iepf-alert@prova.service`. `install-timers.sh` copia lo script in
 `/opt/iepf/shared/alert.sh`, così funziona anche dopo un rollback: rieseguirlo se lo script cambia.
+
+Backup della configurazione: ogni backup salva anche `host.env`, `backend.env`,
+`postgres.env` e `images.env` (chiavi VAPID, SMTP, segreto JWT) in
+`gdrive:postgres-backups/config`, cifrati con la passphrase di `/opt/iepf/shared/backup.key`.
+La stessa passphrase va tenuta fuori dal server (password manager): senza, su una VPS nuova
+l'archivio non si apre. Senza il file il backup fallisce, e con lui il deploy che migra.
+Ripristino su una VPS nuova, dopo aver configurato rclone:
+
+```bash
+rclone copy gdrive:postgres-backups/config/FILE.tar.gz.gpg .
+gpg --batch --pinentry-mode loopback --passphrase-file backup.key -d FILE.tar.gz.gpg | tar -xzf - -C /opt/iepf/shared
+```
+
+Prova di ripristino: la prima domenica del mese alle 05:30 `iepf-restore-test` carica
+l'ultimo backup locale in un PostgreSQL temporaneo senza rete e controlla che `users` abbia
+righe; se fallisce arriva l'avviso. A mano: `systemctl start iepf-restore-test.service`.
+
+Server: `host-setup.sh` applica la configurazione che il bundle non porta, ed è
+rieseguibile. SSH solo con chiave (root compreso, che usa il deploy), journal massimo
+500 MB, log dei container limitati, logrotate senza la doppia regola di cloud-init,
+aggiornamenti Ubuntu completi (kernel compreso) alle 04:00, dopo backup e pulizia, con
+riavvio alle 04:30 se serve. Da eseguire su una VPS nuova e a ogni modifica:
+`ssh iepf 'bash -s' < infra/deploy/host-setup.sh`.
 
 Conservazione: ogni notte `iepf-job@cleanup-data` cancella gli `audit_logs` più vecchi di
 90 giorni, i token e gli inviti scaduti e le iscrizioni push silenziose da 120 giorni
