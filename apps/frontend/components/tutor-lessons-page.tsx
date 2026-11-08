@@ -8,20 +8,8 @@ import { ListPagination } from '@/components/list-pagination'
 import { TableSkeletonRows, useFirstLoad } from '@/components/loading'
 import * as React from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { CalendarIcon } from 'lucide-react'
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { FilterForm } from '@/components/filter-form'
 import { PageHeader } from '@/components/page-header'
@@ -42,7 +30,6 @@ import {
   TableRow
 } from '@/components/ui/table'
 
-import { format } from 'date-fns'
 import { toast } from 'sonner'
 
 import { formatItalianDate } from '@/lib/format-date'

@@ -15,6 +15,12 @@ const eslintConfig = defineConfig([
       "react-hooks/immutability": "warn",
     },
   },
+  {
+    // An unused import is a leftover from a change: fail the lint, as the backend does.
+    rules: {
+      "@typescript-eslint/no-unused-vars": "error",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
@@ -22,6 +28,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated from the backend OpenAPI document (pnpm --filter iepf-backend run api:types).
+    "lib/api/schema.ts",
   ]),
 ]);
 
