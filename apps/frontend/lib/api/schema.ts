@@ -14430,6 +14430,7 @@ export interface paths {
                     q?: string;
                     role?: "student" | "tutor" | "admin" | "activator";
                     isActive?: boolean;
+                    deactivated?: boolean;
                     emailVerified?: boolean;
                     sectionId?: string;
                     year?: number | null;
@@ -15080,6 +15081,88 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/users/{id}/activation-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Activations and deactivations of the account, oldest first */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            /** @enum {string} */
+                            kind: "activated" | "deactivated" | "reactivated";
+                            reason: string | null;
+                            actorName: string;
+                            actorRole: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                        }[];
+                    };
+                };
+                /** @description Invalid id error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Dati non validi",
+                             *       "name": "ZodError",
+                             *       "issues": [
+                             *         {
+                             *           "code": "invalid_type",
+                             *           "path": [
+                             *             "id"
+                             *           ],
+                             *           "message": "Invalid input: expected string, received undefined"
+                             *         }
+                             *       ]
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                issues: {
+                                    code: string;
+                                    path: (string | number)[];
+                                    message?: string;
+                                }[];
+                                name: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }

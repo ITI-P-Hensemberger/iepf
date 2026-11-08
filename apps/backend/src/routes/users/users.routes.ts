@@ -28,6 +28,8 @@ const listQuerySchema = z.object({
   q: z.string().min(1).optional(),
   role: z.enum(['student', 'tutor', 'admin', 'activator']).optional(),
   isActive: queryBoolean().optional(),
+  // Inactive students only: true for those turned off after being active, false for those never activated.
+  deactivated: queryBoolean().optional(),
   emailVerified: queryBoolean().optional(),
   sectionId: z.uuid().optional(),
   year: z.coerce.number().int().optional(),
@@ -173,7 +175,31 @@ export const remove = createRoute({
   }
 })
 
+const activationEventSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['activated', 'deactivated', 'reactivated']),
+  reason: z.string().nullable(),
+  actorName: z.string(),
+  actorRole: z.string(),
+  createdAt: z.date()
+})
+
+export const activationHistory = createRoute({
+  path: '/users/{id}/activation-history',
+  method: 'get',
+  request: {
+    params: IdUUIDParamsSchema
+  },
+  tags,
+  security: bearerAuth,
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(z.array(activationEventSchema), 'Activations and deactivations of the account, oldest first'),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(createErrorSchema(IdUUIDParamsSchema), 'Invalid id error')
+  }
+})
+
 export type ListRoute = typeof list
+export type ActivationHistoryRoute = typeof activationHistory
 export type GetOneRoute = typeof getOne
 export type PatchRoute = typeof patch
 export type RemoveRoute = typeof remove

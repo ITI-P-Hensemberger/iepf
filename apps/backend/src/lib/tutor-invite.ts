@@ -15,7 +15,7 @@ function buildExpiryDate() {
   return new Date(Date.now() + (env.TUTOR_INVITE_TTL * 1000))
 }
 
-export async function issueTutorInviteToken(email: string) {
+export async function issueTutorInviteToken(email: string, invitedById: string | null = null) {
   const token = generateToken(TOKEN_BYTE_LENGTH)
   const tokenHash = hashToken(token)
   const expiresAt = buildExpiryDate()
@@ -25,7 +25,8 @@ export async function issueTutorInviteToken(email: string) {
   await db.insert(tutorInviteTokens).values({
     email,
     tokenHash,
-    expiresAt
+    expiresAt,
+    invitedById
   })
 
   return {
@@ -40,7 +41,8 @@ export async function lockTutorInviteToken(token: string, tx: Transaction) {
   const [found] = await tx.select({
     id: tutorInviteTokens.id,
     email: tutorInviteTokens.email,
-    expiresAt: tutorInviteTokens.expiresAt
+    expiresAt: tutorInviteTokens.expiresAt,
+    invitedById: tutorInviteTokens.invitedById
   })
     .from(tutorInviteTokens)
     .where(eq(tutorInviteTokens.tokenHash, hashToken(token)))
@@ -55,5 +57,5 @@ export async function lockTutorInviteToken(token: string, tx: Transaction) {
     return null
   }
 
-  return { id: found.id, email: found.email }
+  return { id: found.id, email: found.email, invitedById: found.invitedById }
 }
