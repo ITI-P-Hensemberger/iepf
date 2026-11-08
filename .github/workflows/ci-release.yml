@@ -59,9 +59,10 @@ jobs:
       matrix:
         task: [lint, types, test]
     name: backend-checks (${{ matrix.task }})
+    # Only the tests need the database and the mail server: an empty image skips the container.
     services:
       postgres:
-        image: postgres:16
+        image: ${{ matrix.task == 'test' && 'postgres:16' || '' }}
         env:
           POSTGRES_USER: iepf
           POSTGRES_PASSWORD: iepf_local_password
@@ -71,7 +72,7 @@ jobs:
           --health-cmd "pg_isready -U iepf -d iepf_test"
           --health-interval 2s --health-timeout 3s --health-retries 30
       mailpit:
-        image: axllent/mailpit:v1.27.4
+        image: ${{ matrix.task == 'test' && 'axllent/mailpit:v1.27.4' || '' }}
         ports: ['1025:1025', '8025:8025']
     env:
       NODE_ENV: test
@@ -88,9 +89,15 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile --filter iepf-backend
       - if: matrix.task == 'lint'
-        run: pnpm --filter iepf-backend run lint
-      - if: matrix.task == 'types'
-        run: pnpm --filter iepf-backend run typecheck
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: apps/backend/.eslintcache
+          key: backend-eslint-${{ hashFiles('pnpm-lock.yaml', 'apps/backend/eslint.config.*') }}-${{ github.sha }}
+          restore-keys: backend-eslint-${{ hashFiles('pnpm-lock.yaml', 'apps/backend/eslint.config.*') }}-
+      # A fresh checkout resets file times, so the cache compares contents.
+      - if: matrix.task == 'lint'
+        run: pnpm --filter iepf-backend run lint --cache --cache-strategy content
+      # build runs tsc, which checks the types as well.
       - if: matrix.task == 'types'
         run: pnpm --filter iepf-backend run build
       - name: Check the frontend API types match the backend routes
