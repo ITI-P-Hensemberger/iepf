@@ -1,5 +1,6 @@
 'use client'
 
+import { Fragment } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Bell, BookOpen, ChartLine, Download, GraduationCap, LayoutDashboard, MessageSquarePlus, Star, Users } from 'lucide-react'
 
@@ -172,7 +173,8 @@ export default function AdminStatsPage() {
   // Only the open section is mounted, so only its data is fetched.
   return (
     <SectionLayout title='Statistiche' backHref='/admin' sections={TABS} value={activeTab} onValueChange={changeTab}>
-      {active.content()}
+      {/* A new section starts fresh: lists share one component, and its rows must not carry over. */}
+      <Fragment key={active.value}>{active.content()}</Fragment>
     </SectionLayout>
   )
 }
