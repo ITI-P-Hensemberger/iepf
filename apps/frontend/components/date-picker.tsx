@@ -167,11 +167,16 @@ export function DateRangePicker({
           mode='range'
           selected={value}
           defaultMonth={value?.from ?? today}
-          onSelect={(range, picked) => {
-            // A click after a complete range starts a new one, instead of stretching the old.
-            const next = value?.from && value.to ? { from: picked, to: undefined } : range
-            onChange(next)
-            if (next?.from && next.to) setOpen(false)
+          onSelect={(_range, picked) => {
+            // First click: the start. Second click: the end (the same day for one day), then close.
+            // A click after a complete range starts a new one.
+            const start = value?.from && !value.to ? value.from : null
+            if (!start) {
+              onChange({ from: picked, to: undefined })
+              return
+            }
+            onChange(picked < start ? { from: picked, to: start } : { from: start, to: picked })
+            setOpen(false)
           }}
           autoFocus
         />
