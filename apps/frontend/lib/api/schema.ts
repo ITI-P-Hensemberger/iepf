@@ -361,8 +361,6 @@ export interface paths {
                                 lastName: string;
                                 sectionName: string | null;
                                 countedLessons: number;
-                                lessonsScheduledCounted: number;
-                                lessonsScheduledNotCounted: number;
                                 lessonsConfirmedCounted: number;
                                 lessonsConfirmedNotCounted: number;
                                 lessonsCancelledCounted: number;

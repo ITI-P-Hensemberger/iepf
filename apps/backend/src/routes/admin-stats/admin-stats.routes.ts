@@ -25,8 +25,6 @@ const tutorLessonCountSchema = z.object({
   lastName: z.string(),
   sectionName: z.string().nullable(),
   countedLessons: z.number().int().min(0),
-  lessonsScheduledCounted: z.number().int().min(0),
-  lessonsScheduledNotCounted: z.number().int().min(0),
   lessonsConfirmedCounted: z.number().int().min(0),
   lessonsConfirmedNotCounted: z.number().int().min(0),
   lessonsCancelledCounted: z.number().int().min(0),
@@ -387,7 +385,7 @@ export const getYearReport = createRoute({
 export type GetYearReportRoute = typeof getYearReport
 
 const overviewSchema = z.object({
-  // Done: booked and over; upcoming: not over yet. Lessons over without bookings are not counted.
+  // Only lessons someone booked. Done: over; upcoming: confirmed and not over yet; canceled: with bookings.
   lessonsByState: z.object({
     done: z.number().int(),
     upcoming: z.number().int(),

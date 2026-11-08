@@ -109,7 +109,7 @@ export default function AdminPage() {
                 <Link href='/admin/lessons'>Apri la giornata <ChevronRight className='h-4 w-4' /></Link>
               </Button>
             </div>
-            <DayOverview lessons={todayShown} loading={loading} grouping='tutor' />
+            <DayOverview lessons={todayShown} loading={loading} grouping='tutor' emptyMessage='Nessuna lezione oggi.' />
           </section>
 
           <section className='space-y-3'>

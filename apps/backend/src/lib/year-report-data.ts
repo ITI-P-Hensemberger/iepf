@@ -19,6 +19,7 @@ import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'
+import { LESSON_HAS_BOOKING_SQL } from '@/lib/lesson-state'
 import { readNotificationStats } from '@/lib/notification-stats'
 
 export interface ReportPerson {
@@ -86,7 +87,7 @@ export async function loadReportData(): Promise<ReportData> {
       status: lessons.status,
       countsForTutor: lessons.countsForTutor,
       generatedByJob: lessons.generatedByJob
-    }).from(lessons).orderBy(lessons.startAt),
+    }).from(lessons).where(LESSON_HAS_BOOKING_SQL).orderBy(lessons.startAt),
     db.select({
       id: lessonBookings.id,
       lessonId: lessonBookings.lessonId,

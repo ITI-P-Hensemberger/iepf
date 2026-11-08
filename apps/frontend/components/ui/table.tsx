@@ -30,6 +30,8 @@ const TableHeader = React.forwardRef<
     className={cn(
       '[&_tr]:border-b',
       sticky && 'lg:[&_th]:sticky lg:[&_th]:top-[var(--sticky-top)] lg:[&_th]:z-20 lg:[&_th]:bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))] lg:[&_th]:shadow-[inset_0_-1px_0_var(--border)]',
+      // Their opaque background would square off the rounded-lg box they sit in (radius minus its 1px border).
+      sticky && 'lg:[&_th:first-child]:rounded-tl-[calc(var(--radius)-1px)] lg:[&_th:last-child]:rounded-tr-[calc(var(--radius)-1px)]',
       className
     )}
     {...props}

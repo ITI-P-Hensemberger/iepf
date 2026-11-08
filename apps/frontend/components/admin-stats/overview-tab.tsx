@@ -15,8 +15,8 @@ type Overview = {
   months: Array<{ month: string, lessons: number, done: number, bookings: number, present: number, absent: number }>
 }
 
-const monthFormat = new Intl.DateTimeFormat('it-IT', { month: 'short', year: '2-digit', timeZone: 'UTC' })
-const monthLabel = (month: string) => monthFormat.format(new Date(`${month}-01T00:00:00Z`))
+// "2026-11" as "11/2026", like the day labels.
+const monthLabel = (month: string) => month.split('-').reverse().map(Number).join('/')
 
 const value = (n: number | undefined) => (n === undefined ? '-' : formatNumber(Number(n)))
 
@@ -122,7 +122,7 @@ export function OverviewTab() {
         <ChartCard title='Lezioni per stato'>
           <Breakdown rows={[
             { label: 'Svolte', count: overview.data?.lessonsByState.done, color: 'var(--viz-3)' },
-            { label: 'In programma', count: overview.data?.lessonsByState.upcoming, color: 'var(--viz-1)' },
+            { label: 'Confermate', count: overview.data?.lessonsByState.upcoming, color: 'var(--viz-1)' },
             { label: 'Annullate', count: overview.data?.lessonsByState.canceled, color: 'var(--viz-2)' }
           ]}
           />

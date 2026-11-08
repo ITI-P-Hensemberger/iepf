@@ -29,8 +29,8 @@ export const RANGES = [
   { days: 365, label: 'Ultimo anno' }
 ]
 
-const dayFormat = new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'short', timeZone: 'UTC' })
-const formatDay = (day: string) => dayFormat.format(new Date(`${day}T00:00:00Z`))
+// "2026-11-08" as "8/11/2026", without the leading zeros some engines add.
+const formatDay = (day: string) => day.split('-').reverse().map(Number).join('/')
 
 export function HorizontalBars({ rows, label, color = 'var(--viz-1)', empty }: { rows: Array<{ name: string, count: number }>, label: string, color?: string, empty?: string }) {
   if (rows.length === 0) return <EmptyChart>{empty}</EmptyChart>
