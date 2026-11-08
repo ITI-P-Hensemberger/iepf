@@ -29,8 +29,8 @@ export const RANGES = [
   { days: 365, label: 'Ultimo anno' }
 ]
 
-// "2026-11-08" as "8/11/2026", without the leading zeros some engines add.
-const formatDay = (day: string) => day.split('-').reverse().map(Number).join('/')
+// "2026-11-08" as "08/11/2026".
+const formatDay = (day: string) => day.split('-').reverse().join('/')
 
 export function HorizontalBars({ rows, label, color = 'var(--viz-1)', empty }: { rows: Array<{ name: string, count: number }>, label: string, color?: string, empty?: string }) {
   if (rows.length === 0) return <EmptyChart>{empty}</EmptyChart>
