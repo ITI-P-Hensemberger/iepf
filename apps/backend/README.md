@@ -1,6 +1,6 @@
 # IEPF backend
 
-API Hono/TypeScript, PostgreSQL 16 e Drizzle. Runtime: Node 22 e pnpm 10.28.2.
+API Hono/TypeScript, PostgreSQL 16 e Drizzle. Runtime: Node 26 e pnpm 10.28.2.
 `pnpm-lock.yaml` nella radice della monorepo è l'unico lockfile; locale, CI e Docker usano installazioni frozen.
 
 Per avviare l'intero progetto, dalla radice della monorepo eseguire `make setup`,

@@ -13,9 +13,9 @@ repository precedenti, con rollback e attività aperte, è in [docs/cutover.md](
 
 ## Sviluppo locale
 
-Requisiti: macOS o Linux, Python 3.9+, make, Docker con Compose e Node 22 con npm.
-Lo script usa Node 22 dal PATH o da un'installazione nvm già presente. Se manca:
-`nvm install 22`. pnpm 10.28.2 viene invocato tramite npx: non serve installarlo
+Requisiti: macOS o Linux, Python 3.9+, make, Docker con Compose e Node 26 con npm (la versione sta in `.nvmrc`).
+Lo script usa quella versione dal PATH o da un'installazione nvm già presente. Se manca:
+`nvm install 26`. pnpm 10.28.2 viene invocato tramite npx: non serve installarlo
 globalmente. La prima installazione richiede accesso al registry npm.
 
 Dalla radice della repository:

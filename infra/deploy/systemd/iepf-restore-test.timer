@@ -1,0 +1,11 @@
+[Unit]
+Description=IEPF monthly backup restore test
+
+[Timer]
+# First Sunday of the month, after the night's backup and updates.
+OnCalendar=Sun *-*-01..07 05:30:00 Europe/Rome
+Unit=iepf-restore-test.service
+Persistent=false
+
+[Install]
+WantedBy=timers.target

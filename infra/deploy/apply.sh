@@ -43,7 +43,7 @@ else
   RELEASE="$ROOT/releases/$ID"
   [[ ! -e "$RELEASE" ]] || { echo 'Release already exists' >&2; exit 1; }
   mkdir "$RELEASE"
-  cp "$BUNDLE/compose.yaml" "$BUNDLE/job.sh" "$BUNDLE/backup.sh" "$BUNDLE/alert.sh" "$BUNDLE/install-timers.sh" "$RELEASE/"
+  cp "$BUNDLE/compose.yaml" "$BUNDLE/job.sh" "$BUNDLE/backup.sh" "$BUNDLE/restore-test.sh" "$BUNDLE/alert.sh" "$BUNDLE/install-timers.sh" "$RELEASE/"
   cp -R "$BUNDLE/systemd" "$RELEASE/"
   BASE="$ROOT/shared/images.env"
   [[ -z "$PREVIOUS" ]] || BASE="$PREVIOUS/images.env"
@@ -119,3 +119,10 @@ ln -s "$RELEASE" "$ROOT/current.next"
 mv -Tf "$ROOT/current.next" "$ROOT/current"
 trap - ERR
 echo "Active release: $(basename "$RELEASE")"
+# Only the active release's app images stay on disk: a rollback pulls its digests from GHCR
+# again. Images are removed by ID, skipping any ID that a kept reference also points to.
+KEEP=$(sed -n 's/^[A-Z_]*_IMAGE=//p' "$RELEASE/images.env")
+KEEP_IDS=$(for ref in $KEEP; do docker image inspect --format '{{.Id}}' "$ref" 2>/dev/null || true; done)
+docker images --no-trunc --digests --format '{{.Repository}}@{{.Digest}} {{.ID}}' \
+  | awk '$1 ~ /^ghcr\.io\/[a-z0-9-]+\/iepf-(backend|frontend)@sha256:/ {print $2}' | sort -u \
+  | while read -r id; do grep -qxF "$id" <<<"$KEEP_IDS" || docker rmi -f "$id" >/dev/null 2>&1 || true; done
