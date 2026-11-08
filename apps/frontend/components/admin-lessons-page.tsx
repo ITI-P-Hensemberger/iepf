@@ -1,5 +1,7 @@
 'use client'
 
+import { DatePicker, DateRangePicker, useSchoolDays } from '@/components/date-picker'
+
 import { nextSort, SortableHead } from '@/components/sortable-head'
 import { ListPagination } from '@/components/list-pagination'
 import { TableSkeletonRows } from '@/components/loading'
@@ -19,7 +21,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Calendar } from '@/components/ui/calendar'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Label } from '@/components/ui/label'
 import { FilterForm } from '@/components/filter-form'
@@ -212,10 +213,8 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
 
   const [tutors, setTutors] = React.useState<Tutor[]>([])
   const [tutorsLoading, setTutorsLoading] = React.useState(true)
-  const [isFilterDateDialogOpen, setIsFilterDateDialogOpen] =
-    React.useState(false)
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
-  const [isCreateDateOpen, setIsCreateDateOpen] = React.useState(false)
+  const schoolDays = useSchoolDays()
   const [createForm, setCreateForm] = React.useState({
     tutorId: '',
     subjectId: '',
@@ -826,26 +825,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
               </Field>
               <Field className='gap-2'>
                 <FieldLabel htmlFor='lesson-date-range'>Periodo</FieldLabel>
-                <Button
-                  variant='outline'
-                  id='lesson-date-range'
-                  className='justify-start px-2.5 font-normal'
-                  onClick={() => setIsFilterDateDialogOpen(true)}
-                >
-                  <CalendarIcon className='mr-2 h-4 w-4' />
-                  {filters.dateRange?.from ? (
-                    filters.dateRange.to ? (
-                      <>
-                        {format(filters.dateRange.from, 'dd/MM/yyyy')} -{' '}
-                        {format(filters.dateRange.to, 'dd/MM/yyyy')}
-                      </>
-                    ) : (
-                      format(filters.dateRange.from, 'dd/MM/yyyy')
-                    )
-                  ) : (
-                    <span>Seleziona periodo</span>
-                  )}
-                </Button>
+                <DateRangePicker id='lesson-date-range' value={filters.dateRange} onChange={(range) => setFilters((prev) => ({ ...prev, dateRange: range }))} />
               </Field>
             </div>
           </FilterForm>
@@ -931,46 +911,6 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
         </div>
       </div>
 
-      <AlertDialog
-        open={isFilterDateDialogOpen}
-        onOpenChange={setIsFilterDateDialogOpen}
-      >
-        <AlertDialogContent className='max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] overflow-y-auto sm:max-w-md'>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Seleziona periodo</AlertDialogTitle>
-            <AlertDialogDescription>
-              Scegli l&apos;intervallo di date per filtrare le lezioni.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className='space-y-4'>
-            <div className='flex justify-center'>
-              <Calendar
-                mode='range'
-                defaultMonth={filters.dateRange?.from ?? new Date()}
-                selected={filters.dateRange}
-                onSelect={(range) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    dateRange: range
-                  }))
-                }
-                numberOfMonths={1}
-              />
-            </div>
-          </div>
-          <AlertDialogFooter className='pt-2 sm:pt-0'>
-            <AlertDialogCancel>Chiudi</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(event) => {
-                event.preventDefault()
-                setIsFilterDateDialogOpen(false)
-              }}
-            >
-              Applica
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <AlertDialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <AlertDialogContent className='max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] overflow-y-auto sm:max-w-xl'>
@@ -1060,24 +1000,36 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
                   </SelectContent>
                 </Select>
               </Field>
-              <Field className='gap-2'>
-                <Label htmlFor='create-date-time'>Data e ora</Label>
-                <Button
-                  variant='outline'
-                  id='create-date-time'
-                  className='w-full justify-start px-2.5 font-normal'
-                  onClick={() => setIsCreateDateOpen(true)}
-                >
-                  <CalendarIcon className='mr-2 h-4 w-4' />
-                  {createForm.date ? (
-                    <>
-                      {format(createForm.date, 'dd/MM/yyyy')} {createForm.time}
-                    </>
-                  ) : (
-                    <span>Seleziona data</span>
-                  )}
-                </Button>
-              </Field>
+              <>
+                <Field className='gap-2'>
+                  <Label htmlFor='create-date'>Data</Label>
+                  <DatePicker
+                    id='create-date'
+                    value={createForm.date}
+                    onChange={(date) => setCreateForm((prev) => ({ ...prev, date }))}
+                    disabled={schoolDays.disabled}
+                    modifiers={schoolDays.modifiers}
+                  />
+                </Field>
+                <Field className='gap-2'>
+                  <Label htmlFor='create-time'>Orario</Label>
+                  <Select
+                    value={createForm.time}
+                    onValueChange={(value) => setCreateForm((prev) => ({ ...prev, time: value }))}
+                  >
+                    <SelectTrigger id='create-time' className='w-full'>
+                      <SelectValue placeholder='Scegli l’orario' />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AVAILABLE_TIMES.map((time) => (
+                        <SelectItem key={time} value={time}>
+                          {time}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </>
             </div>
           </div>
           <AlertDialogFooter className='pt-2 sm:pt-0'>
@@ -1095,66 +1047,6 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog
-        open={isCreateDateOpen}
-        onOpenChange={setIsCreateDateOpen}
-      >
-        <AlertDialogContent className='max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] overflow-y-auto sm:max-w-md'>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Seleziona data e ora</AlertDialogTitle>
-            <AlertDialogDescription>
-              Scegli data e orario per la nuova lezione.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className='space-y-4'>
-            <div className='flex justify-center'>
-              <Calendar
-                mode='single'
-                selected={createForm.date}
-                onSelect={(date) =>
-                  setCreateForm((prev) => ({
-                    ...prev,
-                    date: date ?? undefined
-                  }))
-                }
-                defaultMonth={createForm.date ?? new Date()}
-                initialFocus
-              />
-            </div>
-            <Field className='gap-2'>
-              <Label htmlFor='create-time-dialog'>Orario</Label>
-              <Select
-                value={createForm.time}
-                onValueChange={(value) =>
-                  setCreateForm((prev) => ({ ...prev, time: value }))
-                }
-              >
-                <SelectTrigger id='create-time-dialog' className='w-full'>
-                  <SelectValue placeholder='Seleziona orario' />
-                </SelectTrigger>
-                <SelectContent>
-                  {AVAILABLE_TIMES.map((time) => (
-                    <SelectItem key={time} value={time}>
-                      {time}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-          <AlertDialogFooter className='pt-2 sm:pt-0'>
-            <AlertDialogCancel>Chiudi</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(event) => {
-                event.preventDefault()
-                setIsCreateDateOpen(false)
-              }}
-            >
-              Applica
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </main>
   )
 }

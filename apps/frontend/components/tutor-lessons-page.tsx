@@ -1,5 +1,7 @@
 'use client'
 
+import { DateRangePicker } from '@/components/date-picker'
+
 import { SortableHead } from '@/components/sortable-head'
 import { ListPagination } from '@/components/list-pagination'
 import { TableSkeletonRows } from '@/components/loading'
@@ -19,7 +21,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Calendar } from '@/components/ui/calendar'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { FilterForm } from '@/components/filter-form'
 import { PageHeader } from '@/components/page-header'
@@ -201,8 +202,6 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
   const [subjects, setSubjects] = React.useState<Subject[]>([])
   const [subjectsLoading, setSubjectsLoading] = React.useState(true)
 
-  const [isFilterDateDialogOpen, setIsFilterDateDialogOpen] =
-    React.useState(false)
 
   const parsePage = React.useCallback(
     (key: string) => {
@@ -543,27 +542,7 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
               </Field>
               <Field className='gap-2'>
                 <FieldLabel htmlFor='lesson-date-range'>Periodo</FieldLabel>
-                <Button
-                  variant='outline'
-                  id='lesson-date-range'
-                  className='justify-start px-2.5 font-normal'
-                  type='button'
-                  onClick={() => setIsFilterDateDialogOpen(true)}
-                >
-                  <CalendarIcon className='mr-2 h-4 w-4' />
-                  {filters.dateRange?.from ? (
-                    filters.dateRange.to ? (
-                      <>
-                        {format(filters.dateRange.from, 'dd/MM/yyyy')} -{' '}
-                        {format(filters.dateRange.to, 'dd/MM/yyyy')}
-                      </>
-                    ) : (
-                      format(filters.dateRange.from, 'dd/MM/yyyy')
-                    )
-                  ) : (
-                    <span>Seleziona periodo</span>
-                  )}
-                </Button>
+                <DateRangePicker id='lesson-date-range' value={filters.dateRange} onChange={(range) => setFilters((prev) => ({ ...prev, dateRange: range }))} />
               </Field>
             </div>
           </FilterForm>
@@ -643,46 +622,6 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
         </div>
       </div>
 
-      <AlertDialog
-        open={isFilterDateDialogOpen}
-        onOpenChange={setIsFilterDateDialogOpen}
-      >
-        <AlertDialogContent className='max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] overflow-y-auto sm:max-w-md'>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Seleziona periodo</AlertDialogTitle>
-            <AlertDialogDescription>
-              Scegli l&apos;intervallo di date per filtrare le lezioni.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className='space-y-4'>
-            <div className='flex justify-center'>
-              <Calendar
-                mode='range'
-                defaultMonth={filters.dateRange?.from ?? new Date()}
-                selected={filters.dateRange}
-                onSelect={(range) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    dateRange: range
-                  }))
-                }
-                numberOfMonths={1}
-              />
-            </div>
-          </div>
-          <AlertDialogFooter className='pt-2 sm:pt-0'>
-            <AlertDialogCancel>Chiudi</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(event) => {
-                event.preventDefault()
-                setIsFilterDateDialogOpen(false)
-              }}
-            >
-              Applica
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </main>
   )
 }
