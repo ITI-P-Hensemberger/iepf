@@ -171,11 +171,13 @@ export default function AdminDayPage() {
 export function DayOverview({
   lessons,
   loading,
-  grouping
+  grouping,
+  emptyMessage = 'Nessuna lezione in questo giorno.'
 }: {
   lessons: ScheduleLesson[]
   loading: boolean
   grouping: Grouping
+  emptyMessage?: string
 }) {
   const summary = daySummary(lessons)
   const groups =
@@ -204,7 +206,7 @@ export function DayOverview({
           <Skeleton className='h-16' />
         </div>
       ) : lessons.length === 0 ? (
-        <EmptyState>Nessuna lezione oggi.</EmptyState>
+        <EmptyState>{emptyMessage}</EmptyState>
       ) : (
         <div className='divide-y rounded-lg border bg-card'>
           {groups.map((group) => (
