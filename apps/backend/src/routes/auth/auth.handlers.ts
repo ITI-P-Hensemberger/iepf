@@ -14,6 +14,7 @@ import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { tutorSettings } from '@/db/schemas/tutor-settings.schema'
 import { users } from '@/db/schemas/users.schema'
+import { recordActivationChange } from '@/lib/activation-history'
 import { issueAdminInviteToken, lockAdminInviteToken } from '@/lib/admin-invite'
 import { createAccessToken, verifyAccessToken } from '@/lib/auth'
 import { DEFAULT_LESSON_TOKENS, DEFAULT_TUTOR_SETTINGS, ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
@@ -549,7 +550,7 @@ export const inviteTutor: AppRouteHandler<InviteTutorRoute> = async (c) => {
     return c.json(buildDuplicateEmailError(), HttpStatusCodes.CONFLICT)
   }
 
-  const invite = await issueTutorInviteToken(payload.email)
+  const invite = await issueTutorInviteToken(payload.email, currentUser.id)
   const message = buildTutorInviteMessage(invite.token)
   sendMail({
     to: payload.email,
@@ -626,7 +627,7 @@ export const confirmTutorInvite: AppRouteHandler<ConfirmTutorInviteRoute> = asyn
 
       await tx.delete(tutorInviteTokens).where(eq(tutorInviteTokens.id, invite.id))
 
-      return { kind: 'created', inserted } as const
+      return { kind: 'created', inserted, invitedById: invite.invitedById } as const
     })
   }
   catch (error) {
@@ -646,6 +647,7 @@ export const confirmTutorInvite: AppRouteHandler<ConfirmTutorInviteRoute> = asyn
     return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
   }
   const { inserted } = outcome
+  await recordActivationChange({ userId: inserted.id, isActive: true, reason: null, actorId: outcome.invitedById })
 
   const confirmation = buildRegistrationConfirmedMessage()
   sendMail({

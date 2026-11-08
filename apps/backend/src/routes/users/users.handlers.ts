@@ -315,6 +315,9 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
   if (query.isActive !== undefined) {
     withProfiles = withProfiles.filter(user => user.isActive === query.isActive)
   }
+  if (currentUser.role === 'activator') {
+    withProfiles = withProfiles.filter(user => !('deactivatedAt' in user && user.deactivatedAt))
+  }
   if (query.deactivated !== undefined) {
     withProfiles = withProfiles.filter(user => Boolean('deactivatedAt' in user && user.deactivatedAt) === query.deactivated)
   }
@@ -465,6 +468,10 @@ export const getOne: AppRouteHandler<GetOneRoute> = async (c) => {
   }
 
   const [withProfile] = await attachProfiles([user])
+  // Activators deal with students never activated and active ones: a deactivated student is an admin's matter.
+  if (currentUser.role === 'activator' && 'deactivatedAt' in withProfile && withProfile.deactivatedAt) {
+    forbid()
+  }
   return c.json(withProfile, HttpStatusCodes.OK)
 }
 
@@ -599,6 +606,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       sectionId: string | null
       year: number | null
       isActive: boolean | null
+      deactivatedAt: Date | null
     } | null = null
     let currentTutorProfile: {
       sectionId: string | null
@@ -622,9 +630,14 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
         columns: {
           sectionId: true,
           year: true,
-          isActive: true
+          isActive: true,
+          deactivatedAt: true
         }
       })) ?? null
+      // Activators only turn on students never activated: reactivating is an admin's call.
+      if (currentUser.role === 'activator' && currentStudentProfile?.deactivatedAt) {
+        forbid()
+      }
     }
 
     if (hasProfileUpdates && existing.role === 'tutor') {

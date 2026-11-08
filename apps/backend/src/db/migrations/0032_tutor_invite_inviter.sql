@@ -1,0 +1,2 @@
+ALTER TABLE "tutor_invite_tokens" ADD COLUMN "invited_by_id" uuid;--> statement-breakpoint
+ALTER TABLE "tutor_invite_tokens" ADD CONSTRAINT "tutor_invite_tokens_invited_by_id_users_id_fk" FOREIGN KEY ("invited_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;

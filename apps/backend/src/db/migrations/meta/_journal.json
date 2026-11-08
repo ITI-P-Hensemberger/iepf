@@ -225,6 +225,20 @@
       "when": 1794171374937,
       "tag": "0031_activation_events",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794172411994,
+      "tag": "0032_tutor_invite_inviter",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794172413312,
+      "tag": "0033_backfill_activation_history",
+      "breakpoints": true
     }
   ]
 }
