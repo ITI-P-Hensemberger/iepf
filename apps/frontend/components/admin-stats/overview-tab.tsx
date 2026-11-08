@@ -15,8 +15,9 @@ type Overview = {
   months: Array<{ month: string, lessons: number, done: number, bookings: number, present: number, absent: number }>
 }
 
-// "2026-11" as "11/2026", like the day labels.
-const monthLabel = (month: string) => month.split('-').reverse().map(Number).join('/')
+// "2026-11" as "nov 2026".
+const monthFormat = new Intl.DateTimeFormat('it-IT', { month: 'short', year: 'numeric', timeZone: 'UTC' })
+const monthLabel = (month: string) => monthFormat.format(new Date(`${month}-01T00:00:00Z`))
 
 const value = (n: number | undefined) => (n === undefined ? '-' : formatNumber(Number(n)))
 
