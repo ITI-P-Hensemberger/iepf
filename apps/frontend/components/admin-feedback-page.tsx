@@ -4,7 +4,7 @@ import { DateRangePicker } from '@/components/date-picker'
 
 import { nextSort, SortableHead } from '@/components/sortable-head'
 import { ListPagination } from '@/components/list-pagination'
-import { TableSkeletonRows } from '@/components/loading'
+import { TableSkeletonRows, useFirstLoad } from '@/components/loading'
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -624,6 +624,7 @@ export default function AdminFeedbackPage() {
   }, [deleteTarget, loadFeedback])
 
   // The list under either tab: the same rows, filtered by the open tab.
+  const firstLoad = useFirstLoad(isLoading)
   const results = (
     <>
         <label className='mt-4 flex items-center gap-2 text-sm text-muted-foreground'>
@@ -657,7 +658,7 @@ export default function AdminFeedbackPage() {
               </TableRow>
             </TableHeader>
             <TableBody className={cn(isLoading && 'opacity-60 transition-opacity')} aria-busy={isLoading}>
-              {isLoading && !feedback.length ? (
+              {firstLoad ? (
                 <TableSkeletonRows columns={4} />
               ) : feedback.length ? (
                 feedback.map((item) => {

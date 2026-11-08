@@ -2,7 +2,7 @@
 
 import type * as React from 'react'
 
-import { TableSkeletonRows } from '@/components/loading'
+import { TableSkeletonRows, useFirstLoad } from '@/components/loading'
 import { ListPagination } from '@/components/list-pagination'
 import { SortableHead } from '@/components/sortable-head'
 
@@ -35,6 +35,7 @@ type DataTableProps<T> = {
 }
 
 export function DataTable<T>({ rows, rowKey, columns, isLoading, emptyMessage, page, pageSize, total, onPageChange, sort, onSort }: DataTableProps<T>) {
+  const firstLoad = useFirstLoad(isLoading)
   return (
     <div className='space-y-3'>
       <div className='overflow-x-auto rounded-lg border lg:overflow-visible'>
@@ -66,8 +67,8 @@ export function DataTable<T>({ rows, rowKey, columns, isLoading, emptyMessage, p
               })}
             </TableRow>
           </TableHeader>
-          <TableBody className={cn(isLoading && rows.length > 0 && 'opacity-60 transition-opacity')}>
-            {isLoading && rows.length === 0
+          <TableBody className={cn(isLoading && !firstLoad && 'opacity-60 transition-opacity')} aria-busy={isLoading}>
+            {firstLoad
               ? <TableSkeletonRows columns={columns.length} />
               : rows.length === 0
               ? (

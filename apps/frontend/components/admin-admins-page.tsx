@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { SortableHead } from '@/components/sortable-head'
 import { usePageBar } from '@/lib/sticky'
 import { ListPagination } from '@/components/list-pagination'
-import { TableSkeletonRows } from '@/components/loading'
+import { TableSkeletonRows, useFirstLoad } from '@/components/loading'
 import * as React from 'react'
 
 import { PushInviteCard } from '@/components/push-prompt'
@@ -284,6 +284,7 @@ function DataTable<TData>({
     manualFiltering: true
   })
 
+  const firstLoad = useFirstLoad(isLoading)
   return (
     <div className='space-y-4'>
       {/* The same search bar as every list: under the header while the list scrolls. */}
@@ -319,7 +320,7 @@ function DataTable<TData>({
             ))}
           </TableHeader>
           <TableBody className={cn(isLoading && 'opacity-60 transition-opacity')} aria-busy={isLoading}>
-            {isLoading && !table.getRowModel().rows.length ? (
+            {firstLoad ? (
               <TableSkeletonRows columns={columns.length} />
             ) : table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (

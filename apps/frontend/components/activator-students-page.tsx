@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 
 import { nextSort, SortableHead, type SortDir } from '@/components/sortable-head'
 import { ListPagination } from '@/components/list-pagination'
-import { TableSkeletonRows } from '@/components/loading'
+import { TableSkeletonRows, useFirstLoad } from '@/components/loading'
 import { FilterForm } from '@/components/filter-form'
 import * as React from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -193,6 +193,7 @@ function DataTable<TData>({
     getCoreRowModel: getCoreRowModel()
   })
 
+  const firstLoad = useFirstLoad(isLoading)
   return (
     <div className='space-y-4'>
       {tab === 'inactive' && (
@@ -244,7 +245,7 @@ function DataTable<TData>({
             ))}
           </TableHeader>
           <TableBody className={cn(isLoading && 'opacity-60 transition-opacity')} aria-busy={isLoading}>
-            {isLoading && !table.getRowModel().rows.length ? (
+            {firstLoad ? (
               <TableSkeletonRows columns={columns.length} />
             ) : table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
