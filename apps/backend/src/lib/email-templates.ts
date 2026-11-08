@@ -228,17 +228,26 @@ export function buildProfileUpdatedMessage() {
   } satisfies EmailTemplate
 }
 
-export function buildActivationChangedMessage(isActive: boolean) {
-  const message = isActive
-    ? 'Il tuo account è stato attivato. Ora puoi accedere alle lezioni.'
-    : 'Il tuo account è stato disattivato. Contatta il supporto se non ti aspettavi questa modifica.'
+export function buildActivationChangedMessage(isActive: boolean, reason: string | null = null) {
+  if (isActive) {
+    const message = 'Il tuo account è stato attivato. Ora puoi accedere alle lezioni.'
+    return {
+      subject: 'Il tuo account è ora attivo',
+      text: message,
+      html: buildEmailHtml('Account attivo', message)
+    } satisfies EmailTemplate
+  }
 
+  const intro = 'Il tuo account è stato disattivato: non puoi usare la piattaforma finché non viene riattivato.'
+  const contact = 'Per chiarimenti o per chiedere la riattivazione scrivi a iepf@hensemberger.it.'
   return {
-    subject: isActive ? 'Il tuo account è ora attivo' : 'Il tuo account è stato disattivato',
-    text: message,
+    subject: 'Il tuo account è stato disattivato',
+    text: [intro, reason && `Motivo: ${reason}`, contact].filter(Boolean).join('\n\n'),
     html: buildEmailHtml(
-      isActive ? 'Account attivo' : 'Account disattivato',
-      message
+      'Account disattivato',
+      // The reason is typed by an admin: escaped, its line breaks kept.
+      `${intro}${reason ? `<div style="margin-top:12px;">${buildInfoCard('Motivo', [escapeHtml(reason).replace(/\n/g, '<br>')])}</div>` : ''}
+      <div style="margin-top:16px;font-size:15px;line-height:1.6;color:#475569;">Per chiarimenti o per chiedere la riattivazione scrivi a <a href="mailto:iepf@hensemberger.it" style="color:#0f172a;font-weight:600;">iepf@hensemberger.it</a>.</div>`
     )
   } satisfies EmailTemplate
 }

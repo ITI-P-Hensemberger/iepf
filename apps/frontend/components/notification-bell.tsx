@@ -257,7 +257,7 @@ export function NotificationBell() {
                           {item.title}
                           {isUnread && <span className='sr-only'> (non letta)</span>}
                         </span>
-                        <span className='block text-xs text-muted-foreground break-words'>{item.body}</span>
+                        <span className='block text-xs text-muted-foreground break-words whitespace-pre-line'>{item.body}</span>
                         <span className='mt-1 block text-[11px] text-muted-foreground/80'>
                           {formatNotificationTime(item.createdAt)}
                         </span>

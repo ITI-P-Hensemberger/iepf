@@ -10,6 +10,7 @@ import { BookOpen, CalendarClock, History, TriangleAlert, UserRound } from 'luci
 
 import { AdminUserLessons } from '@/components/admin-user-lessons'
 import { ConfirmDeleteDialog } from '@/components/confirm-delete-dialog'
+import { ActivationAction } from '@/components/activation-action'
 import { DangerAction, DangerZone } from '@/components/danger-zone'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
@@ -89,7 +90,6 @@ const formSchema = z.object({
   email: z.string().email('Indirizzo email non valido'),
   year: z.string().min(1, "L'anno e obbligatorio"),
   sectionId: z.uuid('La sezione e obbligatoria'),
-  isActive: z.boolean(),
   dailyCapacity: z.enum(['1', '2', '3', '4'])
 })
 
@@ -213,7 +213,6 @@ export default function AdminTutorDetailPage() {
       email: '',
       year: '',
       sectionId: '',
-      isActive: false,
       dailyCapacity: '1'
     }
   })
@@ -268,7 +267,6 @@ export default function AdminTutorDetailPage() {
             email: data.email ?? '',
             year: data.year ? String(data.year) : '',
             sectionId: data.sectionId ?? '',
-            isActive: data.isActive === true,
             dailyCapacity: dailyCapacityValue
           })
         }
@@ -539,8 +537,7 @@ export default function AdminTutorDetailPage() {
           lastName: normalizedLastName,
           email: normalizedEmail,
           year: Number(values.year),
-          sectionId: values.sectionId,
-          isActive: values.isActive
+          sectionId: values.sectionId
         })
       })
 
@@ -566,8 +563,7 @@ export default function AdminTutorDetailPage() {
               lastName: normalizedLastName,
               email: normalizedEmail,
               year: Number(values.year),
-              sectionId: values.sectionId,
-              isActive: values.isActive
+              sectionId: values.sectionId
             }
           : prev
       )
@@ -1171,24 +1167,6 @@ export default function AdminTutorDetailPage() {
                       </Field>
                     )}
                   />
-                  <Controller
-                    name='isActive'
-                    control={form.control}
-                    render={({ field }) => (
-                      <Field orientation='horizontal'>
-                        <div className='flex items-center gap-2'>
-                          <Checkbox
-                            id='tutor-active'
-                            checked={field.value}
-                            onCheckedChange={(value) =>
-                              field.onChange(Boolean(value))
-                            }
-                          />
-                          <Label htmlFor='tutor-active'>Attivo</Label>
-                        </div>
-                      </Field>
-                    )}
-                  />
                 </FieldGroup>
                 <Accordion type='single' collapsible className='w-full'>
                   <AccordionItem value='tech-details'>
@@ -1410,6 +1388,14 @@ export default function AdminTutorDetailPage() {
       )}
       {active === 'danger' && (
         <DangerZone>
+          {tutor && (
+            <ActivationAction
+              userId={tutorId}
+              isActive={tutor.isActive === true}
+              who='Il tutor'
+              onChange={isActive => setTutor(prev => (prev ? { ...prev, isActive } : prev))}
+            />
+          )}
           <DangerAction
             title='Elimina account'
             description='Il tutor perde l’accesso e l’account viene eliminato. Non si può annullare.'

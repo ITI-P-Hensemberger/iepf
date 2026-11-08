@@ -94,6 +94,13 @@ function extractProfileUpdates(updates: Record<string, unknown>) {
   }
 }
 
+// A note only goes with a deactivation; empty means none.
+function deactivationReasonOf(updates: Record<string, unknown>) {
+  return updates.isActive === false && typeof updates.deactivationReason === 'string' && updates.deactivationReason !== ''
+    ? updates.deactivationReason
+    : null
+}
+
 function buildTutorProfilePayload(profileUpdates: {
   sectionId?: string
   year?: number
@@ -126,6 +133,8 @@ async function attachProfiles(records: UserPublicRecord[]): Promise<UserWithProf
     sectionId: string | null
     year: number | null
     isActive: boolean | null
+    deactivatedAt: Date | null
+    deactivationReason: string | null
   }> = []
   if (studentIds.length > 0) {
     studentProfilesList = await db.query.studentProfiles.findMany({
@@ -136,7 +145,9 @@ async function attachProfiles(records: UserPublicRecord[]): Promise<UserWithProf
         userId: true,
         sectionId: true,
         year: true,
-        isActive: true
+        isActive: true,
+        deactivatedAt: true,
+        deactivationReason: true
       }
     })
   }
@@ -226,6 +237,8 @@ async function attachProfiles(records: UserPublicRecord[]): Promise<UserWithProf
         sectionName: resolveSectionName(profile?.sectionId ?? null),
         year: profile?.year ?? null,
         isActive: profile?.isActive ?? false,
+        deactivatedAt: profile?.isActive ? null : (profile?.deactivatedAt ?? null),
+        deactivationReason: profile?.isActive ? null : (profile?.deactivationReason ?? null),
         lessonTokens: tokenBalances.get(user.id) ?? 0
       }
     }
@@ -501,7 +514,8 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     lastName: updates.lastName
   }
   const profileUpdates = extractProfileUpdates(updates)
-  const studentProfileUpdates = {
+  const deactivationReason = deactivationReasonOf(updates)
+  const studentProfileUpdates: Partial<typeof studentProfiles.$inferInsert> = {
     sectionId: profileUpdates.sectionId,
     year: profileUpdates.year,
     isActive: profileUpdates.isActive
@@ -584,7 +598,8 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       isActive: boolean | null
     } | null = null
 
-    if (currentUser?.role === 'activator' && existing.role !== 'student') {
+    // Activators only turn students on: turning one off is an admin's call.
+    if (currentUser?.role === 'activator' && (existing.role !== 'student' || updates.isActive === false)) {
       return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
     }
 
@@ -795,6 +810,14 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     }
 
     if (existing.role === 'student' && hasProfileUpdates) {
+      if (profileUpdates.isActive === false && previousIsActive === true) {
+        studentProfileUpdates.deactivatedAt = new Date()
+        studentProfileUpdates.deactivationReason = deactivationReason
+      }
+      else if (profileUpdates.isActive === true) {
+        studentProfileUpdates.deactivatedAt = null
+        studentProfileUpdates.deactivationReason = null
+      }
       const result = await db.update(studentProfiles)
         .set(studentProfileUpdates)
         .where(eq(studentProfiles.userId, id))
@@ -840,7 +863,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
           && profileUpdates.isActive !== undefined
           && previousIsActive !== profileUpdates.isActive
         const message = activationChanged
-          ? buildActivationChangedMessage(Boolean(profileUpdates.isActive))
+          ? buildActivationChangedMessage(Boolean(profileUpdates.isActive), deactivationReason)
           : buildProfileUpdatedMessage()
         sendMail({
           to: user.email,
@@ -849,7 +872,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
           html: message.html
         }).catch(err => console.error('Failed to send profile update email:', err))
         if (activationChanged) {
-          notifyUsers([id], 'account', activationChangedPush(Boolean(profileUpdates.isActive)))
+          notifyUsers([id], 'account', activationChangedPush(Boolean(profileUpdates.isActive), deactivationReason))
         }
       }
     }

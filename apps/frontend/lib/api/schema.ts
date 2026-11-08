@@ -2906,6 +2906,9 @@ export interface paths {
                             sectionName?: string | null;
                             year?: number | null;
                             isActive?: boolean | null;
+                            /** Format: date-time */
+                            deactivatedAt?: string | null;
+                            deactivationReason?: string | null;
                             lessonTokens?: number | null;
                         };
                     };
@@ -3856,6 +3859,9 @@ export interface paths {
                             sectionName?: string | null;
                             year?: number | null;
                             isActive?: boolean | null;
+                            /** Format: date-time */
+                            deactivatedAt?: string | null;
+                            deactivationReason?: string | null;
                             lessonTokens?: number | null;
                         };
                     };
@@ -4461,6 +4467,9 @@ export interface paths {
                             sectionName?: string | null;
                             year?: number | null;
                             isActive?: boolean | null;
+                            /** Format: date-time */
+                            deactivatedAt?: string | null;
+                            deactivationReason?: string | null;
                             lessonTokens?: number | null;
                         };
                     };
@@ -13892,6 +13901,9 @@ export interface paths {
                                 sectionName?: string | null;
                                 year?: number | null;
                                 isActive?: boolean | null;
+                                /** Format: date-time */
+                                deactivatedAt?: string | null;
+                                deactivationReason?: string | null;
                                 lessonTokens?: number | null;
                             })[];
                             total: number;
@@ -14457,6 +14469,9 @@ export interface paths {
                                 sectionName?: string | null;
                                 year?: number | null;
                                 isActive?: boolean | null;
+                                /** Format: date-time */
+                                deactivatedAt?: string | null;
+                                deactivationReason?: string | null;
                                 lessonTokens?: number | null;
                             })[];
                             total: number;
@@ -14574,6 +14589,9 @@ export interface paths {
                             sectionName?: string | null;
                             year?: number | null;
                             isActive?: boolean | null;
+                            /** Format: date-time */
+                            deactivatedAt?: string | null;
+                            deactivationReason?: string | null;
                             lessonTokens?: number | null;
                         }) | {
                             id: string;
@@ -14843,6 +14861,7 @@ export interface paths {
                         sectionId?: string;
                         year?: number;
                         isActive?: boolean;
+                        deactivationReason?: string;
                     };
                 };
             };
@@ -14871,6 +14890,9 @@ export interface paths {
                             sectionName?: string | null;
                             year?: number | null;
                             isActive?: boolean | null;
+                            /** Format: date-time */
+                            deactivatedAt?: string | null;
+                            deactivationReason?: string | null;
                             lessonTokens?: number | null;
                         };
                     };

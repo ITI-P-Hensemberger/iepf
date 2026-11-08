@@ -8,6 +8,7 @@ type UpdateUserBody = {
   sectionId?: string
   year?: number
   isActive?: boolean
+  deactivationReason?: string
 }
 
 export async function GET(
@@ -52,6 +53,9 @@ export async function PATCH(
   }
   if (typeof body.isActive === 'boolean') {
     payload.isActive = body.isActive
+  }
+  if (body.isActive === false && typeof body.deactivationReason === 'string') {
+    payload.deactivationReason = body.deactivationReason
   }
 
   if (Object.keys(payload).length === 0) {

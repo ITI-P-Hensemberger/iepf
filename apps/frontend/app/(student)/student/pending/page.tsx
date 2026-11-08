@@ -1,17 +1,74 @@
 'use client'
 
+import * as React from 'react'
 import Link from 'next/link'
 import {
   AlertTriangle,
+  Ban,
   Download,
   ExternalLink,
   Hourglass,
   InfoIcon
 } from 'lucide-react'
 
+import { PageSkeleton } from '@/components/loading'
 import { StatusBlock } from '@/components/status-block'
 import { Button } from '@/components/ui/button'
 import { ACTIVATION_FORM_URL, RELEASE_FORM_URL } from '@/lib/student-activation'
+import { useSession } from '@/lib/use-session'
+
+type Deactivation = { deactivatedAt?: string | null, deactivationReason?: string | null }
+
+// Reads whether this account was active once and was turned off, and why; undefined while loading.
+function useDeactivation() {
+  const { profile } = useSession()
+  const [state, setState] = React.useState<Deactivation | null | undefined>(undefined)
+  React.useEffect(() => {
+    if (!profile?.id) return
+    fetch(`/api/users/${profile.id}`, { cache: 'no-store' })
+      .then(response => (response.ok ? response.json() as Promise<Deactivation> : null))
+      .catch(() => null)
+      .then(setState)
+  }, [profile?.id])
+  return state
+}
+
+const contact = (
+  <Link href='mailto:iepf@hensemberger.it' className='underline underline-offset-4'>
+    iepf@hensemberger.it
+  </Link>
+)
+
+function DeactivatedPage({ reason }: { reason: string | null }) {
+  return (
+    <main className='flex flex-1'>
+      <StatusBlock
+        icon={Ban}
+        tone='warning'
+        title='Account disattivato'
+        footer={(
+          <div className='space-y-4 text-left'>
+            {reason && (
+              <div className='rounded-lg border bg-card p-4 text-sm'>
+                <p className='font-medium'>Motivo</p>
+                <p className='mt-1 whitespace-pre-line text-muted-foreground'>{reason}</p>
+              </div>
+            )}
+            <p className='text-center text-sm text-muted-foreground'>
+              Per chiarimenti o per chiedere la riattivazione scrivi a {contact}.
+            </p>
+          </div>
+        )}
+      >
+        <p>
+          Il tuo account era attivo ed è stato disattivato dalla scuola:{' '}
+          <span className='font-medium text-foreground'>non puoi prenotare lezioni</span>.
+          Riceverai una mail se viene riattivato.
+        </p>
+      </StatusBlock>
+    </main>
+  )
+}
 
 function Step({
   n,
@@ -37,7 +94,11 @@ function Step({
 
 // Every student lands here after signing up, before the school activates the account: the
 // page has to make clear that nothing works yet and that the steps below are what unlocks it.
+// A student turned off after being active gets the reason and the contact instead.
 export default function StudentPendingPage() {
+  const deactivation = useDeactivation()
+  if (deactivation === undefined) return <PageSkeleton />
+  if (deactivation?.deactivatedAt) return <DeactivatedPage reason={deactivation.deactivationReason ?? null} />
   return (
     <main className='flex flex-1'>
       <StatusBlock
@@ -116,9 +177,9 @@ export default function StudentPendingPage() {
                       />
                       <p>
                         La segreteria attiva gli account una volta alla
-                        settimana: se dopo qualche giorno il tuo account non
-                        è ancora attivo, pazienta ancora un po&apos;. Grazie
-                        per la comprensione.
+                        settimana: se dopo qualche giorno il tuo account non è
+                        ancora attivo, pazienta ancora un po&apos;. Grazie per
+                        la comprensione.
                       </p>
                     </div>
                   </div>
@@ -136,7 +197,9 @@ export default function StudentPendingPage() {
               <Link href='/faq' className='underline underline-offset-4'>
                 domande frequenti
               </Link>
-              . Il tuo account era già attivo ed è stato disattivato? Scrivici a{' '}
+              .
+              <br />
+              Il tuo account era già attivo ed è stato disattivato? Scrivici a{' '}
               <Link
                 href='mailto:iepf@hensemberger.it'
                 className='underline underline-offset-4'
