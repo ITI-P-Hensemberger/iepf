@@ -72,7 +72,7 @@ describe('student deactivation', () => {
     expect(student.isActive).toBe(false)
     expect(student.deactivatedAt).not.toBeNull()
     expect(student.deactivationReason).toBe('Pagamento <non> ricevuto.')
-    expect(sent[0].text).toContain('\n\nMotivo: Pagamento <non> ricevuto.\n\n')
+    expect(sent[0].text).toContain('\n\nMotivo\nPagamento <non> ricevuto.\n\n')
     expect(sent[0].html).toContain('Pagamento &lt;non&gt; ricevuto.')
   })
 

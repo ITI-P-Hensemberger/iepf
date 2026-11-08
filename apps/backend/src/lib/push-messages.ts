@@ -18,6 +18,19 @@ function formatTime(date: Date) {
   return date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
 }
 
+// One fact per line: the lesson's subject, its moment, then what happened. The bell and most
+// phones keep the line breaks.
+function lines(...parts: Array<string | null | false | undefined>) {
+  return parts.filter(Boolean).join('\n')
+}
+
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+// "Mercoledì 12 novembre alle 14:00".
+const when = (date: Date) => capitalize(formatWhen(date))
+
 function lessonsUrl(role: Role, lessonId?: string) {
   if (role === 'tutor') {
     return lessonId ? `/tutor/lessons/${lessonId}` : '/tutor/lessons'
@@ -28,7 +41,7 @@ function lessonsUrl(role: Role, lessonId?: string) {
 export function bookingConfirmedPush(role: Role, params: { lessonId: string, subjectName: string, startAt: Date }): PushMessage {
   return {
     title: role === 'student' ? 'Prenotazione confermata' : 'Nuova prenotazione',
-    body: `${params.subjectName}, ${formatWhen(params.startAt)}`,
+    body: lines(params.subjectName, when(params.startAt)),
     url: lessonsUrl(role, params.lessonId),
     tag: `lesson-${params.lessonId}`
   }
@@ -37,7 +50,7 @@ export function bookingConfirmedPush(role: Role, params: { lessonId: string, sub
 export function bookingCanceledPush(role: Role, params: { lessonId: string, subjectName: string, startAt: Date }): PushMessage {
   return {
     title: 'Prenotazione annullata',
-    body: `${params.subjectName}, ${formatWhen(params.startAt)}`,
+    body: lines(params.subjectName, when(params.startAt)),
     url: lessonsUrl(role, params.lessonId),
     tag: `lesson-${params.lessonId}`
   }
@@ -46,7 +59,7 @@ export function bookingCanceledPush(role: Role, params: { lessonId: string, subj
 export function lessonCanceledPush(role: Role, params: { lessonId: string, subjectName: string, startAt: Date }): PushMessage {
   return {
     title: 'Lezione annullata',
-    body: `${params.subjectName}, ${formatWhen(params.startAt)}`,
+    body: lines(params.subjectName, when(params.startAt)),
     url: lessonsUrl(role),
     tag: `lesson-${params.lessonId}`
   }
@@ -58,15 +71,6 @@ export interface LessonVersion {
   subjectName: string | null
   startAt: Date
   durationMinutes: number
-}
-
-// "Matematica, mercoledì 12 novembre alle 14:00", or just the moment when there is no subject yet.
-function lessonLead(lesson: LessonVersion, when = formatWhen(lesson.startAt)) {
-  return lesson.subjectName ? `${lesson.subjectName}, ${when}` : capitalize(when)
-}
-
-function capitalize(value: string) {
-  return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
 // What an admin's reschedule changed, as seen by someone who stays on the lesson.
@@ -83,52 +87,49 @@ export function lessonChangedPush(role: Role, before: LessonVersion, after: Less
 
   const base = { url: lessonsUrl(role, after.lessonId), tag: `lesson-${after.lessonId}` }
   if (changes > 1) {
-    const extras = [
-      durationChanged ? `${after.durationMinutes} minuti` : null,
-      tutorNews ? 'con un altro tutor' : null
-    ].filter(Boolean)
     return {
       ...base,
       title: 'Lezione modificata',
-      body: `Ora: ${after.subjectName ? `${after.subjectName}, ` : ''}${formatWhen(after.startAt)}${extras.length ? `, ${extras.join(', ')}` : ''}.`
+      body: lines(
+        after.subjectName,
+        when(after.startAt),
+        durationChanged && `Durata: ${after.durationMinutes} minuti.`,
+        tutorNews && 'Con un altro tutor: trovi i dettagli nell\'email.'
+      )
     }
   }
   if (timeChanged) {
     return {
       ...base,
       title: 'Lezione spostata',
-      body: after.subjectName
-        ? `${after.subjectName}: da ${formatWhen(before.startAt)} a ${formatWhen(after.startAt)}`
-        : `Da ${formatWhen(before.startAt)} a ${formatWhen(after.startAt)}`
+      body: lines(after.subjectName, `Prima: ${formatWhen(before.startAt)}`, `Ora: ${formatWhen(after.startAt)}`)
     }
   }
   if (durationChanged) {
     return {
       ...base,
       title: 'Durata cambiata',
-      body: `${lessonLead(after)}: ora dura ${after.durationMinutes} minuti.`
+      body: lines(after.subjectName, when(after.startAt), `Ora dura ${after.durationMinutes} minuti.`)
     }
   }
   if (subjectChanged) {
     return {
       ...base,
       title: 'Materia cambiata',
-      body: `Lezione di ${formatWhen(after.startAt)}: ora è ${after.subjectName}${before.subjectName ? ` (prima ${before.subjectName})` : ''}.`
+      body: lines(when(after.startAt), `Ora è ${after.subjectName}${before.subjectName ? ` (prima ${before.subjectName})` : ''}.`)
     }
   }
   return {
     ...base,
     title: 'Tutor cambiato',
-    body: `${lessonLead(after)}: cambia il tutor. Trovi i dettagli nell'email.`
+    body: lines(after.subjectName, when(after.startAt), 'Cambia il tutor: trovi i dettagli nell\'email.')
   }
 }
 
 export function lessonReassignedPush(before: LessonVersion): PushMessage {
   return {
     title: 'Lezione riassegnata',
-    body: before.subjectName
-      ? `${before.subjectName}, ${formatWhen(before.startAt)} è stata affidata a un altro tutor.`
-      : `La lezione di ${formatWhen(before.startAt)} è stata affidata a un altro tutor.`,
+    body: lines(before.subjectName, when(before.startAt), 'Affidata a un altro tutor: non devi più tenerla.'),
     url: lessonsUrl('tutor'),
     tag: `lesson-${before.lessonId}`
   }
@@ -136,11 +137,11 @@ export function lessonReassignedPush(before: LessonVersion): PushMessage {
 
 export function lessonAssignedPush(after: LessonVersion, bookedStudents: number): PushMessage {
   const booked = bookedStudents === 0
-    ? ''
-    : bookedStudents === 1 ? ' (1 studente prenotato)' : ` (${bookedStudents} studenti prenotati)`
+    ? null
+    : bookedStudents === 1 ? '1 studente prenotato.' : `${bookedStudents} studenti prenotati.`
   return {
     title: 'Nuova lezione assegnata',
-    body: `${lessonLead(after)}${booked}.`,
+    body: lines(after.subjectName, when(after.startAt), booked),
     url: lessonsUrl('tutor', after.lessonId),
     tag: `lesson-${after.lessonId}`
   }
@@ -149,7 +150,7 @@ export function lessonAssignedPush(after: LessonVersion, bookedStudents: number)
 export function lessonCreatedPush(params: { lessonId: string, subjectName: string | null, startAt: Date }): PushMessage {
   return {
     title: 'Nuova lezione assegnata',
-    body: params.subjectName ? `${params.subjectName}, ${formatWhen(params.startAt)}` : capitalize(formatWhen(params.startAt)),
+    body: lines(params.subjectName, when(params.startAt)),
     url: lessonsUrl('tutor', params.lessonId),
     tag: `lesson-${params.lessonId}`
   }
@@ -158,7 +159,7 @@ export function lessonCreatedPush(params: { lessonId: string, subjectName: strin
 export function studentReminderPush(params: { lessonId: string, subjectName: string, startAt: Date, today: boolean }): PushMessage {
   return {
     title: params.today ? 'Lezione oggi' : 'Lezione domani',
-    body: `${params.subjectName} alle ${formatTime(params.startAt)}. Fatti trovare in atrio all'inizio.`,
+    body: lines(params.subjectName, `Alle ${formatTime(params.startAt)}`, 'Fatti trovare in atrio all\'inizio.'),
     url: lessonsUrl('student'),
     tag: `reminder-${params.lessonId}`
   }
@@ -194,9 +195,7 @@ export function activationChangedPush(isActive: boolean, reason: string | null =
     title: isActive ? 'Account attivato' : 'Account disattivato',
     body: isActive
       ? 'Il tuo account IEPF è attivo: ora puoi usare la piattaforma.'
-      : reason
-        ? `Il tuo account IEPF è stato disattivato.\nMotivo: ${reason}`
-        : 'Il tuo account IEPF è stato disattivato. Per informazioni contatta gli organizzatori.',
+      : lines('Il tuo account IEPF è stato disattivato.', reason ? `Motivo: ${reason}` : 'Per informazioni contatta gli organizzatori.'),
     url: '/',
     tag: 'account'
   }
@@ -230,9 +229,7 @@ export function lowFeedbackPush(params: { authorRole: Role, rating: number, subj
   const fromStudent = params.authorRole === 'student'
   return {
     title: fromStudent ? 'Feedback basso da uno studente' : 'Feedback basso da un tutor',
-    body: fromStudent
-      ? `Voto ${params.rating}/5 alla lezione di ${params.subjectName} di ${formatWhen(params.startAt)}.`
-      : `Voto ${params.rating}/5 a uno studente nella lezione di ${params.subjectName} di ${formatWhen(params.startAt)}.`,
+    body: lines(params.subjectName, when(params.startAt), fromStudent ? `Voto ${params.rating}/5 al tutor.` : `Voto ${params.rating}/5 a uno studente.`),
     url: '/admin/feedback'
   }
 }
@@ -240,7 +237,7 @@ export function lowFeedbackPush(params: { authorRole: Role, rating: number, subj
 export function lateCancellationPush(params: { lessonId: string, subjectName: string, startAt: Date }): PushMessage {
   return {
     title: 'Annullamento all\'ultimo momento',
-    body: `Uno studente ha annullato la lezione di ${params.subjectName} di oggi alle ${formatTime(params.startAt)}.`,
+    body: lines(params.subjectName, `Oggi alle ${formatTime(params.startAt)}`, 'Uno studente ha annullato la prenotazione.'),
     url: `/admin/lessons/${params.lessonId}`
   }
 }
@@ -248,7 +245,7 @@ export function lateCancellationPush(params: { lessonId: string, subjectName: st
 export function absencePush(params: { lessonId: string, subjectName: string, startAt: Date }): PushMessage {
   return {
     title: 'Assenza segnata',
-    body: `Uno studente è assente alla lezione di ${params.subjectName} di ${formatWhen(params.startAt)}.`,
+    body: lines(params.subjectName, when(params.startAt), 'Uno studente risulta assente.'),
     url: `/admin/lessons/${params.lessonId}`
   }
 }
@@ -277,7 +274,7 @@ export function pendingAdminsPush(count: number): PushMessage {
 export function subjectRequestsPush(requests: Array<{ subjectName: string, count: number }>): PushMessage {
   return {
     title: 'Nuove richieste di materie',
-    body: requests.map(request => `${request.subjectName} (${request.count})`).join(', '),
+    body: lines(...requests.map(request => `${request.subjectName}: ${request.count}`)),
     url: '/admin/stats?tab=subject-requests',
     tag: 'subject-requests'
   }
