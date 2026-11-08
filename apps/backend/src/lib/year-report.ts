@@ -13,7 +13,9 @@ import { Workbook } from '@/lib/xlsx/workbook'
 // Whether a lesson took place is read from its time, not from a status.
 const LESSON_STATE: Record<LessonState, string> = {
   done: 'Svolta',
-  upcoming: 'In programma',
+  upcoming: 'Confermata',
+  // Bookable again after its bookings were canceled: listed with them, left out of the counts.
+  open: 'Senza prenotazioni',
   // Over with only canceled bookings: listed with its lesson, left out of the counts.
   expired: 'Non svolta',
   canceled: 'Annullata'
@@ -193,7 +195,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
 
   section('Lezioni')
   const statusRow = summary.nextRow
-  const plural: Record<Exclude<LessonState, 'expired'>, string> = { done: 'Svolte', upcoming: 'In programma', canceled: 'Annullate' }
+  const plural: Record<Exclude<LessonState, 'expired' | 'open'>, string> = { done: 'Svolte', upcoming: 'Confermate', canceled: 'Annullate' }
   for (const state of ['done', 'upcoming', 'canceled'] as const) {
     kpi(plural[state], data.lessons.filter(lesson => stateOf(lesson) === state).length)
   }
@@ -417,7 +419,7 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     { header: 'Lezioni al giorno' },
     { header: 'Lezioni' },
     { header: 'Svolte' },
-    { header: 'In programma' },
+    { header: 'Confermate' },
     { header: 'Annullate' },
     { header: 'Conteggiate' },
     { header: 'Ore svolte', ...DECIMAL },

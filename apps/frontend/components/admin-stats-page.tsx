@@ -60,7 +60,7 @@ const sectionColumn = <T extends Person>(): StatsColumn<T> => ({ key: 'section',
 const TUTORS: StatsListConfig<TutorRow> = {
   key: 'tutors',
   title: 'Tutor',
-  description: 'Lezioni per tutor. "Conteggiate" valgono per le ore del tutor; "Scadute" sono finite senza prenotazioni.',
+  description: 'Lezioni prenotate per tutor. "Conteggiate" valgono per le ore del tutor; gli slot senza prenotazioni non sono contati.',
   endpoint: '/api/admin/stats/lessons-counts/tutors',
   searchPlaceholder: 'Nome, cognome, email o sezione',
   defaultSort: { sortBy: 'lastName', sortDir: 'asc' },
@@ -70,7 +70,7 @@ const TUTORS: StatsListConfig<TutorRow> = {
     sectionColumn(),
     numberColumn('counted', 'Conteggiate', row => n(row.countedLessons), 'countedLessons'),
     numberColumn('done', 'Svolte', row => n(row.lessonsDone)),
-    numberColumn('upcoming', 'In programma', row => n(row.lessonsUpcoming)),
+    numberColumn('upcoming', 'Confermate', row => n(row.lessonsUpcoming)),
     numberColumn('canceled', 'Annullate', row => n(row.lessonsCanceled))
   ],
   rowKey: row => row.tutorId,

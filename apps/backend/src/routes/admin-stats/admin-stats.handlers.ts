@@ -21,7 +21,7 @@ import { users } from '@/db/schemas/users.schema'
 import { readAnalytics } from '@/lib/analytics'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
-import { LESSON_STATE_SQL } from '@/lib/lesson-state'
+import { LESSON_HAS_BOOKING_SQL, LESSON_STATE_SQL } from '@/lib/lesson-state'
 import { readNotificationStats } from '@/lib/notification-stats'
 import { buildYearReport, reportFilename } from '@/lib/year-report'
 import { loadReportData } from '@/lib/year-report-data'
@@ -116,8 +116,6 @@ export const listTutorLessonCounts: AppRouteHandler<ListTutorLessonCountsRoute> 
 
   const { q, sortBy, sortDir, limit, offset } = c.req.valid('query')
   const countedLessonsExpr = sql<number>`count(case when ${lessons.countsForTutor} = true then 1 end)`
-  const lessonsScheduledCountedExpr = sql<number>`count(case when ${lessons.status} = 'scheduled' and ${lessons.countsForTutor} = true then 1 end)`
-  const lessonsScheduledNotCountedExpr = sql<number>`count(case when ${lessons.status} = 'scheduled' and ${lessons.countsForTutor} = false then 1 end)`
   const lessonsConfirmedCountedExpr = sql<number>`count(case when ${lessons.status} = 'confirmed' and ${lessons.countsForTutor} = true then 1 end)`
   const lessonsConfirmedNotCountedExpr = sql<number>`count(case when ${lessons.status} = 'confirmed' and ${lessons.countsForTutor} = false then 1 end)`
   const lessonsCancelledCountedExpr = sql<number>`count(case when ${lessons.status} = 'canceled' and ${lessons.countsForTutor} = true then 1 end)`
@@ -167,8 +165,6 @@ export const listTutorLessonCounts: AppRouteHandler<ListTutorLessonCountsRoute> 
       lastName: users.lastName,
       sectionName: classSections.name,
       countedLessons: countedLessonsExpr,
-      lessonsScheduledCounted: lessonsScheduledCountedExpr,
-      lessonsScheduledNotCounted: lessonsScheduledNotCountedExpr,
       lessonsConfirmedCounted: lessonsConfirmedCountedExpr,
       lessonsConfirmedNotCounted: lessonsConfirmedNotCountedExpr,
       lessonsCancelledCounted: lessonsCancelledCountedExpr,
@@ -180,10 +176,7 @@ export const listTutorLessonCounts: AppRouteHandler<ListTutorLessonCountsRoute> 
     .from(users)
     .leftJoin(tutorProfiles, eq(tutorProfiles.userId, users.id))
     .leftJoin(classSections, eq(classSections.id, tutorProfiles.sectionId))
-    .leftJoin(
-      lessons,
-      eq(lessons.tutorId, users.id)
-    )
+    .leftJoin(lessons, and(eq(lessons.tutorId, users.id), LESSON_HAS_BOOKING_SQL))
     .where(tutorFilter)
     .groupBy(users.id, classSections.name)
     .orderBy(orderByExpr, users.firstName)
@@ -491,7 +484,7 @@ export const getOverview: AppRouteHandler<GetOverviewRoute> = async (c) => {
       done: sql<number>`count(*) filter (where ${LESSON_STATE_SQL.done})::int`,
       upcoming: sql<number>`count(*) filter (where ${LESSON_STATE_SQL.upcoming})::int`,
       canceled: sql<number>`count(*) filter (where ${LESSON_STATE_SQL.canceled})::int`
-    }).from(lessons),
+    }).from(lessons).where(LESSON_HAS_BOOKING_SQL),
     db.select({
       present: sql<number>`count(*) filter (where ${lessonBookings.studentPresence} = true)::int`,
       absent: sql<number>`count(*) filter (where ${lessonBookings.studentPresence} = false)::int`,
@@ -507,7 +500,7 @@ export const getOverview: AppRouteHandler<GetOverviewRoute> = async (c) => {
     })
       .from(lessons)
       .leftJoin(lessonBookings, and(eq(lessonBookings.lessonId, lessons.id), confirmedBooking))
-      .where(sql`${lessons.startAt} >= date_trunc('month', now() at time zone 'Europe/Rome') at time zone 'Europe/Rome' - interval '11 months'`)
+      .where(and(LESSON_HAS_BOOKING_SQL, sql`${lessons.startAt} >= date_trunc('month', now() at time zone 'Europe/Rome') at time zone 'Europe/Rome' - interval '11 months'`))
       .groupBy(month)
       .orderBy(month)
   ])

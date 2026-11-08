@@ -207,10 +207,11 @@ describe('downloading the year report', () => {
     const response = await app.request('/admin/stats/overview', { headers: { Authorization: `Bearer ${tokens.admin}` } })
     expect(response.status).toBe(200)
     const body = await response.json()
-    // The demo seed has one lesson with a booking and one without, tomorrow and the day after.
-    expect(body.lessonsByState).toEqual({ done: 0, upcoming: 2, canceled: 0 })
+    // The demo seed has one lesson with a booking and one without, tomorrow and the day after:
+    // only the booked one counts, the empty slot is availability.
+    expect(body.lessonsByState).toEqual({ done: 0, upcoming: 1, canceled: 0 })
     expect(body.attendance).toEqual({ present: 0, absent: 0, unrecorded: 1 })
-    expect(body.months.reduce((sum: number, row: { lessons: number }) => sum + row.lessons, 0)).toBe(2)
+    expect(body.months.reduce((sum: number, row: { lessons: number }) => sum + row.lessons, 0)).toBe(1)
     expect(body.months.reduce((sum: number, row: { bookings: number }) => sum + row.bookings, 0)).toBe(1)
   })
 
