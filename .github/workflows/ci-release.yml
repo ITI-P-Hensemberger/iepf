@@ -122,7 +122,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        task: [lint, types, build]
+        # next build checks the types too: no separate typecheck.
+        task: [lint-test, build]
     name: frontend-checks (${{ matrix.task }})
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -132,11 +133,9 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile --filter iepf-frontend
-      - if: matrix.task == 'lint'
+      - if: matrix.task == 'lint-test'
         run: pnpm --filter iepf-frontend run lint
-      - if: matrix.task == 'types'
-        run: pnpm --filter iepf-frontend run typecheck
-      - if: matrix.task == 'types'
+      - if: matrix.task == 'lint-test'
         run: pnpm --filter iepf-frontend run test
       - if: matrix.task == 'build'
         run: pnpm --filter iepf-frontend run build
