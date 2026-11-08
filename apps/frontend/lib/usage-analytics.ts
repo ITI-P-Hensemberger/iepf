@@ -24,6 +24,20 @@ type PrivacySignals = {
   impersonating?: boolean
 }
 
+// The error's kind only: its message is never stored, so these names are all there is to tell errors apart.
+export function errorEventName(error: unknown, message: string): string | null {
+  // Harmless browser notice about layout observers, not a bug.
+  if (message.startsWith('ResizeObserver loop')) return null
+  // An error event without an error object (a failed script, a browser notice).
+  if (error == null) return 'ScriptError'
+  return error instanceof Error && error.name ? error.name : 'Error'
+}
+
+// A promise rejected with something that is not an Error (a string, a response object).
+export function rejectionName(reason: unknown) {
+  return reason instanceof Error ? (reason.name || 'Error') : 'Rejection'
+}
+
 // Global Privacy Control or Do Not Track turn counting off; so does impersonation, where the
 // admin is not the person whose pages they are looking at.
 export function countingAllowed(signals: PrivacySignals) {

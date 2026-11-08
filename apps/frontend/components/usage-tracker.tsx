@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation'
 import * as React from 'react'
 
-import { enableUsageCounting, flushUsage, pageTemplate, track } from '@/lib/usage-analytics'
+import { enableUsageCounting, errorEventName, flushUsage, pageTemplate, rejectionName, track } from '@/lib/usage-analytics'
 
 const FLUSH_INTERVAL_MS = 30_000
 // A page stuck in an error loop must not fill the queue.
@@ -11,10 +11,6 @@ const MAX_ERRORS_PER_PAGE_LOAD = 20
 
 let listening = false
 let errorsCounted = 0
-
-function errorName(value: unknown) {
-  return value instanceof Error && value.name ? value.name : 'Error'
-}
 
 function listenOnce() {
   if (listening) return
@@ -27,9 +23,10 @@ function listenOnce() {
   window.addEventListener('error', (event) => {
     // Errors from extensions or other origins are not ours.
     if (event.filename && !event.filename.startsWith(window.location.origin)) return
-    countError(errorName(event.error))
+    const name = errorEventName(event.error, event.message ?? '')
+    if (name) countError(name)
   })
-  window.addEventListener('unhandledrejection', event => countError(errorName(event.reason)))
+  window.addEventListener('unhandledrejection', event => countError(rejectionName(event.reason)))
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') flushUsage()
   })

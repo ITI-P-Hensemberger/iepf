@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { countingAllowed, MAX_COUNT_PER_EVENT, MAX_EVENTS_PER_BATCH, pageTemplate, UsageQueue } from './usage-analytics'
+import { countingAllowed, errorEventName, MAX_COUNT_PER_EVENT, MAX_EVENTS_PER_BATCH, pageTemplate, rejectionName, UsageQueue } from './usage-analytics'
 
 describe('pageTemplate', () => {
   it('replaces ids with [id]', () => {
@@ -46,5 +46,20 @@ describe('UsageQueue', () => {
       { event: 'bell_open', detail: '', count: MAX_COUNT_PER_EVENT },
       { event: 'bell_open', detail: '', count: 1 }
     ])
+  })
+})
+
+describe('error names', () => {
+  it('tells apart real errors, events without an error and harmless notices', () => {
+    expect(errorEventName(new TypeError('x'), 'x')).toBe('TypeError')
+    expect(errorEventName(new Error('x'), 'x')).toBe('Error')
+    expect(errorEventName(null, 'Script error.')).toBe('ScriptError')
+    expect(errorEventName(null, 'ResizeObserver loop completed with undelivered notifications.')).toBeNull()
+  })
+
+  it('names rejections that carry no Error', () => {
+    expect(rejectionName(new RangeError('x'))).toBe('RangeError')
+    expect(rejectionName('failed')).toBe('Rejection')
+    expect(rejectionName(undefined)).toBe('Rejection')
   })
 })
