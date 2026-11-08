@@ -9,8 +9,9 @@ import { toast } from 'sonner'
 import { TUTOR_ONBOARDED_FLAG as ONBOARDED_FLAG } from '@/components/push-prompt'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardFooter } from '@/components/ui/card'
-import { FieldSeparator } from '@/components/ui/field'
+import { STICKY_CARD_FOOTER } from '@/components/sticky-footer'
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import { SubjectSelector } from '@/components/subject-selector'
 import { WeekdayAvailabilitySelector } from '@/components/weekday-availability-selector'
 
@@ -54,8 +55,12 @@ type TutorOnboardingFormProps = {
   tutorId: string
 }
 
+// Two steps, one form: the subjects first (a long list, with its search in view), then the days.
+const STEPS = ['Materie', 'Disponibilità'] as const
+
 export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [step, setStep] = React.useState(0)
 
   const form = useForm<OnboardingFormValues>({
     resolver: zodResolver(onboardingSchema),
@@ -140,65 +145,103 @@ export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
     }
   }
 
+  async function next() {
+    if (await form.trigger('subjectIds')) {
+      setStep(1)
+      window.scrollTo({ top: 0 })
+    }
+  }
+
   return (
     <Card className='w-full'>
-      <CardContent className='pt-6'>
+      <CardHeader className='text-left'>
+        <p className='text-sm text-muted-foreground'>Passo {step + 1} di {STEPS.length}</p>
+        <ol className='flex gap-2' aria-label='Passi'>
+          {STEPS.map((label, index) => (
+            <li
+              key={label}
+              aria-current={index === step ? 'step' : undefined}
+              className={cn('h-1.5 flex-1 rounded-full', index <= step ? 'bg-primary' : 'bg-muted')}
+            >
+              <span className='sr-only'>{label}</span>
+            </li>
+          ))}
+        </ol>
+      </CardHeader>
+      <CardContent>
         <form
           id='tutor-onboarding-form'
-          onSubmit={form.handleSubmit(onSubmit)}
+          // Enter in the subject search must not send the whole form before the days are set.
+          onSubmit={step === 0
+            ? (event) => {
+                event.preventDefault()
+                void next()
+              }
+            : form.handleSubmit(onSubmit)}
           className='space-y-8'
         >
-          <Controller
-            name='subjectIds'
-            control={form.control}
-            render={({ field, fieldState }) => (
-              <div className='space-y-2'>
-                <SubjectSelector
-                  value={field.value}
-                  onChange={field.onChange}
-                  disabled={isSubmitting}
-                />
-                {fieldState.error && (
-                  <p className='text-sm font-medium text-destructive'>
-                    {fieldState.error.message}
-                  </p>
-                )}
-              </div>
-            )}
-          />
+          {step === 0 && (
+            <Controller
+              name='subjectIds'
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <div className='space-y-2'>
+                  <SubjectSelector
+                    value={field.value}
+                    onChange={field.onChange}
+                    disabled={isSubmitting}
+                    stickySearch
+                  />
+                  {fieldState.error && (
+                    <p className='text-sm font-medium text-destructive'>
+                      {fieldState.error.message}
+                    </p>
+                  )}
+                </div>
+              )}
+            />
+          )}
 
-          <FieldSeparator />
-
-          <Controller
-            name='weekdays'
-            control={form.control}
-            render={({ field, fieldState }) => (
-              <div className='space-y-2 mt-6'>
-                <WeekdayAvailabilitySelector
-                  value={field.value}
-                  onChange={field.onChange}
-                  disabled={isSubmitting}
-                />
-                {fieldState.error && (
-                  <p className='text-sm font-medium text-destructive'>
-                    {fieldState.error.message}
-                  </p>
-                )}
-              </div>
-            )}
-          />
+          {step === 1 && (
+            <Controller
+              name='weekdays'
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <div className='space-y-2'>
+                  <WeekdayAvailabilitySelector
+                    value={field.value}
+                    onChange={field.onChange}
+                    disabled={isSubmitting}
+                  />
+                  {fieldState.error && (
+                    <p className='text-sm font-medium text-destructive'>
+                      {fieldState.error.message}
+                    </p>
+                  )}
+                </div>
+              )}
+            />
+          )}
         </form>
       </CardContent>
-      <CardFooter className='flex flex-col gap-3'>
-        <div className='flex justify-end w-full'>
-          <Button
-            type='submit'
-            form='tutor-onboarding-form'
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? 'Salvataggio...' : 'Salva e continua'}
-          </Button>
-        </div>
+      <CardFooter className={cn('flex justify-between gap-2', STICKY_CARD_FOOTER)}>
+        {step === 0 ? (
+          <>
+            <span />
+            <Button type='button' onClick={() => void next()}>
+              Avanti
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button type='button' variant='outline' onClick={() => setStep(0)} disabled={isSubmitting}>
+              Indietro
+            </Button>
+            <Button type='submit' form='tutor-onboarding-form' disabled={isSubmitting}>
+              {isSubmitting ? 'Salvataggio...' : 'Salva e continua'}
+            </Button>
+          </>
+        )}
       </CardFooter>
     </Card>
   )
