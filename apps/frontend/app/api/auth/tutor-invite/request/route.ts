@@ -1,19 +1,7 @@
-import { backendFetch } from '@/lib/backend-fetch'
-import { cookies } from 'next/headers'
+import { forwardToBackend } from '@/lib/backend-proxy'
 import { NextResponse } from 'next/server'
 
-import { parseBackendPayload } from '@/lib/backend-response'
-
-import { AUTH_COOKIES } from '@/lib/auth'
-
 export async function POST(request: Request) {
-  const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:9999'
-  const cookieStore = await cookies()
-  const accessToken = cookieStore.get(AUTH_COOKIES.access)?.value
-
-  if (!accessToken) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
-  }
 
   let body: { email?: string } | null = null
 
@@ -26,27 +14,5 @@ export async function POST(request: Request) {
     )
   }
 
-  const response = await backendFetch(`${apiBaseUrl}/auth/tutor-invite`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(body)
-  })
-
-  const payload = await response.text()
-  const parsed = parseBackendPayload(payload)
-
-  if (!response.ok) {
-    return NextResponse.json(
-      {
-        message: parsed.errorMessage || 'Richiesta non riuscita.',
-        error: parsed.errorPayload
-      },
-      { status: response.status }
-    )
-  }
-
-  return NextResponse.json(parsed.data ?? {})
+  return forwardToBackend(`/auth/tutor-invite`, { method: 'POST', body: JSON.stringify(body) })
 }

@@ -1,9 +1,5 @@
-import { backendFetch } from '@/lib/backend-fetch'
-import { cookies } from 'next/headers'
+import { forwardToBackend } from '@/lib/backend-proxy'
 import { NextResponse } from 'next/server'
-
-import { parseBackendPayload } from '@/lib/backend-response'
-import { AUTH_COOKIES } from '@/lib/auth'
 
 type LessonFeedbackCreateBody = {
   bookingId: string
@@ -15,21 +11,14 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ lessonId: string }> }
 ) {
-  const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:9999'
-  const cookieStore = await cookies()
-  const accessToken = cookieStore.get(AUTH_COOKIES.access)?.value
   const { lessonId } = await context.params
-
-  if (!accessToken) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
-  }
 
   let body: Partial<LessonFeedbackCreateBody> | null = null
 
   try {
     body = (await request.json()) as Partial<LessonFeedbackCreateBody>
   } catch {
-    return NextResponse.json({ message: 'Invalid body.' }, { status: 400 })
+    return NextResponse.json({ message: 'Corpo richiesta non valido.' }, { status: 400 })
   }
 
   const ratingValue =
@@ -44,14 +33,14 @@ export async function POST(
     ratingValue > 5
   ) {
     return NextResponse.json(
-      { message: 'Invalid feedback payload.' },
+      { message: 'Dati del feedback non validi.' },
       { status: 400 }
     )
   }
 
   if (textValue !== undefined && textValue.length === 0) {
     return NextResponse.json(
-      { message: 'Invalid feedback payload.' },
+      { message: 'Dati del feedback non validi.' },
       { status: 400 }
     )
   }
@@ -65,30 +54,5 @@ export async function POST(
     requestBody.text = textValue
   }
 
-  const response = await backendFetch(
-    `${apiBaseUrl}/lessons/${lessonId}/feedback`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(requestBody)
-    }
-  )
-
-  const payload = await response.text()
-  const parsed = parseBackendPayload(payload)
-
-  if (!response.ok) {
-    return NextResponse.json(
-      {
-        message: parsed.errorMessage || 'Failed to create feedback.',
-        error: parsed.errorPayload
-      },
-      { status: response.status }
-    )
-  }
-
-  return NextResponse.json(parsed.data ?? {})
+  return forwardToBackend(`/lessons/${lessonId}/feedback`, { method: 'POST', body: JSON.stringify(requestBody) })
 }

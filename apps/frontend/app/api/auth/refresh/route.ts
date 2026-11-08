@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     // Nobody is signed in on this browser: nothing was lost, so the client must not send
     // the visitor to the login page (it would loop on the login page itself).
     const response = NextResponse.json(
-      { message: 'Missing refresh token.' },
+      { message: 'Sessione scaduta. Accedi di nuovo.' },
       { status: 401, headers: { [NO_SESSION_HEADER]: 'none' } }
     )
     clearAuthCookies(response)
@@ -38,9 +38,9 @@ export async function POST(request: Request) {
     return response
   } catch (error) {
     if (!isAuthRejected(error)) {
-      return NextResponse.json({ message: 'Service unavailable.' }, { status: 503 })
+      return NextResponse.json({ message: 'Servizio non disponibile.' }, { status: 503 })
     }
-    const response = NextResponse.json({ message: 'Refresh failed.' }, { status: 401 })
+    const response = NextResponse.json({ message: 'Sessione scaduta. Accedi di nuovo.' }, { status: 401 })
     clearAuthCookies(response)
     return response
   }

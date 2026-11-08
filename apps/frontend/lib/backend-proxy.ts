@@ -11,7 +11,7 @@ export async function forwardToBackend(path: string, init: { method: string, bod
   const accessToken = (await cookies()).get(AUTH_COOKIES.access)?.value
 
   if (!accessToken) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ message: 'Sessione scaduta. Accedi di nuovo.' }, { status: 401 })
   }
 
   const response = await backendFetch(`${apiBaseUrl}${path}`, {

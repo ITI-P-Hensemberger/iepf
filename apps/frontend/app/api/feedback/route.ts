@@ -1,9 +1,5 @@
-import { backendFetch } from '@/lib/backend-fetch'
-import { cookies } from 'next/headers'
+import { forwardToBackend } from '@/lib/backend-proxy'
 import { NextResponse, type NextRequest } from 'next/server'
-
-import { parseBackendPayload } from '@/lib/backend-response'
-import { AUTH_COOKIES } from '@/lib/auth'
 
 type FeedbackCreateBody = {
   lessonId: string
@@ -16,16 +12,8 @@ type FeedbackCreateBody = {
 }
 
 export async function GET(request: NextRequest) {
-  const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:9999'
-  const cookieStore = await cookies()
-  const accessToken = cookieStore.get(AUTH_COOKIES.access)?.value
-
-  if (!accessToken) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
-  }
 
   const incomingUrl = new URL(request.url)
-  const targetUrl = new URL(`${apiBaseUrl}/feedback`)
   const targetParams = new URLSearchParams()
   const incomingParams = incomingUrl.searchParams
   const passthroughKeys = [
@@ -98,46 +86,17 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  targetUrl.search = targetParams.toString()
-
-  const response = await backendFetch(targetUrl.toString(), {
-    headers: {
-      Authorization: `Bearer ${accessToken}`
-    },
-    cache: 'no-store'
-  })
-
-  const payload = await response.text()
-  const parsed = parseBackendPayload(payload)
-
-  if (!response.ok) {
-    return NextResponse.json(
-      {
-        message: parsed.errorMessage || 'Failed to fetch feedback.',
-        error: parsed.errorPayload
-      },
-      { status: response.status }
-    )
-  }
-
-  return NextResponse.json(parsed.data ?? {})
+  return forwardToBackend(`/feedback?${targetParams}`)
 }
 
 export async function POST(request: Request) {
-  const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:9999'
-  const cookieStore = await cookies()
-  const accessToken = cookieStore.get(AUTH_COOKIES.access)?.value
-
-  if (!accessToken) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
-  }
 
   let body: Partial<FeedbackCreateBody> | null = null
 
   try {
     body = (await request.json()) as Partial<FeedbackCreateBody>
   } catch {
-    return NextResponse.json({ message: 'Invalid body.' }, { status: 400 })
+    return NextResponse.json({ message: 'Corpo richiesta non valido.' }, { status: 400 })
   }
 
   const ratingValue =
@@ -155,7 +114,7 @@ export async function POST(request: Request) {
     ratingValue < 1 ||
     ratingValue > 5
   ) {
-    return NextResponse.json({ message: 'Invalid feedback payload.' }, { status: 400 })
+    return NextResponse.json({ message: 'Dati del feedback non validi.' }, { status: 400 })
   }
 
   const requestBody: FeedbackCreateBody = {
@@ -171,27 +130,5 @@ export async function POST(request: Request) {
     requestBody.text = textValue
   }
 
-  const response = await backendFetch(`${apiBaseUrl}/feedback`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(requestBody)
-  })
-
-  const payload = await response.text()
-  const parsed = parseBackendPayload(payload)
-
-  if (!response.ok) {
-    return NextResponse.json(
-      {
-        message: parsed.errorMessage || 'Failed to create feedback.',
-        error: parsed.errorPayload
-      },
-      { status: response.status }
-    )
-  }
-
-  return NextResponse.json(parsed.data ?? {})
+  return forwardToBackend(`/feedback`, { method: 'POST', body: JSON.stringify(requestBody) })
 }

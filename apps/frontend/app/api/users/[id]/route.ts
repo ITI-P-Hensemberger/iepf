@@ -1,10 +1,5 @@
-import { backendFetch } from '@/lib/backend-fetch'
-import { cookies } from 'next/headers'
+import { forwardToBackend } from '@/lib/backend-proxy'
 import { NextResponse } from 'next/server'
-
-import { parseBackendPayload } from '@/lib/backend-response'
-
-import { AUTH_COOKIES } from '@/lib/auth'
 
 type UpdateUserBody = {
   email?: string
@@ -19,56 +14,23 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:9999'
-  const cookieStore = await cookies()
-  const accessToken = cookieStore.get(AUTH_COOKIES.access)?.value
   const { id } = await context.params
 
-  if (!accessToken) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
-  }
-
-  const response = await backendFetch(`${apiBaseUrl}/users/${id}`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`
-    }
-  })
-
-  const payload = await response.text()
-  const parsed = parseBackendPayload(payload)
-
-  if (!response.ok) {
-    return NextResponse.json(
-      {
-        message: parsed.errorMessage || 'Failed to fetch user.',
-        error: parsed.errorPayload
-      },
-      { status: response.status }
-    )
-  }
-
-  return NextResponse.json(parsed.data ?? {})
+  return forwardToBackend(`/users/${id}`)
 }
 
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:9999'
-  const cookieStore = await cookies()
-  const accessToken = cookieStore.get(AUTH_COOKIES.access)?.value
   const { id } = await context.params
-
-  if (!accessToken) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
-  }
 
   let body: UpdateUserBody | null = null
 
   try {
     body = (await request.json()) as UpdateUserBody
   } catch {
-    return NextResponse.json({ message: 'Invalid body.' }, { status: 400 })
+    return NextResponse.json({ message: 'Corpo richiesta non valido.' }, { status: 400 })
   }
 
   const payload: UpdateUserBody = {}
@@ -94,71 +56,20 @@ export async function PATCH(
 
   if (Object.keys(payload).length === 0) {
     return NextResponse.json(
-      { message: 'No valid fields provided.' },
+      { message: 'Nessun campo da aggiornare.' },
       { status: 400 }
     )
   }
 
-  const response = await backendFetch(`${apiBaseUrl}/users/${id}`, {
-    method: 'PATCH',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  })
-
-  const payloadText = await response.text()
-  const parsed = parseBackendPayload(payloadText)
-
-  if (!response.ok) {
-    return NextResponse.json(
-      {
-        message: parsed.errorMessage || 'Failed to update user.',
-        error: parsed.errorPayload
-      },
-      { status: response.status }
-    )
-  }
-
-  return NextResponse.json(parsed.data ?? {})
+  return forwardToBackend(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
 }
 export async function DELETE(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:9999'
-  const cookieStore = await cookies()
-  const accessToken = cookieStore.get(AUTH_COOKIES.access)?.value
   const { id } = await context.params
-
-  if (!accessToken) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
-  }
 
   // The admin's own password, which the backend checks before deleting.
   const body = await request.text()
-  const response = await backendFetch(`${apiBaseUrl}/users/${id}`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    },
-    body: body || '{}'
-  })
-
-  const payloadText = await response.text()
-  const parsed = parseBackendPayload(payloadText)
-
-  if (!response.ok) {
-    return NextResponse.json(
-      {
-        message: parsed.errorMessage || 'Failed to delete user.',
-        error: parsed.errorPayload
-      },
-      { status: response.status }
-    )
-  }
-
-  return new NextResponse(null, { status: 204 })
+  return forwardToBackend(`/users/${id}`, { method: 'DELETE', body: body || '{}' })
 }

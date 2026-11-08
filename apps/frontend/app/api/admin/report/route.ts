@@ -9,7 +9,7 @@ import { parseBackendPayload } from '@/lib/backend-response'
 export async function GET() {
   const accessToken = (await cookies()).get(AUTH_COOKIES.access)?.value
   if (!accessToken) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ message: 'Sessione scaduta. Accedi di nuovo.' }, { status: 401 })
   }
   const response = await backendFetch(`${process.env.API_BASE_URL ?? 'http://localhost:9999'}/admin/stats/report`, {
     headers: { Authorization: `Bearer ${accessToken}` },
