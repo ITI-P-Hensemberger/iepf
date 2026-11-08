@@ -21,7 +21,11 @@ function Calendar({
   className,
   classNames,
   showOutsideDays = true,
-  captionLayout = "label",
+  captionLayout = "dropdown",
+  startMonth,
+  endMonth,
+  modifiers,
+  modifiersClassNames,
   buttonVariant = "ghost",
   formatters,
   components,
@@ -30,6 +34,7 @@ function Calendar({
   buttonVariant?: React.ComponentProps<typeof Button>["variant"]
 }) {
   const defaultClassNames = getDefaultClassNames()
+  const joined = useJoinedDays(props)
 
   return (
     <DayPicker
@@ -37,8 +42,12 @@ function Calendar({
       locale={it}
       weekStartsOn={1}
       showOutsideDays={showOutsideDays}
+      // Month and year menus reach any month of the last school years in two clicks.
+      startMonth={startMonth ?? new Date(new Date().getFullYear() - 3, 0)}
+      endMonth={endMonth ?? new Date(new Date().getFullYear() + 2, 11)}
+      // The surface comes from where the calendar sits (card, popover): no box of its own.
       className={cn(
-        "bg-background group/calendar p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
+        "group/calendar p-3 [--cell-size:--spacing(9)]",
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
         className
@@ -46,8 +55,17 @@ function Calendar({
       captionLayout={captionLayout}
       formatters={{
         formatMonthDropdown: (date) =>
-          date.toLocaleString("default", { month: "short" }),
+          date.toLocaleString("it-IT", { month: "long" }),
         ...formatters,
+      }}
+      modifiers={{ ...joined, ...modifiers }}
+      modifiersClassNames={{
+        // Picked days side by side read as one band: no corners between them.
+        joinPrev: "[&>button]:rounded-l-none",
+        joinNext: "[&>button]:rounded-r-none",
+        // A closing day: a small dot under the number.
+        closed: "after:pointer-events-none after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-destructive",
+        ...modifiersClassNames,
       }}
       classNames={{
         root: cn("w-fit", defaultClassNames.root),
@@ -116,13 +134,14 @@ function Calendar({
           defaultClassNames.day
         ),
         range_start: cn(
-          "rounded-l-md bg-accent",
+          "rounded-l-md bg-primary/15",
           defaultClassNames.range_start
         ),
-        range_middle: cn("rounded-none", defaultClassNames.range_middle),
-        range_end: cn("rounded-r-md bg-accent", defaultClassNames.range_end),
+        range_middle: cn("rounded-none bg-primary/15", defaultClassNames.range_middle),
+        range_end: cn("rounded-r-md bg-primary/15", defaultClassNames.range_end),
+        // Today: an orange ring, readable on any background and next to a selection.
         today: cn(
-          "bg-accent text-accent-foreground rounded-md data-[selected=true]:rounded-none",
+          "rounded-md [&>button]:ring-1 [&>button]:ring-primary [&>button]:ring-inset [&>button]:font-semibold",
           defaultClassNames.today
         ),
         outside: cn(
@@ -130,7 +149,7 @@ function Calendar({
           defaultClassNames.outside
         ),
         disabled: cn(
-          "text-muted-foreground opacity-50",
+          "text-muted-foreground opacity-40",
           defaultClassNames.disabled
         ),
         hidden: cn("invisible", defaultClassNames.hidden),
@@ -184,6 +203,22 @@ function Calendar({
   )
 }
 
+const dayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+
+// For several separate picked days: which ones touch a picked day before or after them.
+function useJoinedDays(props: React.ComponentProps<typeof DayPicker>) {
+  const selected = props.mode === "multiple" ? props.selected : undefined
+  return React.useMemo(() => {
+    if (!selected?.length) return {}
+    const keys = new Set(selected.map(dayKey))
+    const shifted = (date: Date, days: number) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days)
+    return {
+      joinPrev: (date: Date) => keys.has(dayKey(date)) && keys.has(dayKey(shifted(date, -1))),
+      joinNext: (date: Date) => keys.has(dayKey(date)) && keys.has(dayKey(shifted(date, 1))),
+    }
+  }, [selected])
+}
+
 function CalendarDayButton({
   className,
   day,
@@ -213,7 +248,7 @@ function CalendarDayButton({
       data-range-end={modifiers.range_end}
       data-range-middle={modifiers.range_middle}
       className={cn(
-        "data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 dark:hover:text-accent-foreground flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md [&>span]:text-xs [&>span]:opacity-70",
+        "data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground data-[range-middle=true]:bg-transparent data-[range-middle=true]:text-foreground data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 dark:hover:text-accent-foreground flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md [&>span]:text-xs [&>span]:opacity-70",
         defaultClassNames.day,
         className
       )}

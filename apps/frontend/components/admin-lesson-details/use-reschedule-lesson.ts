@@ -7,7 +7,6 @@ import { AVAILABLE_TIMES, OPEN_SUBJECT_VALUE, normalizePaged, timeFromDate, comb
 
 export function useRescheduleLesson({ lesson, loadLesson, loadBookings }: { lesson: Lesson | null, loadLesson: () => Promise<void>, loadBookings: () => Promise<void> }) {
   const [isRescheduleOpen, setIsRescheduleOpen] = React.useState(false)
-  const [isRescheduleDateOpen, setIsRescheduleDateOpen] = React.useState(false)
   const [rescheduleForm, setRescheduleForm] = React.useState({
     tutorId: '',
     subjectId: '',
@@ -243,8 +242,6 @@ export function useRescheduleLesson({ lesson, loadLesson, loadBookings }: { less
   return {
     isRescheduleOpen,
     setIsRescheduleOpen,
-    isRescheduleDateOpen,
-    setIsRescheduleDateOpen,
     rescheduleForm,
     setRescheduleForm,
     isRescheduling,
