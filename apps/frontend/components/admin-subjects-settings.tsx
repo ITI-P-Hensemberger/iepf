@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import { EmptyState } from '@/components/empty-state'
 import { BlockSkeleton } from '@/components/loading'
 import { SearchField } from '@/components/search-field'
-import { SettingsSection } from '@/components/settings-section'
+import { SETTINGS_STICKY_TOP, SettingsSection } from '@/components/settings-section'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { capitalizeFirst } from '@/lib/capitalize'
+import { cn } from '@/lib/utils'
 
 type Subject = { id: string, name: string }
 type Draft = { id: string | null, name: string }
@@ -145,7 +146,10 @@ export function AdminSubjectsSettings() {
         <EmptyState>Nessuna materia: aggiungi la prima.</EmptyState>
       ) : (
         <div className='space-y-3'>
-          <SearchField id='subject-settings-search' value={search} onChange={setSearch} placeholder='Cerca una materia' />
+          {/* Like the lists' search: it stays under the header while the subjects scroll. */}
+          <div className={cn('sticky z-10 -mx-4 bg-background/95 px-4 py-2 backdrop-blur lg:mx-0 lg:px-0', SETTINGS_STICKY_TOP)}>
+            <SearchField id='subject-settings-search' value={search} onChange={setSearch} placeholder='Cerca una materia' />
+          </div>
           {shown.length === 0 ? (
             <EmptyState>Nessuna materia trovata.</EmptyState>
           ) : (
