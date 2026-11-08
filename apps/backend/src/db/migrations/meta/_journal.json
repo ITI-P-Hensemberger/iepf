@@ -211,6 +211,13 @@
       "when": 1794067610870,
       "tag": "0029_faqs",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794170137533,
+      "tag": "0030_student_deactivation",
+      "breakpoints": true
     }
   ]
 }

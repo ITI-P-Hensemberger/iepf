@@ -91,6 +91,8 @@ export const selectUsersWithProfilesSchema = toZodV4SchemaTyped(
     sectionName: z.string().nullable().optional(),
     year: z.number().nullable().optional(),
     isActive: z.boolean().nullable().optional(),
+    deactivatedAt: z.date().nullable().optional(),
+    deactivationReason: z.string().nullable().optional(),
     lessonTokens: z.number().nullable().optional()
   }))
 )
@@ -101,7 +103,9 @@ export const patchUsersSchema = toZodV4SchemaTyped(z.object({
   lastName: z.string().min(1).max(100).optional(),
   sectionId: z.uuid().optional(),
   year: z.number().int().optional(),
-  isActive: z.boolean().optional()
+  isActive: z.boolean().optional(),
+  // Optional note sent with a deactivation (mail, notification, the student's page).
+  deactivationReason: z.string().trim().max(500).optional()
 }).strict()).superRefine((value, ctx) => {
   if (Object.keys(value).length === 0) {
     ctx.addIssue({

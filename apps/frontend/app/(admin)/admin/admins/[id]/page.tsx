@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { ConfirmDeleteDialog } from '@/components/confirm-delete-dialog'
+import { ActivationAction } from '@/components/activation-action'
 import { DangerAction, DangerZone } from '@/components/danger-zone'
 import { SectionLayout } from '@/components/section-layout'
 import { useBackHref, useSetParam } from '@/lib/back-link'
@@ -67,8 +68,7 @@ const formSchema = z.object({
     .trim()
     .min(2, 'Il cognome e obbligatorio')
     .regex(/^[\p{L}]+$/u, 'Il cognome puo contenere solo lettere'),
-  email: z.string().email('Indirizzo email non valido'),
-  isActive: z.boolean()
+  email: z.string().email('Indirizzo email non valido')
 })
 
 type AdminFormValues = z.infer<typeof formSchema>
@@ -112,8 +112,7 @@ export default function AdminAdminDetailPage() {
     defaultValues: {
       firstName: '',
       lastName: '',
-      email: '',
-      isActive: false
+      email: ''
     }
   })
 
@@ -142,8 +141,7 @@ export default function AdminAdminDetailPage() {
           form.reset({
             firstName: data.firstName ?? '',
             lastName: data.lastName ?? '',
-            email: data.email ?? '',
-            isActive: data.isActive === true
+            email: data.email ?? ''
           })
         }
       } catch (err) {
@@ -186,8 +184,7 @@ export default function AdminAdminDetailPage() {
         body: JSON.stringify({
           firstName: normalizedFirstName,
           lastName: normalizedLastName,
-          email: normalizedEmail,
-          isActive: values.isActive
+          email: normalizedEmail
         })
       })
 
@@ -209,8 +206,7 @@ export default function AdminAdminDetailPage() {
               ...prev,
               firstName: normalizedFirstName,
               lastName: normalizedLastName,
-              email: normalizedEmail,
-              isActive: values.isActive
+              email: normalizedEmail
             }
           : prev
       )
@@ -382,24 +378,6 @@ export default function AdminAdminDetailPage() {
                         </Field>
                       )}
                     />
-                    <Controller
-                      name='isActive'
-                      control={form.control}
-                      render={({ field }) => (
-                        <Field orientation='horizontal'>
-                          <div className='flex items-center gap-2'>
-                            <Checkbox
-                              id='admin-active'
-                              checked={field.value}
-                              onCheckedChange={(value) =>
-                                field.onChange(Boolean(value))
-                              }
-                            />
-                            <Label htmlFor='admin-active'>Attivo</Label>
-                          </div>
-                        </Field>
-                      )}
-                    />
                   </FieldGroup>
                   <Accordion type='single' collapsible className='w-full'>
                     <AccordionItem value='tech-details'>
@@ -462,6 +440,14 @@ export default function AdminAdminDetailPage() {
           )}
           {active === 'danger' && (
             <DangerZone>
+              {admin && (
+                <ActivationAction
+                  userId={adminId}
+                  isActive={admin.isActive === true}
+                  who='L’admin'
+                  onChange={isActive => setAdmin(prev => (prev ? { ...prev, isActive } : prev))}
+                />
+              )}
               <DangerAction
                 title='Elimina account'
                 description='L’admin perde l’accesso e l’account viene eliminato. Non si può annullare.'

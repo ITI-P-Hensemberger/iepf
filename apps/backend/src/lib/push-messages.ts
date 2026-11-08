@@ -189,12 +189,14 @@ export function feedbackReminderPush(role: Role, count: number): PushMessage {
   }
 }
 
-export function activationChangedPush(isActive: boolean): PushMessage {
+export function activationChangedPush(isActive: boolean, reason: string | null = null): PushMessage {
   return {
     title: isActive ? 'Account attivato' : 'Account disattivato',
     body: isActive
       ? 'Il tuo account IEPF è attivo: ora puoi usare la piattaforma.'
-      : 'Il tuo account IEPF è stato disattivato. Per informazioni contatta la scuola.',
+      : reason
+        ? `Il tuo account IEPF è stato disattivato.\nMotivo: ${reason}`
+        : 'Il tuo account IEPF è stato disattivato. Per informazioni contatta gli organizzatori.',
     url: '/',
     tag: 'account'
   }

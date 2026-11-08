@@ -126,33 +126,26 @@ function normalizePaged<T>(payload: unknown): { items: T[]; total: number } {
   return { items: items as T[], total }
 }
 
+// Activators only turn students on: deactivating is up to an admin.
 function confirmTitle(change: PendingChange | null) {
   if (!change) return ''
-  const verb = change.activate ? 'Attivare' : 'Disattivare'
   return change.students.length === 1
-    ? `${verb} questo studente?`
-    : `${verb} ${change.students.length} studenti?`
+    ? 'Attivare questo studente?'
+    : `Attivare ${change.students.length} studenti?`
 }
 
 function confirmDescription(change: PendingChange | null) {
   if (!change) return ''
-  const one = change.students.length === 1
-  if (change.activate) {
-    return one
-      ? 'Controlla che sia la persona giusta: una volta attivo potrà accedere e prenotare lezioni.'
-      : 'Controlla che siano le persone giuste: una volta attivi potranno accedere e prenotare lezioni.'
-  }
-  return one
-    ? 'Controlla che sia la persona giusta: una volta disattivato non potrà più prenotare lezioni finché non viene riattivato.'
-    : 'Controlla che siano le persone giuste: una volta disattivati non potranno più prenotare lezioni finché non vengono riattivati.'
+  return change.students.length === 1
+    ? 'Controlla che sia la persona giusta: una volta attivo potrà accedere e prenotare lezioni.'
+    : 'Controlla che siano le persone giuste: una volta attivi potranno accedere e prenotare lezioni.'
 }
 
 function confirmAction(change: PendingChange | null) {
   if (!change) return ''
-  const verb = change.activate ? 'Attiva' : 'Disattiva'
   return change.students.length === 1
-    ? verb
-    : `${verb} ${change.students.length} studenti`
+    ? 'Attiva'
+    : `Attiva ${change.students.length} studenti`
 }
 
 function DataTable<TData>({
@@ -200,9 +193,9 @@ function DataTable<TData>({
 
   return (
     <div className='space-y-4'>
+      {tab === 'inactive' && (
       <div className='flex gap-2 items-center justify-end'>
         <Button
-          variant={tab === 'inactive' ? 'default' : 'destructive'}
           disabled={
             table.getFilteredSelectedRowModel().rows.length === 0 ||
             isSubmitting
@@ -212,17 +205,14 @@ function DataTable<TData>({
               students: table
                 .getFilteredSelectedRowModel()
                 .rows.map((row) => row.original as unknown as User),
-              activate: tab === 'inactive'
+              activate: true
             })
           }
         >
-          {isSubmitting
-            ? 'Aggiornando...'
-            : tab === 'inactive'
-              ? 'Attiva selezionati'
-              : 'Disattiva selezionati'}
+          {isSubmitting ? 'Aggiornando...' : 'Attiva selezionati'}
         </Button>
       </div>
+      )}
       <div className='rounded-lg border'>
         <Table>
           <TableHeader sticky className='bg-muted/50'>
@@ -581,9 +571,8 @@ export default function ActivatorStudentsPage() {
     location.reload()
   }
 
-  const makeColumns = React.useCallback(() => {
-    const columns: ColumnDef<User>[] = [
-      {
+  const makeColumns = React.useCallback((activatable: boolean) => {
+    const select: ColumnDef<User> = {
         id: 'select',
         header: ({ table }) => (
           <Checkbox
@@ -608,7 +597,8 @@ export default function ActivatorStudentsPage() {
         ),
         enableSorting: false,
         enableHiding: false
-      },
+      }
+    const columns: ColumnDef<User>[] = [
       {
         accessorKey: 'lastName',
         header: 'Cognome',
@@ -630,33 +620,29 @@ export default function ActivatorStudentsPage() {
         accessorKey: 'email',
         header: 'Email @hensemberger.it',
         cell: ({ row }) => <span>{row.original.email.split('@')[0]}</span>
-      },
-      {
-        id: 'actions',
-        header: '',
-        cell: ({ row }) => (
-          <Button
-            variant={row.original.isActive ? 'destructive' : 'outline'}
-            size='sm'
-            onClick={() =>
-              setPendingChange({
-                students: [row.original],
-                activate: !row.original.isActive
-              })
-            }
-            disabled={isSubmitting}
-          >
-            {row.original.isActive ? 'Disattiva' : 'Attiva'}
-          </Button>
-        )
       }
     ]
+    if (!activatable) return columns
 
-    return columns
+    const activate: ColumnDef<User> = {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => (
+        <Button
+          variant='outline'
+          size='sm'
+          onClick={() => setPendingChange({ students: [row.original], activate: true })}
+          disabled={isSubmitting}
+        >
+          Attiva
+        </Button>
+      )
+    }
+    return [select, ...columns, activate]
   }, [isSubmitting])
 
-  const activeColumns = React.useMemo(() => makeColumns(), [makeColumns])
-  const inactiveColumns = React.useMemo(() => makeColumns(), [makeColumns])
+  const activeColumns = React.useMemo(() => makeColumns(false), [makeColumns])
+  const inactiveColumns = React.useMemo(() => makeColumns(true), [makeColumns])
 
   return (
     <main className='flex-1'>

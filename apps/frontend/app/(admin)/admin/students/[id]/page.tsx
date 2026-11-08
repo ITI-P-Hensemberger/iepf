@@ -11,6 +11,7 @@ import { History, Hourglass, TriangleAlert, UserRound } from 'lucide-react'
 import { AdminStudentHours } from '@/components/admin-student-hours'
 import { AdminUserLessons } from '@/components/admin-user-lessons'
 import { ConfirmDeleteDialog } from '@/components/confirm-delete-dialog'
+import { ActivationAction } from '@/components/activation-action'
 import { DangerAction, DangerZone } from '@/components/danger-zone'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
@@ -84,8 +85,7 @@ const formSchema = z.object({
     .regex(/^[\p{L}]+$/u, 'Il cognome puo contenere solo lettere'),
   email: z.string().email('Indirizzo email non valido'),
   year: z.string().min(1, "L'anno e obbligatorio"),
-  sectionId: z.uuid('La sezione e obbligatoria'),
-  isActive: z.boolean()
+  sectionId: z.uuid('La sezione e obbligatoria')
 })
 
 type StudentFormValues = z.infer<typeof formSchema>
@@ -145,8 +145,7 @@ export default function AdminStudentDetailPage() {
       lastName: '',
       email: '',
       year: '',
-      sectionId: '',
-      isActive: false
+      sectionId: ''
     }
   })
 
@@ -179,8 +178,7 @@ export default function AdminStudentDetailPage() {
             lastName: data.lastName ?? '',
             email: data.email ?? '',
             year: data.year ? String(data.year) : '',
-            sectionId: data.sectionId ?? '',
-            isActive: data.isActive === true
+            sectionId: data.sectionId ?? ''
           })
         }
       } catch (err) {
@@ -292,8 +290,7 @@ export default function AdminStudentDetailPage() {
           lastName: normalizedLastName,
           email: normalizedEmail,
           year: Number(values.year),
-          sectionId: values.sectionId,
-          isActive: values.isActive
+          sectionId: values.sectionId
         })
       })
 
@@ -317,8 +314,7 @@ export default function AdminStudentDetailPage() {
               lastName: normalizedLastName,
               email: normalizedEmail,
               year: Number(values.year),
-              sectionId: values.sectionId,
-              isActive: values.isActive
+              sectionId: values.sectionId
             }
           : prev
       )
@@ -681,24 +677,6 @@ export default function AdminStudentDetailPage() {
                       </Field>
                     )}
                   />
-                  <Controller
-                    name='isActive'
-                    control={form.control}
-                    render={({ field }) => (
-                      <Field orientation='horizontal'>
-                        <div className='flex items-center gap-2'>
-                          <Checkbox
-                            id='student-active'
-                            checked={field.value}
-                            onCheckedChange={(value) =>
-                              field.onChange(Boolean(value))
-                            }
-                          />
-                          <Label htmlFor='student-active'>Attivo</Label>
-                        </div>
-                      </Field>
-                    )}
-                  />
                   <Field>
                     <FieldLabel>Ore di lezione rimanenti</FieldLabel>
                     <div className='text-sm text-muted-foreground'>
@@ -834,6 +812,14 @@ export default function AdminStudentDetailPage() {
       )}
       {active === 'danger' && (
         <DangerZone>
+          {student && (
+            <ActivationAction
+              userId={studentId}
+              isActive={student.isActive === true}
+              who='Lo studente'
+              onChange={isActive => setStudent(prev => (prev ? { ...prev, isActive } : prev))}
+            />
+          )}
           <DangerAction
             title='Elimina account'
             description='Lo studente perde l’accesso e l’account viene eliminato. Non si può annullare.'
