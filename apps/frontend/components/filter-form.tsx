@@ -58,6 +58,30 @@ export function FilterForm({
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     window.scrollTo({ top: window.scrollY + panel.top - bar.bottom, behavior: reduce ? 'auto' : 'smooth' })
   }, [open])
+  // The field keeps what is typed. When a search goes out the page refills the field from the
+  // URL with the text that was searched; letters typed while that was loading would be lost,
+  // so that echo is ignored and the newer text goes back to the page, which searches again.
+  const [text, setText] = React.useState(search.value)
+  const submitted = React.useRef<string | null>(null)
+  const latestSearch = React.useRef(search)
+  React.useEffect(() => {
+    latestSearch.current = search
+  })
+  React.useEffect(() => {
+    // The page following what was just typed: nothing to do.
+    if (search.value === text) return
+    const echo = search.value === submitted.current
+    submitted.current = null
+    if (echo) latestSearch.current.onChange(text)
+    else setText(search.value)
+    // Only a change from the page matters here, not each letter typed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.value])
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    submitted.current = text
+    onSubmit(event)
+  }
+
   const panelId = React.useId()
   const key = JSON.stringify(values)
   const latest = React.useRef({ values, applied })
@@ -75,10 +99,18 @@ export function FilterForm({
 
   return (
     // contents: the bar sticks along the whole list that follows the form, not only the form.
-    <form ref={ref} onSubmit={onSubmit} className='contents'>
+    <form ref={ref} onSubmit={submit} className='contents'>
       <div ref={barRef} className={cn('sticky top-[var(--app-header-bottom)] z-30 -mx-4 bg-background/95 px-4 py-3 backdrop-blur', className)}>
         <div className='flex gap-2'>
-          <SearchField {...search} className='flex-1' />
+          <SearchField
+            {...search}
+            value={text}
+            onChange={(value) => {
+              setText(value)
+              search.onChange(value)
+            }}
+            className='flex-1'
+          />
           {children && (
             <Button
               type='button'

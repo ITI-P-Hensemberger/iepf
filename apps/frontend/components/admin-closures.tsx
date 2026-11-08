@@ -94,7 +94,8 @@ export function AdminClosures({
       </div>
 
       <div className='grid gap-6 lg:grid-cols-[auto_minmax(0,1fr)]'>
-        <div className='flex flex-col items-center gap-2 rounded-lg border bg-card p-3 lg:items-start'>
+        {/* Beside a long list the calendar stays in view; on a phone it sits above it and scrolls away. */}
+        <div className='flex flex-col items-center gap-2 rounded-lg border bg-card p-3 lg:sticky lg:top-[calc(var(--sticky-top)+var(--settings-header-height,0px)+1rem)] lg:items-start lg:self-start'>
           <Calendar
             mode='multiple'
             selected={selected}
