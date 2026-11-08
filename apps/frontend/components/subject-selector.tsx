@@ -26,6 +26,8 @@ type SubjectSelectorProps = {
   subjects?: Subject[]
   // The subjects already saved: the badges on top tell new and removed ones from them.
   saved?: string[]
+  // Keeps the search under the header while the list scrolls: for pages where the list is the whole page.
+  stickySearch?: boolean
 }
 
 export function SubjectSelector({
@@ -33,7 +35,8 @@ export function SubjectSelector({
   onChange,
   disabled = false,
   subjects: providedSubjects,
-  saved
+  saved,
+  stickySearch = false
 }: SubjectSelectorProps) {
   const [subjects, setSubjects] = React.useState<Subject[]>(
     providedSubjects || []
@@ -163,12 +166,14 @@ export function SubjectSelector({
       ) : (
         <>
           {subjects.length > 6 && (
-            <SearchField
-              id='subject-search'
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder='Cerca una materia'
-            />
+            <div className={cn(stickySearch && 'sticky top-[var(--sticky-top)] z-10 -mx-2 bg-[var(--card)] px-2 py-2')}>
+              <SearchField
+                id='subject-search'
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder='Cerca una materia'
+              />
+            </div>
           )}
           {filteredSubjects.length === 0 ? (
             <EmptyState>{searchQuery ? 'Nessuna materia trovata.' : 'Nessuna materia disponibile.'}</EmptyState>
