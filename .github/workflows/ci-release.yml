@@ -49,10 +49,16 @@ jobs:
           INPUT_IMAGE: ${{ inputs.image }}
         run: python3 infra/ci/changes.py
 
+  # Each check runs on its own runner, side by side, instead of one after another.
   backend-checks:
     needs: changes
     if: needs.changes.outputs.backend_checks == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        task: [lint, types, test]
+    name: backend-checks (${{ matrix.task }})
     services:
       postgres:
         image: postgres:16
@@ -81,23 +87,34 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile --filter iepf-backend
-      - run: pnpm --filter iepf-backend run typecheck
-      - run: pnpm --filter iepf-backend run lint
-      - run: pnpm --filter iepf-backend run build
+      - if: matrix.task == 'lint'
+        run: pnpm --filter iepf-backend run lint
+      - if: matrix.task == 'types'
+        run: pnpm --filter iepf-backend run typecheck
+      - if: matrix.task == 'types'
+        run: pnpm --filter iepf-backend run build
       - name: Check the frontend API types match the backend routes
+        if: matrix.task == 'types'
         run: |
           pnpm --filter iepf-backend run api:types
           git diff --exit-code -- apps/frontend/lib/api/schema.ts || {
             echo '::error::apps/frontend/lib/api/schema.ts is stale: run pnpm --filter iepf-backend run api:types and commit it.'
             exit 1
           }
-      - run: pnpm --filter iepf-backend run db:migrate
-      - run: pnpm --filter iepf-backend run test
+      - if: matrix.task == 'test'
+        run: pnpm --filter iepf-backend run db:migrate
+      - if: matrix.task == 'test'
+        run: pnpm --filter iepf-backend run test
 
   frontend-checks:
     needs: changes
     if: needs.changes.outputs.frontend_checks == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        task: [lint, types, build]
+    name: frontend-checks (${{ matrix.task }})
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
@@ -106,10 +123,14 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile --filter iepf-frontend
-      - run: pnpm --filter iepf-frontend run typecheck
-      - run: pnpm --filter iepf-frontend run lint
-      - run: pnpm --filter iepf-frontend run test
-      - run: pnpm --filter iepf-frontend run build
+      - if: matrix.task == 'lint'
+        run: pnpm --filter iepf-frontend run lint
+      - if: matrix.task == 'types'
+        run: pnpm --filter iepf-frontend run typecheck
+      - if: matrix.task == 'types'
+        run: pnpm --filter iepf-frontend run test
+      - if: matrix.task == 'build'
+        run: pnpm --filter iepf-frontend run build
 
   infra-checks:
     needs: changes
@@ -157,8 +178,9 @@ jobs:
           FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: test "$FAILED" = false
 
+  # Images build while the checks run; deploy below still waits for every check to pass.
   backend-image:
-    needs: [changes, backend-checks]
+    needs: changes
     if: needs.changes.outputs.backend_release == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -206,7 +228,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=backend-tools
 
   frontend-image:
-    needs: [changes, frontend-checks]
+    needs: changes
     if: needs.changes.outputs.frontend_release == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
