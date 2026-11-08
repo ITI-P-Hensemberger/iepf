@@ -3,7 +3,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import app from '@/app'
-import { closeDb } from '@/db'
+import db, { closeDb } from '@/db'
+import { studentProfiles } from '@/db/schemas/student-profiles.schema'
+import { users } from '@/db/schemas/users.schema'
 import env from '@/env'
 import { cleanDatabase } from '@/lib/db-cleanup'
 import { DEV_PASSWORD, seedDevelopmentData } from '@/lib/dev-seed'
@@ -89,5 +91,31 @@ describe('student deactivation', () => {
     expect(student.deactivatedAt).not.toBeNull()
     expect(student.deactivationReason).toBeNull()
     expect(sent[0].text).not.toContain('Motivo')
+  })
+
+  it('lists pending and deactivated students apart', async () => {
+    const list = async (deactivated: boolean) =>
+      ((await (await call(`/users?role=student&isActive=false&deactivated=${deactivated}&limit=200`, { token: tokens.admin })).json()).data as Array<{ id: string }>).map(user => user.id)
+    expect(await list(true)).toContain(ids.student)
+    expect(await list(false)).not.toContain(ids.student)
+  })
+
+  it('keeps a history of who turned the account on and off, activators included', async () => {
+    const reactivated = await call(`/users/${ids.student}`, { token: tokens.activator, method: 'PATCH', body: { isActive: true } })
+    expect(reactivated.status).toBe(200)
+    const history = await (await call(`/users/${ids.student}/activation-history`, { token: tokens.admin })).json()
+    expect(history.map((event: { kind: string }) => event.kind)).toEqual(['deactivated', 'reactivated', 'deactivated', 'reactivated'])
+    expect(history[0]).toMatchObject({ reason: 'Pagamento <non> ricevuto.', actorRole: 'admin' })
+    expect(history[2].reason).toBeNull()
+    expect(history[3].actorRole).toBe('activator')
+    expect((await call(`/users/${ids.student}/activation-history`, { token: tokens.activator })).status).toBe(403)
+  })
+
+  it('calls the first activation of a new account an activation', async () => {
+    const [pending] = await db.insert(users).values({ email: 'nuovo@example.test', firstName: 'Nuovo', lastName: 'Studente', passwordHash: 'x', role: 'student', emailVerifiedAt: new Date() }).returning({ id: users.id })
+    await db.insert(studentProfiles).values({ userId: pending.id, isActive: false })
+    await call(`/users/${pending.id}`, { token: tokens.admin, method: 'PATCH', body: { isActive: true } })
+    const history = await (await call(`/users/${pending.id}/activation-history`, { token: tokens.admin })).json()
+    expect(history.map((event: { kind: string }) => event.kind)).toEqual(['activated'])
   })
 })

@@ -11,6 +11,7 @@ import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
+import { listActivationHistory, recordActivationChange } from '@/lib/activation-history'
 import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
 import { isUniqueConstraintError } from '@/lib/db-errors'
 import {
@@ -28,7 +29,7 @@ import { notifyUsers } from '@/lib/push'
 import { activationChangedPush } from '@/lib/push-messages'
 import { isYearInRange, STUDENT_YEARS, TUTOR_YEARS, yearRangeMessage } from '@/lib/school-years'
 
-import type { GetOneRoute, ListRoute, PatchRoute, RemoveRoute } from './users.routes'
+import type { ActivationHistoryRoute, GetOneRoute, ListRoute, PatchRoute, RemoveRoute } from './users.routes'
 
 type HandlerContext = Context<AppBindings>
 type UserPublicRecord = Omit<typeof users.$inferSelect, 'passwordHash'>
@@ -314,6 +315,9 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
   if (query.isActive !== undefined) {
     withProfiles = withProfiles.filter(user => user.isActive === query.isActive)
   }
+  if (query.deactivated !== undefined) {
+    withProfiles = withProfiles.filter(user => Boolean('deactivatedAt' in user && user.deactivatedAt) === query.deactivated)
+  }
 
   if (query.q) {
     const needle = query.q.toLowerCase()
@@ -462,6 +466,13 @@ export const getOne: AppRouteHandler<GetOneRoute> = async (c) => {
 
   const [withProfile] = await attachProfiles([user])
   return c.json(withProfile, HttpStatusCodes.OK)
+}
+
+// Admins only: the history names who acted, activators included.
+export const activationHistory: AppRouteHandler<ActivationHistoryRoute> = async (c) => {
+  ensureAdmin(c)
+  const { id } = c.req.valid('param')
+  return c.json(await listActivationHistory(id), HttpStatusCodes.OK)
 }
 
 export const patch: AppRouteHandler<PatchRoute> = async (c) => {
@@ -857,11 +868,15 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       }
     }
 
+    const activationChanged = previousIsActive !== undefined
+      && profileUpdates.isActive !== undefined
+      && previousIsActive !== profileUpdates.isActive
+    if (user && activationChanged) {
+      await recordActivationChange({ userId: id, isActive: Boolean(profileUpdates.isActive), reason: deactivationReason, actorId: currentUser!.id })
+    }
+
     if (user?.email) {
       if (hasUserUpdates || hasProfileUpdates) {
-        const activationChanged = previousIsActive !== undefined
-          && profileUpdates.isActive !== undefined
-          && previousIsActive !== profileUpdates.isActive
         const message = activationChanged
           ? buildActivationChangedMessage(Boolean(profileUpdates.isActive), deactivationReason)
           : buildProfileUpdatedMessage()

@@ -218,6 +218,13 @@
       "when": 1794170137533,
       "tag": "0030_student_deactivation",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1794171374937,
+      "tag": "0031_activation_events",
+      "breakpoints": true
     }
   ]
 }

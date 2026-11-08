@@ -4,6 +4,7 @@ import * as React from 'react'
 import { toast } from 'sonner'
 
 import { DangerAction } from '@/components/danger-zone'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +22,90 @@ import { capitalizeFirst } from '@/lib/capitalize'
 
 const REASON_MAX = 500
 
+type ActivationEvent = {
+  id: string
+  kind: 'activated' | 'deactivated' | 'reactivated'
+  reason: string | null
+  actorName: string
+  actorRole: string
+  createdAt: string
+}
+
+const KIND_LABELS: Record<ActivationEvent['kind'], string> = {
+  activated: 'Prima attivazione',
+  deactivated: 'Disattivazione',
+  reactivated: 'Riattivazione'
+}
+
+const ROLE_LABELS: Record<string, string> = { admin: 'admin', activator: 'attivatore' }
+
+const dateTime = new Intl.DateTimeFormat('it-IT', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'Europe/Rome'
+})
+
+// Every activation and deactivation, newest first; loaded when opened, again after a change.
+function ActivationHistory({ userId, version }: { userId: string, version: number }) {
+  const [open, setOpen] = React.useState(false)
+  const [events, setEvents] = React.useState<ActivationEvent[] | null>(null)
+  const [error, setError] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!open) return
+    let current = true
+    fetch(`/api/users/${userId}/activation-history`, { cache: 'no-store' })
+      .then(response => (response.ok ? response.json() as Promise<ActivationEvent[]> : Promise.reject(new Error('history'))))
+      .then((data) => {
+        if (current) {
+          setEvents([...data].reverse())
+          setError(false)
+        }
+      })
+      .catch(() => current && setError(true))
+    return () => {
+      current = false
+    }
+  }, [open, userId, version])
+
+  return (
+    <Accordion type='single' collapsible onValueChange={value => setOpen(value === 'history')} className='px-4 sm:px-6'>
+      <AccordionItem value='history' className='border-b-0'>
+        <AccordionTrigger>Storico attivazioni</AccordionTrigger>
+        <AccordionContent>
+          {error
+            ? <p className='text-sm text-muted-foreground'>Impossibile caricare lo storico.</p>
+            : events === null
+              ? <p className='text-sm text-muted-foreground'>Caricamento...</p>
+              : events.length === 0
+                ? <p className='text-sm text-muted-foreground'>Nessuna operazione registrata. Le operazioni precedenti all’introduzione dello storico non compaiono.</p>
+                : (
+                    <ol className='space-y-3'>
+                      {events.map(event => (
+                        <li key={event.id} className='rounded-lg border bg-muted/40 p-3 text-sm'>
+                          <div className='flex flex-wrap items-baseline justify-between gap-x-3'>
+                            <span className={event.kind === 'deactivated' ? 'font-medium text-destructive' : 'font-medium'}>
+                              {KIND_LABELS[event.kind]}
+                            </span>
+                            <span className='text-xs text-muted-foreground tabular-nums'>{dateTime.format(new Date(event.createdAt))}</span>
+                          </div>
+                          <p className='mt-1 text-muted-foreground'>
+                            Da {event.actorName}{ROLE_LABELS[event.actorRole] ? ` (${ROLE_LABELS[event.actorRole]})` : ''}
+                          </p>
+                          {event.reason && <p className='mt-1 whitespace-pre-line'>Motivo: {event.reason}</p>}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  )
+}
+
 // Turning an account on or off, in the danger zone of a user's page. Deactivating takes an
 // optional reason, sent to the user by mail and notification.
 export function ActivationAction({
@@ -37,6 +122,7 @@ export function ActivationAction({
   const [open, setOpen] = React.useState(false)
   const [reason, setReason] = React.useState('')
   const [busy, setBusy] = React.useState(false)
+  const [version, setVersion] = React.useState(0)
   const next = !isActive
 
   async function confirm(event: React.MouseEvent) {
@@ -54,6 +140,7 @@ export function ActivationAction({
       }
       toast.success(next ? 'Account attivato.' : 'Account disattivato.')
       onChange(next)
+      setVersion(value => value + 1)
       setOpen(false)
       setReason('')
     }
@@ -78,6 +165,7 @@ export function ActivationAction({
           </Button>
         )}
       />
+      <ActivationHistory userId={userId} version={version} />
       <AlertDialog open={open} onOpenChange={value => !busy && setOpen(value)}>
         <AlertDialogContent>
           <AlertDialogHeader>

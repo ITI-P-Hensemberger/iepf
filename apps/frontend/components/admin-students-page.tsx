@@ -256,265 +256,176 @@ const defaultFilters: StudentFilters = {
   sortDir: 'asc'
 }
 
-export default function AdminStudentsPage() {
+// The lists, each with its own search, sort and page in the URL. "inactive" keeps its old key:
+// links and bookmarks to the waiting students still open the right tab.
+const LISTS = [
+  { value: 'active', label: 'Attivi', query: { isActive: 'true' }, empty: 'Nessuno studente attivo.' },
+  { value: 'inactive', label: 'In attesa', query: { isActive: 'false', deactivated: 'false' }, empty: 'Nessuno studente in attesa di attivazione.' },
+  { value: 'deactivated', label: 'Disattivati', query: { isActive: 'false', deactivated: 'true' }, empty: 'Nessuno studente disattivato.' }
+] as const
+
+type ListKey = (typeof LISTS)[number]['value']
+const paramKeys = (list: ListKey) => ({ searchKey: `${list}Search`, sortKey: `${list}Sort`, pageKey: `${list}Page` })
+
+function readFilters(searchParams: URLSearchParams, list: ListKey) {
+  const keys = paramKeys(list)
+  const [sortBy, direction] = (searchParams.get(keys.sortKey) ?? '').split(':')
+  const page = Math.floor(Number(searchParams.get(keys.pageKey)))
+  return {
+    search: searchParams.get(keys.searchKey) ?? '',
+    sortBy: sortBy || defaultFilters.sortBy,
+    sortDir: (sortBy ? (direction === 'desc' ? 'desc' : 'asc') : defaultFilters.sortDir) as 'asc' | 'desc',
+    page: Number.isFinite(page) && page >= 1 ? page : 1
+  }
+}
+
+// One list's rows, loaded whenever its filters in the URL change.
+function useStudentList(list: (typeof LISTS)[number], applied: ReturnType<typeof readFilters>) {
+  const [students, setStudents] = React.useState<User[]>([])
+  const [total, setTotal] = React.useState(0)
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    const params = new URLSearchParams({ role: 'student', ...list.query })
+    if (applied.search.trim()) params.set('q', applied.search.trim())
+    params.set('sortBy', applied.sortBy)
+    params.set('sortDir', applied.sortDir)
+    params.set('limit', String(pageSize))
+    params.set('offset', String((applied.page - 1) * pageSize))
+    let current = true
+    setLoading(true)
+    fetch(`/api/users?${params.toString()}`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Impossibile caricare gli studenti.')
+        const { items, total } = normalizePaged<User>(await response.json())
+        if (!current) return
+        setStudents(items)
+        setTotal(total)
+      })
+      .catch((err) => toast.error(err instanceof Error ? err.message : 'Impossibile caricare gli studenti.'))
+      .finally(() => current && setLoading(false))
+    return () => {
+      current = false
+    }
+  }, [list, applied.search, applied.sortBy, applied.sortDir, applied.page])
+
+  return { students, total, loading }
+}
+
+const COLUMNS: ColumnDef<User>[] = [
+  {
+    accessorKey: 'lastName',
+    header: 'Cognome',
+    cell: ({ row }) => row.original.lastName
+  },
+  {
+    accessorKey: 'firstName',
+    header: 'Nome',
+    cell: ({ row }) => row.original.firstName
+  },
+  {
+    accessorKey: 'year',
+    header: 'Classe',
+    cell: ({ row }) => (
+      <span>{classLabel(row.original.year, row.original.sectionName) ?? '-'}</span>
+    )
+  },
+  {
+    accessorKey: 'lessonTokens',
+    header: () => (
+      <span className='whitespace-nowrap'>Ore di lezione rimanenti</span>
+    ),
+    cell: ({ row }) => row.original.lessonTokens ?? '-',
+    enableSorting: false
+  }
+]
+
+function StudentList({ list, applied, data }: {
+  list: (typeof LISTS)[number]
+  applied: ReturnType<typeof readFilters>
+  data: ReturnType<typeof useStudentList>
+}) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const keys = paramKeys(list.value)
+  const [filters, setFilters] = React.useState<StudentFilters>(applied)
+
+  // Follows the URL when it changes from outside (back, a link).
+  React.useEffect(() => {
+    setFilters({ search: applied.search, sortBy: applied.sortBy, sortDir: applied.sortDir })
+  }, [applied.search, applied.sortBy, applied.sortDir])
+
+  const apply = (next: StudentFilters) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (next.search) params.set(keys.searchKey, next.search)
+    else params.delete(keys.searchKey)
+    params.set(keys.sortKey, `${next.sortBy}:${next.sortDir}`)
+    params.delete(keys.pageKey)
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+  }
+
+  return (
+    <>
+      <FilterForm
+        values={filters}
+        applied={applied}
+        onSubmit={(event) => {
+          event.preventDefault()
+          apply(filters)
+        }}
+        search={{
+          id: `${list.value}-student-search`,
+          value: filters.search,
+          onChange: (value) => setFilters((prev) => ({ ...prev, search: value })),
+          placeholder: 'Nome, cognome o email'
+        }}
+      />
+      <div className='mt-6'>
+        <DataTable
+          sortable={SORTABLE}
+          sort={{ sortBy: applied.sortBy, sortDir: applied.sortDir }}
+          onSort={(key) => {
+            const next = { ...filters, ...nextSort(applied, key) }
+            setFilters(next)
+            apply(next)
+          }}
+          data={data.students}
+          columns={COLUMNS}
+          rowHref={(row) => `/admin/students/${row.id}`}
+          isLoading={data.loading}
+          emptyMessage={list.empty}
+          pageKey={keys.pageKey}
+          page={applied.page}
+          pageSize={pageSize}
+          total={data.total}
+        />
+      </div>
+    </>
+  )
+}
+
+export default function AdminStudentsPage() {
+  const searchParams = useSearchParams()
   const setParam = useSetParam()
   // The open tab lives in the URL, so it is still open after a trip to a detail page and back.
-  const listTab = (['inactive'] as const).find((value) => value === searchParams.get('tab')) ?? 'active'
+  const listTab: ListKey = LISTS.find(list => list.value === searchParams.get('tab'))?.value ?? 'active'
   const searchParamsString = searchParams.toString()
-  const [activeStudents, setActiveStudents] = React.useState<User[]>([])
-  const [inactiveStudents, setInactiveStudents] = React.useState<User[]>([])
-  const [activeTotal, setActiveTotal] = React.useState(0)
-  const [inactiveTotal, setInactiveTotal] = React.useState(0)
-  const [activeLoading, setActiveLoading] = React.useState(true)
-  const [inactiveLoading, setInactiveLoading] = React.useState(true)
-  const [activeFilters, setActiveFilters] =
-    React.useState<StudentFilters>(defaultFilters)
-  const [inactiveFilters, setInactiveFilters] =
-    React.useState<StudentFilters>(defaultFilters)
-
-  const parsePage = React.useCallback(
-    (key: string) => {
-      const raw = searchParams.get(key)
-      const parsed = Number(raw)
-      if (!Number.isFinite(parsed) || parsed < 1) {
-        return 1
-      }
-      return Math.floor(parsed)
-    },
-    [searchParams]
-  )
-
-  const parseSortParam = React.useCallback((value: string | null) => {
-    if (!value) {
-      return null
+  const applied = React.useMemo(() => {
+    const params = new URLSearchParams(searchParamsString)
+    return {
+      active: readFilters(params, 'active'),
+      inactive: readFilters(params, 'inactive'),
+      deactivated: readFilters(params, 'deactivated')
     }
-    const [sortBy, direction] = value.split(':')
-    if (!sortBy) {
-      return null
-    }
-    const sortDir: 'asc' | 'desc' = direction === 'desc' ? 'desc' : 'asc'
-    return { sortBy, sortDir }
-  }, [])
-
-  const buildFilters = React.useCallback(
-    (searchKey: string, sortKey: string, pageKey: string) => {
-      const sortParam = parseSortParam(searchParams.get(sortKey))
-      return {
-        search: searchParams.get(searchKey) ?? '',
-        sortBy: sortParam?.sortBy ?? defaultFilters.sortBy,
-        sortDir: sortParam?.sortDir ?? defaultFilters.sortDir,
-        page: parsePage(pageKey)
-      }
-    },
-    [parsePage, parseSortParam, searchParams]
-  )
-
-  const currentActiveFilters = React.useMemo(
-    () => buildFilters('activeSearch', 'activeSort', 'activePage'),
-    [buildFilters]
-  )
-  const currentInactiveFilters = React.useMemo(
-    () => buildFilters('inactiveSearch', 'inactiveSort', 'inactivePage'),
-    [buildFilters]
-  )
-
-  React.useEffect(() => {
-    setActiveFilters((prev) => {
-      const next = {
-        search: currentActiveFilters.search,
-        sortBy: currentActiveFilters.sortBy,
-        sortDir: currentActiveFilters.sortDir
-      }
-      return prev.search === next.search &&
-        prev.sortBy === next.sortBy &&
-        prev.sortDir === next.sortDir
-        ? prev
-        : next
-    })
-  }, [
-    currentActiveFilters.search,
-    currentActiveFilters.sortBy,
-    currentActiveFilters.sortDir
-  ])
-
-  React.useEffect(() => {
-    setInactiveFilters((prev) => {
-      const next = {
-        search: currentInactiveFilters.search,
-        sortBy: currentInactiveFilters.sortBy,
-        sortDir: currentInactiveFilters.sortDir
-      }
-      return prev.search === next.search &&
-        prev.sortBy === next.sortBy &&
-        prev.sortDir === next.sortDir
-        ? prev
-        : next
-    })
-  }, [
-    currentInactiveFilters.search,
-    currentInactiveFilters.sortBy,
-    currentInactiveFilters.sortDir
-  ])
-
-  const updateParams = React.useCallback(
-    (
-      keys: { searchKey: string; sortKey: string; pageKey: string },
-      filters: StudentFilters,
-      page: number
-    ) => {
-      const params = new URLSearchParams(searchParamsString)
-      if (filters.search) {
-        params.set(keys.searchKey, filters.search)
-      } else {
-        params.delete(keys.searchKey)
-      }
-      if (filters.sortBy) {
-        params.set(keys.sortKey, `${filters.sortBy}:${filters.sortDir}`)
-      } else {
-        params.delete(keys.sortKey)
-      }
-      if (page > 1) {
-        params.set(keys.pageKey, String(page))
-      } else {
-        params.delete(keys.pageKey)
-      }
-
-      const nextParams = params.toString()
-      const url = nextParams ? `${pathname}?${nextParams}` : pathname
-      router.replace(url, { scroll: false })
-    },
-    [pathname, router, searchParamsString]
-  )
-
-  const loadStudents = React.useCallback(
-    async (options: {
-      isActive: boolean
-      search: string
-      sort: { sortBy: string; sortDir: 'asc' | 'desc' }
-      page: number
-    }) => {
-      const { isActive, search, sort, page } = options
-      const params = new URLSearchParams()
-      params.set('role', 'student')
-      params.set('isActive', String(isActive))
-      if (search.trim()) {
-        params.set('q', search.trim())
-      }
-      params.set('sortBy', sort.sortBy)
-      params.set('sortDir', sort.sortDir)
-      params.set('limit', String(pageSize))
-      params.set('offset', String((page - 1) * pageSize))
-
-      if (isActive) {
-        setActiveLoading(true)
-      } else {
-        setInactiveLoading(true)
-      }
-
-      try {
-        const response = await fetch(`/api/users?${params.toString()}`)
-        if (!response.ok) {
-          throw new Error('Impossibile caricare gli studenti.')
-        }
-        const payload = await response.json()
-        const { items, total } = normalizePaged<User>(payload)
-        if (isActive) {
-          setActiveStudents(items)
-          setActiveTotal(total)
-        } else {
-          setInactiveStudents(items)
-          setInactiveTotal(total)
-        }
-      } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : 'Impossibile caricare gli studenti.'
-        toast.error(message)
-      } finally {
-        if (isActive) {
-          setActiveLoading(false)
-        } else {
-          setInactiveLoading(false)
-        }
-      }
-    },
-    []
-  )
-
-  React.useEffect(() => {
-    void loadStudents({
-      isActive: true,
-      search: currentActiveFilters.search,
-      sort: {
-        sortBy: currentActiveFilters.sortBy,
-        sortDir: currentActiveFilters.sortDir
-      },
-      page: currentActiveFilters.page
-    })
-  }, [
-    currentActiveFilters.page,
-    currentActiveFilters.search,
-    currentActiveFilters.sortBy,
-    currentActiveFilters.sortDir,
-    loadStudents
-  ])
-
-  React.useEffect(() => {
-    void loadStudents({
-      isActive: false,
-      search: currentInactiveFilters.search,
-      sort: {
-        sortBy: currentInactiveFilters.sortBy,
-        sortDir: currentInactiveFilters.sortDir
-      },
-      page: currentInactiveFilters.page
-    })
-  }, [
-    currentInactiveFilters.page,
-    currentInactiveFilters.search,
-    currentInactiveFilters.sortBy,
-    currentInactiveFilters.sortDir,
-    loadStudents
-  ])
-
-  const makeColumns = React.useCallback(() => {
-    const columns: ColumnDef<User>[] = [
-      {
-        accessorKey: 'lastName',
-        header: 'Cognome',
-        cell: ({ row }) => row.original.lastName
-      },
-      {
-        accessorKey: 'firstName',
-        header: 'Nome',
-        cell: ({ row }) => row.original.firstName
-      },
-      {
-        accessorKey: 'year',
-        header: 'Classe',
-        cell: ({ row }) => (
-          <span>{classLabel(row.original.year, row.original.sectionName) ?? '-'}</span>
-        )
-      },
-      {
-        accessorKey: 'lessonTokens',
-        header: () => (
-          <span className='whitespace-nowrap'>Ore di lezione rimanenti</span>
-        ),
-        cell: ({ row }) => row.original.lessonTokens ?? '-',
-        enableSorting: false
-      }
-    ]
-
-    return columns
-  }, [])
-
-  const activeColumns = React.useMemo(() => makeColumns(), [makeColumns])
-  const inactiveColumns = React.useMemo(() => makeColumns(), [makeColumns])
+  }, [searchParamsString])
+  // All three load at once: each tab shows its count.
+  const data = {
+    active: useStudentList(LISTS[0], applied.active),
+    inactive: useStudentList(LISTS[1], applied.inactive),
+    deactivated: useStudentList(LISTS[2], applied.deactivated)
+  }
 
   return (
     <main className='flex-1'>
@@ -524,83 +435,17 @@ export default function AdminStudentsPage() {
           <div className='mt-8 space-y-6'>
             <Tabs value={listTab} onValueChange={(value) => setParam('tab', value === 'active' ? null : value)}>
               <TabsList>
-                <TabsTrigger value='active'>Attivi ({activeTotal})</TabsTrigger>
-                <TabsTrigger value='inactive'>
-                  Inattivi ({inactiveTotal})
-                </TabsTrigger>
+                {LISTS.map(list => (
+                  <TabsTrigger key={list.value} value={list.value}>
+                    {list.label} ({data[list.value].total})
+                  </TabsTrigger>
+                ))}
               </TabsList>
-              <TabsContent value='active' className='mt-6'>
-                <FilterForm
-                  values={activeFilters}
-                  applied={currentActiveFilters}
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    updateParams({ searchKey: 'activeSearch', sortKey: 'activeSort', pageKey: 'activePage' }, activeFilters, 1)
-                  }}
-                  search={{
-                    id: 'active-student-search',
-                    value: activeFilters.search,
-                    onChange: (value) => setActiveFilters((prev) => ({ ...prev, search: value })),
-                    placeholder: 'Nome, cognome o email'
-                  }}
-                />
-                <div className='mt-6'>
-                  <DataTable
-                    sortable={SORTABLE}
-                    sort={{ sortBy: currentActiveFilters.sortBy, sortDir: currentActiveFilters.sortDir }}
-                    onSort={(key) => {
-                      const next = { ...activeFilters, ...nextSort(currentActiveFilters, key) }
-                      setActiveFilters(next)
-                      updateParams({ searchKey: 'activeSearch', sortKey: 'activeSort', pageKey: 'activePage' }, next, 1)
-                    }}
-                    data={activeStudents}
-                    columns={activeColumns}
-                    rowHref={(row) => `/admin/students/${row.id}`}
-                    isLoading={activeLoading}
-                    emptyMessage='Nessuno studente attivo.'
-                    pageKey='activePage'
-                    page={currentActiveFilters.page}
-                    pageSize={pageSize}
-                    total={activeTotal}
-                  />
-                </div>
-              </TabsContent>
-              <TabsContent value='inactive' className='mt-6'>
-                <FilterForm
-                  values={inactiveFilters}
-                  applied={currentInactiveFilters}
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    updateParams({ searchKey: 'inactiveSearch', sortKey: 'inactiveSort', pageKey: 'inactivePage' }, inactiveFilters, 1)
-                  }}
-                  search={{
-                    id: 'inactive-student-search',
-                    value: inactiveFilters.search,
-                    onChange: (value) => setInactiveFilters((prev) => ({ ...prev, search: value })),
-                    placeholder: 'Nome, cognome o email'
-                  }}
-                />
-                <div className='mt-6'>
-                  <DataTable
-                    sortable={SORTABLE}
-                    sort={{ sortBy: currentInactiveFilters.sortBy, sortDir: currentInactiveFilters.sortDir }}
-                    onSort={(key) => {
-                      const next = { ...inactiveFilters, ...nextSort(currentInactiveFilters, key) }
-                      setInactiveFilters(next)
-                      updateParams({ searchKey: 'inactiveSearch', sortKey: 'inactiveSort', pageKey: 'inactivePage' }, next, 1)
-                    }}
-                    data={inactiveStudents}
-                    columns={inactiveColumns}
-                    rowHref={(row) => `/admin/students/${row.id}`}
-                    isLoading={inactiveLoading}
-                    emptyMessage='Nessuno studente in attesa.'
-                    pageKey='inactivePage'
-                    page={currentInactiveFilters.page}
-                    pageSize={pageSize}
-                    total={inactiveTotal}
-                  />
-                </div>
-              </TabsContent>
+              {LISTS.map(list => (
+                <TabsContent key={list.value} value={list.value} className='mt-6'>
+                  <StudentList list={list} applied={applied[list.value]} data={data[list.value]} />
+                </TabsContent>
+              ))}
             </Tabs>
           </div>
         </div>
