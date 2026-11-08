@@ -68,6 +68,11 @@ export const impersonate: AppRouteHandler<ImpersonateRoute> = async (c) => {
   if (!target) {
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
+  // Only the people admins look after: never another admin or an activator. This also rules out
+  // impersonating from inside an impersonation, which would end in that admin's own session.
+  if (target.role !== 'student' && target.role !== 'tutor') {
+    forbid()
+  }
 
   const token = await createImpersonationToken(admin, target as AuthenticatedUser)
 

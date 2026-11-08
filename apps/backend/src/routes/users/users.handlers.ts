@@ -15,7 +15,6 @@ import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
 import { isUniqueConstraintError } from '@/lib/db-errors'
 import {
   buildActivationChangedMessage,
-  buildPasswordChangedMessage,
   buildProfileUpdatedMessage
 } from '@/lib/email-templates'
 import { buildErrorResponse } from '@/lib/error-response'
@@ -24,10 +23,9 @@ import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { getStudentTokenBalances } from '@/lib/lesson-tokens'
 import { sendMail } from '@/lib/mailer'
 import { buildPagedResponse } from '@/lib/pagination'
-import { hashPassword, verifyPassword } from '@/lib/password'
+import { verifyPassword } from '@/lib/password'
 import { notifyUsers } from '@/lib/push'
 import { activationChangedPush } from '@/lib/push-messages'
-import { revokeUserRefreshTokens } from '@/lib/refresh-tokens'
 import { isYearInRange, STUDENT_YEARS, TUTOR_YEARS, yearRangeMessage } from '@/lib/school-years'
 
 import type { GetOneRoute, ListRoute, PatchRoute, RemoveRoute } from './users.routes'
@@ -459,7 +457,6 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     email?: string
     firstName?: string
     lastName?: string
-    password?: string
     sectionId?: string
     year?: number
     isActive?: boolean
@@ -478,11 +475,15 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
   else if (!isActivator && currentUser.id !== id) {
     forbid()
   }
+  // Students and tutors change only their name: a new email would let whoever holds the
+  // session receive the password reset link.
+  if (!isAdmin && !isActivator && updates.email !== undefined) {
+    forbid()
+  }
   if (isActivator) {
     const hasDisallowedUpdate = updates.email !== undefined
       || updates.firstName !== undefined
       || updates.lastName !== undefined
-      || updates.password !== undefined
       || updates.sectionId !== undefined
       || updates.year !== undefined
     if (hasDisallowedUpdate || updates.isActive === undefined) {
@@ -494,7 +495,6 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     email?: string
     firstName?: string
     lastName?: string
-    passwordHash?: string
   } = {
     email: updates.email?.trim().toLowerCase(),
     firstName: updates.firstName,
@@ -512,15 +512,8 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     isActive: profileUpdates.isActive
   }
   const tutorProfilePayload = buildTutorProfilePayload(profileUpdates)
-  let passwordChanged = false
   let previousIsActive: boolean | null | undefined
   const hasProfileUpdates = Object.values(profileUpdates).some(value => value !== undefined)
-  if (updates.password) {
-    userUpdates.passwordHash = await hashPassword(updates.password)
-    passwordChanged = true
-  }
-  const hasNonPasswordUserUpdates = Object.entries(userUpdates)
-    .some(([key, value]) => key !== 'passwordHash' && value !== undefined)
   const hasUserUpdates = Object.values(userUpdates).some(value => value !== undefined)
 
   if (typeof updates.email === 'string') {
@@ -697,8 +690,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       }
     }
 
-    const userChanged = passwordChanged
-      || (updates.email !== undefined && updates.email !== existing.email)
+    const userChanged = (updates.email !== undefined && updates.email !== existing.email)
       || (updates.firstName !== undefined && updates.firstName !== existing.firstName)
       || (updates.lastName !== undefined && updates.lastName !== existing.lastName)
     let profileChanged = false
@@ -769,8 +761,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
         .set({
           email: userUpdates.email,
           firstName: userUpdates.firstName,
-          lastName: userUpdates.lastName,
-          passwordHash: userUpdates.passwordHash
+          lastName: userUpdates.lastName
         })
         .where(eq(users.id, id))
         .returning({
@@ -844,17 +835,7 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
     }
 
     if (user?.email) {
-      if (passwordChanged) {
-        const passwordMessage = buildPasswordChangedMessage()
-        sendMail({
-          to: user.email,
-          subject: passwordMessage.subject,
-          text: passwordMessage.text,
-          html: passwordMessage.html
-        }).catch(err => console.error('Failed to send password change email:', err))
-      }
-
-      if (hasNonPasswordUserUpdates || hasProfileUpdates) {
+      if (hasUserUpdates || hasProfileUpdates) {
         const activationChanged = previousIsActive !== undefined
           && profileUpdates.isActive !== undefined
           && previousIsActive !== profileUpdates.isActive
@@ -885,10 +866,6 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       buildErrorResponse(HttpStatusPhrases.NOT_FOUND),
       HttpStatusCodes.NOT_FOUND
     )
-  }
-
-  if (passwordChanged) {
-    await revokeUserRefreshTokens(id)
   }
 
   const [withProfile] = await attachProfiles([user])
