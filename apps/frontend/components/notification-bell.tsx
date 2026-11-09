@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   Bell,
   CalendarCheck,
+  CalendarClock,
   Clock,
   type LucideIcon,
   MessageSquare,
@@ -35,6 +36,7 @@ import { cn } from '@/lib/utils'
 
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
   bookings: CalendarCheck,
+  updates: CalendarClock,
   reminders: Clock,
   feedback: MessageSquare,
   account: UserCheck,

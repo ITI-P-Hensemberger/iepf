@@ -15,6 +15,7 @@ import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
 import { isUniqueConstraintError } from '@/lib/db-errors'
 import {
   buildActivationChangedMessage,
+  buildEmailChangedMessage,
   buildProfileUpdatedMessage
 } from '@/lib/email-templates'
 import { buildErrorResponse } from '@/lib/error-response'
@@ -25,7 +26,7 @@ import { sendMail } from '@/lib/mailer'
 import { buildPagedResponse } from '@/lib/pagination'
 import { verifyPassword } from '@/lib/password'
 import { notifyUsers } from '@/lib/push'
-import { activationChangedPush } from '@/lib/push-messages'
+import { activationChangedPush, profileUpdatedPush } from '@/lib/push-messages'
 import { ensureAdmin, forbid } from '@/lib/require-admin'
 import { isYearInRange, STUDENT_YEARS, TUTOR_YEARS, yearRangeMessage } from '@/lib/school-years'
 
@@ -887,6 +888,14 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
         if (activationChanged) {
           notifyUsers([id], 'account', activationChangedPush(Boolean(profileUpdates.isActive), deactivationReason))
         }
+        // Someone else's change only: a user who edits their own name already knows.
+        else if (currentUser!.id !== id) {
+          notifyUsers([id], 'account', profileUpdatedPush())
+        }
+      }
+      if (existing.email !== user.email) {
+        sendMail({ to: existing.email, ...buildEmailChangedMessage(user.email) })
+          .catch(err => console.error('Failed to send email changed email:', err))
       }
     }
   }

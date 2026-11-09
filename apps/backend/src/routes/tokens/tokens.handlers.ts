@@ -9,10 +9,14 @@ import type { AppBindings, AppRouteHandler } from '@/lib/types'
 import db from '@/db'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import { users } from '@/db/schemas/users.schema'
+import { buildLessonHoursChangedMessage } from '@/lib/email-templates'
 import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { AUTOMATIC_TOKEN_REASONS, getStudentTokenBalance, lockUsers } from '@/lib/lesson-tokens'
+import { sendMail } from '@/lib/mailer'
+import { notifyUsers } from '@/lib/push'
+import { lessonHoursChangedPush } from '@/lib/push-messages'
 
 import type { AdjustTokensRoute, TokenHistoryRoute } from './tokens.routes'
 
@@ -45,14 +49,14 @@ export const adjustTokens: AppRouteHandler<AdjustTokensRoute> = async (c) => {
         operators.eq(fields.role, 'student')
       )
     },
-    columns: { id: true }
+    columns: { id: true, email: true }
   })
 
   if (!student) {
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
-  const nextTokens = await db.transaction(async (tx) => {
+  const { balance: nextTokens, appliedDelta } = await db.transaction(async (tx) => {
     await lockUsers(tx, [studentId])
     const currentTokens = await getStudentTokenBalance(studentId, tx)
     const balance = Math.max(currentTokens + payload.delta, 0)
@@ -67,8 +71,15 @@ export const adjustTokens: AppRouteHandler<AdjustTokensRoute> = async (c) => {
       })
     }
 
-    return balance
+    return { balance, appliedDelta }
   })
+
+  if (appliedDelta !== 0) {
+    const change = { delta: appliedDelta, balance: nextTokens }
+    sendMail({ to: student.email, ...buildLessonHoursChangedMessage(change) })
+      .catch(error => console.error('Failed to send lesson hours email:', error))
+    notifyUsers([studentId], 'account', lessonHoursChangedPush(change))
+  }
 
   return c.json({ studentId, lessonTokens: nextTokens }, HttpStatusCodes.OK)
 }

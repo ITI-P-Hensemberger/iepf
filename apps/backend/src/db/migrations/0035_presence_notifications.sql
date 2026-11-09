@@ -1,0 +1,2 @@
+ALTER TABLE "notification_preferences" ADD COLUMN "admin_missing_presence" boolean DEFAULT true NOT NULL;--> statement-breakpoint
+ALTER TABLE "notification_preferences" ADD COLUMN "email_admin_missing_presence" boolean DEFAULT true NOT NULL;

@@ -201,6 +201,58 @@ export function activationChangedPush(isActive: boolean, reason: string | null =
   }
 }
 
+export function presenceMarkedPush(params: { lessonId: string, subjectName: string, startAt: Date, present: boolean }): PushMessage {
+  return {
+    title: params.present ? 'Presenza confermata' : 'Assenza registrata',
+    body: lines(params.subjectName, when(params.startAt), !params.present && 'L\'ora di lezione non viene rimborsata.'),
+    url: lessonsUrl('student'),
+    tag: `presence-${params.lessonId}`
+  }
+}
+
+export function profileUpdatedPush(): PushMessage {
+  return {
+    title: 'Profilo aggiornato',
+    body: 'Gli organizzatori hanno aggiornato i dati del tuo profilo.',
+    url: '/profile',
+    tag: 'account'
+  }
+}
+
+function hours(count: number) {
+  return count === 1 ? '1 ora' : `${count} ore`
+}
+
+export function lessonHoursChangedPush(params: { delta: number, balance: number }): PushMessage {
+  return {
+    title: params.delta > 0 ? 'Ore di lezione aggiunte' : 'Ore di lezione tolte',
+    body: lines(
+      params.delta > 0 ? `Gli organizzatori ti hanno aggiunto ${hours(params.delta)}.` : `Gli organizzatori ti hanno tolto ${hours(-params.delta)}.`,
+      `Ore rimanenti: ${params.balance}.`
+    ),
+    url: '/profile',
+    tag: 'lesson-hours'
+  }
+}
+
+export function lessonHoursExhaustedPush(): PushMessage {
+  return {
+    title: 'Ore di lezione finite',
+    body: 'Hai usato tutte le tue ore: per prenotarne altre contatta gli organizzatori.',
+    url: '/profile',
+    tag: 'lesson-hours'
+  }
+}
+
+export function missingPresenceTutorPush(params: { lessonId: string, subjectName: string, startAt: Date }): PushMessage {
+  return {
+    title: 'Presenze da segnare',
+    body: lines(params.subjectName, `Oggi alle ${formatTime(params.startAt)}`, 'Segna chi è presente e chi è assente.'),
+    url: lessonsUrl('tutor', params.lessonId),
+    tag: `presence-${params.lessonId}`
+  }
+}
+
 export function lessonsGeneratedPush(params: { count: number, weekStart: Date }): PushMessage {
   const week = params.weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
   return {
@@ -247,6 +299,15 @@ export function absencePush(params: { lessonId: string, subjectName: string, sta
     title: 'Assenza segnata',
     body: lines(params.subjectName, when(params.startAt), 'Uno studente risulta assente.'),
     url: `/admin/lessons/${params.lessonId}`
+  }
+}
+
+export function missingPresenceAdminPush(params: { lessonId: string, subjectName: string, startAt: Date }): PushMessage {
+  return {
+    title: 'Presenze non segnate',
+    body: lines(params.subjectName, `Oggi alle ${formatTime(params.startAt)}`, 'Il tutor non ha ancora segnato le presenze.'),
+    url: `/admin/lessons/${params.lessonId}`,
+    tag: `presence-${params.lessonId}`
   }
 }
 

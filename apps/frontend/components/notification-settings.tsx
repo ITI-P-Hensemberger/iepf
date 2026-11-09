@@ -37,7 +37,8 @@ const USER_LABELS: Array<{
   {
     key: 'bookings',
     label: 'Prenotazioni',
-    description: 'Conferme, annullamenti e spostamenti delle lezioni.'
+    description: 'Le prenotazioni che fai o annulli tu.',
+    tutorDescription: 'Nuove prenotazioni e annullamenti degli studenti.'
   },
   {
     key: 'reminders',
@@ -50,15 +51,10 @@ const USER_LABELS: Array<{
     description: 'Lezioni concluse che aspettano il tuo feedback.'
   },
   {
-    key: 'account',
-    label: 'Account',
-    description: 'Attivazione o disattivazione del tuo account.'
-  },
-  {
     key: 'lessons',
     label: 'Nuove lezioni',
     description: 'Nuove lezioni disponibili da prenotare.',
-    tutorDescription: 'Lezioni assegnate a te automaticamente o dai gestori.'
+    tutorDescription: 'Le lezioni della settimana assegnate a te in automatico.'
   }
 ]
 
@@ -83,12 +79,6 @@ const ADMIN_LABELS: Array<{
     description: 'Ogni volta che uno studente viene segnato assente.'
   },
   {
-    key: 'adminEmptyWeek',
-    label: 'Settimana senza lezioni',
-    description:
-      'La generazione del sabato non crea lezioni per una settimana con giorni di scuola.'
-  },
-  {
     key: 'adminPendingAdmins',
     label: 'Admin in attesa',
     description:
@@ -98,8 +88,21 @@ const ADMIN_LABELS: Array<{
     key: 'adminSubjectRequests',
     label: 'Richieste di materie',
     description: 'Ogni mattina, le richieste delle ultime 24 ore.'
+  },
+  {
+    key: 'adminMissingPresence',
+    label: 'Presenze non segnate',
+    description:
+      "20 minuti dopo l'inizio di una lezione, se il tutor non ha ancora segnato le presenze."
   }
 ]
+
+// Sent whatever the switches say: news that changes what you have to do.
+const ALWAYS_ON: Record<'student' | 'tutor' | 'admin', string> = {
+  student: 'Arrivano sempre: lezioni annullate o spostate dagli organizzatori, presenze segnate, ore di lezione e account.',
+  tutor: 'Arrivano sempre: lezioni assegnate, annullate o spostate, annullamenti nel giorno della lezione, presenze da segnare e account.',
+  admin: 'Arrivano sempre, per notifica e per email: la settimana senza lezioni e gli avvisi sul tuo account.'
+}
 
 export function NotificationSettings({
   role,
@@ -210,9 +213,7 @@ export function NotificationSettings({
     toggle.mutate({ key, value })
   }
 
-  const userCategories = USER_LABELS.filter(
-    (category) => role !== 'admin' || category.key === 'account'
-  ).map((category) => ({
+  const userCategories = role === 'admin' ? [] : USER_LABELS.map((category) => ({
     ...category,
     description:
       role === 'tutor'
@@ -324,9 +325,14 @@ export function NotificationSettings({
 
         {preferences && (
           <div className='flex flex-col gap-3'>
-            <p className='text-sm font-medium'>
-              Cosa ricevere (su tutti i tuoi dispositivi)
-            </p>
+            <div className='grid gap-1'>
+              <p className='text-sm font-medium'>
+                Cosa ricevere (su tutti i tuoi dispositivi)
+              </p>
+              <p className='text-sm text-muted-foreground'>
+                {ALWAYS_ON[role]}
+              </p>
+            </div>
             {userCategories.map((category) => (
               <div
                 key={category.key}

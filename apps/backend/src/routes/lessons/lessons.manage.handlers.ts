@@ -168,8 +168,8 @@ export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
       }
 
       const canceledLesson = { lessonId: lesson.id, subjectName: lessonDetails.subjectName, startAt: new Date(lesson.startAt) }
-      notifyUsers(confirmedStudentIds, 'bookings', lessonCanceledPush('student', canceledLesson))
-      notifyUsers([lesson.tutorId], 'bookings', lessonCanceledPush('tutor', canceledLesson))
+      notifyUsers(confirmedStudentIds, 'updates', lessonCanceledPush('student', canceledLesson))
+      notifyUsers([lesson.tutorId], 'updates', lessonCanceledPush('tutor', canceledLesson))
     }
   }
 
@@ -433,16 +433,16 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
       const after = { lessonId: lesson.id, subjectName: newDetails.subjectName, startAt: newStartAt, durationMinutes: payload.durationMinutes }
       const studentPush = lessonChangedPush('student', before, after, tutorChanged)
       if (studentPush) {
-        notifyUsers(studentIds, 'bookings', studentPush)
+        notifyUsers(studentIds, 'updates', studentPush)
       }
       if (tutorChanged) {
-        notifyUsers([previous.tutorId], 'bookings', lessonReassignedPush(before))
-        notifyUsers([payload.tutorId], 'bookings', lessonAssignedPush(after, studentIds.length))
+        notifyUsers([previous.tutorId], 'updates', lessonReassignedPush(before))
+        notifyUsers([payload.tutorId], 'updates', lessonAssignedPush(after, studentIds.length))
       }
       else {
         const tutorPush = lessonChangedPush('tutor', before, after, false)
         if (tutorPush) {
-          notifyUsers([payload.tutorId], 'bookings', tutorPush)
+          notifyUsers([payload.tutorId], 'updates', tutorPush)
         }
       }
     }
@@ -501,7 +501,7 @@ export const createLesson: AppRouteHandler<CreateLessonRoute> = async (c) => {
     }).catch(err => console.error('Failed to send lesson created email:', err))
   }
   if (details) {
-    notifyUsers([payload.tutorId], 'lessons', lessonCreatedPush({ lessonId: newLesson.id, subjectName: details.subjectName, startAt: newStartAt }))
+    notifyUsers([payload.tutorId], 'updates', lessonCreatedPush({ lessonId: newLesson.id, subjectName: details.subjectName, startAt: newStartAt }))
   }
 
   return c.json(
