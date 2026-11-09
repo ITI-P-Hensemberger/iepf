@@ -7,12 +7,14 @@ import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { useMutation } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
 import { startLoginSession } from '@/lib/announcement-dismissals'
 import { notifyAuthChanged } from '@/lib/auth-events'
 import { safeInternalPath } from '@/lib/safe-redirect'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 import { AuthLayout } from '@/components/auth-layout'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import {
@@ -40,19 +42,25 @@ const formSchema = z.object({
 
 type LoginFormValues = z.infer<typeof formSchema>
 
+// Where a login lands: the page asked for, when the role may open it, or the role's home.
+function destinationAfterLogin(result: { role?: string | null, isActive?: boolean }, nextPath: string | null) {
+  if (result.role === 'admin') {
+    return nextPath && nextPath.startsWith('/admin') ? nextPath : '/admin'
+  }
+  if (result.role === 'tutor') {
+    if (nextPath && nextPath.startsWith('/tutor')) return nextPath
+    return result.isActive === true ? '/tutor' : '/tutor/pending'
+  }
+  if (result.role === 'activator') return '/activator'
+  if (nextPath && !nextPath.startsWith('/admin')) return nextPath
+  return result.isActive === true ? '/student' : '/student/pending'
+}
+
 function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const nextParam = searchParams.get('next')
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [showPassword, setShowPassword] = React.useState(false)
-  const [needsVerification, setNeedsVerification] = React.useState(false)
-  const [resendStatus, setResendStatus] = React.useState<
-    'idle' | 'loading' | 'success' | 'error'
-  >('idle')
-  const [resetStatus, setResetStatus] = React.useState<
-    'idle' | 'loading' | 'success' | 'error'
-  >('idle')
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(formSchema),
@@ -63,188 +71,68 @@ function LoginContent() {
     }
   })
 
-  async function onSubmit(values: LoginFormValues) {
-    setIsSubmitting(true)
-    setNeedsVerification(false)
-    setResendStatus('idle')
-    setResetStatus('idle')
-
-    try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: values.email,
-          password: values.password,
-          remember: values.remember
-        })
+  // An unverified email is an answer, not an error: it shows the button to send the email again.
+  const login = useMutation({
+    mutationFn: async (values: LoginFormValues) => {
+      const response = await fetch('/api/auth/login', jsonBody('POST', {
+        email: values.email,
+        password: values.password,
+        remember: values.remember
+      })).catch(() => {
+        throw new Error('Accesso non riuscito.')
       })
-
-      if (!response.ok) {
-        if (response.status === 403) {
-          setNeedsVerification(true)
-          toast.error(
-            "Email non verificata. Controlla la tua casella email o invia un'altra email di verifica."
-          )
-          return
-        }
-        let message = 'Accesso non riuscito.'
-
-        try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
-        } catch {
-          message = 'Accesso non riuscito.'
-        }
-
-        throw new Error(message)
+      if (response.status === 403) return { unverified: true as const }
+      const payload = (await response.json().catch(() => null)) as { message?: string, role?: string | null, isActive?: boolean } | null
+      if (!response.ok) throw new Error(payload?.message || 'Accesso non riuscito.')
+      return { unverified: false as const, role: payload?.role, isActive: payload?.isActive }
+    },
+    onSuccess: (result) => {
+      if (result.unverified) {
+        toast.error(
+          "Email non verificata. Controlla la tua casella email o invia un'altra email di verifica."
+        )
+        return
       }
-
-      const payload = (await response.json()) as {
-        role?: string | null
-        isActive?: boolean
-      }
-
       startLoginSession(window.localStorage)
       notifyAuthChanged()
-
-      const nextPath = safeInternalPath(nextParam)
-
-      if (nextPath) {
-        router.push(nextPath)
-        return
-      }
-
-      if (payload.role === 'admin') {
-        if (nextPath && nextPath.startsWith('/admin')) {
-          router.push(nextPath)
-          return
-        }
-        router.push('/admin')
-        return
-      }
-
-      if (payload.role === 'tutor') {
-        if (nextPath && nextPath.startsWith('/tutor')) {
-          router.push(nextPath)
-          return
-        }
-        router.push(payload.isActive === true ? '/tutor' : '/tutor/pending')
-        return
-      }
-
-      if (payload.role === 'activator') {
-        router.push('/activator')
-        return
-      }
-
-      if (nextPath && !nextPath.startsWith('/admin')) {
-        router.push(nextPath)
-        return
-      }
-
-      router.push(payload.isActive === true ? '/student' : '/student/pending')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Accesso non riuscito.')
-    } finally {
-      setIsSubmitting(false)
+      router.push(destinationAfterLogin(result, safeInternalPath(nextParam)))
     }
+  })
+  // Stays on while the next page opens, so the button cannot be pressed twice.
+  const isSubmitting = login.isPending || (login.isSuccess && !login.data.unverified)
+  const needsVerification = login.data?.unverified === true
+
+  const resend = useMutation({
+    mutationFn: (email: string) => apiFetch('/api/auth/verify-email/request', 'Impossibile inviare la verifica.', jsonBody('POST', { email })),
+    onSuccess: () => toast.success('Se l’account esiste, abbiamo inviato una nuova email di verifica.')
+  })
+  const resetRequest = useMutation({
+    mutationFn: (email: string) => apiFetch('/api/auth/password/reset/request', 'Impossibile inviare il reset della password.', jsonBody('POST', { email })),
+    onSuccess: () => toast.success('Se l’account esiste, abbiamo inviato un link per il reset.')
+  })
+
+  function onSubmit(values: LoginFormValues) {
+    resend.reset()
+    resetRequest.reset()
+    login.mutate(values)
   }
 
-  async function handleResendVerification() {
+  function handleResendVerification() {
     const email = form.getValues('email')
     if (!email) {
-      setResendStatus('error')
       toast.error('Inserisci la tua email per ricevere la verifica.')
       return
     }
-
-    setResendStatus('loading')
-
-    try {
-      const response = await fetch('/api/auth/verify-email/request', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email })
-      })
-
-      if (!response.ok) {
-        let message = 'Impossibile inviare la verifica.'
-        try {
-          const payload = (await response.json()) as {
-            message?: string
-            error?: { issues?: Array<{ message?: string }> }
-          }
-          message =
-            payload.message ?? payload.error?.issues?.[0]?.message ?? message
-        } catch {
-          message = 'Impossibile inviare la verifica.'
-        }
-        throw new Error(message)
-      }
-
-      setResendStatus('success')
-      toast.success(
-        'Se l’account esiste, abbiamo inviato una nuova email di verifica.'
-      )
-    } catch (err) {
-      setResendStatus('error')
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile inviare la verifica.'
-      )
-    }
+    resend.mutate(email)
   }
 
-  async function handlePasswordReset() {
+  function handlePasswordReset() {
     const email = form.getValues('email')
     if (!email) {
-      setResetStatus('error')
       toast.error('Inserisci la tua email per recuperare la password.')
       return
     }
-
-    setResetStatus('loading')
-
-    try {
-      const response = await fetch('/api/auth/password/reset/request', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email })
-      })
-
-      if (!response.ok) {
-        let message = 'Impossibile inviare il reset della password.'
-        try {
-          const payload = (await response.json()) as {
-            message?: string
-            error?: { issues?: Array<{ message?: string }> }
-          }
-          message =
-            payload.message ?? payload.error?.issues?.[0]?.message ?? message
-        } catch {
-          message = 'Impossibile inviare il reset della password.'
-        }
-        throw new Error(message)
-      }
-
-      setResetStatus('success')
-      toast.success(
-        'Se l’account esiste, abbiamo inviato un link per il reset.'
-      )
-    } catch (err) {
-      setResetStatus('error')
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile inviare il reset della password.'
-      )
-    }
+    resetRequest.mutate(email)
   }
 
   return (
@@ -340,10 +228,10 @@ function LoginContent() {
                       type='button'
                       variant='outline'
                       className='w-full'
-                      disabled={resendStatus === 'loading'}
+                      disabled={resend.isPending}
                       onClick={handleResendVerification}
                     >
-                      {resendStatus === 'loading'
+                      {resend.isPending
                         ? 'Invio in corso...'
                         : 'Invia email di verifica'}
                     </Button>
@@ -364,10 +252,10 @@ function LoginContent() {
                 type='button'
                 variant='link'
                 className='p-0 h-auto'
-                disabled={resetStatus === 'loading'}
+                disabled={resetRequest.isPending}
                 onClick={handlePasswordReset}
               >
-                {resetStatus === 'loading'
+                {resetRequest.isPending
                   ? 'Invio in corso...'
                   : 'Hai dimenticato la password?'}
               </Button>

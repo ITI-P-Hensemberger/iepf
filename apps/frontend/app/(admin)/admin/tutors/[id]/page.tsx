@@ -59,6 +59,7 @@ import {
 } from '@/components/ui/select'
 import { SubjectSelector } from '@/components/subject-selector'
 import {
+  normalizeWeekdays,
   WeekdayAvailability,
   WeekdayAvailabilitySelector
 } from '@/components/weekday-availability-selector'
@@ -152,14 +153,6 @@ type TutorSubject = {
   name: string
 }
 
-const WEEKDAYS = [
-  { value: 1, label: 'Lunedì' },
-  { value: 2, label: 'Martedì' },
-  { value: 3, label: 'Mercoledì' },
-  { value: 4, label: 'Giovedì' },
-  { value: 5, label: 'Venerdì' }
-] as const
-
 const SECTIONS = [
   { value: 'account', label: 'Dati', icon: UserRound },
   { value: 'availability', label: 'Disponibilità', icon: CalendarClock },
@@ -167,18 +160,6 @@ const SECTIONS = [
   { value: 'lessons', label: 'Storico lezioni', icon: History },
   { value: 'danger', label: 'Danger zone', icon: TriangleAlert, separatorBefore: true }
 ] as const
-
-// Every weekday of the form, off unless the backend says otherwise.
-function normalizeWeekdays(payload: { weekdays?: WeekdayAvailability[] }): WeekdayAvailability[] {
-  return WEEKDAYS.map((day) => {
-    const match = payload.weekdays?.find((item) => item.weekday === day.value)
-    return {
-      weekday: day.value,
-      isAvailable: match?.isAvailable ?? false,
-      startTime: match?.isAvailable ? (match?.startTime ?? null) : null
-    }
-  })
-}
 
 // Stable while the data loads, so the memos built on them do not rerun on every render.
 const noSections: Section[] = []

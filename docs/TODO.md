@@ -489,8 +489,13 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
     pagina: sessione e refresh (`lib/auth-client.ts`, `use-session`), push (`lib/push-client.ts`),
     analytics. Il punto 26 la segue.
     Fatte: feedback admin (#95), liste utenti admin (#96), dettagli utenti admin (#98), lezioni
-    admin (#101), impostazioni admin (#103), studente (home, prenotazione, le mie lezioni, feedback,
-    attesa di attivazione).
+    admin (#101), impostazioni admin (#103), studente (#104: home, prenotazione, le mie lezioni,
+    feedback, attesa di attivazione), e nell'ultima PR tutor (home, settimana, elenco, dettaglio,
+    disponibilità, materie, onboarding), profilo, login, reset password, verifica email,
+    registrazioni, campanella, popup delle novità, preferenze notifiche, statistiche admin,
+    impostazioni globali (`SettingsProvider`) e i componenti comuni (`SubjectSelector`, chiusure
+    del `DatePicker`). **Migrazione completata (2026-11-09).** La pagina FAQ resta un componente
+    server. Warning lint del frontend: 17 (erano 61 all'inizio della migrazione).
   - **Problema:** il frontend carica i dati con `useEffect` e `fetch` manuali, ripetendo stati di
     caricamento, errori e aggiornamenti.
   - **File:** `apps/frontend/components/`, `apps/frontend/app/`
@@ -510,7 +515,7 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
     `eslint-plugin-react-hooks`: `set-state-in-effect` 63, `incompatible-library` 4,
     `preserve-manual-memoization` 3, `purity` 2, `immutability` 1. Non bloccano CI né build,
     ma nascondono i warning nuovi di ogni PR. Il backend è già pulito. Il 2026-11-09 sono
-    **61**.
+    **61**, e **17** a migrazione del punto 25 finita.
   - **File:** i più colpiti sono `components/admin-tutors-page.tsx` (6),
     `components/admin-lesson-details-page.tsx` (5) e varie pagine admin e studente (4 ciascuna).
     Elenco completo con `npx eslint . -f json`.

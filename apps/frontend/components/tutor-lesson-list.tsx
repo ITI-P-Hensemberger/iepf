@@ -30,6 +30,8 @@ import {
   type ScheduleLesson
 } from '@/lib/lesson-schedule'
 import { cn } from '@/lib/utils'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 
 const timeFormat = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' })
 const dayFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -38,10 +40,9 @@ function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
-// onChanged reloads the lessons in place after a presence or a cancellation.
-// from: the page the lesson's details should lead back to, when it is not the week.
-export function TutorLessonList({ lessons, onChanged }: { lessons: ScheduleLesson[], onChanged: () => Promise<void> | void }) {
-  const [saving, setSaving] = React.useState<string | null>(null)
+// After a presence or a cancellation the lessons reload in place.
+export function TutorLessonList({ lessons }: { lessons: ScheduleLesson[] }) {
+  const queryClient = useQueryClient()
   const [cancelTarget, setCancelTarget] = React.useState<ScheduleLesson | null>(null)
 
   const presence = usePresenceConfirm()
@@ -52,38 +53,27 @@ export function TutorLessonList({ lessons, onChanged }: { lessons: ScheduleLesso
     presence.ask({ studentName: booking.studentName, present: next, run: () => writePresence(lesson, booking, next) })
   }
 
-  const writePresence = async (lesson: ScheduleLesson, booking: ScheduleBooking, present: boolean | null) => {
-    setSaving(booking.id)
-    try {
-      const response = await fetch(`/api/lessons/${lesson.id}/bookings/${booking.id}/presence`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ present })
-      })
-      if (!response.ok) throw new Error('Impossibile aggiornare la presenza.')
-      await onChanged()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Impossibile aggiornare la presenza.')
-    } finally {
-      setSaving(null)
-    }
-  }
+  const reloadLessons = () => queryClient.invalidateQueries({ queryKey: ['lessons'] })
 
-  const cancelLesson = async () => {
-    if (!cancelTarget) return
-    try {
-      const response = await fetch(`/api/lessons/${cancelTarget.id}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
-      })
-      if (!response.ok) throw new Error('Impossibile annullare la lezione.')
+  const presenceMutation = useMutation({
+    mutationFn: ({ lesson, booking, present }: { lesson: ScheduleLesson, booking: ScheduleBooking, present: boolean | null }) =>
+      apiFetch(`/api/lessons/${lesson.id}/bookings/${booking.id}/presence`, 'Impossibile aggiornare la presenza.', jsonBody('PATCH', { present })),
+    onSuccess: reloadLessons
+  })
+  const saving = presenceMutation.isPending ? presenceMutation.variables?.booking.id ?? null : null
+  const writePresence = (lesson: ScheduleLesson, booking: ScheduleBooking, present: boolean | null) =>
+    presenceMutation.mutateAsync({ lesson, booking, present }).then(() => {}, () => {})
+
+  const cancelMutation = useMutation({
+    mutationFn: (lesson: ScheduleLesson) => apiFetch(`/api/lessons/${lesson.id}/cancel`, 'Impossibile annullare la lezione.', jsonBody('POST', {})),
+    onSuccess: () => {
       toast.success('Lezione annullata.')
       setCancelTarget(null)
-      await onChanged()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Impossibile annullare la lezione.')
+      return reloadLessons()
     }
+  })
+  const cancelLesson = () => {
+    if (cancelTarget) cancelMutation.mutate(cancelTarget)
   }
 
   return (
@@ -113,7 +103,7 @@ export function TutorLessonList({ lessons, onChanged }: { lessons: ScheduleLesso
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
-                void cancelLesson()
+                cancelLesson()
               }}
             >
               Annulla lezione

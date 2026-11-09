@@ -9,6 +9,7 @@ import * as z from 'zod'
 import { Bell, BookOpen, CalendarClock, KeyRound, UserRound } from 'lucide-react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
+import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import { LessonHoursBadge } from '@/components/lesson-hours-badge'
@@ -37,6 +38,7 @@ import { Input } from '@/components/ui/input'
 import { useSession } from '@/lib/use-session'
 
 import { extractPayloadArray } from '@/lib/backend-response'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 import { NotificationSettings } from '@/components/notification-settings'
 import { avatarGradient } from '@/lib/avatar'
 import { classLabel } from '@/lib/class-label'
@@ -50,50 +52,6 @@ function normalizeName(value: string) {
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase()
-}
-
-function parseErrorMessage(raw: unknown, fallback: string) {
-  if (raw instanceof Error) {
-    try {
-      const parsed = JSON.parse(raw.message) as {
-        message?: string
-        error?: { issues?: Array<{ message?: string }> }
-      }
-      return parsed.message ?? parsed.error?.issues?.[0]?.message ?? fallback
-    } catch {
-      return raw.message || fallback
-    }
-  }
-
-  if (typeof raw === 'string') {
-    try {
-      const parsed = JSON.parse(raw) as {
-        message?: string
-        error?: { issues?: Array<{ message?: string }> }
-      }
-      return parsed.message ?? parsed.error?.issues?.[0]?.message ?? fallback
-    } catch {
-      return raw || fallback
-    }
-  }
-
-  return fallback
-}
-
-function extractMessageFromResponse(raw: string | null, fallback: string) {
-  if (!raw) {
-    return fallback
-  }
-  try {
-    const payload = JSON.parse(raw) as {
-      message?: string
-      error?: { issues?: Array<{ message?: string }> }
-      success?: boolean
-    }
-    return payload.message ?? payload.error?.issues?.[0]?.message ?? fallback
-  } catch {
-    return raw || fallback
-  }
 }
 
 const formSchema = z.object({
@@ -153,13 +111,14 @@ export default function ProfilePage() {
   const { profile, isLoading, error, refresh } = useSession()
   const isAdmin = profile?.role === 'admin'
   const isLimited = !isAdmin
-  const [sectionName, setSectionName] = React.useState<string | null>(null)
-  const [sections, setSections] = React.useState<Section[]>([])
-  const [isLoadingSections, setIsLoadingSections] = React.useState(true)
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [resetStatus, setResetStatus] = React.useState<
-    'idle' | 'loading' | 'success' | 'error'
-  >('idle')
+  // Only students and tutors show a class.
+  const sectionsQuery = useQuery({
+    queryKey: ['class-sections'],
+    queryFn: async () => extractPayloadArray<Section>(await apiFetch('/api/class-sections', 'Impossibile recuperare le sezioni.')),
+    enabled: Boolean(profile) && !isAdmin
+  })
+  const isLoadingSections = !isAdmin && sectionsQuery.isPending
+  const sectionName = (profile?.sectionId && sectionsQuery.data?.find((section) => section.id === profile.sectionId)?.name) || null
   const [showEmailAlert, setShowEmailAlert] = React.useState(false)
   const [pendingValues, setPendingValues] =
     React.useState<ProfileFormValues | null>(null)
@@ -172,7 +131,16 @@ export default function ProfilePage() {
       email: '',
       year: '',
       sectionId: ''
-    }
+    },
+    values: profile
+      ? {
+          firstName: profile.firstName ?? '',
+          lastName: profile.lastName ?? '',
+          email: profile.email ?? '',
+          year: profile.year ? String(profile.year) : '',
+          sectionId: profile.sectionId ?? ''
+        }
+      : undefined
   })
 
   const watchedFirstName = useWatch({
@@ -221,184 +189,26 @@ export default function ProfilePage() {
     return firstNameChanged || lastNameChanged
   }, [isAdmin, profile, watchedFirstName, watchedLastName, watchedEmail])
 
-  React.useEffect(() => {
-    if (!profile) {
-      return
-    }
-
-    form.reset({
-      firstName: profile.firstName ?? '',
-      lastName: profile.lastName ?? '',
-      email: profile.email ?? '',
-      year: profile.year ? String(profile.year) : '',
-      sectionId: profile.sectionId ?? ''
-    })
-  }, [form, profile])
-
-  React.useEffect(() => {
-    if (isAdmin) {
-      setSections([])
-      setIsLoadingSections(false)
-      return
-    }
-
-    let isMounted = true
-
-    async function loadSections() {
-      setIsLoadingSections(true)
-
-      try {
-        const response = await fetch('/api/class-sections', {
-          cache: 'no-store'
-        })
-        if (!response.ok) {
-          throw new Error('Impossibile recuperare le sezioni.')
-        }
-        const payload = await response.json()
-        const data = extractPayloadArray<Section>(payload)
-        if (isMounted) {
-          setSections(data)
-        }
-      } catch (err) {
-        if (isMounted) {
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : 'Impossibile recuperare le sezioni.'
-          )
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingSections(false)
-        }
+  const saveProfile = useMutation({
+    mutationFn: (values: ProfileFormValues) => {
+      const names = {
+        firstName: normalizeName(values.firstName),
+        lastName: normalizeName(values.lastName)
       }
-    }
-
-    void loadSections()
-
-    return () => {
-      isMounted = false
-    }
-  }, [isAdmin])
-
-  React.useEffect(() => {
-    if (!profile?.sectionId) {
-      setSectionName(null)
-      return
-    }
-
-    const match = sections.find((section) => section.id === profile.sectionId)
-    setSectionName(match?.name ?? null)
-  }, [profile?.sectionId, sections])
-
-  React.useMemo(() => {
-    const scient: Section[] = []
-    const mech: Section[] = []
-    const elec: Section[] = []
-    const chem: Section[] = []
-    const info: Section[] = []
-
-    sections.forEach((section) => {
-      const label = section.name.toUpperCase()
-      if (label.includes('L')) {
-        scient.push(section)
-        return
-      }
-      if (label.startsWith('A')) {
-        mech.push(section)
-        return
-      }
-      if (label.startsWith('B')) {
-        elec.push(section)
-        return
-      }
-      if (label.startsWith('C')) {
-        chem.push(section)
-        return
-      }
-      if (label.startsWith('D')) {
-        info.push(section)
-      }
-    })
-
-    const sortByName = (list: Section[]) =>
-      [...list].sort((a, b) =>
-        a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })
+      return apiFetch(
+        '/api/users/me',
+        'Impossibile aggiornare il profilo.',
+        jsonBody('PATCH', isAdmin ? { ...names, email: normalizeEmail(values.email) } : names)
       )
-
-    return {
-      scient: sortByName(scient),
-      mech: sortByName(mech),
-      elec: sortByName(elec),
-      chem: sortByName(chem),
-      info: sortByName(info)
-    }
-  }, [sections])
-
-  async function submitProfile(values: ProfileFormValues) {
-    setIsSubmitting(true)
-
-    try {
-      const normalizedFirstName = normalizeName(values.firstName)
-      const normalizedLastName = normalizeName(values.lastName)
-      const normalizedEmail = normalizeEmail(values.email)
-
-      const payload = isAdmin
-        ? {
-            firstName: normalizedFirstName,
-            lastName: normalizedLastName,
-            email: normalizedEmail
-          }
-        : {
-            firstName: normalizedFirstName,
-            lastName: normalizedLastName
-          }
-
-      const response = await fetch('/api/users/me', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      })
-
-      const raw = await response.text()
-
-      if (!response.ok) {
-        throw new Error(
-          extractMessageFromResponse(raw, 'Impossibile aggiornare il profilo.')
-        )
-      }
-
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw) as {
-            success?: boolean
-            message?: string
-            error?: { issues?: Array<{ message?: string }> }
-          }
-          if (parsed?.success === false) {
-            throw new Error(
-              extractMessageFromResponse(
-                raw,
-                'Impossibile aggiornare il profilo.'
-              )
-            )
-          }
-        } catch {
-          // ignore non-JSON bodies
-        }
-      }
-
+    },
+    onSuccess: async () => {
       toast.success('Profilo aggiornato.')
       await refresh()
       window.location.reload()
-    } catch (err) {
-      toast.error(parseErrorMessage(err, 'Impossibile aggiornare il profilo.'))
-    } finally {
-      setIsSubmitting(false)
     }
-  }
+  })
+  const isSubmitting = saveProfile.isPending
+  const submitProfile = (values: ProfileFormValues) => saveProfile.mutateAsync(values).catch(() => undefined)
 
   async function onSubmit(values: ProfileFormValues) {
     if (!canSave) {
@@ -415,56 +225,17 @@ export default function ProfilePage() {
     await submitProfile(values)
   }
 
-  async function handlePasswordReset() {
+  const resetRequest = useMutation({
+    mutationFn: (email: string) => apiFetch('/api/auth/password/reset/request', 'Impossibile inviare la mail di reset.', jsonBody('POST', { email })),
+    onSuccess: () => toast.success('Ti abbiamo mandato il link per cambiare password.')
+  })
+
+  function handlePasswordReset() {
     if (!profile?.email) {
-      setResetStatus('error')
       toast.error('Email non disponibile.')
       return
     }
-
-    setResetStatus('loading')
-
-    try {
-      const response = await fetch('/api/auth/password/reset/request', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email: profile.email })
-      })
-
-      if (!response.ok) {
-        let message = 'Impossibile inviare la mail di reset.'
-        try {
-          const raw = await response.text()
-          if (raw) {
-            try {
-              const payload = JSON.parse(raw) as {
-                message?: string
-                error?: { issues?: Array<{ message?: string }> }
-              }
-              message =
-                payload.message ??
-                payload.error?.issues?.[0]?.message ??
-                message
-            } catch {
-              message = raw
-            }
-          }
-        } catch {
-          message = 'Impossibile inviare la mail di reset.'
-        }
-        throw new Error(message)
-      }
-
-      setResetStatus('success')
-      toast.success('Ti abbiamo mandato il link per cambiare password.')
-    } catch (err) {
-      setResetStatus('error')
-      toast.error(
-        parseErrorMessage(err, 'Impossibile inviare la mail di reset.')
-      )
-    }
+    resetRequest.mutate(profile.email)
   }
 
   const roleLabel = ROLE_LABELS[profile?.role ?? ''] ?? ''
@@ -628,10 +399,10 @@ export default function ProfilePage() {
                   variant='outline'
                   className='w-full shrink-0 sm:w-auto'
                   onClick={handlePasswordReset}
-                  disabled={resetStatus === 'loading' || !profile.email}
+                  disabled={resetRequest.isPending || !profile.email}
                 >
                   <KeyRound className='h-4 w-4' />
-                  {resetStatus === 'loading' ? 'Invio in corso...' : 'Cambia password'}
+                  {resetRequest.isPending ? 'Invio in corso...' : 'Cambia password'}
                 </Button>
               </section>
           ) : profile.id && (profile.role === 'student' || profile.role === 'tutor' || profile.role === 'admin') && (

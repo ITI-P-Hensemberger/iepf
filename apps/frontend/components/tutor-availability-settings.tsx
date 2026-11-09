@@ -12,9 +12,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
+  normalizeWeekdays,
   WeekdayAvailability,
   WeekdayAvailabilitySelector
 } from '@/components/weekday-availability-selector'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 import { useSession } from '@/lib/use-session'
 import { PushInviteCard } from '@/components/push-prompt'
 
@@ -45,85 +48,21 @@ const availabilitySchema = z.object({
 
 type AvailabilityFormValues = z.infer<typeof availabilitySchema>
 
-const WEEKDAYS = [
-  { value: 1, label: 'Lunedì' },
-  { value: 2, label: 'Martedì' },
-  { value: 3, label: 'Mercoledì' },
-  { value: 4, label: 'Giovedì' },
-  { value: 5, label: 'Venerdì' }
-] as const
-
 export function TutorAvailabilitySettings() {
   const { profile } = useSession()
   const tutorId = profile?.id
 
-  const [initialWeekdays, setInitialWeekdays] = React.useState<
-    WeekdayAvailability[] | null
-  >(null)
-  const [, setIsLoading] = React.useState(true)
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
-
-  // Fetch current availability on mount
-  React.useEffect(() => {
-    if (!tutorId) return
-
-    let isMounted = true
-
-    async function fetchAvailability() {
-      setIsLoading(true)
-      try {
-        const response = await fetch(
-          `/api/tutors/${tutorId}/weekday-availability`
-        )
-        if (!response.ok) {
-          throw new Error('Impossibile caricare la disponibilità.')
-        }
-        const payload = (await response.json()) as {
-          weekdays?: WeekdayAvailability[]
-        }
-
-        const normalizedWeekdays = WEEKDAYS.map((day) => {
-          const match = payload.weekdays?.find(
-            (item) => item.weekday === day.value
-          )
-          return {
-            weekday: day.value,
-            isAvailable: match?.isAvailable ?? false,
-            startTime: match?.isAvailable ? match?.startTime ?? null : null
-          }
-        })
-
-        if (isMounted) {
-          setInitialWeekdays(normalizedWeekdays)
-        }
-      } catch (err) {
-        if (isMounted) {
-          setInitialWeekdays(
-            WEEKDAYS.map((day) => ({
-              weekday: day.value,
-              isAvailable: false,
-              startTime: null
-            }))
-          )
-        }
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : 'Impossibile caricare la disponibilità.'
-        )
-      } finally {
-        if (isMounted) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    void fetchAvailability()
-
-    return () => {
-      isMounted = false
-    }
-  }, [tutorId])
+  // Shares its key with the admin's tutor page, so a change there shows here too.
+  const availability = useQuery({
+    queryKey: ['users', tutorId, 'availability'],
+    queryFn: async () => normalizeWeekdays(await apiFetch<{ weekdays?: WeekdayAvailability[] }>(
+      `/api/tutors/${tutorId}/weekday-availability`,
+      'Impossibile caricare la disponibilità.'
+    )),
+    enabled: Boolean(tutorId)
+  })
+  // If it does not load, the form starts from every day off.
+  const initialWeekdays = availability.data ?? (availability.isError ? normalizeWeekdays({}) : null)
 
   // Only render form after we have initial data
   if (!tutorId || initialWeekdays === null) {
@@ -156,101 +95,48 @@ export function TutorAvailabilitySettings() {
     )
   }
 
-  return (
-    <AvailabilityForm
-      key={initialWeekdays.map((day) => day.weekday).join(',')}
-      tutorId={tutorId}
-      initialWeekdays={initialWeekdays}
-      isSubmitting={isSubmitting}
-      setIsSubmitting={setIsSubmitting}
-      setInitialWeekdays={setInitialWeekdays}
-    />
-  )
+  return <AvailabilityForm tutorId={tutorId} initialWeekdays={initialWeekdays} />
 }
 
 type AvailabilityFormProps = {
   tutorId: string
   initialWeekdays: WeekdayAvailability[]
-  isSubmitting: boolean
-  setIsSubmitting: React.Dispatch<React.SetStateAction<boolean>>
-  setInitialWeekdays: React.Dispatch<
-    React.SetStateAction<WeekdayAvailability[] | null>
-  >
 }
 
-function AvailabilityForm({
-  tutorId,
-  initialWeekdays,
-  isSubmitting,
-  setIsSubmitting,
-  setInitialWeekdays
-}: AvailabilityFormProps) {
-  const [justSaved, setJustSaved] = React.useState(false)
+function AvailabilityForm({ tutorId, initialWeekdays }: AvailabilityFormProps) {
+  const queryClient = useQueryClient()
   const form = useForm<AvailabilityFormValues>({
     resolver: zodResolver(availabilitySchema),
     defaultValues: { weekdays: initialWeekdays },
+    values: { weekdays: initialWeekdays },
+    resetOptions: { keepDirtyValues: true },
     mode: 'onBlur'
   })
 
-  async function onSubmit(values: AvailabilityFormValues) {
-    setIsSubmitting(true)
-
-    try {
-      // Transform to API format: all weekdays with isAvailable flag
-      const weekdaysPayload = values.weekdays.map((day) => ({
-        weekday: day.weekday,
-        isAvailable: day.isAvailable,
-        startTime: day.isAvailable ? day.startTime : null
-      }))
-
-      const response = await fetch(
-        `/api/tutors/${tutorId}/weekday-availability`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ weekdays: weekdaysPayload })
-        }
-      )
-
-      if (!response.ok) {
-        const payload = (await response.json()) as { message?: string }
-        throw new Error(
-          payload.message || 'Impossibile aggiornare la disponibilità.'
-        )
-      }
-
-      // Refetch server state to get the truth
-      const refetchResponse = await fetch(
-        `/api/tutors/${tutorId}/weekday-availability`
-      )
-      const refetchPayload = (await refetchResponse.json()) as {
-        weekdays?: WeekdayAvailability[]
-      }
-
-      const normalizedWeekdays = WEEKDAYS.map((day) => {
-        const match = refetchPayload.weekdays?.find(
-          (item) => item.weekday === day.value
-        )
-        return {
-          weekday: day.value,
-          isAvailable: match?.isAvailable ?? false,
-          startTime: match?.isAvailable ? match?.startTime ?? null : null
-        }
+  const save = useMutation({
+    mutationFn: (values: AvailabilityFormValues) => apiFetch(
+      `/api/tutors/${tutorId}/weekday-availability`,
+      'Impossibile aggiornare la disponibilità.',
+      jsonBody('PUT', {
+        weekdays: values.weekdays.map((day) => ({
+          weekday: day.weekday,
+          isAvailable: day.isAvailable,
+          startTime: day.isAvailable ? day.startTime : null
+        }))
       })
-
-      setInitialWeekdays(normalizedWeekdays)
-      form.reset({ weekdays: normalizedWeekdays })
+    ),
+    onSuccess: async (_, values) => {
+      form.reset(values)
       toast.success('Disponibilità aggiornata.')
-      setJustSaved(true)
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile aggiornare la disponibilità. Riprova.'
-      )
-    } finally {
-      setIsSubmitting(false)
+      // The server's version replaces what was sent.
+      await queryClient.invalidateQueries({ queryKey: ['users', tutorId, 'availability'] })
     }
+  })
+  const isSubmitting = save.isPending
+  const justSaved = save.isSuccess
+
+  function onSubmit(values: AvailabilityFormValues) {
+    save.mutate(values)
   }
 
   return (

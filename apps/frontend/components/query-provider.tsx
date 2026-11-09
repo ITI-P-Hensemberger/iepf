@@ -9,13 +9,15 @@ import { toast } from 'sonner'
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   const [client] = React.useState(() => new QueryClient({
     queryCache: new QueryCache({
-      // meta.inline: the page shows the failure itself, in place of the data.
+      // meta.inline: the page shows the failure itself, or does without the data.
       onError: (error, query) => {
         if (!query.meta?.inline) toast.error(error.message)
       }
     }),
     mutationCache: new MutationCache({
-      onError: (error) => toast.error(error.message)
+      onError: (error, _variables, _context, mutation) => {
+        if (!mutation.meta?.inline) toast.error(error.message)
+      }
     }),
     defaultOptions: {
       // Pages refetch on mount and after a change; refetching on every tab focus would only add load.

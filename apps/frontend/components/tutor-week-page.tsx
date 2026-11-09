@@ -6,7 +6,6 @@ import { StickyBar } from '@/components/sticky-bar'
 import * as React from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CalendarCheck, ChevronLeft, ChevronRight } from 'lucide-react'
-import { toast } from 'sonner'
 
 import { TutorLessonList } from '@/components/tutor-lesson-list'
 import { Badge } from '@/components/ui/badge'
@@ -16,6 +15,8 @@ import { extractPayloadArray } from '@/lib/backend-response'
 import { isCanceled, lessonsByDay, type ScheduleLesson } from '@/lib/lesson-schedule'
 import { addDaysToKey, currentLessonMonday, dateOfKey, dayKeyOf, mondayOf, schoolDays, weekRange } from '@/lib/school-week'
 import { cn } from '@/lib/utils'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { apiFetch } from '@/lib/api-fetch'
 
 const dayFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })
 const shortFormat = new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'short' })
@@ -23,6 +24,8 @@ const shortFormat = new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 's
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
+
+const noLessons: ScheduleLesson[] = []
 
 export default function TutorWeekPage() {
   const router = useRouter()
@@ -33,8 +36,6 @@ export default function TutorWeekPage() {
   const currentMonday = currentLessonMonday(new Date())
   const mondayKey = mondayOf(searchParams.get('week') ?? currentMonday)
 
-  const [lessons, setLessons] = React.useState<ScheduleLesson[]>([])
-  const [loading, setLoading] = React.useState(true)
 
   const goToWeek = (key: string) => {
     const params = new URLSearchParams(searchParams.toString())
@@ -42,26 +43,24 @@ export default function TutorWeekPage() {
     router.replace(`${pathname}?${params}`, { scroll: false })
   }
 
-  // After an action the week refreshes in place, without the skeleton that would scroll it away.
-  const load = React.useCallback(async (quiet = false) => {
-    if (!quiet) setLoading(true)
-    try {
-      const response = await fetch(`/api/lessons/schedule?${new URLSearchParams(weekRange(mondayKey))}`)
-      if (!response.ok) throw new Error('Impossibile caricare le lezioni.')
-      setLessons(extractPayloadArray<ScheduleLesson>(await response.json()))
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Impossibile caricare le lezioni.')
-    } finally {
-      setLoading(false)
-    }
-  }, [mondayKey])
-
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  // After an action the week refreshes in place; another week keeps this one on screen, dimmed,
+  // until it arrives, so nothing jumps.
+  const { data, isPending: loading, isPlaceholderData: stale } = useQuery({
+    queryKey: ['lessons', 'schedule-week', mondayKey],
+    queryFn: async () => ({
+      monday: mondayKey,
+      lessons: extractPayloadArray<ScheduleLesson>(await apiFetch(
+        `/api/lessons/schedule?${new URLSearchParams(weekRange(mondayKey))}`,
+        'Impossibile caricare le lezioni.'
+      ))
+    }),
+    placeholderData: keepPreviousData
+  })
+  const lessons = data?.lessons ?? noLessons
 
   const byDay = lessonsByDay(lessons)
-  const days = schoolDays(mondayKey)
+  // The days of the week on screen: the previous one while the next loads.
+  const days = schoolDays(data?.monday ?? mondayKey)
   const running = lessons.filter((lesson) => !isCanceled(lesson))
   const students = running.reduce((sum, lesson) => sum + lesson.bookings.length, 0)
   const capacity = lessons[0]?.tutorDailyCapacity
@@ -106,7 +105,7 @@ export default function TutorWeekPage() {
         days.map((day) => {
           const dayLessons = byDay.get(day) ?? []
           return (
-            <section key={day} className={cn('rounded-lg border bg-card', day < todayKey && 'opacity-80')}>
+            <section key={day} className={cn('rounded-lg border bg-card', day < todayKey && 'opacity-80', stale && 'opacity-60 transition-opacity')} aria-busy={stale}>
               <header className='sticky top-[var(--sticky-top)] z-10 flex items-center gap-2 rounded-t-lg border-b bg-[var(--card)] px-4 py-2'>
                 <h3 className='font-medium'>{capitalize(dayFormat.format(dateOfKey(day)))}</h3>
                 {day === todayKey && <Badge>Oggi</Badge>}
@@ -114,7 +113,7 @@ export default function TutorWeekPage() {
               {dayLessons.length === 0 ? (
                 <p className='px-4 py-3 text-sm text-muted-foreground'>Nessuna lezione.</p>
               ) : (
-                <TutorLessonList lessons={dayLessons} onChanged={() => load(true)} />
+                <TutorLessonList lessons={dayLessons} />
               )}
             </section>
           )

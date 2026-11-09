@@ -13,6 +13,9 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { SubjectSelector } from '@/components/subject-selector'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { useSession } from '@/lib/use-session'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
+import { tutorSubjectsKey } from '@/lib/use-tutor-onboarding'
 
 const subjectsSchema = z.object({
   subjectIds: z.array(z.string()).min(1, 'Seleziona almeno una materia')
@@ -25,17 +28,28 @@ type TutorSubject = {
   name: string
 }
 
+const noSubjectIds: string[] = []
+
 export function TutorSubjectsSettings() {
   const { profile } = useSession()
   const tutorId = profile?.id
 
-  const [originalSubjects, setOriginalSubjects] = React.useState<string[]>([])
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const queryClient = useQueryClient()
+  const subjectsResult = useQuery({
+    queryKey: ['users', tutorId, 'subjects'],
+    queryFn: async () => extractPayloadArray<TutorSubject>(await apiFetch(`/api/tutors/${tutorId}/subjects`, 'Impossibile caricare le materie.'))
+      .map((subject) => subject.id),
+    enabled: Boolean(tutorId)
+  })
+  const originalSubjects = subjectsResult.data ?? noSubjectIds
+  const isLoading = subjectsResult.isPending
 
+  // Follows the saved subjects; what the tutor is ticking stays when they reload.
   const form = useForm<SubjectsFormValues>({
     resolver: zodResolver(subjectsSchema),
     defaultValues: { subjectIds: [] },
+    values: subjectsResult.data ? { subjectIds: subjectsResult.data } : undefined,
+    resetOptions: { keepDirtyValues: true },
     mode: 'onBlur'
   })
 
@@ -48,116 +62,34 @@ export function TutorSubjectsSettings() {
     return [...current].some((id) => !original.has(id))
   }, [currentSubjectIds, originalSubjects])
 
-  // Fetch current subjects on mount
-  React.useEffect(() => {
-    if (!tutorId) return
-
-    let isMounted = true
-
-    async function fetchSubjects() {
-      setIsLoading(true)
-      try {
-        const response = await fetch(`/api/tutors/${tutorId}/subjects`)
-        if (!response.ok) {
-          throw new Error('Impossibile caricare le materie.')
-        }
-        const payload = await response.json()
-        const subjects = extractPayloadArray<TutorSubject>(payload)
-        const subjectIds = subjects.map((s) => s.id)
-
-        if (isMounted) {
-          setOriginalSubjects(subjectIds)
-          form.reset({ subjectIds })
-        }
-      } catch (err) {
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : 'Impossibile caricare le materie.'
-        )
-      } finally {
-        if (isMounted) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    void fetchSubjects()
-
-    return () => {
-      isMounted = false
-    }
-  }, [tutorId, form])
-
-  async function onSubmit(values: SubjectsFormValues) {
-    if (!tutorId) return
-
-    setIsSubmitting(true)
-
-    const toAdd = values.subjectIds.filter(
-      (id) => !originalSubjects.includes(id)
-    )
-    const toRemove = originalSubjects.filter(
-      (id) => !values.subjectIds.includes(id)
-    )
-    const errors: string[] = []
-
-    // Parallel deletions
-    if (toRemove.length > 0) {
-      const deleteResults = await Promise.allSettled(
-        toRemove.map((id) =>
-          fetch(`/api/tutors/${tutorId}/subjects/${id}`, {
-            method: 'DELETE'
-          })
-        )
-      )
-      deleteResults.forEach((result) => {
-        if (result.status === 'rejected' || !result.value.ok) {
-          errors.push('Impossibile rimuovere una materia')
-        }
-      })
-    }
-
-    // Parallel additions
-    if (toAdd.length > 0) {
-      const addResults = await Promise.allSettled(
-        toAdd.map((id) =>
-          fetch(`/api/tutors/${tutorId}/subjects`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ subjectId: id })
-          })
-        )
-      )
-      addResults.forEach((result) => {
-        if (result.status === 'rejected' || !result.value.ok) {
-          errors.push('Impossibile aggiungere una materia')
-        }
-      })
-    }
-
-    // Refetch server state to get the truth
-    try {
-      const response = await fetch(`/api/tutors/${tutorId}/subjects`)
-      const payload = await response.json()
-      const subjects = extractPayloadArray<TutorSubject>(payload)
-      const subjectIds = subjects.map((s) => s.id)
-
-      setOriginalSubjects(subjectIds)
-      form.reset({ subjectIds })
-
+  // Each subject added or removed on its own: the ones that fail are listed, the others stay.
+  const save = useMutation({
+    mutationFn: async (values: SubjectsFormValues) => {
+      const toAdd = values.subjectIds.filter((id) => !originalSubjects.includes(id))
+      const toRemove = originalSubjects.filter((id) => !values.subjectIds.includes(id))
+      const results = await Promise.allSettled([
+        ...toRemove.map((id) => apiFetch(`/api/tutors/${tutorId}/subjects/${id}`, 'Impossibile rimuovere una materia', jsonBody('DELETE'))),
+        ...toAdd.map((id) => apiFetch(`/api/tutors/${tutorId}/subjects`, 'Impossibile aggiungere una materia', jsonBody('POST', { subjectId: id })))
+      ])
+      return results.flatMap((result) => (result.status === 'rejected' ? [(result.reason as Error).message] : []))
+    },
+    onSuccess: async (errors, values) => {
+      form.reset(values)
+      // The list here and the onboarding check read the subjects again.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['users', tutorId, 'subjects'] }),
+        queryClient.invalidateQueries({ queryKey: tutorSubjectsKey(tutorId ?? '') })
+      ])
       if (errors.length > 0) {
-        toast.error(
-          `Alcune operazioni non sono riuscite:\n${errors.join('\n')}`
-        )
+        toast.error(`Alcune operazioni non sono riuscite:\n${errors.join('\n')}`)
       } else {
         toast.success('Materie aggiornate.')
       }
-    } catch {
-      toast.error('Impossibile aggiornare le materie. Riprova.')
-    } finally {
-      setIsSubmitting(false)
     }
+  })
+  const isSubmitting = save.isPending
+  function onSubmit(values: SubjectsFormValues) {
+    if (tutorId) save.mutate(values)
   }
 
   if (!tutorId) {

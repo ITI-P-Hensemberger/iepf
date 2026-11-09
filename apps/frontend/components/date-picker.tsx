@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
+import { apiFetch } from '@/lib/api-fetch'
+import { useQuery } from '@tanstack/react-query'
 
 // The date pickers of the site: a button that shows the choice, opening a calendar in a
 // popover. Ranges come with shortcuts and apply at once, without an "Applica" step.
@@ -187,21 +189,20 @@ export function DateRangePicker({
 
 // Days a lesson can be on: no weekends, no closures, nothing before today. Closures come from
 // the global settings, which only admins read.
+const noClosures: string[] = []
+
 export function useSchoolDays() {
-  const [closures, setClosures] = React.useState<Date[]>([])
-  React.useEffect(() => {
-    let current = true
-    fetch('/api/settings', { cache: 'no-store' })
-      .then(response => (response.ok ? response.json() : null))
-      .then((payload: { closureDates?: string[], data?: { closureDates?: string[] } } | null) => {
-        const dates = payload?.closureDates ?? payload?.data?.closureDates ?? []
-        if (current) setClosures(dates.map(key => new Date(`${key}T00:00:00`)))
-      })
-      .catch(() => {})
-    return () => {
-      current = false
-    }
-  }, [])
+  // Under the settings key, so a save there refreshes it; without access the days stay open.
+  const { data: closureKeys = noClosures } = useQuery({
+    queryKey: ['settings', 'closures'],
+    queryFn: async () => {
+      const payload = await apiFetch<{ closureDates?: string[], data?: { closureDates?: string[] } }>('/api/settings', 'Impossibile caricare le chiusure.')
+      return payload.closureDates ?? payload.data?.closureDates ?? []
+    },
+    retry: false,
+    meta: { inline: true }
+  })
+  const closures = React.useMemo(() => closureKeys.map(key => new Date(`${key}T00:00:00`)), [closureKeys])
   return React.useMemo(() => ({
     disabled: [{ dayOfWeek: [0, 6] }, { before: startOfDay(new Date()) }, ...closures] as Matcher[],
     modifiers: { closed: closures }

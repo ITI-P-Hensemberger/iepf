@@ -1,5 +1,6 @@
 'use client'
 
+import { jsonBody } from '@/lib/api-fetch'
 import { syncAppBadge } from '@/lib/app-badge'
 
 const END_IMPERSONATION_ERROR = 'Impossibile terminare l\'impersonazione.'
@@ -53,4 +54,16 @@ export async function logout() {
   // Back to the landing, with a full reload: nothing about this user stays in memory.
   // eslint-disable-next-line @next/next/no-location-assign-relative-destination
   window.location.href = '/'
+}
+
+// An invite link already used or expired gets its own message.
+export async function confirmInvite(url: string, body: unknown) {
+  const response = await fetch(url, jsonBody('POST', body)).catch(() => {
+    throw new Error('Registrazione fallita.')
+  })
+  if (response.status === 401) throw new Error('Token scaduto o già utilizzato.')
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { message?: string } | null
+    throw new Error(payload?.message || 'Registrazione fallita.')
+  }
 }

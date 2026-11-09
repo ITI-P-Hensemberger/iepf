@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
+import { useMutation, useQuery } from '@tanstack/react-query'
 
 import {
   AlertDialog,
@@ -21,6 +22,7 @@ import {
 } from '@/lib/announcement-dismissals'
 import { isExternalHref, safeHref } from '@/lib/markdown'
 import { cn } from '@/lib/utils'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 
 // The layout every popup shares, here and in the admin preview: the height stops at the
 // viewport (dvh, so mobile browser bars count) and only the body scrolls.
@@ -104,43 +106,32 @@ export function AnnouncementCard({
 export const popupFrameClassName =
   'flex max-h-[min(85dvh,40rem)] flex-col gap-0 overflow-hidden p-0'
 
+const noAnnouncements: ActiveAnnouncement[] = []
+
 export function AnnouncementPopup({ userId, onEmpty }: { userId: string, onEmpty?: () => void }) {
   const router = useRouter()
-  const [queue, setQueue] = React.useState<ActiveAnnouncement[]>([])
+  // A popup is never worth an error on screen. Nothing is kept once it unmounts: on the next
+  // visit the list is read again, without the ones closed meanwhile.
+  const active = useQuery({
+    queryKey: ['announcements', 'active', userId],
+    queryFn: async () => {
+      const items = await apiFetch<ActiveAnnouncement[]>('/api/announcements/active', 'Impossibile caricare le novità.')
+      return Array.isArray(items) ? items.filter(item => !isDismissedHere(window.localStorage, userId, item)) : []
+    },
+    gcTime: 0,
+    retry: false,
+    meta: { inline: true }
+  })
+  const queue = active.data ?? noAnnouncements
+  const total = queue.length
+  const loaded = !active.isPending
   const [shown, setShown] = React.useState(0)
-  const [total, setTotal] = React.useState(0)
-  const [loaded, setLoaded] = React.useState(false)
-
-  React.useEffect(() => {
-    let cancelled = false
-    async function load() {
-      try {
-        const response = await fetch('/api/announcements/active', { cache: 'no-store' })
-        if (!response.ok) {
-          return
-        }
-        const items = (await response.json()) as ActiveAnnouncement[]
-        const pending = Array.isArray(items)
-          ? items.filter(item => !isDismissedHere(window.localStorage, userId, item))
-          : []
-        if (!cancelled) {
-          setQueue(pending)
-          setTotal(pending.length)
-          setShown(0)
-        }
-      } catch {
-        // A popup is never worth an error on screen.
-      } finally {
-        if (!cancelled) setLoaded(true)
-      }
-    }
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [userId])
-
-  const current = queue[0]
+  const current = queue[shown]
+  const dismiss = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/announcements/${encodeURIComponent(id)}/dismiss`, 'Impossibile chiudere la novità.', jsonBody('POST')),
+    meta: { inline: true }
+  })
+  const { mutate: dismissOnServer } = dismiss
 
   // The next popup in line (push setup) waits until these are all closed.
   React.useEffect(() => {
@@ -156,11 +147,10 @@ export function AnnouncementPopup({ userId, onEmpty }: { userId: string, onEmpty
     handledId.current = current.id
     rememberDismissal(window.localStorage, userId, current)
     if (current.dismissMode === 'once_account') {
-      void fetch(`/api/announcements/${encodeURIComponent(current.id)}/dismiss`, { method: 'POST' }).catch(() => {})
+      dismissOnServer(current.id)
     }
-    setQueue(previous => previous.slice(1))
     setShown(previous => previous + 1)
-  }, [current, userId])
+  }, [current, userId, dismissOnServer])
 
   const openLink = React.useCallback(
     (href: string) => {

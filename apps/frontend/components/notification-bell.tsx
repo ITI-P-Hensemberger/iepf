@@ -26,6 +26,8 @@ import {
   safeNotificationPath
 } from '@/lib/notification-inbox'
 import { syncAppBadge } from '@/lib/app-badge'
+import { apiFetch } from '@/lib/api-fetch'
+import { type InfiniteData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { watchUnread } from '@/lib/notification-stream'
 import { isImpersonating } from '@/lib/push-client'
 import { track } from '@/lib/usage-analytics'
@@ -46,40 +48,73 @@ function iconFor(category: string) {
 
 async function fetchInbox(cursor: string | null): Promise<InboxPage> {
   const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
-  const response = await fetch(`/api/notifications/inbox${query}`, { cache: 'no-store' })
-  if (!response.ok) throw new Error('Impossibile caricare le notifiche.')
-  return (await response.json()) as InboxPage
+  return apiFetch<InboxPage>(`/api/notifications/inbox${query}`, 'Impossibile caricare le notifiche.')
 }
 
 async function fetchUnread() {
-  const response = await fetch('/api/notifications/inbox/unread', { cache: 'no-store' })
-  if (!response.ok) return null
-  const payload = (await response.json()) as { count?: number }
-  return typeof payload.count === 'number' ? payload.count : null
+  const payload = await apiFetch<{ count?: number }>('/api/notifications/inbox/unread', 'Impossibile caricare le notifiche.')
+  if (typeof payload.count !== 'number') throw new Error('Impossibile caricare le notifiche.')
+  return payload.count
+}
+
+const UNREAD_KEY = ['notifications', 'unread']
+const INBOX_KEY = ['notifications', 'inbox']
+type Inbox = InfiniteData<InboxPage, string | null>
+const noItems: InboxItem[] = []
+
+// Fire and forget: the panel already shows the change, and the counter is read again after.
+function inboxAction(path: string) {
+  return fetch(path, { method: 'POST' }).then((response) => {
+    if (!response.ok) throw new Error('Impossibile aggiornare le notifiche.')
+  })
 }
 
 export function NotificationBell() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [open, setOpen] = React.useState(false)
-  const [unread, setUnread] = React.useState(0)
-  // False until the first real count: the initial 0 must not clear the icon badge.
-  const [countKnown, setCountKnown] = React.useState(false)
-  const [items, setItems] = React.useState<InboxItem[]>([])
-  const [nextCursor, setNextCursor] = React.useState<string | null>(null)
-  const [status, setStatus] = React.useState<'idle' | 'loading' | 'error'>('idle')
-  const [loadingMore, setLoadingMore] = React.useState(false)
 
-  const refreshUnread = React.useCallback(async () => {
-    const count = await fetchUnread().catch(() => null)
-    if (count !== null) {
-      setUnread(count)
-      setCountKnown(true)
-    }
-  }, [])
+  // Undefined until the first real count: the initial 0 must not clear the icon badge.
+  const unreadQuery = useQuery({
+    queryKey: UNREAD_KEY,
+    queryFn: fetchUnread,
+    retry: false,
+    meta: { inline: true }
+  })
+  const unread = unreadQuery.data ?? 0
+  const countKnown = unreadQuery.data !== undefined
+  const setUnread = React.useCallback(
+    (update: (count: number) => number) => queryClient.setQueryData<number>(UNREAD_KEY, (count) => update(count ?? 0)),
+    [queryClient]
+  )
+  const refreshUnread = React.useCallback(
+    () => queryClient.invalidateQueries({ queryKey: UNREAD_KEY }),
+    [queryClient]
+  )
+
+  // The panel's pages, loaded while it is open; each page also brings the current count.
+  const inbox = useInfiniteQuery({
+    queryKey: INBOX_KEY,
+    queryFn: async ({ pageParam }) => {
+      const page = await fetchInbox(pageParam)
+      queryClient.setQueryData(UNREAD_KEY, page.unread)
+      return page
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    enabled: open,
+    retry: false,
+    meta: { inline: true }
+  })
+  const items = React.useMemo(() => {
+    if (!inbox.data) return noItems
+    // A notification can move to the next page while it loads: each one once.
+    const seen = new Set<string>()
+    return inbox.data.pages.flatMap((page) => page.items).filter((item) => !seen.has(item.id) && Boolean(seen.add(item.id)))
+  }, [inbox.data])
 
   // The counter follows the page being opened, a return to the tab and every push.
   React.useEffect(() => {
-    void refreshUnread()
     const onVisible = () => {
       if (document.visibilityState === 'visible') void refreshUnread()
     }
@@ -101,10 +136,7 @@ export function NotificationBell() {
     const follow = () => {
       if (document.visibilityState === 'visible') {
         stop ??= watchUnread({
-          onCount: (count) => {
-            setUnread(count)
-            setCountKnown(true)
-          }
+          onCount: (count) => queryClient.setQueryData(UNREAD_KEY, count)
         })
       } else {
         stop?.()
@@ -117,7 +149,7 @@ export function NotificationBell() {
       document.removeEventListener('visibilitychange', follow)
       stop?.()
     }
-  }, [])
+  }, [queryClient])
 
   // The icon of the installed app shows the same count as the bell, but never the count of
   // someone an admin is impersonating on the admin's own device.
@@ -125,73 +157,76 @@ export function NotificationBell() {
     if (countKnown && !isImpersonating()) void syncAppBadge(unread)
   }, [countKnown, unread])
 
-  // Opening the panel reloads the first page; it never marks anything as read.
-  async function handleOpenChange(next: boolean) {
-    setOpen(next)
-    if (!next) return
-    track('bell_open')
-    setStatus('loading')
-    try {
-      const page = await fetchInbox(null)
-      setItems(page.items)
-      setNextCursor(page.nextCursor)
-      setUnread(page.unread)
-      setStatus('idle')
-    } catch {
-      setStatus('error')
+  // Opening the panel reloads from the first page; it never marks anything as read.
+  function handleOpenChange(next: boolean) {
+    if (next) {
+      track('bell_open')
+      queryClient.setQueryData<Inbox>(INBOX_KEY, (data) => data && {
+        pages: data.pages.slice(0, 1),
+        pageParams: data.pageParams.slice(0, 1)
+      })
     }
+    setOpen(next)
   }
 
-  async function loadMore() {
-    if (!nextCursor) return
-    setLoadingMore(true)
-    try {
-      const page = await fetchInbox(nextCursor)
-      setItems(previous => {
-        const seen = new Set(previous.map(item => item.id))
-        return [...previous, ...page.items.filter(item => !seen.has(item.id))]
-      })
-      setNextCursor(page.nextCursor)
-      setUnread(page.unread)
-    } catch {
-      setStatus('error')
-    } finally {
-      setLoadingMore(false)
-    }
+  function editItems(edit: (items: InboxItem[]) => InboxItem[]) {
+    queryClient.setQueryData<Inbox>(INBOX_KEY, (data) => data && {
+      ...data,
+      pages: data.pages.map((page) => ({ ...page, items: edit(page.items) }))
+    })
   }
 
   function markLocallyRead(id: string | null) {
     const now = new Date().toISOString()
-    setItems(previous => previous.map(item =>
+    editItems((list) => list.map((item) =>
       (id === null || item.id === id) && !item.readAt ? { ...item, readAt: now } : item
     ))
   }
+
+  const markRead = useMutation({
+    mutationFn: (item: InboxItem) => inboxAction(`/api/notifications/inbox/${item.id}/read`),
+    meta: { inline: true }
+  })
+  // "Elimina": gone from the panel and counted as read; the server keeps it archived.
+  const archive = useMutation({
+    mutationFn: (item: InboxItem) => inboxAction(`/api/notifications/inbox/${item.id}/archive`),
+    onSettled: refreshUnread,
+    meta: { inline: true }
+  })
+  const readAll = useMutation({
+    mutationFn: () => inboxAction('/api/notifications/inbox/read-all'),
+    onSettled: refreshUnread,
+    meta: { inline: true }
+  })
 
   function openItem(item: InboxItem) {
     track('inbox_click', item.category)
     if (!item.readAt) {
       markLocallyRead(item.id)
       setUnread(count => Math.max(0, count - 1))
-      void fetch(`/api/notifications/inbox/${item.id}/read`, { method: 'POST' })
+      markRead.mutate(item)
     }
     setOpen(false)
     router.push(safeNotificationPath(item.url))
   }
 
-  // "Elimina": gone from the panel and counted as read; the server keeps it archived.
   function removeItem(item: InboxItem) {
-    setItems(previous => previous.filter(other => other.id !== item.id))
+    editItems((list) => list.filter(other => other.id !== item.id))
     if (!item.readAt) setUnread(count => Math.max(0, count - 1))
-    void fetch(`/api/notifications/inbox/${item.id}/archive`, { method: 'POST' })
-      .catch(() => undefined)
-      .finally(() => void refreshUnread())
+    archive.mutate(item)
   }
 
-  async function markAllRead() {
+  function markAllRead() {
     markLocallyRead(null)
-    setUnread(0)
-    await fetch('/api/notifications/inbox/read-all', { method: 'POST' }).catch(() => undefined)
-    void refreshUnread()
+    setUnread(() => 0)
+    readAll.mutate()
+  }
+
+  const nextCursor = inbox.hasNextPage
+  const loadingMore = inbox.isFetchingNextPage
+  const status = inbox.isPending && open ? 'loading' : inbox.isError ? 'error' : 'idle'
+  function loadMore() {
+    void inbox.fetchNextPage()
   }
 
   const label = unread > 0
