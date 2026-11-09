@@ -8271,6 +8271,27 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Only admins and the lesson's tutor; the message says when it went to another tutor */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Accesso negato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
                 /** @description Lesson not found */
                 404: {
                     headers: {
@@ -9479,6 +9500,143 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lessons/{lessonId}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    lessonId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Reschedules of the lesson, oldest first */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            before: {
+                                startAt: string;
+                                durationMinutes: number;
+                                tutorId: string;
+                                tutorName: string;
+                                subjectId: string | null;
+                                subjectName: string | null;
+                            };
+                            after: {
+                                startAt: string;
+                                durationMinutes: number;
+                                tutorId: string;
+                                tutorName: string;
+                                subjectId: string | null;
+                                subjectName: string | null;
+                            };
+                            actorName: string;
+                            actorRole: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                        }[];
+                    };
+                };
+                /** @description Invalid credentials */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Non autorizzato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Admin access required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Accesso negato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid id error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Dati non validi",
+                             *       "name": "ZodError",
+                             *       "issues": [
+                             *         {
+                             *           "code": "invalid_type",
+                             *           "path": [
+                             *             "lessonId"
+                             *           ],
+                             *           "message": "Invalid input: expected string, received undefined"
+                             *         }
+                             *       ]
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                issues: {
+                                    code: string;
+                                    path: (string | number)[];
+                                    message?: string;
+                                }[];
+                                name: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;

@@ -15,6 +15,7 @@ import { emailVerificationTokens } from './schemas/email-verification-tokens.sch
 import { faqs } from './schemas/faqs.schema'
 import { globalSettings } from './schemas/global-settings.schema'
 import { lessonBookings } from './schemas/lesson-bookings.schema'
+import { lessonChanges } from './schemas/lesson-changes.schema'
 import { lessonFeedback, lessonFeedbackVersions } from './schemas/lesson-feedback.schema'
 import { lessons } from './schemas/lessons.schema'
 import { notificationPreferences } from './schemas/notification-preferences.schema'
@@ -53,6 +54,7 @@ const schema = {
   tutorInviteTokens,
   lessons,
   lessonBookings,
+  lessonChanges,
   lessonFeedback,
   lessonFeedbackVersions,
   tokenLedger,

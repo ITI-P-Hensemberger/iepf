@@ -1,13 +1,11 @@
 // Purpose: Lesson management: create, cancel, reschedule and whether a lesson counts for the tutor.
 
 import { and, eq } from 'drizzle-orm'
-import { randomUUID } from 'node:crypto'
 
 import type { AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
-import { lessonFeedback } from '@/db/schemas/lesson-feedback.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
 import {
   buildLessonCanceledMessage,
@@ -18,6 +16,7 @@ import {
 import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { listLessonHistory, recordLessonChange } from '@/lib/lesson-history'
 import { lockUsers } from '@/lib/lesson-tokens'
 import { sendMail } from '@/lib/mailer'
 import { notifyUsers } from '@/lib/push'
@@ -26,6 +25,7 @@ import { lessonAssignedPush, lessonCanceledPush, lessonChangedPush, lessonCreate
 import type {
   CancelLessonRoute,
   CreateLessonRoute,
+  LessonHistoryRoute,
   RescheduleLessonRoute,
   UpdateLessonCountsRoute
 } from './lessons.routes'
@@ -265,33 +265,15 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
   const outcome = await db.transaction(async (tx) => {
     await lockUsers(tx, [lesson.tutorId, payload.tutorId])
 
-    const [lockedLesson] = await tx.select({ status: lessons.status })
+    // Read again under the lock: "before" is what this change replaces, not what an earlier read saw.
+    const [previous] = await tx.select()
       .from(lessons)
       .where(eq(lessons.id, lesson.id))
       .for('update')
 
-    if (!lockedLesson || lockedLesson.status === 'canceled') {
+    if (!previous || previous.status === 'canceled') {
       return null
     }
-
-    const seats = await getTutorDailyCapacity(payload.tutorId, tx)
-
-    const [createdLesson] = await tx.insert(lessons).values({
-      tutorId: payload.tutorId,
-      subjectId: newSubjectId,
-      subjectFromBooking,
-      startAt: newStartAt,
-      durationMinutes: payload.durationMinutes,
-      seats,
-      status: lockedLesson.status
-    }).returning({
-      id: lessons.id,
-      countsForTutor: lessons.countsForTutor
-    })
-
-    await tx.update(lessons)
-      .set({ status: 'canceled', countsForTutor: false })
-      .where(eq(lessons.id, lesson.id))
 
     const bookings = await tx.query.lessonBookings.findMany({
       where(fields, operators) {
@@ -300,88 +282,86 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
           operators.eq(fields.status, 'confirmed')
         )
       },
-      columns: {
-        id: true,
-        studentId: true,
-        subjectId: true,
-        topic: true,
-        countsForStudent: true,
-        studentPresence: true,
-        studentPresenceAt: true
-      }
+      columns: { studentId: true, studentPresence: true }
     })
 
-    if (bookings.length > 0) {
-      const bookingIdMap = new Map<string, string>()
-      const newBookingRows = bookings.map((booking) => {
-        const newId = randomUUID()
-        bookingIdMap.set(booking.id, newId)
-        return {
-          id: newId,
-          lessonId: createdLesson.id,
-          studentId: booking.studentId,
-          // Moved bookings follow the subject the admin set; kept open, they keep their own.
-          subjectId: newSubjectId ?? booking.subjectId,
-          topic: booking.topic,
-          status: 'confirmed',
-          countsForStudent: booking.countsForStudent,
-          studentPresence: booking.studentPresence,
-          studentPresenceAt: booking.studentPresenceAt
-        }
+    const tutorChanged = previous.tutorId !== payload.tutorId
+    const seats = await getTutorDailyCapacity(payload.tutorId, tx)
+
+    // The lesson keeps its id, bookings and feedback: links already sent still lead to it.
+    await tx.update(lessons)
+      .set({
+        tutorId: payload.tutorId,
+        subjectId: newSubjectId,
+        subjectFromBooking,
+        startAt: newStartAt,
+        durationMinutes: payload.durationMinutes,
+        seats,
+        // A new tutor is credited only for presences already marked; the same tutor keeps the flag.
+        countsForTutor: tutorChanged
+          ? bookings.some(booking => booking.studentPresence !== null)
+          : previous.countsForTutor
       })
+      .where(eq(lessons.id, lesson.id))
 
-      await tx.insert(lessonBookings).values(newBookingRows)
-
-      if (bookings.some(booking => booking.studentPresence !== null)) {
-        await tx.update(lessons)
-          .set({ countsForTutor: true })
-          .where(eq(lessons.id, createdLesson.id))
-      }
-
-      for (const [oldBookingId, newBookingId] of bookingIdMap) {
-        await tx.update(lessonFeedback)
-          .set({
-            lessonId: createdLesson.id,
-            bookingId: newBookingId
-          })
-          .where(eq(lessonFeedback.bookingId, oldBookingId))
-      }
-
+    // Bookings follow the subject the admin set; kept open, they keep their own.
+    if (newSubjectId !== null && bookings.length > 0) {
       await tx.update(lessonBookings)
-        .set({
-          status: 'canceled',
-          canceledAt: new Date(),
-          canceledBy: admin.id,
-          countsForStudent: false,
-          studentPresence: null,
-          studentPresenceAt: null
-        })
+        .set({ subjectId: newSubjectId })
         .where(and(
           eq(lessonBookings.lessonId, lesson.id),
           eq(lessonBookings.status, 'confirmed')
         ))
     }
 
-    return { newLesson: createdLesson, existingBookings: bookings }
+    const changed = tutorChanged
+      || previous.subjectId !== newSubjectId
+      || previous.startAt.getTime() !== newStartAt.getTime()
+      || previous.durationMinutes !== payload.durationMinutes
+
+    const [oldDetails, newDetails] = changed
+      ? await Promise.all([
+          fetchLessonEmailDetails(lesson.id, previous.tutorId, previous.subjectId),
+          fetchLessonEmailDetails(lesson.id, payload.tutorId, newSubjectId)
+        ])
+      : [null, null]
+
+    if (changed) {
+      await recordLessonChange(tx, {
+        lessonId: lesson.id,
+        actorId: admin.id,
+        before: {
+          startAt: previous.startAt.toISOString(),
+          durationMinutes: previous.durationMinutes,
+          tutorId: previous.tutorId,
+          tutorName: oldDetails?.tutorName ?? '',
+          subjectId: previous.subjectId,
+          subjectName: oldDetails?.subjectName ?? null
+        },
+        after: {
+          startAt: newStartAt.toISOString(),
+          durationMinutes: payload.durationMinutes,
+          tutorId: payload.tutorId,
+          tutorName: newDetails?.tutorName ?? '',
+          subjectId: newSubjectId,
+          subjectName: newDetails?.subjectName ?? null
+        }
+      })
+    }
+
+    return { previous, bookings, tutorChanged, changed, oldDetails, newDetails }
   })
 
   if (!outcome) {
     return c.json(buildErrorResponse(HttpStatusPhrases.CONFLICT), HttpStatusCodes.CONFLICT)
   }
 
-  const { newLesson, existingBookings } = outcome
-  const studentIds = existingBookings.map(booking => booking.studentId)
-  const tutorChanged = lesson.tutorId !== payload.tutorId
-  const changed = tutorChanged
-    || lesson.subjectId !== newSubjectId
-    || new Date(lesson.startAt).getTime() !== newStartAt.getTime()
-    || lesson.durationMinutes !== payload.durationMinutes
+  const { previous, bookings, tutorChanged, changed, oldDetails, newDetails } = outcome
+  const studentIds = bookings.map(booking => booking.studentId)
 
   // A tutor who loses or gains the lesson hears about it even when nobody booked it.
   if (changed && (studentIds.length > 0 || tutorChanged)) {
     const studentsMap = await fetchStudentsDetails(studentIds)
-    const oldDetails = await fetchLessonEmailDetails(lesson.id, lesson.tutorId, lesson.subjectId)
-    const newDetails = await fetchLessonEmailDetails(newLesson.id, payload.tutorId, newSubjectId)
 
     if (oldDetails && newDetails) {
       const studentList = studentIds
@@ -398,7 +378,7 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
         }
         const studentMessage = buildLessonRescheduledMessage({
           recipientRole: 'student',
-          oldStartAt: new Date(lesson.startAt),
+          oldStartAt: previous.startAt,
           newStartAt,
           oldSubjectName: oldDetails.subjectName,
           newSubjectName: newDetails.subjectName,
@@ -418,7 +398,7 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
       if (newDetails.tutorEmail) {
         const tutorMessage = buildLessonRescheduledMessage({
           recipientRole: 'tutor',
-          oldStartAt: new Date(lesson.startAt),
+          oldStartAt: previous.startAt,
           newStartAt,
           oldSubjectName: oldDetails.subjectName,
           newSubjectName: newDetails.subjectName,
@@ -437,7 +417,7 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
 
       if (tutorChanged && oldDetails.tutorEmail) {
         const reassignedMessage = buildLessonReassignedMessage({
-          lessonStartAt: new Date(lesson.startAt),
+          lessonStartAt: previous.startAt,
           subjectName: oldDetails.subjectName,
           tutorName: oldDetails.tutorName
         })
@@ -449,14 +429,14 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
         }).catch(err => console.error('Failed to send lesson reassigned email:', err))
       }
 
-      const before = { lessonId: lesson.id, subjectName: oldDetails.subjectName, startAt: new Date(lesson.startAt), durationMinutes: lesson.durationMinutes }
-      const after = { lessonId: newLesson.id, subjectName: newDetails.subjectName, startAt: newStartAt, durationMinutes: payload.durationMinutes }
+      const before = { lessonId: lesson.id, subjectName: oldDetails.subjectName, startAt: previous.startAt, durationMinutes: previous.durationMinutes }
+      const after = { lessonId: lesson.id, subjectName: newDetails.subjectName, startAt: newStartAt, durationMinutes: payload.durationMinutes }
       const studentPush = lessonChangedPush('student', before, after, tutorChanged)
       if (studentPush) {
         notifyUsers(studentIds, 'bookings', studentPush)
       }
       if (tutorChanged) {
-        notifyUsers([lesson.tutorId], 'bookings', lessonReassignedPush(before))
+        notifyUsers([previous.tutorId], 'bookings', lessonReassignedPush(before))
         notifyUsers([payload.tutorId], 'bookings', lessonAssignedPush(after, studentIds.length))
       }
       else {
@@ -471,10 +451,16 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
   return c.json(
     {
       message: 'Lezione riprogrammata',
-      lessonId: newLesson.id
+      lessonId: lesson.id
     },
     HttpStatusCodes.OK
   )
+}
+
+export const lessonHistory: AppRouteHandler<LessonHistoryRoute> = async (c) => {
+  ensureAdmin(c)
+  const { lessonId } = c.req.valid('param')
+  return c.json(await listLessonHistory(lessonId), HttpStatusCodes.OK)
 }
 
 export const createLesson: AppRouteHandler<CreateLessonRoute> = async (c) => {
