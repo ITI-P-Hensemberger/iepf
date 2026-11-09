@@ -32,6 +32,8 @@ import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
 import { BookOpen, CalendarOff, Info, Megaphone, RotateCcw, Wrench, CircleHelp, MessageSquareText } from 'lucide-react'
 import { capitalizeFirst } from '@/lib/capitalize'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 
 type Role = 'student' | 'tutor' | 'admin' | 'activator'
 type MessageLevel = 'info' | 'warning' | 'error' | 'success'
@@ -105,6 +107,12 @@ function normalizeSettings(payload: unknown): SettingsPayload {
   return { maintenance, serviceMessages, closureDates }
 }
 
+// The API stores closure days as YYYY-MM-DD; the form shows DD-MM-YYYY.
+function toFormClosureDate(date: string) {
+  const [year, month, day] = date.split('-')
+  return year && month && day ? `${day}-${month}-${year}` : date
+}
+
 export default function AdminSettingsPage() {
   const router = useRouter()
   const pathname = usePathname()
@@ -128,114 +136,55 @@ export default function AdminSettingsPage() {
   const [initialClosuresSnapshot, setInitialClosuresSnapshot] = React.useState<
     string | null
   >(null)
-  const [loading, setLoading] = React.useState(true)
-  const [savingMaintenance, setSavingMaintenance] = React.useState(false)
-  const [savingMessages, setSavingMessages] = React.useState(false)
-  const [savingClosures, setSavingClosures] = React.useState(false)
   const [currentTime, setCurrentTime] = React.useState<string>(
     new Date().toISOString()
   )
   const [closureDates, setClosureDates] = React.useState<string[]>([])
   // For the Info section; the Materie section loads and edits the list on its own.
-  const [subjectCount, setSubjectCount] = React.useState<number | null>(null)
-  React.useEffect(() => {
-    void fetch('/api/subjects')
-      .then(response => (response.ok ? response.json() : null))
-      .then(payload => payload && setSubjectCount(extractPayloadArray(payload).length))
-      .catch(() => undefined)
-  }, [])
+  const { data: subjectCount = null } = useQuery({
+    queryKey: ['subjects'],
+    queryFn: async () => extractPayloadArray(await apiFetch('/api/subjects', 'Impossibile caricare le materie.')),
+    select: (list) => list.length,
+    meta: { inline: true }
+  })
 
-  React.useEffect(() => {
-    let isMounted = true
-
-    async function loadSettings() {
-      setLoading(true)
-      try {
-        const response = await fetch('/api/settings')
-        if (!response.ok) {
-          throw new Error('Impossibile caricare le impostazioni.')
-        }
-        const payload = await response.json()
-        if (!isMounted) return
-        const normalized = normalizeSettings(payload)
-        const maintenanceRoles = (normalized.maintenance.roles ?? []).filter(
-          (role) => role === 'student' || role === 'tutor'
-        )
-        normalized.maintenance = {
-          ...normalized.maintenance,
-          roles: maintenanceRoles
-        }
-        setSettings(normalized)
-        setClosureDates(
-          normalized.closureDates.map((date) => {
-            const [year, month, day] = date.split('-')
-            if (!year || !month || !day) return date
-            return `${day}-${month}-${year}`
-          })
-        )
-        setServiceMessageState({
-          student:
-            normalized.serviceMessages.student ?? buildDefaultServiceMessage(),
-          tutor:
-            normalized.serviceMessages.tutor ?? buildDefaultServiceMessage(),
-          admin:
-            normalized.serviceMessages.admin ?? buildDefaultServiceMessage(),
-          activator:
-            normalized.serviceMessages.activator ?? buildDefaultServiceMessage()
-        })
-        const maintenanceSnapshot = JSON.stringify({
-          enabled: normalized.maintenance.enabled,
-          message: normalized.maintenance.message ?? null,
-          roles: (normalized.maintenance.roles ?? []).filter(
-            (role) => role === 'student' || role === 'tutor'
-          )
-        })
-        const serviceSnapshot = JSON.stringify({
-          student: normalized.serviceMessages.student?.enabled
-            ? normalized.serviceMessages.student
-            : null,
-          tutor: normalized.serviceMessages.tutor?.enabled
-            ? normalized.serviceMessages.tutor
-            : null,
-          admin: normalized.serviceMessages.admin?.enabled
-            ? normalized.serviceMessages.admin
-            : null,
-          activator: normalized.serviceMessages.activator?.enabled
-            ? normalized.serviceMessages.activator
-            : null
-        })
-        const closuresSnapshot = JSON.stringify(
-          normalized.closureDates
-            .map((date) => {
-              const [year, month, day] = date.split('-')
-              if (!year || !month || !day) return date
-              return `${day}-${month}-${year}`
-            })
-            .sort()
-        )
-        setInitialMaintenanceSnapshot(maintenanceSnapshot)
-        setInitialServiceSnapshot(serviceSnapshot)
-        setInitialClosuresSnapshot(closuresSnapshot)
-      } catch (err) {
-        if (!isMounted) return
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : 'Impossibile caricare le impostazioni.'
-        )
-      } finally {
-        if (isMounted) {
-          setLoading(false)
-        }
-      }
+  const queryClient = useQueryClient()
+  const settingsQuery = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => apiFetch('/api/settings', 'Impossibile caricare le impostazioni.')
+  })
+  const loading = settingsQuery.isPending
+  // The sections edit a copy: it is filled once, from the first load, so a reload never
+  // overwrites what the admin is typing. Each save then refreshes its own part.
+  const [seeded, setSeeded] = React.useState(false)
+  if (settingsQuery.data && !seeded) {
+    setSeeded(true)
+    const normalized = normalizeSettings(settingsQuery.data)
+    normalized.maintenance = {
+      ...normalized.maintenance,
+      roles: (normalized.maintenance.roles ?? []).filter((role) => role === 'student' || role === 'tutor')
     }
-
-    void loadSettings()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
+    setSettings(normalized)
+    setClosureDates(normalized.closureDates.map(toFormClosureDate))
+    setServiceMessageState({
+      student: normalized.serviceMessages.student ?? buildDefaultServiceMessage(),
+      tutor: normalized.serviceMessages.tutor ?? buildDefaultServiceMessage(),
+      admin: normalized.serviceMessages.admin ?? buildDefaultServiceMessage(),
+      activator: normalized.serviceMessages.activator ?? buildDefaultServiceMessage()
+    })
+    setInitialMaintenanceSnapshot(JSON.stringify({
+      enabled: normalized.maintenance.enabled,
+      message: normalized.maintenance.message ?? null,
+      roles: normalized.maintenance.roles
+    }))
+    setInitialServiceSnapshot(JSON.stringify({
+      student: normalized.serviceMessages.student?.enabled ? normalized.serviceMessages.student : null,
+      tutor: normalized.serviceMessages.tutor?.enabled ? normalized.serviceMessages.tutor : null,
+      admin: normalized.serviceMessages.admin?.enabled ? normalized.serviceMessages.admin : null,
+      activator: normalized.serviceMessages.activator?.enabled ? normalized.serviceMessages.activator : null
+    }))
+    setInitialClosuresSnapshot(JSON.stringify(normalized.closureDates.map(toFormClosureDate).sort()))
+  }
 
   React.useEffect(() => {
     const tick = () => setCurrentTime(new Date().toISOString())
@@ -311,47 +260,43 @@ export default function AdminSettingsPage() {
     [closureDates, toApiClosureDate]
   )
 
-  const handleSaveMaintenance = React.useCallback(async () => {
-    setSavingMaintenance(true)
-    try {
-      const response = await fetch('/api/settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ maintenance: maintenancePayload })
-      })
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        throw new Error(
-          payload?.message || 'Impossibile salvare la manutenzione.'
-        )
-      }
-      const payload = await response.json()
-      const normalized = normalizeSettings(payload)
-      const maintenanceRoles = (normalized.maintenance.roles ?? []).filter(
-        (role) => role === 'student' || role === 'tutor'
-      )
-      normalized.maintenance = {
-        ...normalized.maintenance,
-        roles: maintenanceRoles
-      }
-      setSettings((prev) => ({
-        ...prev,
-        maintenance: normalized.maintenance
-      }))
-      setInitialMaintenanceSnapshot(JSON.stringify(normalized.maintenance))
-      toast.success('Manutenzione salvata.')
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile salvare la manutenzione.'
-      )
-    } finally {
-      setSavingMaintenance(false)
-    }
-  }, [maintenancePayload])
+  // Each section saves its own part; the answer is the whole settings, kept for the next visit.
+  const saveSettings = (body: unknown, fallback: string) =>
+    apiFetch('/api/settings', fallback, jsonBody('PATCH', body)).then((payload) => {
+      queryClient.setQueryData(['settings'], payload)
+      return normalizeSettings(payload)
+    })
 
-  const handleSaveMessages = React.useCallback(async () => {
+  const saveMaintenance = useMutation({
+    mutationFn: () => saveSettings({ maintenance: maintenancePayload }, 'Impossibile salvare la manutenzione.'),
+    onSuccess: (normalized) => {
+      const maintenance = {
+        ...normalized.maintenance,
+        roles: (normalized.maintenance.roles ?? []).filter((role) => role === 'student' || role === 'tutor')
+      }
+      setSettings((prev) => ({ ...prev, maintenance }))
+      setInitialMaintenanceSnapshot(JSON.stringify(maintenance))
+      toast.success('Manutenzione salvata.')
+    }
+  })
+  const savingMaintenance = saveMaintenance.isPending
+  const handleSaveMaintenance = () => saveMaintenance.mutate()
+
+  const saveMessages = useMutation({
+    mutationFn: () => saveSettings({ serviceMessages: serviceMessagesPayload }, 'Impossibile salvare i messaggi.'),
+    onSuccess: (normalized) => {
+      setServiceMessageState({
+        student: normalized.serviceMessages.student ?? buildDefaultServiceMessage(),
+        tutor: normalized.serviceMessages.tutor ?? buildDefaultServiceMessage(),
+        admin: normalized.serviceMessages.admin ?? buildDefaultServiceMessage(),
+        activator: normalized.serviceMessages.activator ?? buildDefaultServiceMessage()
+      })
+      setInitialServiceSnapshot(JSON.stringify(normalized.serviceMessages))
+      toast.success('Messaggi salvati.')
+    }
+  })
+  const savingMessages = saveMessages.isPending
+  const handleSaveMessages = () => {
     for (const role of roleOptions) {
       const message = serviceMessagesPayload[role]
       if (!message) continue
@@ -360,85 +305,28 @@ export default function AdminSettingsPage() {
         return
       }
     }
+    saveMessages.mutate()
+  }
 
-    setSavingMessages(true)
-    try {
-      const response = await fetch('/api/settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ serviceMessages: serviceMessagesPayload })
-      })
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        throw new Error(payload?.message || 'Impossibile salvare i messaggi.')
-      }
-      const payload = await response.json()
-      const normalized = normalizeSettings(payload)
-      setServiceMessageState({
-        student:
-          normalized.serviceMessages.student ?? buildDefaultServiceMessage(),
-        tutor: normalized.serviceMessages.tutor ?? buildDefaultServiceMessage(),
-        admin: normalized.serviceMessages.admin ?? buildDefaultServiceMessage(),
-        activator:
-          normalized.serviceMessages.activator ?? buildDefaultServiceMessage()
-      })
-      setInitialServiceSnapshot(JSON.stringify(normalized.serviceMessages))
-      toast.success('Messaggi salvati.')
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile salvare i messaggi.'
-      )
-    } finally {
-      setSavingMessages(false)
+  const saveClosures = useMutation({
+    mutationFn: () => saveSettings({ closureDates: closureDatesPayload }, 'Impossibile salvare le chiusure.'),
+    onSuccess: (normalized) => {
+      const dates = normalized.closureDates.map(toFormClosureDate)
+      setClosureDates(dates)
+      setInitialClosuresSnapshot(JSON.stringify([...dates].sort()))
+      // The booking pages read the closed days: they reload them on their next visit.
+      void queryClient.invalidateQueries({ queryKey: ['lessons'] })
+      toast.success('Date di chiusura salvate.')
     }
-  }, [serviceMessagesPayload])
-
-  const handleSaveClosures = React.useCallback(async () => {
+  })
+  const savingClosures = saveClosures.isPending
+  const handleSaveClosures = () => {
     if (closureDates.some((date) => !closureDatePattern.test(date))) {
       toast.error('Alcune date non sono valide (DD-MM-YYYY).')
       return
     }
-
-    setSavingClosures(true)
-    try {
-      const response = await fetch('/api/settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ closureDates: closureDatesPayload })
-      })
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        throw new Error(payload?.message || 'Impossibile salvare le chiusure.')
-      }
-      const payload = await response.json()
-      const normalized = normalizeSettings(payload)
-      setClosureDates(
-        normalized.closureDates.map((date) => {
-          const [year, month, day] = date.split('-')
-          if (!year || !month || !day) return date
-          return `${day}-${month}-${year}`
-        })
-      )
-      setInitialClosuresSnapshot(
-        JSON.stringify(
-          normalized.closureDates
-            .map((date) => {
-              const [year, month, day] = date.split('-')
-              if (!year || !month || !day) return date
-              return `${day}-${month}-${year}`
-            })
-            .sort()
-        )
-      )
-      toast.success('Date di chiusura salvate.')
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile salvare le chiusure.'
-      )
-    } finally {
-      setSavingClosures(false)
-    }
-  }, [closureDatePattern, closureDates, closureDatesPayload])
+    saveClosures.mutate()
+  }
 
   const isMaintenanceDirty = React.useMemo(
     () =>

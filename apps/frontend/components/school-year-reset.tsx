@@ -20,6 +20,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { jsonBody } from '@/lib/api-fetch'
 
 const DELETED = ['Studenti e tutor, con i loro account', 'Lezioni e prenotazioni', 'Feedback', 'Ore di lezione degli studenti', 'Richieste di materie', 'Inviti tutor', 'Statistiche d\'uso (nel report restano i riepiloghi mensili)']
 const KEPT = ['Admin e attivatori', 'Materie e sezioni', 'Impostazioni, messaggi e chiusure']
@@ -49,8 +51,7 @@ export function SchoolYearReset() {
   const [confirmed, setConfirmed] = React.useState(false)
   const [finalOpen, setFinalOpen] = React.useState(false)
   const [finalPassword, setFinalPassword] = React.useState('')
-  const [resetting, setResetting] = React.useState(false)
-  const [checking, setChecking] = React.useState(false)
+  const queryClient = useQueryClient()
   const [passwordError, setPasswordError] = React.useState<string | null>(null)
   const [finalError, setFinalError] = React.useState<string | null>(null)
   const [reportExpired, setReportExpired] = React.useState(false)
@@ -73,68 +74,59 @@ export function SchoolYearReset() {
     setReportExpired(true)
   }
 
-  // The first confirmation is checked by the backend too: a wrong password shows here.
-  async function confirm() {
-    setChecking(true)
-    setPasswordError(null)
-    try {
-      const response = await fetch('/api/settings/school-year/reset/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
-      })
-      if (response.status === 204) {
-        setConfirmed(true)
-        return
-      }
-      const payload = await response.json().catch(() => ({})) as { message?: string }
-      if (response.status === 409) reportTooOld()
-      else if (response.status === 403) setPasswordError(payload.message ?? 'Password non corretta')
-      else toast.error(payload.message ?? 'Verifica non riuscita.')
-    }
-    catch {
-      toast.error('Verifica non riuscita.')
-    }
-    finally {
-      setChecking(false)
-    }
+  // Both steps answer with a status the dialog shows itself (wrong password, report too old):
+  // only an unexpected failure throws, and shows as a toast.
+  const post = async (url: string, body: unknown, fallback: string) => {
+    const response = await fetch(url, jsonBody('POST', body)).catch(() => {
+      throw new Error(fallback)
+    })
+    const payload = await response.json().catch(() => ({})) as { message?: string, deletedStudents?: number, deletedTutors?: number }
+    if (!response.ok && ![403, 409].includes(response.status)) throw new Error(payload.message ?? fallback)
+    return { status: response.status, payload }
   }
 
-  async function reset() {
+  // The first confirmation is checked by the backend too: a wrong password shows here.
+  const check = useMutation({
+    mutationFn: () => post('/api/settings/school-year/reset/check', { password }, 'Verifica non riuscita.'),
+    onSuccess: ({ status, payload }) => {
+      if (status === 409) reportTooOld()
+      else if (status === 403) setPasswordError(payload.message ?? 'Password non corretta')
+      else setConfirmed(true)
+    }
+  })
+  const checking = check.isPending
+  function confirm() {
+    setPasswordError(null)
+    check.mutate()
+  }
+
+  const resetYear = useMutation({
+    mutationFn: () => post('/api/settings/school-year/reset', { confirmation: 'RESET', password }, 'Reset non riuscito.'),
+    onSuccess: ({ status, payload }) => {
+      if (status === 403) {
+        setFinalError(payload.message ?? 'Password non corretta')
+        return
+      }
+      setFinalOpen(false)
+      if (status === 409) {
+        reportTooOld()
+        return
+      }
+      toast.success(`Anno scolastico azzerato: eliminati ${payload.deletedStudents ?? 0} studenti e ${payload.deletedTutors ?? 0} tutor.`)
+      startOver()
+      // Users, lessons and bookings are gone: every list reloads.
+      return queryClient.invalidateQueries()
+    },
+    onError: () => setFinalOpen(false)
+  })
+  const resetting = resetYear.isPending
+  function reset() {
     if (finalPassword !== password) {
       setFinalError('Le due password non coincidono.')
       return
     }
     setFinalError(null)
-    setResetting(true)
-    try {
-      const response = await fetch('/api/settings/school-year/reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirmation: 'RESET', password })
-      })
-      const payload = await response.json().catch(() => ({})) as { message?: string, deletedStudents?: number, deletedTutors?: number }
-      if (response.status === 403) {
-        setFinalError(payload.message ?? 'Password non corretta')
-        return
-      }
-      if (response.status === 409) {
-        setFinalOpen(false)
-        reportTooOld()
-        return
-      }
-      if (!response.ok) throw new Error(payload.message ?? 'Reset non riuscito.')
-      toast.success(`Anno scolastico azzerato: eliminati ${payload.deletedStudents ?? 0} studenti e ${payload.deletedTutors ?? 0} tutor.`)
-      startOver()
-      setFinalOpen(false)
-    }
-    catch (error) {
-      setFinalOpen(false)
-      toast.error(error instanceof Error ? error.message : 'Reset non riuscito.')
-    }
-    finally {
-      setResetting(false)
-    }
+    resetYear.mutate()
   }
 
   return (
@@ -182,7 +174,7 @@ export function SchoolYearReset() {
             className='space-y-3'
             onSubmit={(event) => {
               event.preventDefault()
-              void confirm()
+              confirm()
             }}
           >
             <fieldset disabled={!reportReady || confirmed} className='grid gap-3 sm:grid-cols-2'>
@@ -262,7 +254,7 @@ export function SchoolYearReset() {
               disabled={!finalPassword || resetting}
               onClick={(event) => {
                 event.preventDefault()
-                void reset()
+                reset()
               }}
             >
               {resetting ? 'Eliminazione...' : 'Elimina definitivamente'}

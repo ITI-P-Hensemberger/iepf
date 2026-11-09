@@ -3,6 +3,9 @@
 import * as React from 'react'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 
 import { EmptyState } from '@/components/empty-state'
 import { BlockSkeleton } from '@/components/loading'
@@ -28,77 +31,59 @@ import { cn } from '@/lib/utils'
 type Subject = { id: string, name: string }
 type Draft = { id: string | null, name: string }
 
-async function errorOf(response: Response, fallback: string) {
-  const payload = await response.json().catch(() => null) as { message?: string, error?: { message?: string } } | null
-  return payload?.error?.message ?? payload?.message ?? fallback
-}
-
 const byName = (a: Subject, b: Subject) => a.name.localeCompare(b.name, 'it')
 
 // The "Materie" section of the global settings, built like Popup and FAQ: "Nuova materia" on
 // top opens the form above the list; each row edits or deletes its subject.
+const noSubjects: Subject[] = []
+
 export function AdminSubjectsSettings() {
-  const [subjects, setSubjects] = React.useState<Subject[]>([])
-  const [loading, setLoading] = React.useState(true)
+  const queryClient = useQueryClient()
+  // The same list the rest of the app uses, sorted here by name.
+  const { data: subjects = noSubjects, isPending: loading } = useQuery({
+    queryKey: ['subjects'],
+    queryFn: async () => extractPayloadArray<Subject>(await apiFetch('/api/subjects', 'Impossibile caricare le materie.', { cache: 'no-store' })),
+    select: (list) => [...list].sort(byName)
+  })
   const [search, setSearch] = React.useState('')
   const [draft, setDraft] = React.useState<Draft | null>(null)
-  const [saving, setSaving] = React.useState(false)
   const [deleteTarget, setDeleteTarget] = React.useState<Subject | null>(null)
+  const reload = () => queryClient.invalidateQueries({ queryKey: ['subjects'] })
 
-  const load = React.useCallback(async () => {
-    try {
-      const response = await fetch('/api/subjects', { cache: 'no-store' })
-      if (!response.ok) throw new Error()
-      setSubjects(extractPayloadArray<Subject>(await response.json()).sort(byName))
-    } catch {
-      toast.error('Impossibile caricare le materie.')
-    } finally {
-      setLoading(false)
+  const saveSubject = useMutation({
+    mutationFn: ({ id, name }: { id: string | null, name: string }) => apiFetch(
+      id ? `/api/subjects/${id}` : '/api/subjects',
+      'Impossibile salvare la materia.',
+      jsonBody(id ? 'PATCH' : 'POST', { name })
+    ),
+    onSuccess: (_, { id }) => {
+      toast.success(id ? 'Materia aggiornata.' : 'Materia aggiunta.')
+      setDraft(null)
+      return reload()
     }
-  }, [])
+  })
+  const saving = saveSubject.isPending
 
-  React.useEffect(() => {
-    void load()
-  }, [load])
-
-  async function save() {
+  function save() {
     if (!draft) return
     const name = draft.name.trim()
     if (!name) {
       toast.error('Scrivi il nome della materia.')
       return
     }
-    setSaving(true)
-    try {
-      const response = await fetch(draft.id ? `/api/subjects/${draft.id}` : '/api/subjects', {
-        method: draft.id ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
-      })
-      if (!response.ok) throw new Error(await errorOf(response, 'Impossibile salvare la materia.'))
-      toast.success(draft.id ? 'Materia aggiornata.' : 'Materia aggiunta.')
-      setDraft(null)
-      await load()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Impossibile salvare la materia.')
-    } finally {
-      setSaving(false)
-    }
+    saveSubject.mutate({ id: draft.id, name })
   }
 
-  async function remove(subject: Subject) {
-    try {
-      const response = await fetch(`/api/subjects/${subject.id}`, { method: 'DELETE' })
-      if (!response.ok) throw new Error(await errorOf(response, 'Impossibile eliminare la materia.'))
+  const removeSubject = useMutation({
+    mutationFn: (subject: Subject) => apiFetch(`/api/subjects/${subject.id}`, 'Impossibile eliminare la materia.', jsonBody('DELETE')),
+    onSuccess: (_, subject) => {
       toast.success('Materia eliminata.')
       if (draft?.id === subject.id) setDraft(null)
-      setSubjects(previous => previous.filter(item => item.id !== subject.id))
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Impossibile eliminare la materia.')
-    } finally {
-      setDeleteTarget(null)
-    }
-  }
+      return reload()
+    },
+    onSettled: () => setDeleteTarget(null)
+  })
+  const remove = (subject: Subject) => removeSubject.mutateAsync(subject).catch(() => {})
 
   const needle = search.trim().toLowerCase()
   const shown = needle ? subjects.filter(subject => subject.name.toLowerCase().includes(needle)) : subjects
@@ -118,7 +103,7 @@ export function AdminSubjectsSettings() {
           className='space-y-4 rounded-lg border bg-card p-4 sm:p-6'
           onSubmit={(event) => {
             event.preventDefault()
-            void save()
+            save()
           }}
         >
           <h3 className='font-semibold'>{draft.id ? 'Modifica materia' : 'Nuova materia'}</h3>

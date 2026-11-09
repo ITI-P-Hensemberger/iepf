@@ -11,6 +11,8 @@ import { Calendar } from '@/components/ui/calendar'
 import { useHere, withFrom } from '@/lib/back-link'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { addDaysToKey, dateOfKey, dayKeyOf } from '@/lib/school-week'
+import { useQuery } from '@tanstack/react-query'
+import { apiFetch } from '@/lib/api-fetch'
 
 type ScheduleLesson = { id: string, startAt: string, status: string, bookings: unknown[] }
 type Impact = { lessons: number, students: number }
@@ -38,34 +40,33 @@ export function AdminClosures({
 }) {
   const here = useHere()
   const todayKey = dayKeyOf(new Date())
-  const [impact, setImpact] = React.useState<Map<string, Impact>>(new Map())
-
-  // What already exists on the closed days of this week and the next.
-  React.useEffect(() => {
-    const soon = dates.filter(date => date >= todayKey && date <= addDaysToKey(todayKey, LOOKAHEAD_DAYS))
-    if (soon.length === 0) return
-    let cancelled = false
-    const from = dateOfKey(todayKey)
-    const to = dateOfKey(addDaysToKey(todayKey, LOOKAHEAD_DAYS))
-    to.setHours(23, 59, 59, 999)
-    void fetch(`/api/lessons/schedule?${new URLSearchParams({ from: from.toISOString(), to: to.toISOString() })}`)
-      .then(response => (response.ok ? response.json() : []))
-      .then((payload) => {
-        if (cancelled) return
-        const next = new Map<string, Impact>()
-        for (const lesson of extractPayloadArray<ScheduleLesson>(payload)) {
-          if (lesson.status === 'canceled' || lesson.status === 'cancelled') continue
-          const key = dayKeyOf(new Date(lesson.startAt))
-          const current = next.get(key) ?? { lessons: 0, students: 0 }
-          next.set(key, { lessons: current.lessons + 1, students: current.students + lesson.bookings.length })
-        }
-        setImpact(next)
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
+  // What already exists on the closed days of this week and the next. Only a hint: if it does
+  // not load, the dates can still be saved.
+  const hasSoon = dates.some(date => date >= todayKey && date <= addDaysToKey(todayKey, LOOKAHEAD_DAYS))
+  const { data: scheduled } = useQuery({
+    queryKey: ['lessons', 'schedule-ahead', todayKey],
+    queryFn: async () => {
+      const from = dateOfKey(todayKey)
+      const to = dateOfKey(addDaysToKey(todayKey, LOOKAHEAD_DAYS))
+      to.setHours(23, 59, 59, 999)
+      return extractPayloadArray<ScheduleLesson>(await apiFetch(
+        `/api/lessons/schedule?${new URLSearchParams({ from: from.toISOString(), to: to.toISOString() })}`,
+        'Impossibile caricare le lezioni.'
+      ))
+    },
+    enabled: hasSoon,
+    meta: { inline: true }
+  })
+  const impact = React.useMemo(() => {
+    const next = new Map<string, Impact>()
+    for (const lesson of scheduled ?? []) {
+      if (lesson.status === 'canceled' || lesson.status === 'cancelled') continue
+      const key = dayKeyOf(new Date(lesson.startAt))
+      const current = next.get(key) ?? { lessons: 0, students: 0 }
+      next.set(key, { lessons: current.lessons + 1, students: current.students + lesson.bookings.length })
     }
-  }, [dates, todayKey])
+    return next
+  }, [scheduled])
 
   const sorted = [...dates].sort()
   const upcoming = sorted.filter(date => date >= todayKey)

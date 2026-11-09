@@ -489,7 +489,8 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
     pagina: sessione e refresh (`lib/auth-client.ts`, `use-session`), push (`lib/push-client.ts`),
     analytics. Il punto 26 la segue.
     Fatte: feedback admin (#95), liste utenti admin (#96), dettagli utenti admin (#98), lezioni
-    admin (home, giornata, elenco con creazione, dettaglio con prenotazioni e riprogrammazione).
+    admin (#101), impostazioni admin (manutenzione, messaggi, popup, chiusure, materie, FAQ, anno
+    scolastico).
   - **Problema:** il frontend carica i dati con `useEffect` e `fetch` manuali, ripetendo stati di
     caricamento, errori e aggiornamenti.
   - **File:** `apps/frontend/components/`, `apps/frontend/app/`
