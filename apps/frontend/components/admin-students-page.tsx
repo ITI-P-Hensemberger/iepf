@@ -13,7 +13,9 @@ import {
   getCoreRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { toast } from 'sonner'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+
+import { apiFetch } from '@/lib/api-fetch'
 
 import { FilterForm } from '@/components/filter-form'
 import { PageHeader } from '@/components/page-header'
@@ -284,36 +286,24 @@ function readFilters(searchParams: URLSearchParams, list: ListKey) {
 
 // One list's rows, loaded whenever its filters in the URL change.
 function useStudentList(list: (typeof LISTS)[number], applied: ReturnType<typeof readFilters>) {
-  const [students, setStudents] = React.useState<User[]>([])
-  const [total, setTotal] = React.useState(0)
-  const [loading, setLoading] = React.useState(true)
-
-  React.useEffect(() => {
-    const params = new URLSearchParams({ role: 'student', ...list.query })
-    if (applied.search.trim()) params.set('q', applied.search.trim())
-    params.set('sortBy', applied.sortBy)
-    params.set('sortDir', applied.sortDir)
-    params.set('limit', String(pageSize))
-    params.set('offset', String((applied.page - 1) * pageSize))
-    let current = true
-    setLoading(true)
-    fetch(`/api/users?${params.toString()}`)
-      .then(async (response) => {
-        if (!response.ok) throw new Error('Impossibile caricare gli studenti.')
-        const { items, total } = normalizePaged<User>(await response.json())
-        if (!current) return
-        setStudents(items)
-        setTotal(total)
-      })
-      .catch((err) => toast.error(err instanceof Error ? err.message : 'Impossibile caricare gli studenti.'))
-      .finally(() => current && setLoading(false))
-    return () => {
-      current = false
-    }
-  }, [list, applied.search, applied.sortBy, applied.sortDir, applied.page])
-
-  return { students, total, loading }
+  const params = new URLSearchParams({ role: 'student', ...list.query })
+  if (applied.search.trim()) params.set('q', applied.search.trim())
+  params.set('sortBy', applied.sortBy)
+  params.set('sortDir', applied.sortDir)
+  params.set('limit', String(pageSize))
+  params.set('offset', String((applied.page - 1) * pageSize))
+  const query = params.toString()
+  const { data, isFetching } = useQuery({
+    queryKey: ['users', query],
+    queryFn: async () => normalizePaged<User>(await apiFetch(`/api/users?${query}`, 'Impossibile caricare gli studenti.')),
+    // The rows stay in place while the next page or search loads.
+    placeholderData: keepPreviousData
+  })
+  return { students: data?.items ?? noStudents, total: data?.total ?? 0, loading: isFetching }
 }
+
+// Stable while nothing has loaded, so the table does not rebuild on every render.
+const noStudents: User[] = []
 
 const COLUMNS: ColumnDef<User>[] = [
   {

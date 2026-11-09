@@ -15,6 +15,9 @@ import {
   useReactTable
 } from '@tanstack/react-table'
 import { toast } from 'sonner'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 
 import {
   AlertDialog,
@@ -190,6 +193,8 @@ function DataTable<TData>({
   const table = useReactTable({
     data,
     columns,
+    // Selection by student, not by row position: after a change the list reloads in place.
+    getRowId: (row) => (row as { id: string }).id,
     getCoreRowModel: getCoreRowModel()
   })
 
@@ -290,6 +295,20 @@ const defaultFilters: TableFilters = {
   sortDir: 'asc'
 }
 
+// A list's request: active or waiting students, then the search, sort and page from the URL.
+function listQuery(filters: TableFilters & { page: number }, isActive: boolean) {
+  const params = new URLSearchParams({ role: 'student', isActive: String(isActive) })
+  if (filters.search.trim()) params.set('q', filters.search.trim())
+  params.set('sortBy', filters.sortBy)
+  params.set('sortDir', filters.sortDir)
+  params.set('limit', String(pageSize))
+  params.set('offset', String((filters.page - 1) * pageSize))
+  return params.toString()
+}
+
+// Stable while nothing has loaded, so the tables do not rebuild on every render.
+const noStudents: User[] = []
+
 export default function ActivatorStudentsPage() {
   const router = useRouter()
   const pathname = usePathname()
@@ -298,13 +317,6 @@ export default function ActivatorStudentsPage() {
   // The open tab lives in the URL, so it is still open after a trip to a detail page and back.
   const listTab = (['active'] as const).find((value) => value === searchParams.get('tab')) ?? 'inactive'
   const searchParamsString = searchParams.toString()
-  const [activeStudents, setActiveStudents] = React.useState<User[]>([])
-  const [inactiveStudents, setInactiveStudents] = React.useState<User[]>([])
-  const [activeTotal, setActiveTotal] = React.useState(0)
-  const [inactiveTotal, setInactiveTotal] = React.useState(0)
-  const [activeLoading, setActiveLoading] = React.useState(true)
-  const [inactiveLoading, setInactiveLoading] = React.useState(true)
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [pendingChange, setPendingChange] =
     React.useState<PendingChange | null>(null)
   const [activeFilters, setActiveFilters] =
@@ -430,148 +442,47 @@ export default function ActivatorStudentsPage() {
     await logout()
   }
 
-  const loadStudents = React.useCallback(
-    async (options: {
-      isActive: boolean
-      search: string
-      sort: { sortBy: string; sortDir: 'asc' | 'desc' }
-      page: number
-    }) => {
-      const { isActive, search, sort, page } = options
-      const params = new URLSearchParams()
-      params.set('role', 'student')
-      params.set('isActive', String(isActive))
-      if (search.trim()) {
-        params.set('q', search.trim())
-      }
-      params.set('sortBy', sort.sortBy)
-      params.set('sortDir', sort.sortDir)
-      params.set('limit', String(pageSize))
-      params.set('offset', String((page - 1) * pageSize))
+  const queryClient = useQueryClient()
+  const activeQuery = listQuery(currentActiveFilters, true)
+  const inactiveQuery = listQuery(currentInactiveFilters, false)
+  // The rows stay in place while the next page or search loads.
+  const activeResult = useQuery({
+    queryKey: ['users', activeQuery],
+    queryFn: async () => normalizePaged<User>(await apiFetch(`/api/users?${activeQuery}`, 'Impossibile caricare gli studenti.')),
+    placeholderData: keepPreviousData
+  })
+  const inactiveResult = useQuery({
+    queryKey: ['users', inactiveQuery],
+    queryFn: async () => normalizePaged<User>(await apiFetch(`/api/users?${inactiveQuery}`, 'Impossibile caricare gli studenti.')),
+    placeholderData: keepPreviousData
+  })
+  const activeStudents = activeResult.data?.items ?? noStudents
+  const activeTotal = activeResult.data?.total ?? 0
+  const activeLoading = activeResult.isFetching
+  const inactiveStudents = inactiveResult.data?.items ?? noStudents
+  const inactiveTotal = inactiveResult.data?.total ?? 0
+  const inactiveLoading = inactiveResult.isFetching
 
-      if (isActive) {
-        setActiveLoading(true)
-      } else {
-        setInactiveLoading(true)
-      }
-
-      try {
-        const response = await fetch(`/api/users?${params.toString()}`)
-        if (!response.ok) {
-          throw new Error('Impossibile caricare gli studenti.')
-        }
-        const payload = await response.json()
-        const { items, total } = normalizePaged<User>(payload)
-        if (isActive) {
-          setActiveStudents(items)
-          setActiveTotal(total)
-        } else {
-          setInactiveStudents(items)
-          setInactiveTotal(total)
-        }
-      } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : 'Impossibile caricare gli studenti.'
-        toast.error(message)
-      } finally {
-        if (isActive) {
-          setActiveLoading(false)
-        } else {
-          setInactiveLoading(false)
-        }
-      }
-    },
-    []
-  )
-
-  React.useEffect(() => {
-    void loadStudents({
-      isActive: true,
-      search: currentActiveFilters.search,
-      sort: {
-        sortBy: currentActiveFilters.sortBy,
-        sortDir: currentActiveFilters.sortDir
-      },
-      page: currentActiveFilters.page
-    })
-  }, [
-    currentActiveFilters.page,
-    currentActiveFilters.search,
-    currentActiveFilters.sortBy,
-    currentActiveFilters.sortDir,
-    loadStudents
-  ])
-
-  React.useEffect(() => {
-    void loadStudents({
-      isActive: false,
-      search: currentInactiveFilters.search,
-      sort: {
-        sortBy: currentInactiveFilters.sortBy,
-        sortDir: currentInactiveFilters.sortDir
-      },
-      page: currentInactiveFilters.page
-    })
-  }, [
-    currentInactiveFilters.page,
-    currentInactiveFilters.search,
-    currentInactiveFilters.sortBy,
-    currentInactiveFilters.sortDir,
-    loadStudents
-  ])
-
-  async function activateStudent(studentId: string, value: true | false) {
-    setIsSubmitting(true)
-
-    try {
-      const response = await fetch(`/api/users/${studentId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          isActive: value
-        })
-      })
-
-      if (!response.ok) {
-        let message = value
-          ? 'Impossibile attivare lo studente.'
-          : 'Impossibile disattivare lo studente.'
-        try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
-        } catch {
-          message = value
-            ? 'Impossibile attivare lo studente.'
-            : 'Impossibile disattivare lo studente.'
-        }
-        throw new Error(message)
-      }
-
+  const setActive = useMutation({
+    mutationFn: ({ id, value }: { id: string, value: boolean }) => apiFetch(
+      `/api/users/${id}`,
+      value ? 'Impossibile attivare lo studente.' : 'Impossibile disattivare lo studente.',
+      jsonBody('PATCH', { isActive: value })
+    ),
+    onSuccess: (_, { value }) => {
       toast.success(value ? 'Studente attivato.' : 'Studente disattivato.')
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : value
-            ? 'Impossibile attivare lo studente.'
-            : 'Impossibile disattivare lo studente.'
-      )
-    } finally {
-      setIsSubmitting(false)
     }
-  }
+  })
+  const isSubmitting = setActive.isPending
 
+  // One student at a time, each with its own message; a failure does not stop the others.
   async function confirmChange() {
     if (!pendingChange) return
     for (const student of pendingChange.students) {
-      await activateStudent(student.id, pendingChange.activate)
+      await setActive.mutateAsync({ id: student.id, value: pendingChange.activate }).catch(() => {})
     }
     setPendingChange(null)
-    location.reload()
+    await queryClient.invalidateQueries({ queryKey: ['users'] })
   }
 
   const makeColumns = React.useCallback((activatable: boolean) => {

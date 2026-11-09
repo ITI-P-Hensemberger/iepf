@@ -20,6 +20,9 @@ import {
 } from '@tanstack/react-table'
 import { Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/page-header'
@@ -369,33 +372,40 @@ function DataTable<TData>({
   )
 }
 
+const pageSize = 20
+
+// A list's request: role filters, then the search, sort and page from the URL.
+function listQuery(
+  { search, sort, page }: { search: string, sort: { sortBy: string, sortDir: 'asc' | 'desc' } | null, page: number },
+  base: Record<string, string> = {}
+) {
+  const params = new URLSearchParams(base)
+  if (search.trim()) params.set('q', search.trim())
+  if (sort) {
+    params.set('sortBy', sort.sortBy)
+    params.set('sortDir', sort.sortDir)
+  }
+  params.set('limit', String(pageSize))
+  params.set('offset', String((page - 1) * pageSize))
+  return params.toString()
+}
+
+// Stable while nothing has loaded, so the tables do not rebuild on every render.
+const noAdmins: Admin[] = []
+const noInvites: PendingInvite[] = []
+
 export default function AdminAdminsPage() {
   const { profile } = useSession()
   const searchParams = useSearchParams()
   const setParam = useSetParam()
   // The open tab lives in the URL, so it is still open after a trip to a detail page and back.
   const listTab = (['inactive', 'invites'] as const).find((value) => value === searchParams.get('tab')) ?? 'active'
-  const [activeAdmins, setActiveAdmins] = React.useState<Admin[]>([])
-  const [inactiveAdmins, setInactiveAdmins] = React.useState<Admin[]>([])
-  const [pendingInvites, setPendingInvites] = React.useState<PendingInvite[]>(
-    []
-  )
-  const [activeTotal, setActiveTotal] = React.useState(0)
-  const [inactiveTotal, setInactiveTotal] = React.useState(0)
-  const [pendingTotal, setPendingTotal] = React.useState(0)
-  const [activeLoading, setActiveLoading] = React.useState(true)
-  const [inactiveLoading, setInactiveLoading] = React.useState(true)
-  const [pendingLoading, setPendingLoading] = React.useState(true)
-  const [pendingDeletingId, setPendingDeletingId] = React.useState<
-    string | null
-  >(null)
   const [inviteToDelete, setInviteToDelete] =
     React.useState<PendingInvite | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = React.useState(false)
   const [showInviteDialog, setShowInviteDialog] = React.useState(false)
   const [inviteEmails, setInviteEmails] = React.useState('')
-  const [isInviting, setIsInviting] = React.useState(false)
-  const pageSize = 20
+  const queryClient = useQueryClient()
 
   const parsePage = React.useCallback(
     (key: string) => {
@@ -420,103 +430,6 @@ export default function AdminAdminsPage() {
     const sortDir: 'asc' | 'desc' = direction === 'desc' ? 'desc' : 'asc'
     return { sortBy, sortDir }
   }, [])
-
-  const loadAdmins = React.useCallback(
-    async (options: {
-      isActive: boolean
-      search: string
-      sort: { sortBy: string; sortDir: 'asc' | 'desc' } | null
-      page: number
-    }) => {
-      const { isActive, search, sort, page } = options
-      const params = new URLSearchParams()
-      params.set('role', 'admin')
-      params.set('isActive', String(isActive))
-      if (search.trim()) {
-        params.set('q', search.trim())
-      }
-      if (sort) {
-        params.set('sortBy', sort.sortBy)
-        params.set('sortDir', sort.sortDir)
-      }
-      params.set('limit', String(pageSize))
-      params.set('offset', String((page - 1) * pageSize))
-
-      if (isActive) {
-        setActiveLoading(true)
-      } else {
-        setInactiveLoading(true)
-      }
-
-      try {
-        const response = await fetch(`/api/users?${params.toString()}`)
-        if (!response.ok) {
-          throw new Error('Impossibile caricare gli admin.')
-        }
-        const payload = await response.json()
-        const { items, total } = normalizePaged<Admin>(payload)
-        if (isActive) {
-          setActiveAdmins(items)
-          setActiveTotal(total)
-        } else {
-          setInactiveAdmins(items)
-          setInactiveTotal(total)
-        }
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Impossibile caricare gli admin.'
-        toast.error(message)
-      } finally {
-        if (isActive) {
-          setActiveLoading(false)
-        } else {
-          setInactiveLoading(false)
-        }
-      }
-    },
-    [pageSize]
-  )
-
-  const loadPendingInvites = React.useCallback(
-    async (options: {
-      search: string
-      sort: { sortBy: string; sortDir: 'asc' | 'desc' } | null
-      page: number
-    }) => {
-      const { search, sort, page } = options
-      const params = new URLSearchParams()
-      if (search.trim()) {
-        params.set('q', search.trim())
-      }
-      if (sort) {
-        params.set('sortBy', sort.sortBy)
-        params.set('sortDir', sort.sortDir)
-      }
-      params.set('limit', String(pageSize))
-      params.set('offset', String((page - 1) * pageSize))
-
-      setPendingLoading(true)
-      try {
-        const response = await fetch(`/api/auth/admin-invite?${params}`)
-        if (!response.ok) {
-          throw new Error('Impossibile caricare gli inviti.')
-        }
-        const payload = await response.json()
-        const { items, total } = normalizePaged<PendingInvite>(payload)
-        setPendingInvites(items)
-        setPendingTotal(total)
-      } catch (err) {
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : 'Impossibile caricare gli inviti.'
-        )
-      } finally {
-        setPendingLoading(false)
-      }
-    },
-    [pageSize]
-  )
 
   const parseAndValidateEmails = React.useCallback(
     (
@@ -564,16 +477,45 @@ export default function AdminAdminsPage() {
     []
   )
 
-  async function handleInviteAdmin() {
-    // Parse and validate emails
-    const { valid, invalid } = parseAndValidateEmails(inviteEmails)
+  // Each address on its own: one failure does not stop the others, and the dialog stays open
+  // with the addresses to retry.
+  const inviteAdmins = useMutation({
+    mutationFn: async (emails: string[]) => {
+      const results = await Promise.allSettled(emails.map((email) =>
+        apiFetch('/api/auth/admin-invite/request', 'Richiesta non riuscita.', jsonBody('POST', { email }))
+      ))
+      return results.map((result, index) => ({
+        email: emails[index],
+        error: result.status === 'rejected' ? (result.reason as Error).message : null
+      }))
+    },
+    onSuccess: (results) => {
+      const sent = results.filter((result) => !result.error).length
+      const failureList = results
+        .filter((result) => result.error)
+        .map(({ email, error }) => `• ${email}: ${error}`)
+        .join('\n')
+      if (sent > 0) void queryClient.invalidateQueries({ queryKey: ['admin-invites'] })
+      if (sent === results.length) {
+        toast.success(`${sent} ${sent === 1 ? 'invito inviato' : 'inviti inviati'}.`)
+        setInviteEmails('')
+        setShowInviteDialog(false)
+      } else if (sent > 0) {
+        const failed = results.length - sent
+        toast.error(`${sent} ${sent === 1 ? 'invito inviato' : 'inviti inviati'}.\n${failed} ${failed === 1 ? 'fallito' : 'falliti'}:\n${failureList}`)
+      } else {
+        toast.error(`Tutti gli inviti sono falliti:\n${failureList}`)
+      }
+    }
+  })
+  const isInviting = inviteAdmins.isPending
 
-    // Check if any emails were provided
+  function handleInviteAdmin() {
+    const { valid, invalid } = parseAndValidateEmails(inviteEmails)
     if (valid.length === 0 && invalid.length === 0) {
       toast.error('Inserisci almeno un indirizzo email.')
       return
     }
-
     // Block submission if any invalid emails
     if (invalid.length > 0) {
       const errorList = invalid
@@ -584,118 +526,23 @@ export default function AdminAdminsPage() {
       )
       return
     }
-
-    setIsInviting(true)
-
-    try {
-      // Send all invites in parallel
-      const results = await Promise.allSettled(
-        valid.map((email) =>
-          fetch('/api/auth/admin-invite/request', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email })
-          }).then(async (res) => {
-            if (!res.ok) {
-              const payload = await res.json()
-              throw new Error(payload.message || 'Richiesta non riuscita.')
-            }
-            return { email, success: true }
-          })
-        )
-      )
-
-      // Collect successes and failures
-      const successes: string[] = []
-      const failures: Array<{ email: string; error: string }> = []
-
-      results.forEach((result, index) => {
-        const email = valid[index]
-        if (result.status === 'fulfilled') {
-          successes.push(email)
-        } else {
-          failures.push({
-            email,
-            error: result.reason?.message || 'Errore sconosciuto'
-          })
-        }
-      })
-
-      // Build feedback message
-      if (successes.length === valid.length) {
-        // All succeeded
-        toast.success(
-          `${successes.length} ${successes.length === 1 ? 'invito inviato' : 'inviti inviati'}.`
-        )
-        setInviteEmails('')
-        setShowInviteDialog(false)
-        void loadPendingInvites({
-          search: pendingSearch,
-          sort: pendingSort,
-          page: pendingPage
-        })
-      } else if (successes.length > 0) {
-        // Partial success
-        const failureList = failures
-          .map(({ email, error }) => `• ${email}: ${error}`)
-          .join('\n')
-        toast.error(
-          `${successes.length} ${successes.length === 1 ? 'invito inviato' : 'inviti inviati'}.\n${failures.length} ${failures.length === 1 ? 'fallito' : 'falliti'}:\n${failureList}`
-        )
-        // Don't close dialog, let admin retry failed ones
-      } else {
-        // All failed
-        const failureList = failures
-          .map(({ email, error }) => `• ${email}: ${error}`)
-          .join('\n')
-        toast.error(`Tutti gli inviti sono falliti:\n${failureList}`)
-      }
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Si è verificato un errore. Riprova.'
-      )
-    } finally {
-      setIsInviting(false)
-    }
+    inviteAdmins.mutate(valid)
   }
 
-  const handleDeleteInvite = React.useCallback(
-    async () => {
-      if (!inviteToDelete) return
-      const invite = inviteToDelete
-      setPendingDeletingId(invite.id)
-      try {
-        const response = await fetch(`/api/auth/admin-invite/${invite.id}`, {
-          method: 'DELETE'
-        })
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null)
-          throw new Error(
-            payload?.message || "Impossibile eliminare l'invito."
-          )
-        }
-        toast.success('Invito eliminato.')
-        void loadPendingInvites({
-          search: searchParams.get('pendingAdminSearch') ?? '',
-          sort: parseSortParam(searchParams.get('pendingAdminSort')),
-          page: parsePage('pendingAdminPage')
-        })
-        setShowDeleteDialog(false)
-        setInviteToDelete(null)
-      } catch (err) {
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : "Impossibile eliminare l'invito."
-        )
-      } finally {
-        setPendingDeletingId(null)
-      }
-    },
-    [inviteToDelete, loadPendingInvites, parsePage, parseSortParam, searchParams]
-  )
+  const deleteInvite = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/auth/admin-invite/${id}`, "Impossibile eliminare l'invito.", jsonBody('DELETE')),
+    onSuccess: () => {
+      toast.success('Invito eliminato.')
+      setShowDeleteDialog(false)
+      setInviteToDelete(null)
+      return queryClient.invalidateQueries({ queryKey: ['admin-invites'] })
+    }
+  })
+  const pendingDeletingId = deleteInvite.isPending ? deleteInvite.variables : null
+
+  const handleDeleteInvite = () => {
+    if (inviteToDelete) deleteInvite.mutate(inviteToDelete.id)
+  }
 
   const openDeleteDialog = React.useCallback((invite: PendingInvite) => {
     setInviteToDelete(invite)
@@ -813,31 +660,34 @@ export default function AdminAdminsPage() {
   const inactivePage = parsePage('inactiveAdminPage')
   const pendingPage = parsePage('pendingAdminPage')
 
-  React.useEffect(() => {
-    void loadAdmins({
-      isActive: true,
-      search: activeSearch,
-      sort: activeSort,
-      page: activePage
-    })
-  }, [activePage, activeSearch, activeSort, loadAdmins])
-
-  React.useEffect(() => {
-    void loadAdmins({
-      isActive: false,
-      search: inactiveSearch,
-      sort: inactiveSort,
-      page: inactivePage
-    })
-  }, [inactivePage, inactiveSearch, inactiveSort, loadAdmins])
-
-  React.useEffect(() => {
-    void loadPendingInvites({
-      search: pendingSearch,
-      sort: pendingSort,
-      page: pendingPage
-    })
-  }, [loadPendingInvites, pendingPage, pendingSearch, pendingSort])
+  const activeQuery = listQuery({ search: activeSearch, sort: activeSort, page: activePage }, { role: 'admin', isActive: 'true' })
+  const inactiveQuery = listQuery({ search: inactiveSearch, sort: inactiveSort, page: inactivePage }, { role: 'admin', isActive: 'false' })
+  const pendingQuery = listQuery({ search: pendingSearch, sort: pendingSort, page: pendingPage })
+  // The rows stay in place while the next page or search loads.
+  const activeResult = useQuery({
+    queryKey: ['users', activeQuery],
+    queryFn: async () => normalizePaged<Admin>(await apiFetch(`/api/users?${activeQuery}`, 'Impossibile caricare gli admin.')),
+    placeholderData: keepPreviousData
+  })
+  const inactiveResult = useQuery({
+    queryKey: ['users', inactiveQuery],
+    queryFn: async () => normalizePaged<Admin>(await apiFetch(`/api/users?${inactiveQuery}`, 'Impossibile caricare gli admin.')),
+    placeholderData: keepPreviousData
+  })
+  const pendingResult = useQuery({
+    queryKey: ['admin-invites', pendingQuery],
+    queryFn: async () => normalizePaged<PendingInvite>(await apiFetch(`/api/auth/admin-invite?${pendingQuery}`, 'Impossibile caricare gli inviti.')),
+    placeholderData: keepPreviousData
+  })
+  const activeAdmins = activeResult.data?.items ?? noAdmins
+  const activeTotal = activeResult.data?.total ?? 0
+  const activeLoading = activeResult.isFetching
+  const inactiveAdmins = inactiveResult.data?.items ?? noAdmins
+  const inactiveTotal = inactiveResult.data?.total ?? 0
+  const inactiveLoading = inactiveResult.isFetching
+  const pendingInvites = pendingResult.data?.items ?? noInvites
+  const pendingTotal = pendingResult.data?.total ?? 0
+  const pendingLoading = pendingResult.isFetching
 
   const showPendingTab =
     pendingTotal > 0 ||
@@ -981,7 +831,7 @@ export default function AdminAdminsPage() {
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
-                void handleInviteAdmin()
+                handleInviteAdmin()
               }}
               disabled={isInviting || !inviteEmails.trim()}
             >
@@ -1014,7 +864,7 @@ export default function AdminAdminsPage() {
               Annulla
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => void handleDeleteInvite()}
+              onClick={handleDeleteInvite}
               disabled={Boolean(pendingDeletingId) || !inviteToDelete}
               variant='destructive'
             >
