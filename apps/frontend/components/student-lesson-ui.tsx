@@ -21,6 +21,8 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { extractPayloadArray } from '@/lib/backend-response'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { capitalizeFirst } from '@/lib/capitalize'
 import { FEEDBACK_LOCKED_NOTICE, FeedbackHistoryToggle } from '@/components/feedback-history'
@@ -176,24 +178,12 @@ export function StudentLessonCard({
 
 // The student's feedback, by booking.
 export function useStudentFeedback() {
-  const [byBooking, setByBooking] = React.useState<Map<string, StudentFeedback>>(new Map())
-  const load = React.useCallback(async () => {
-    try {
-      const response = await fetch('/api/feedback/me?limit=200&offset=0')
-      if (!response.ok) throw new Error('Impossibile caricare i feedback.')
-      const items = extractPayloadArray<StudentFeedback>(await response.json())
-      setByBooking(new Map(items.map((item) => [item.bookingId, item])))
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Impossibile caricare i feedback.')
-    }
-  }, [])
-  React.useEffect(() => {
-    void load()
-  }, [load])
-  const remember = React.useCallback((item: StudentFeedback) => {
-    setByBooking((prev) => new Map(prev).set(item.bookingId, item))
-  }, [])
-  return { byBooking, remember }
+  const { data } = useQuery({
+    queryKey: ['feedback', 'me'],
+    queryFn: async () => extractPayloadArray<StudentFeedback>(await apiFetch('/api/feedback/me?limit=200&offset=0', 'Impossibile caricare i feedback.'))
+  })
+  const byBooking = React.useMemo(() => new Map((data ?? []).map((item) => [item.bookingId, item])), [data])
+  return { byBooking }
 }
 
 export function CancelBookingDialog({
@@ -205,31 +195,27 @@ export function CancelBookingDialog({
   onClose: () => void
   onCanceled: () => void
 }) {
+  const queryClient = useQueryClient()
   const [confirmed, setConfirmed] = React.useState(false)
-  const [busy, setBusy] = React.useState(false)
   const refunded = lesson ? new Date() < refundDeadline(lesson.startAt) : true
 
-  const cancel = async () => {
-    if (!lesson) return
-    setBusy(true)
-    try {
-      const response = await fetch(`/api/lessons/${lesson.id}/bookings/${lesson.bookingId}/cancel`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
-      })
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        throw new Error(payload?.message || 'Impossibile annullare la prenotazione.')
-      }
+  const cancelBooking = useMutation({
+    mutationFn: (target: StudentLesson) => apiFetch(
+      `/api/lessons/${target.id}/bookings/${target.bookingId}/cancel`,
+      'Impossibile annullare la prenotazione.',
+      jsonBody('PATCH', {})
+    ),
+    onSuccess: async () => {
       toast.success('Prenotazione annullata.')
       setConfirmed(false)
+      // The student's lessons and the free seats change.
+      await queryClient.invalidateQueries({ queryKey: ['lessons'] })
       onCanceled()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Impossibile annullare la prenotazione.')
-    } finally {
-      setBusy(false)
     }
+  })
+  const busy = cancelBooking.isPending
+  const cancel = () => {
+    if (lesson) cancelBooking.mutate(lesson)
   }
 
   return (
@@ -268,7 +254,7 @@ export function CancelBookingDialog({
             disabled={busy || (!refunded && !confirmed)}
             onClick={(event) => {
               event.preventDefault()
-              void cancel()
+              cancel()
             }}
           >
             {busy ? 'Annullamento...' : 'Annulla prenotazione'}
@@ -283,59 +269,47 @@ export function FeedbackDialog({
   lesson,
   existing,
   onClose,
-  onSaved
 }: {
   lesson: StudentLesson | null
   existing?: StudentFeedback
   onClose: () => void
-  onSaved: (feedback: StudentFeedback) => void
 }) {
-  const [rating, setRating] = React.useState(5)
-  const [text, setText] = React.useState('')
-  const [busy, setBusy] = React.useState(false)
+  const queryClient = useQueryClient()
+  const [rating, setRating] = React.useState(existing?.rating ?? 5)
+  const [text, setText] = React.useState(existing?.text ?? '')
   const [editing, setEditing] = React.useState(false)
   const canEdit = Boolean(existing?.editableUntil && new Date() <= new Date(existing.editableUntil))
   const readonly = Boolean(existing) && !editing
 
-  React.useEffect(() => {
+  // Another lesson, or its feedback just loaded: the form starts again from it.
+  const [shownFor, setShownFor] = React.useState({ existing, lesson })
+  if (shownFor.existing !== existing || shownFor.lesson !== lesson) {
+    setShownFor({ existing, lesson })
     setRating(existing?.rating ?? 5)
     setText(existing?.text ?? '')
     setEditing(false)
-  }, [existing, lesson])
+  }
 
-  const save = async () => {
+  const saveFeedback = useMutation({
+    mutationFn: ({ target, value }: { target: StudentLesson, value: { rating: number, text: string } }) => existing
+      ? apiFetch(`/api/lessons/${target.id}/feedback/${existing.id}`, 'Impossibile salvare il feedback.', jsonBody('PATCH', value))
+      : apiFetch(`/api/lessons/${target.id}/feedback`, 'Impossibile salvare il feedback.', jsonBody('POST', { bookingId: target.bookingId, ...value })),
+    onSuccess: async () => {
+      toast.success(existing ? 'Feedback aggiornato.' : 'Feedback inviato.')
+      await queryClient.invalidateQueries({ queryKey: ['feedback'] })
+      onClose()
+    }
+  })
+  const busy = saveFeedback.isPending
+
+  const save = () => {
     if (!lesson) return
     const trimmed = text.trim()
     if (!trimmed) {
       toast.error('Scrivi com\'è andata la lezione.')
       return
     }
-    setBusy(true)
-    try {
-      const response = existing
-        ? await fetch(`/api/lessons/${lesson.id}/feedback/${existing.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rating, text: trimmed })
-          })
-        : await fetch(`/api/lessons/${lesson.id}/feedback`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bookingId: lesson.bookingId, rating, text: trimmed })
-          })
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        throw new Error(payload?.message || 'Impossibile salvare il feedback.')
-      }
-      const saved = (await response.json().catch(() => null)) as StudentFeedback | null
-      toast.success(existing ? 'Feedback aggiornato.' : 'Feedback inviato.')
-      if (saved?.bookingId) onSaved(saved)
-      onClose()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Impossibile salvare il feedback.')
-    } finally {
-      setBusy(false)
-    }
+    saveFeedback.mutate({ target: lesson, value: { rating, text: trimmed } })
   }
 
   return (
@@ -402,7 +376,7 @@ export function FeedbackDialog({
               disabled={busy}
               onClick={(event) => {
                 event.preventDefault()
-                void save()
+                save()
               }}
             >
               {busy ? 'Salvataggio...' : existing ? 'Salva modifiche' : 'Invia'}

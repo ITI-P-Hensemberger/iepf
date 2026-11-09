@@ -16,6 +16,8 @@ import { StatusBlock } from '@/components/status-block'
 import { Button } from '@/components/ui/button'
 import { ACTIVATION_FORM_URL, RELEASE_FORM_URL } from '@/lib/student-activation'
 import { useSession } from '@/lib/use-session'
+import { useQuery } from '@tanstack/react-query'
+import { apiFetch } from '@/lib/api-fetch'
 
 type Deactivation = {
   deactivatedAt?: string | null
@@ -25,19 +27,14 @@ type Deactivation = {
 // Reads whether this account was active once and was turned off, and why; undefined while loading.
 function useDeactivation() {
   const { profile } = useSession()
-  const [state, setState] = React.useState<Deactivation | null | undefined>(
-    undefined
-  )
-  React.useEffect(() => {
-    if (!profile?.id) return
-    fetch(`/api/users/${profile.id}`, { cache: 'no-store' })
-      .then((response) =>
-        response.ok ? (response.json() as Promise<Deactivation>) : null
-      )
-      .catch(() => null)
-      .then(setState)
-  }, [profile?.id])
-  return state
+  // A failure reads as "never deactivated": the page then shows the plain waiting text.
+  const { data, isPending } = useQuery({
+    queryKey: ['users', profile?.id],
+    queryFn: () => apiFetch<Deactivation>(`/api/users/${profile?.id}`, 'Impossibile caricare il tuo account.', { cache: 'no-store' }),
+    enabled: Boolean(profile?.id),
+    meta: { inline: true }
+  })
+  return isPending ? undefined : (data ?? null)
 }
 
 const contact = (
