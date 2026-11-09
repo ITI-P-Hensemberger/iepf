@@ -54,6 +54,8 @@ if name=='docker':
     if args[0]=='logs': print('ready to accept connections\\nready to accept connections')
     if args[0]=='exec':
         if fail=='backup': sys.exit(1)
+        # Like psql, read the whole restore input: a writer left mid-pipe dies of SIGPIPE.
+        if '-i' in args: sys.stdin.buffer.read()
         if 'select count(*) from users' in args: print('0' if fail=='restore' else '3')
         elif not ('-i' in args and fail==''): print('-- test dump')
     if 'db:migrate' in args and fail=='migration': sys.exit(1)
@@ -188,6 +190,9 @@ if name=='curl' and fail=='http': sys.exit(1)
     def test_backup_keeps_an_encrypted_copy_of_the_configuration(self):
         r = subprocess.run(['bash', str(self.bundle / 'backup.sh')], env=self.env, capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
+        # The database dump holds students' data: only its encrypted copy is kept and uploaded.
+        self.assertEqual(len(list((self.root / 'shared' / 'backups').glob('iepf-2*.sql.gz.gpg'))), 1)
+        self.assertEqual(list((self.root / 'shared' / 'backups').glob('*.sql.gz')), [])
         archive = next((self.root / 'shared' / 'backups').glob('iepf-config-*.tar.gz.gpg'))
         self.assertNotIn(b'TEST=true', archive.read_bytes())
         self.assertTrue(any(c[:2] == ['rclone', 'copy'] and c[-1].endswith('/config') for c in self.commands()))
@@ -199,7 +204,9 @@ if name=='curl' and fail=='http': sys.exit(1)
     def test_restore_test_loads_the_newest_backup(self):
         backups = self.root / 'shared' / 'backups'
         backups.mkdir()
-        (backups / 'iepf-20261101T010000-1.sql.gz').write_bytes(subprocess.run(['gzip', '-c'], input=b'-- dump', capture_output=True).stdout)
+        dump = subprocess.run(['gzip', '-c'], input=b'-- dump', capture_output=True).stdout
+        subprocess.run(['gpg', '--batch', '--pinentry-mode', 'loopback', '--symmetric', '--passphrase-file', str(self.root / 'shared' / 'backup.key'),
+                        '-o', str(backups / 'iepf-20261101T010000-1.sql.gz.gpg')], input=dump, check=True, capture_output=True)
         r = subprocess.run(['bash', str(self.bundle / 'restore-test.sh')], env=self.env, capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn('3 users', r.stdout)

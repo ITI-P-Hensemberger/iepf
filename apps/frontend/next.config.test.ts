@@ -15,12 +15,12 @@ describe('security headers', () => {
     })
   })
 
-  it('reports content security violations without blocking yet', async () => {
+  it('enforces the content security policy', async () => {
     const rules = await nextConfig.headers!()
     const keys = rules[0].headers.map(({ key }) => key)
-    const policy = rules[0].headers.find(({ key }) => key === 'Content-Security-Policy-Report-Only')?.value
+    const policy = rules[0].headers.find(({ key }) => key === 'Content-Security-Policy')?.value
 
-    expect(keys).not.toContain('Content-Security-Policy')
+    expect(keys).not.toContain('Content-Security-Policy-Report-Only')
     expect(policy).toContain("connect-src 'self'")
     expect(policy).toContain("frame-ancestors 'none'")
   })

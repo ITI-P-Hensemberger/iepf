@@ -35,7 +35,7 @@ const contentSecurityPolicy = [
 // Dev mode needs eval and a websocket, which the policy rightly forbids.
 const headers = process.env.NODE_ENV === 'development'
   ? securityHeaders
-  : [...securityHeaders, { key: 'Content-Security-Policy-Report-Only', value: contentSecurityPolicy }]
+  : [...securityHeaders, { key: 'Content-Security-Policy', value: contentSecurityPolicy }]
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
