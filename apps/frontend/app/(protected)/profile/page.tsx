@@ -42,15 +42,7 @@ import { apiFetch, jsonBody } from '@/lib/api-fetch'
 import { NotificationSettings } from '@/components/notification-settings'
 import { avatarGradient } from '@/lib/avatar'
 import { classLabel } from '@/lib/class-label'
-import { PERSON_NAME_PATTERN } from '@/lib/person-name'
-function normalizeName(value: string) {
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return ''
-  }
-  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase()
-}
-
+import { normalizeName, PERSON_NAME_PATTERN } from '@/lib/person-name'
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase()
 }

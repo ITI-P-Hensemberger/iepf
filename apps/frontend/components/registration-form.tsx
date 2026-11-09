@@ -41,7 +41,7 @@ import Link from 'next/link'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { STUDENT_YEARS } from '@/lib/school-years'
 import { apiFetch, jsonBody } from '@/lib/api-fetch'
-import { PERSON_NAME_PATTERN } from '@/lib/person-name'
+import { normalizeName, PERSON_NAME_PATTERN } from '@/lib/person-name'
 const formSchema = z
   .object({
     first_name: z
@@ -86,14 +86,6 @@ const formSchema = z
       })
     }
   })
-
-function normalizeName(value: string) {
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return ''
-  }
-  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase()
-}
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase()

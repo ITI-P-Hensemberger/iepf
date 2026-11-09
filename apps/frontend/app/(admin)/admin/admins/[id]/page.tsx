@@ -46,15 +46,7 @@ import {
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { formatItalianDate } from '@/lib/format-date'
-import { PERSON_NAME_PATTERN } from '@/lib/person-name'
-
-function normalizeName(value: string) {
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return ''
-  }
-  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase()
-}
+import { normalizeName, PERSON_NAME_PATTERN } from '@/lib/person-name'
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase()

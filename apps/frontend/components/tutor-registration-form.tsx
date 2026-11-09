@@ -42,15 +42,7 @@ import { extractPayloadArray } from '@/lib/backend-response'
 import { TUTOR_YEARS } from '@/lib/school-years'
 import { apiFetch } from '@/lib/api-fetch'
 import { confirmInvite } from '@/lib/auth-client'
-import { PERSON_NAME_PATTERN } from '@/lib/person-name'
-
-function normalizeName(value: string) {
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return ''
-  }
-  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase()
-}
+import { normalizeName, PERSON_NAME_PATTERN } from '@/lib/person-name'
 
 const formSchema = z
   .object({
