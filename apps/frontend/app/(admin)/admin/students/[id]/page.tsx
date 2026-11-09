@@ -61,6 +61,7 @@ import {
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
 import { STUDENT_YEARS } from '@/lib/school-years'
+import { PERSON_NAME_PATTERN } from '@/lib/person-name'
 
 function normalizeName(value: string) {
   const trimmed = value.trim()
@@ -79,12 +80,12 @@ const formSchema = z.object({
     .string()
     .trim()
     .min(2, 'Il nome e obbligatorio')
-    .regex(/^[\p{L}]+$/u, 'Il nome puo contenere solo lettere'),
+    .regex(PERSON_NAME_PATTERN, 'Il nome può contenere solo lettere e apostrofi'),
   lastName: z
     .string()
     .trim()
     .min(2, 'Il cognome e obbligatorio')
-    .regex(/^[\p{L}]+$/u, 'Il cognome puo contenere solo lettere'),
+    .regex(PERSON_NAME_PATTERN, 'Il cognome può contenere solo lettere e apostrofi'),
   email: z.string().email('Indirizzo email non valido'),
   year: z.string().min(1, "L'anno e obbligatorio"),
   sectionId: z.uuid('La sezione e obbligatoria')

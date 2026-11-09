@@ -41,18 +41,19 @@ import Link from 'next/link'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { STUDENT_YEARS } from '@/lib/school-years'
 import { apiFetch, jsonBody } from '@/lib/api-fetch'
+import { PERSON_NAME_PATTERN } from '@/lib/person-name'
 const formSchema = z
   .object({
     first_name: z
       .string()
       .trim()
       .min(2, 'Il nome è obbligatorio')
-      .regex(/^[\p{L}]+$/u, 'Il nome può contenere solo lettere'),
+      .regex(PERSON_NAME_PATTERN, 'Il nome può contenere solo lettere e apostrofi'),
     last_name: z
       .string()
       .trim()
       .min(2, 'Il cognome è obbligatorio')
-      .regex(/^[\p{L}]+$/u, 'Il cognome può contenere solo lettere'),
+      .regex(PERSON_NAME_PATTERN, 'Il cognome può contenere solo lettere e apostrofi'),
     year: z.string().min(1, "L'anno è obbligatorio"),
     sectionId: z.uuid('La sezione è obbligatoria'),
     email: z.email('Indirizzo email non valido'),
