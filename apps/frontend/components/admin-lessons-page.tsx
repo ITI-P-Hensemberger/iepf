@@ -8,7 +8,6 @@ import { ListPagination } from '@/components/list-pagination'
 import { TableSkeletonRows, useFirstLoad } from '@/components/loading'
 import * as React from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { CalendarIcon } from 'lucide-react'
 
 import {
   AlertDialog,
@@ -44,7 +43,6 @@ import {
   TableRow
 } from '@/components/ui/table'
 
-import { format } from 'date-fns'
 import { toast } from 'sonner'
 
 import { formatItalianDate } from '@/lib/format-date'

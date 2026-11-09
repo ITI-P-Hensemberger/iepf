@@ -1,14 +1,11 @@
 'use client'
 
 // Purpose: Dialogs to move a lesson to another tutor, subject, date or time.
-import { CalendarIcon } from 'lucide-react'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
 import { DatePicker, useSchoolDays } from '@/components/date-picker'
 import { Field } from '@/components/ui/field'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { format } from 'date-fns'
 import type { RescheduleLesson } from './use-reschedule-lesson'
 import type { Lesson } from './shared'
 import { AVAILABLE_TIMES, OPEN_SUBJECT_VALUE, tutorLabel } from './shared'
