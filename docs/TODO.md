@@ -60,6 +60,10 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
 
 - [ ] **1. Provare il ripristino dei backup e verificare la cifratura** (rimandato per
   decisione dell'utente il 2026-11-04: non bloccare gli altri punti)
+  - **Stato:** `restore-test.sh` ripristina ogni mese l'ultimo backup locale in un PostgreSQL
+    senza rete (#88). Dump e file env sono cifrati con la passphrase di `shared/backup.key`,
+    che va tenuta anche fuori dalla VPS. **Resta da fare:** un ripristino a mano di un dump scaricato
+    da Drive, con data e durata annotate nel runbook.
   - **Problema:** il ripristino non risulta provato. `backup.sh` carica su Google Drive un
     dump con dati degli studenti, senza cifratura nello script.
   - **File:** `infra/deploy/backup.sh`, `infra/deploy/README.md`
@@ -237,8 +241,8 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Stima:** S
   - **Dipendenze:** nessuna
 
-- [ ] **11. Aggiungere gli header di sicurezza**
-  - **Stato:** HSTS, `X-Frame-Options`, `X-Content-Type-Options` e `Referrer-Policy` aggiunti e `x-powered-by` tolto. HSTS parte da 30 giorni, senza sottodomini. La CSP è attiva solo in `report-only`, senza nonce: gli script inline restano permessi. **Resta da applicarla:** il punto rimane aperto finché la navigazione in produzione non conferma che non ci sono violazioni.
+- [x] **11. Aggiungere gli header di sicurezza**
+  - **Stato:** HSTS, `X-Frame-Options`, `X-Content-Type-Options` e `Referrer-Policy` aggiunti e `x-powered-by` tolto. HSTS parte da 30 giorni, senza sottodomini. La CSP, senza nonce (gli script inline restano permessi), è applicata dopo che la navigazione in produzione in `report-only` non ha mostrato violazioni (2026-11-09).
   - **Problema:** la home in produzione non invia HSTS, CSP, `X-Frame-Options`,
     `X-Content-Type-Options` né `Referrer-Policy`, ed espone `x-powered-by: Next.js`.
   - **File:** `apps/frontend/next.config.ts`, `infra/deploy/compose.yaml` (etichette Traefik)
@@ -466,7 +470,8 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
     **73 warning** (0 errori) in 31 file, tutti dalle regole React Compiler di
     `eslint-plugin-react-hooks`: `set-state-in-effect` 63, `incompatible-library` 4,
     `preserve-manual-memoization` 3, `purity` 2, `immutability` 1. Non bloccano CI né build,
-    ma nascondono i warning nuovi di ogni PR. Il backend è già pulito.
+    ma nascondono i warning nuovi di ogni PR. Il backend è già pulito. Il 2026-11-09 sono
+    **61**.
   - **File:** i più colpiti sono `components/admin-tutors-page.tsx` (6),
     `components/admin-lesson-details-page.tsx` (5) e varie pagine admin e studente (4 ciascuna).
     Elenco completo con `npx eslint . -f json`.

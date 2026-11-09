@@ -119,9 +119,13 @@ nel journal. La disponibilità del sito va controllata da un servizio esterno su
 l'avviso: `systemctl start iepf-alert@prova.service`. `install-timers.sh` copia lo script in
 `/opt/iepf/shared/alert.sh`, così funziona anche dopo un rollback: rieseguirlo se lo script cambia.
 
+Cifratura: il dump del database (`iepf-*.sql.gz.gpg`) e la configurazione sono cifrati con
+la passphrase di `/opt/iepf/shared/backup.key`. I dump in chiaro (`*.sql.gz`) fatti prima
+della cifratura restano su Drive fino alla scadenza dei 30 giorni.
+
 Backup della configurazione: ogni backup salva anche `host.env`, `backend.env`,
 `postgres.env` e `images.env` (chiavi VAPID, SMTP, segreto JWT) in
-`gdrive:postgres-backups/config`, cifrati con la passphrase di `/opt/iepf/shared/backup.key`.
+`gdrive:postgres-backups/config`.
 La stessa passphrase va tenuta fuori dal server (password manager): senza, su una VPS nuova
 l'archivio non si apre. Senza il file il backup fallisce, e con lui il deploy che migra.
 Ripristino su una VPS nuova, dopo aver configurato rclone:
@@ -230,7 +234,7 @@ il contenuto del database, quindi va provato prima su una copia:
 ```bash
 docker compose --env-file /opt/iepf/shared/host.env --env-file /opt/iepf/current/images.env -f /opt/iepf/current/compose.yaml stop frontend backend
 docker exec postgres sh -ec 'psql -U "$POSTGRES_USER" -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE \"$POSTGRES_DB\" WITH (FORCE)" -c "CREATE DATABASE \"$POSTGRES_DB\""'
-gunzip -c FILE.sql.gz | docker exec -i postgres sh -ec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'
+gpg --batch --pinentry-mode loopback --passphrase-file /opt/iepf/shared/backup.key -d FILE.sql.gz.gpg | gunzip -c | docker exec -i postgres sh -ec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'
 docker compose --env-file /opt/iepf/shared/host.env --env-file /opt/iepf/current/images.env -f /opt/iepf/current/compose.yaml up -d --wait frontend backend
 ```
 
