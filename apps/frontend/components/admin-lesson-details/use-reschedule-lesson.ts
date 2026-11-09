@@ -2,6 +2,7 @@
 import * as React from 'react'
 import { toast } from 'sonner'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { apiFetch, jsonBody } from '@/lib/api-fetch'
 import { extractPayloadArray } from '@/lib/backend-response'
 import type { Lesson, Tutor, Subject } from './shared'
@@ -13,6 +14,8 @@ const noSubjects: Subject[] = []
 const noSubjectIds: string[] = []
 
 export function useRescheduleLesson({ lesson, reloadLessons }: { lesson: Lesson | null, reloadLessons: () => Promise<void> }) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [isRescheduleOpen, setIsRescheduleOpen] = React.useState(false)
   const [rescheduleForm, setRescheduleForm] = React.useState({
     tutorId: '',
@@ -103,15 +106,21 @@ export function useRescheduleLesson({ lesson, reloadLessons }: { lesson: Lesson 
   }, [lesson])
 
   const rescheduleLesson = useMutation({
-    mutationFn: (body: { id: string, tutorId: string, subjectId: string | null, startAt: string }) => apiFetch(
+    mutationFn: (body: { id: string, tutorId: string, subjectId: string | null, startAt: string }) => apiFetch<{ lessonId?: string }>(
       `/api/lessons/${body.id}/reschedule`,
       'Impossibile riprogrammare la lezione.',
       jsonBody('POST', { tutorId: body.tutorId, subjectId: body.subjectId, startAt: body.startAt, durationMinutes: 60 })
     ),
-    onSuccess: () => {
+    onSuccess: async (payload, body) => {
       toast.success('Lezione riprogrammata.')
       setIsRescheduleOpen(false)
-      return reloadLessons()
+      await reloadLessons()
+      // The backend moves the bookings to a new lesson and cancels this one: show the new one,
+      // keeping ?from= so back still leads where the admin came from.
+      if (payload?.lessonId && payload.lessonId !== body.id) {
+        const query = searchParams.toString()
+        router.replace(`/admin/lessons/${payload.lessonId}${query ? `?${query}` : ''}`)
+      }
     }
   })
   const isRescheduling = rescheduleLesson.isPending

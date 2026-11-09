@@ -50,7 +50,7 @@ export function useBookStudent({ lessonId, reloadLessons }: { lessonId: string, 
   const createBooking = useMutation({
     mutationFn: () => apiFetch(`/api/lessons/${lessonId}/book`, 'Impossibile creare la prenotazione.', jsonBody('POST', {
       studentId: selectedStudentId,
-      topic: bookingTopic.trim() ? bookingTopic.trim() : undefined,
+      topic: bookingTopic.trim(),
       subjectId: bookingSubjectId || undefined
     })),
     onSuccess: () => {
@@ -65,7 +65,7 @@ export function useBookStudent({ lessonId, reloadLessons }: { lessonId: string, 
   })
   const isCreatingBooking = createBooking.isPending
   const handleCreateBooking = () => {
-    if (selectedStudentId) createBooking.mutate()
+    if (selectedStudentId && bookingTopic.trim()) createBooking.mutate()
   }
 
   return {
