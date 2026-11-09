@@ -61,9 +61,11 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
 - [ ] **1. Provare il ripristino dei backup e verificare la cifratura** (rimandato per
   decisione dell'utente il 2026-11-04: non bloccare gli altri punti)
   - **Stato:** `restore-test.sh` ripristina ogni mese l'ultimo backup locale in un PostgreSQL
-    senza rete (#88). Dump e file env sono cifrati con la passphrase di `shared/backup.key`,
-    che va tenuta anche fuori dalla VPS. **Resta da fare:** un ripristino a mano di un dump scaricato
-    da Drive, con data e durata annotate nel runbook.
+    senza rete (#88). Dal 2026-11-09 dump e file env sono cifrati con la passphrase di
+    `shared/backup.key` (#92), salvata anche nel gestore password; i vecchi dump in chiaro su
+    Drive sono stati eliminati. **Resta da fare:** un ripristino a mano di un dump scaricato da
+    Drive su una copia isolata, con conteggi delle tabelle confrontati e data e durata annotate
+    nel runbook.
   - **Problema:** il ripristino non risulta provato. `backup.sh` carica su Google Drive un
     dump con dati degli studenti, senza cifratura nello script.
   - **File:** `infra/deploy/backup.sh`, `infra/deploy/README.md`
