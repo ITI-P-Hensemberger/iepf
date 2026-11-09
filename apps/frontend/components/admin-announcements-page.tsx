@@ -49,6 +49,8 @@ import {
 import { safeHref } from '@/lib/markdown'
 import { cn } from '@/lib/utils'
 import { capitalizeFirst } from '@/lib/capitalize'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 
 type Role = 'student' | 'tutor' | 'admin'
 
@@ -266,15 +268,6 @@ function validate(draft: Draft): string | null {
   return null
 }
 
-async function readError(response: Response, fallback: string) {
-  try {
-    const payload = (await response.json()) as { message?: string }
-    return payload.message || fallback
-  } catch {
-    return fallback
-  }
-}
-
 function AnnouncementForm({
   initial,
   editingId,
@@ -287,41 +280,29 @@ function AnnouncementForm({
   onCancel: () => void
 }) {
   const [draft, setDraft] = React.useState<Draft>(initial)
-  const [isSaving, setIsSaving] = React.useState(false)
+  const save = useMutation({
+    mutationFn: (value: Draft) => apiFetch<Announcement>(
+      editingId ? `/api/admin/announcements/${editingId}` : '/api/admin/announcements',
+      'Salvataggio non riuscito.',
+      jsonBody(editingId ? 'PUT' : 'POST', payloadFrom(value))
+    ),
+    onSuccess: (saved) => {
+      onSaved(saved)
+      toast.success(editingId ? 'Popup aggiornato.' : 'Popup creato.')
+    }
+  })
+  const isSaving = save.isPending
   const update = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((previous) => ({ ...previous, [key]: value }))
 
-  async function handleSubmit(event: React.FormEvent) {
+  function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
     const problem = validate(draft)
     if (problem) {
       toast.error(problem)
       return
     }
-    setIsSaving(true)
-    try {
-      const response = await fetch(
-        editingId
-          ? `/api/admin/announcements/${editingId}`
-          : '/api/admin/announcements',
-        {
-          method: editingId ? 'PUT' : 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payloadFrom(draft))
-        }
-      )
-      if (!response.ok) {
-        throw new Error(await readError(response, 'Salvataggio non riuscito.'))
-      }
-      onSaved((await response.json()) as Announcement)
-      toast.success(editingId ? 'Popup aggiornato.' : 'Popup creato.')
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Salvataggio non riuscito.'
-      )
-    } finally {
-      setIsSaving(false)
-    }
+    save.mutate(draft)
   }
 
   const preview = payloadFrom(draft)
@@ -499,46 +480,20 @@ function AnnouncementForm({
 }
 
 // The "Popup" section of the global settings.
+const noItems: Announcement[] = []
+
 export default function AdminAnnouncementsPage() {
-  const [items, setItems] = React.useState<Announcement[]>([])
-  const [isLoading, setIsLoading] = React.useState(true)
+  const queryClient = useQueryClient()
+  const { data: items = noItems, isPending: isLoading } = useQuery({
+    queryKey: ['announcements', 'admin'],
+    queryFn: () => apiFetch<Announcement[]>('/api/admin/announcements', 'Impossibile caricare i popup.', { cache: 'no-store' })
+  })
   const [editing, setEditing] = React.useState<{
     id: string | null
     draft: Draft
   } | null>(null)
   const [toDelete, setToDelete] = React.useState<Announcement | null>(null)
-  const [busyId, setBusyId] = React.useState<string | null>(null)
   const formRef = React.useRef<HTMLDivElement>(null)
-
-  React.useEffect(() => {
-    let cancelled = false
-    async function load() {
-      try {
-        const response = await fetch('/api/admin/announcements', {
-          cache: 'no-store'
-        })
-        if (!response.ok) {
-          throw new Error(
-            await readError(response, 'Impossibile caricare i popup.')
-          )
-        }
-        const payload = (await response.json()) as Announcement[]
-        if (!cancelled) setItems(payload)
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : 'Impossibile caricare i popup.'
-        )
-      } finally {
-        if (!cancelled) setIsLoading(false)
-      }
-    }
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   function openEditor(id: string | null, draft: Draft) {
     setEditing({ id, draft })
@@ -547,68 +502,47 @@ export default function AdminAnnouncementsPage() {
     )
   }
 
+  // The list updates at once from the answer; who sees which popup is read again.
   function handleSaved(saved: Announcement) {
-    setItems((previous) => {
-      const exists = previous.some((item) => item.id === saved.id)
-      return exists
+    queryClient.setQueryData<Announcement[]>(['announcements', 'admin'], (previous = []) =>
+      previous.some((item) => item.id === saved.id)
         ? previous.map((item) => (item.id === saved.id ? saved : item))
         : [saved, ...previous]
-    })
+    )
+    void queryClient.invalidateQueries({ queryKey: ['announcements'], exact: false, refetchType: 'none' })
     setEditing(null)
   }
 
-  async function toggleActive(announcement: Announcement) {
-    setBusyId(announcement.id)
-    try {
-      const response = await fetch(
-        `/api/admin/announcements/${announcement.id}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...payloadFrom(draftFrom(announcement)),
-            startsAt: announcement.startsAt,
-            expiresAt: announcement.expiresAt,
-            active: !announcement.active
-          })
-        }
-      )
-      if (!response.ok) {
-        throw new Error(await readError(response, 'Modifica non riuscita.'))
-      }
-      handleSaved((await response.json()) as Announcement)
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Modifica non riuscita.'
-      )
-    } finally {
-      setBusyId(null)
-    }
-  }
+  const toggle = useMutation({
+    mutationFn: (announcement: Announcement) => apiFetch<Announcement>(
+      `/api/admin/announcements/${announcement.id}`,
+      'Modifica non riuscita.',
+      jsonBody('PUT', {
+        ...payloadFrom(draftFrom(announcement)),
+        startsAt: announcement.startsAt,
+        expiresAt: announcement.expiresAt,
+        active: !announcement.active
+      })
+    ),
+    onSuccess: handleSaved
+  })
+  const toggleActive = (announcement: Announcement) => toggle.mutate(announcement)
 
-  async function confirmDelete() {
+  const remove = useMutation({
+    mutationFn: (target: Announcement) => apiFetch(`/api/admin/announcements/${target.id}`, 'Eliminazione non riuscita.', jsonBody('DELETE')),
+    onSuccess: (_, target) => {
+      queryClient.setQueryData<Announcement[]>(['announcements', 'admin'], (previous = []) => previous.filter((item) => item.id !== target.id))
+      if (editing?.id === target.id) setEditing(null)
+      toast.success('Popup eliminato.')
+    }
+  })
+  function confirmDelete() {
     if (!toDelete) return
     const target = toDelete
     setToDelete(null)
-    setBusyId(target.id)
-    try {
-      const response = await fetch(`/api/admin/announcements/${target.id}`, {
-        method: 'DELETE'
-      })
-      if (!response.ok) {
-        throw new Error(await readError(response, 'Eliminazione non riuscita.'))
-      }
-      setItems((previous) => previous.filter((item) => item.id !== target.id))
-      if (editing?.id === target.id) setEditing(null)
-      toast.success('Popup eliminato.')
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Eliminazione non riuscita.'
-      )
-    } finally {
-      setBusyId(null)
-    }
+    remove.mutate(target)
   }
+  const busyId = toggle.isPending ? toggle.variables?.id : remove.isPending ? remove.variables?.id : null
 
   return (
     <SettingsSection
@@ -684,7 +618,7 @@ export default function AdminAnnouncementsPage() {
                               checked={item.active}
                               aria-label={item.active ? 'Disattiva popup' : 'Attiva popup'}
                               disabled={busyId === item.id}
-                              onCheckedChange={() => void toggleActive(item)}
+                              onCheckedChange={() => toggleActive(item)}
                             />
                             {item.active ? 'Attivo' : 'Spento'}
                           </label>
@@ -730,7 +664,7 @@ export default function AdminAnnouncementsPage() {
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               variant='destructive'
-              onClick={() => void confirmDelete()}
+              onClick={() => confirmDelete()}
             >
               Elimina
             </AlertDialogAction>

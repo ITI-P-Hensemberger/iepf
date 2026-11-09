@@ -4,6 +4,9 @@ import * as React from 'react'
 import Link from 'next/link'
 import { ArrowDown, ArrowUp, ExternalLink, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 
 import { EmptyState } from '@/components/empty-state'
 import { SettingsSection } from '@/components/settings-section'
@@ -31,97 +34,79 @@ const ANSWER_MAX = 5_000
 
 type Draft = { id: string | null, question: string, answer: string }
 
-async function errorOf(response: Response, fallback: string) {
-  const payload = await response.json().catch(() => null) as { message?: string, error?: { message?: string } } | null
-  return payload?.error?.message ?? payload?.message ?? fallback
-}
-
 // The "FAQ" section of the global settings: the questions of the public FAQ page, in page
 // order. Admins add, edit (answers in markdown, like the popups), delete and move them.
+const noItems: FaqItem[] = []
+
 export function AdminFaqSettings() {
-  const [items, setItems] = React.useState<FaqItem[]>([])
-  const [loading, setLoading] = React.useState(true)
+  const queryClient = useQueryClient()
+  const { data: items = noItems, isPending: loading } = useQuery({
+    queryKey: ['faqs'],
+    queryFn: () => apiFetch<FaqItem[]>('/api/faqs', 'Impossibile caricare le domande frequenti.', { cache: 'no-store' })
+  })
   const [draft, setDraft] = React.useState<Draft | null>(null)
-  const [saving, setSaving] = React.useState(false)
   const [deleteTarget, setDeleteTarget] = React.useState<FaqItem | null>(null)
-  const [moving, setMoving] = React.useState(false)
+  const reload = () => queryClient.invalidateQueries({ queryKey: ['faqs'] })
 
-  const load = React.useCallback(async () => {
-    try {
-      const response = await fetch('/api/faqs', { cache: 'no-store' })
-      if (!response.ok) throw new Error()
-      setItems(await response.json())
-    } catch {
-      toast.error('Impossibile caricare le domande frequenti.')
-    } finally {
-      setLoading(false)
+  const saveFaq = useMutation({
+    mutationFn: (value: Draft) => apiFetch(
+      value.id ? `/api/faqs/${value.id}` : '/api/faqs',
+      'Impossibile salvare la domanda.',
+      jsonBody(value.id ? 'PUT' : 'POST', { question: value.question.trim(), answer: value.answer.trim() })
+    ),
+    onSuccess: (_, value) => {
+      toast.success(value.id ? 'Domanda aggiornata.' : 'Domanda aggiunta.')
+      setDraft(null)
+      return reload()
     }
-  }, [])
+  })
+  const saving = saveFaq.isPending
 
-  React.useEffect(() => {
-    void load()
-  }, [load])
-
-  async function save() {
+  function save() {
     if (!draft) return
     if (!draft.question.trim() || !draft.answer.trim()) {
       toast.error('Scrivi la domanda e la risposta.')
       return
     }
-    setSaving(true)
-    try {
-      const response = await fetch(draft.id ? `/api/faqs/${draft.id}` : '/api/faqs', {
-        method: draft.id ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: draft.question.trim(), answer: draft.answer.trim() })
-      })
-      if (!response.ok) throw new Error(await errorOf(response, 'Impossibile salvare la domanda.'))
-      toast.success(draft.id ? 'Domanda aggiornata.' : 'Domanda aggiunta.')
-      setDraft(null)
-      await load()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Impossibile salvare la domanda.')
-    } finally {
-      setSaving(false)
-    }
+    saveFaq.mutate(draft)
   }
 
-  async function remove(item: FaqItem) {
-    try {
-      const response = await fetch(`/api/faqs/${item.id}`, { method: 'DELETE' })
-      if (!response.ok && response.status !== 404) throw new Error(await errorOf(response, 'Impossibile eliminare la domanda.'))
+  const removeFaq = useMutation({
+    mutationFn: async (item: FaqItem) => {
+      const response = await fetch(`/api/faqs/${item.id}`, jsonBody('DELETE'))
+      // Already gone counts as deleted.
+      if (response.ok || response.status === 404) return
+      const payload = await response.json().catch(() => null) as { message?: string } | null
+      throw new Error(payload?.message ?? 'Impossibile eliminare la domanda.')
+    },
+    onSuccess: (_, item) => {
       toast.success('Domanda eliminata.')
       if (draft?.id === item.id) setDraft(null)
-      await load()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Impossibile eliminare la domanda.')
-    } finally {
-      setDeleteTarget(null)
-    }
-  }
+      return reload()
+    },
+    onSettled: () => setDeleteTarget(null)
+  })
+  const remove = (item: FaqItem) => removeFaq.mutateAsync(item).catch(() => {})
 
   // Moves a question one place, at once on screen; a stale list comes back from the server.
-  async function move(index: number, step: -1 | 1) {
+  const reorder = useMutation({
+    mutationFn: (next: FaqItem[]) => apiFetch<FaqItem[]>('/api/faqs/order', 'Impossibile cambiare l’ordine.', jsonBody('PUT', { ids: next.map(item => item.id) })),
+    onMutate: (next) => {
+      queryClient.setQueryData(['faqs'], next)
+    },
+    onSuccess: (saved) => {
+      queryClient.setQueryData(['faqs'], saved)
+    },
+    onError: () => reload()
+  })
+  const moving = reorder.isPending
+
+  function move(index: number, step: -1 | 1) {
     const target = index + step
     if (target < 0 || target >= items.length) return
     const next = [...items]
     ;[next[index], next[target]] = [next[target], next[index]]
-    setItems(next)
-    setMoving(true)
-    try {
-      const response = await fetch('/api/faqs/order', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: next.map(item => item.id) })
-      })
-      if (!response.ok) throw new Error(await errorOf(response, 'Impossibile cambiare l’ordine.'))
-      setItems(await response.json())
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Impossibile cambiare l’ordine.')
-      await load()
-    } finally {
-      setMoving(false)
-    }
+    reorder.mutate(next)
   }
 
   return (
@@ -144,7 +129,7 @@ export function AdminFaqSettings() {
           className='space-y-4 rounded-lg border bg-card p-4 sm:p-6'
           onSubmit={(event) => {
             event.preventDefault()
-            void save()
+            save()
           }}
         >
           <h3 className='font-semibold'>{draft.id ? 'Modifica domanda' : 'Nuova domanda'}</h3>
@@ -199,7 +184,7 @@ export function AdminFaqSettings() {
                     aria-label={`Sposta su: ${item.question}`}
                     title='Sposta su'
                     disabled={index === 0 || moving}
-                    onClick={() => void move(index, -1)}
+                    onClick={() => move(index, -1)}
                   >
                     <ArrowUp className='size-4' />
                   </Button>
@@ -209,7 +194,7 @@ export function AdminFaqSettings() {
                     aria-label={`Sposta giù: ${item.question}`}
                     title='Sposta giù'
                     disabled={index === items.length - 1 || moving}
-                    onClick={() => void move(index, 1)}
+                    onClick={() => move(index, 1)}
                   >
                     <ArrowDown className='size-4' />
                   </Button>
