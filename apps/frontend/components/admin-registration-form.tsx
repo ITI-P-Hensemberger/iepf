@@ -29,15 +29,7 @@ import {
 import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { confirmInvite } from '@/lib/auth-client'
-import { PERSON_NAME_PATTERN } from '@/lib/person-name'
-
-function normalizeName(value: string) {
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return ''
-  }
-  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase()
-}
+import { normalizeName, PERSON_NAME_PATTERN } from '@/lib/person-name'
 
 const formSchema = z
   .object({
