@@ -3,6 +3,7 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import Footer from '@/components/footer'
 import { SettingsProvider } from '@/components/settings-provider'
+import { QueryProvider } from '@/components/query-provider'
 import ImpersonationBanner from '@/components/impersonation-banner'
 import { SessionRefresh } from '@/components/session-refresh'
 import { fakeClockScript, fakeNow } from '@/lib/fake-clock'
@@ -50,6 +51,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <SettingsProvider>
+            <QueryProvider>
             <SessionRefresh />
             <div className='flex min-h-dvh flex-col'>
               <ImpersonationBanner />
@@ -57,6 +59,7 @@ export default function RootLayout({
               <Footer />
               <Toaster />
             </div>
+            </QueryProvider>
           </SettingsProvider>
         </ThemeProvider>
       </body>

@@ -461,7 +461,29 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **PR:** dedicata, una per file. Non mescolare con correzioni funzionali.
   - **Dipendenze:** 22, 16 (stesso handler), 23 consigliato
 
-- [ ] **25. Valutare TanStack Query per il caricamento dati**
+- [x] **25. Valutare TanStack Query per il caricamento dati**
+  - **Decisione (2026-11-09): sì, si adotta `@tanstack/react-query`**, provato sulla pagina pilota
+    `components/admin-feedback-page.tsx`.
+    - Il file passa da 1182 a 1135 righe (+65 −112): spariscono i quattro `useCallback` di
+      caricamento con i loro `useEffect`, gli stati `isLoading`/`usersLoading` e la mappa delle
+      lezioni con la sua cancellazione a mano.
+    - Warning della pagina da 4 a 1. Quello rimasto copia i filtri dall'URL nel form e non è un
+      caricamento. In tutto il frontend da 61 a 56: −4 sul pilota, −1 `immutability`
+      nell'onboarding.
+    - Comportamento invariato, provato nel browser: righe al loro posto mentre arriva la pagina
+      dopo (`placeholderData: keepPreviousData`), rilettura dopo modifica ed eliminazione
+      (`invalidateQueries`), stessi messaggi di errore in italiano.
+    - In più: ogni lezione si chiede una volta sola anche cambiando pagina, e gli errori di
+      caricamento diventano toast in un solo punto (`components/query-provider.tsx`).
+    - Costo: una dipendenza e un provider nel layout.
+    - L'onboarding del tutor non ricarica più tutta la pagina: invalida le materie lette da
+      `useTutorOnboarding` e va su `/tutor`, e il suo `eslint-disable` non c'è più. Logout e
+      fine impersonazione restano ricaricamenti completi, che svuotano anche questa cache.
+  - **Migrazione:** piccole PR, una o due pagine ciascuna, nell'ordine dei warning:
+    `admin-tutors-page` (6), `activator-students-page` (4), `admin-admins-page`,
+    `admin-lessons-page` e `admin-lesson-details-page` (3), poi `admin-students-page`,
+    `tutor-lessons-page`, `student-book-page`, `student-lesson-ui` e `profile/page.tsx` (2).
+    Ogni PR deve far restare verde `make e2e`. Il punto 26 la segue.
   - **Problema:** il frontend carica i dati con `useEffect` e `fetch` manuali, ripetendo stati di
     caricamento, errori e aggiornamenti.
   - **File:** `apps/frontend/components/`, `apps/frontend/app/`
