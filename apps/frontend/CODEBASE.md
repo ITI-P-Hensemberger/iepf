@@ -112,7 +112,7 @@ IEPF Frontend is a Next.js 16 App Router project for an Italian educational plat
 - The root `pnpm-lock.yaml` is authoritative for development and deployment.
 
 ## Local development
-- The monorepo root provides `make setup`, `make dev`, `make stop`, `make seed`, `make test`, and `make check`.
+- The monorepo root provides `make setup`, `make dev`, `make stop`, `make seed`, `make test`, `make e2e`, and `make check`.
 - Managed env files live in `.local/` at the monorepo root; the launcher exports frontend variables directly, preserving existing frontend `.env` files.
 - Node 26 and pnpm 10.28.2 are shared across both applications. The root `pnpm-lock.yaml` is authoritative; npm lockfiles have been removed.
 - Mailpit captures local email; the root README documents demo accounts, separate dev/test databases and configurable ports.

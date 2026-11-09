@@ -414,7 +414,14 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Stima:** S
   - **Dipendenze:** 3
 
-- [ ] **22. Aggiungere test end-to-end**
+- [x] **22. Aggiungere test end-to-end**
+  - **Stato:** Playwright in `apps/frontend/e2e` prova solo i flussi che non possono rompersi:
+    pagine private protette, reset password, registrazione studente con verifica email e
+    attivazione, invito e onboarding del tutor, prenotazione, annullamento, presenza, ore aggiunte
+    dall'admin. Gira sui dati di `seed-lesson-scenarios` con il frontend in build di produzione;
+    server, seed e browser vivono il mercoledì della settimana dopo alle 10:00 (`FAKE_NOW` e
+    `page.clock`), così le regole di prenotazione non dipendono dal giorno. In locale `make e2e`,
+    in CI il job `e2e`.
   - **Problema:** ci sono 6 file di test, tutti unitari o di integrazione, e nessun test
     end-to-end né di componente.
   - **File:** nuova configurazione Playwright, `.github/workflows/ci-release.yml`

@@ -275,11 +275,11 @@ def dev():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['help','setup','dev','up','stop','down','logs','doctor','db-migrate','db-generate','seed','seed-full','db-reset','db-clear','test','check'])
+    parser.add_argument('command', choices=['help','setup','dev','up','stop','down','logs','doctor','db-migrate','db-generate','seed','seed-full','db-reset','db-clear','test','e2e','check'])
     parser.add_argument('--confirm', action='store_true')
     args = parser.parse_args()
     if args.command == 'help':
-        print('make setup  Install pinned dependencies and create local env files\nmake dev    Start infra, migrate, run both apps\nmake stop   Stop both apps and local infra, keep data\nmake up / down / logs / doctor\nmake db-migrate / db-generate / seed / seed-full\nmake db-reset CONFIRM=yes  Delete ONLY managed dev data and seed it again\nmake db-clear CONFIRM=yes  Empty the managed local DB, keep schema, no seed\nmake test   Fresh isolated DB, migrations, backend and frontend tests\nmake check  Typecheck, lint and build both apps')
+        print('make setup  Install pinned dependencies and create local env files\nmake dev    Start infra, migrate, run both apps\nmake stop   Stop both apps and local infra, keep data\nmake up / down / logs / doctor\nmake db-migrate / db-generate / seed / seed-full\nmake db-reset CONFIRM=yes  Delete ONLY managed dev data and seed it again\nmake db-clear CONFIRM=yes  Empty the managed local DB, keep schema, no seed\nmake test   Fresh isolated DB, migrations, backend and frontend tests\nmake e2e    Fresh isolated DB, dev seed, Playwright on both apps (stop make dev first: same ports)\nmake check  Typecheck, lint and build both apps')
         return
     cfg = prepare()
     command = args.command
@@ -319,7 +319,7 @@ def main():
         pnpm('db:migrate')
         if command == 'db-reset':
             pnpm('seed:dev')
-    elif command == 'test':
+    elif command in ('test', 'e2e'):
         local_database(test=True)
         # Refuse dev/production DBs, then recreate only the ephemeral test service.
         with (HOME / 'test.lock').open('w') as lock:
@@ -331,8 +331,14 @@ def main():
             try:
                 start_infra(test=True)
                 pnpm('db:migrate', test=True)
-                pnpm('test', test=True)
-                run([*PNPM, 'run', 'test'], cwd=FRONTEND, env=node_environment())
+                if command == 'e2e':
+                    # Playwright starts both apps on the test database; the ports come from compose.env.
+                    env = dict(local_database(test=True), BACKEND_PORT=cfg['BACKEND_PORT'], FRONTEND_PORT=cfg['FRONTEND_PORT'])
+                    run([*PNPM, 'exec', 'playwright', 'install', 'chromium'], cwd=FRONTEND, env=env)
+                    run([*PNPM, 'exec', 'playwright', 'test'], cwd=FRONTEND, env=env)
+                else:
+                    pnpm('test', test=True)
+                    run([*PNPM, 'run', 'test'], cwd=FRONTEND, env=node_environment())
             finally:
                 compose('rm', '--stop', '--force', 'db-test')
     elif command == 'check':

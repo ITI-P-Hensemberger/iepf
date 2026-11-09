@@ -96,6 +96,7 @@ Per ripartire da zero: `make db-reset CONFIRM=yes`, poi `make seed-full`.
 make doctor       # verifica runtime, Docker e configurazione
 make check        # typecheck, lint e build di entrambe le applicazioni
 make test         # DB test effimero + migrazioni SQL + test backend e frontend
+make e2e          # DB test effimero + scenari lezioni + Playwright su entrambe le app
 ```
 
 `make test` usa `iepf_test`, in un container separato con tmpfs e profilo `test`:
@@ -104,6 +105,13 @@ non viene pulito. La suite prova migrazioni, protezioni dei seed, ripetibilità,
 autenticazione/refresh e consegna SMTP tramite Mailpit. I messaggi di test sono
 ricercati per un subject univoco; la casella locale non viene svuotata.
 La CI backend esegue la stessa suite con PostgreSQL e Mailpit come servizi.
+
+`make e2e` usa lo stesso DB effimero: Playwright (`apps/frontend/e2e`) avvia backend e
+frontend in build di produzione sulle porte di `.local/compose.env`, quindi va fermato prima
+`make dev`. Coprono solo i flussi che non possono rompersi (accesso, registrazione, prenotazione,
+annullamento, presenza, ore), sui dati di `seed-lesson-scenarios`. Server, seed e browser sono
+portati al mercoledì della settimana dopo alle 10:00, così le regole di prenotazione non dipendono
+dal giorno in cui girano. Le email si leggono da Mailpit. In CI lo stesso lo fa il job `e2e`.
 
 I test di infrastruttura non richiedono Docker e si lanciano da `infra/`:
 `python3 tests/test_local.py`, `python3 tests/test_ci.py` e, solo su Linux,

@@ -77,6 +77,16 @@ class LocalTests(unittest.TestCase):
                         local.main()
                     compose.assert_not_called()
 
+    def test_e2e_runs_playwright_on_a_fresh_test_database(self):
+        local.prepare()
+        with patch('sys.argv', ['local.py', 'e2e']), patch.object(local, 'local_database', return_value={}):
+            with patch.object(local, 'compose') as compose, patch.object(local, 'pnpm') as pnpm, patch.object(local, 'run') as run:
+                local.main()
+        pnpm.assert_called_once_with('db:migrate', test=True)
+        self.assertEqual(run.call_args_list[-1].args[0][-2:], ['playwright', 'test'])
+        self.assertEqual(run.call_args_list[-1].kwargs['env']['FRONTEND_PORT'], '3000')
+        self.assertEqual([c.args[0] for c in compose.call_args_list if c.args[0] == 'rm'], ['rm', 'rm'])
+
     def test_seed_full_migrates_before_running_existing_pipeline(self):
         with patch('sys.argv', ['local.py', 'seed-full']), patch.object(local, 'start_infra'):
             with patch.object(local, 'pnpm') as pnpm:
