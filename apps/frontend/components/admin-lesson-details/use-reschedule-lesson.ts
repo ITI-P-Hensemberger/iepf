@@ -1,11 +1,18 @@
 // Purpose: State and actions of the reschedule dialog on the admin lesson details page.
 import * as React from 'react'
 import { toast } from 'sonner'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 import { extractPayloadArray } from '@/lib/backend-response'
 import type { Lesson, Tutor, Subject } from './shared'
-import { AVAILABLE_TIMES, OPEN_SUBJECT_VALUE, normalizePaged, timeFromDate, combineDateAndTime, extractErrorMessage } from './shared'
+import { AVAILABLE_TIMES, OPEN_SUBJECT_VALUE, normalizePaged, timeFromDate, combineDateAndTime } from './shared'
 
-export function useRescheduleLesson({ lesson, loadLesson, loadBookings }: { lesson: Lesson | null, loadLesson: () => Promise<void>, loadBookings: () => Promise<void> }) {
+const TUTORS_QUERY = 'role=tutor&limit=200&offset=0'
+const noTutors: Tutor[] = []
+const noSubjects: Subject[] = []
+const noSubjectIds: string[] = []
+
+export function useRescheduleLesson({ lesson, reloadLessons }: { lesson: Lesson | null, reloadLessons: () => Promise<void> }) {
   const [isRescheduleOpen, setIsRescheduleOpen] = React.useState(false)
   const [rescheduleForm, setRescheduleForm] = React.useState({
     tutorId: '',
@@ -13,110 +20,34 @@ export function useRescheduleLesson({ lesson, loadLesson, loadBookings }: { less
     date: undefined as Date | undefined,
     time: '15:00'
   })
-  const [isRescheduling, setIsRescheduling] = React.useState(false)
-  const [rescheduleTutors, setRescheduleTutors] = React.useState<Tutor[]>([])
-  const [rescheduleSubjects, setRescheduleSubjects] = React.useState<Subject[]>(
-    []
-  )
-  const [rescheduleTutorsLoading, setRescheduleTutorsLoading] =
-    React.useState(false)
-  const [rescheduleSubjectsLoading, setRescheduleSubjectsLoading] =
-    React.useState(false)
-  const [rescheduleTutorSubjectIds, setRescheduleTutorSubjectIds] =
-    React.useState<Set<string>>(new Set())
-  const [rescheduleTutorSubjectsLoading, setRescheduleTutorSubjectsLoading] =
-    React.useState(false)
-
-  const loadRescheduleLists = React.useCallback(async () => {
-    setRescheduleTutorsLoading(true)
-    setRescheduleSubjectsLoading(true)
-    try {
-      const [tutorsResponse, subjectsResponse] = await Promise.all([
-        fetch('/api/users?role=tutor&limit=200&offset=0'),
-        fetch('/api/subjects')
-      ])
-
-      if (tutorsResponse.ok) {
-        const payload = await tutorsResponse.json()
-        const { items } = normalizePaged<Tutor>(payload)
-        setRescheduleTutors(items)
-      }
-
-      if (subjectsResponse.ok) {
-        const payload = await subjectsResponse.json()
-        const { items } = normalizePaged<Subject>(payload)
-        setRescheduleSubjects(items)
-      }
-    } catch {
-      // ignore
-    } finally {
-      setRescheduleTutorsLoading(false)
-      setRescheduleSubjectsLoading(false)
-    }
-  }, [])
-
-  React.useEffect(() => {
-    if (!isRescheduleOpen || !rescheduleForm.tutorId) {
-      setRescheduleTutorSubjectIds(new Set())
-      return
-    }
-
-    let isMounted = true
-
-    async function loadTutorSubjects() {
-      setRescheduleTutorSubjectsLoading(true)
-      try {
-        const response = await fetch(
-          `/api/tutors/${rescheduleForm.tutorId}/subjects`
-        )
-        if (!response.ok) {
-          throw new Error('Impossibile caricare le materie.')
-        }
-        const payload = await response.json()
-        const items = extractPayloadArray<Subject>(payload)
-        const resolvedItems =
-          items.length === 0 &&
-          payload &&
-          typeof payload === 'object' &&
-          'data' in payload
-            ? extractPayloadArray<Subject>(
-                (payload as { data?: unknown }).data
-              )
-            : items
-        if (isMounted) {
-          const ids = resolvedItems
-            .map((item) => {
-              const candidate = item as Subject & {
-                subjectId?: string
-                subject?: { id?: string } | null
-              }
-              return (
-                candidate.id ||
-                candidate.subjectId ||
-                candidate.subject?.id ||
-                ''
-              )
-            })
-            .filter((value) => value)
-          setRescheduleTutorSubjectIds(new Set(ids))
-        }
-      } catch {
-        if (isMounted) {
-          setRescheduleTutorSubjectIds(new Set())
-        }
-      } finally {
-        if (isMounted) {
-          setRescheduleTutorSubjectsLoading(false)
-        }
-      }
-    }
-
-    void loadTutorSubjects()
-
-    return () => {
-      isMounted = false
-    }
-  }, [isRescheduleOpen, rescheduleForm.tutorId])
+  // The lists load when the dialog opens; the tutor's subjects when a tutor is picked.
+  // Lists only help choosing: if they fail the dialog stays usable, so no toast.
+  const tutorsResult = useQuery({
+    queryKey: ['users', TUTORS_QUERY],
+    queryFn: async () => normalizePaged<Tutor>(await apiFetch(`/api/users?${TUTORS_QUERY}`, 'Impossibile caricare i tutor.')).items,
+    enabled: isRescheduleOpen,
+    meta: { inline: true }
+  })
+  const subjectsResult = useQuery({
+    queryKey: ['subjects'],
+    queryFn: async () => extractPayloadArray<Subject>(await apiFetch('/api/subjects', 'Impossibile caricare le materie.')),
+    enabled: isRescheduleOpen,
+    meta: { inline: true }
+  })
+  const tutorSubjectsResult = useQuery({
+    queryKey: ['users', rescheduleForm.tutorId, 'subjects'],
+    queryFn: async () => extractPayloadArray<Subject>(await apiFetch(`/api/tutors/${rescheduleForm.tutorId}/subjects`, 'Impossibile caricare le materie.'))
+      .map((subject) => subject.id),
+    enabled: isRescheduleOpen && Boolean(rescheduleForm.tutorId),
+    meta: { inline: true }
+  })
+  const rescheduleTutors = tutorsResult.data ?? noTutors
+  const rescheduleSubjects = subjectsResult.data ?? noSubjects
+  const rescheduleTutorsLoading = tutorsResult.isFetching
+  const rescheduleSubjectsLoading = subjectsResult.isFetching
+  const rescheduleTutorSubjectsLoading = tutorSubjectsResult.isFetching
+  const tutorSubjectIds = isRescheduleOpen && rescheduleForm.tutorId ? (tutorSubjectsResult.data ?? noSubjectIds) : noSubjectIds
+  const rescheduleTutorSubjectIds = React.useMemo(() => new Set(tutorSubjectIds), [tutorSubjectIds])
 
   const sortedRescheduleTutors = React.useMemo(() => {
     return [...rescheduleTutors].sort((a, b) => {
@@ -168,11 +99,24 @@ export function useRescheduleLesson({ lesson, loadLesson, loadBookings }: { less
       date: new Date(lesson.startAt),
       time: timeValue
     })
-    void loadRescheduleLists()
     setIsRescheduleOpen(true)
-  }, [lesson, loadRescheduleLists])
+  }, [lesson])
 
-  const handleReschedule = React.useCallback(async () => {
+  const rescheduleLesson = useMutation({
+    mutationFn: (body: { id: string, tutorId: string, subjectId: string | null, startAt: string }) => apiFetch(
+      `/api/lessons/${body.id}/reschedule`,
+      'Impossibile riprogrammare la lezione.',
+      jsonBody('POST', { tutorId: body.tutorId, subjectId: body.subjectId, startAt: body.startAt, durationMinutes: 60 })
+    ),
+    onSuccess: () => {
+      toast.success('Lezione riprogrammata.')
+      setIsRescheduleOpen(false)
+      return reloadLessons()
+    }
+  })
+  const isRescheduling = rescheduleLesson.isPending
+
+  const handleReschedule = () => {
     if (!lesson) {
       return
     }
@@ -191,53 +135,13 @@ export function useRescheduleLesson({ lesson, loadLesson, loadBookings }: { less
     const timeValue = AVAILABLE_TIMES.includes(rescheduleForm.time)
       ? rescheduleForm.time
       : '15:00'
-    const startAtIso = combineDateAndTime(
-      rescheduleForm.date,
-      timeValue
-    ).toISOString()
-
-    setIsRescheduling(true)
-
-    try {
-      const response = await fetch(`/api/lessons/${lesson.id}/reschedule`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          tutorId: rescheduleForm.tutorId,
-          subjectId:
-            rescheduleForm.subjectId === OPEN_SUBJECT_VALUE
-              ? null
-              : rescheduleForm.subjectId,
-          startAt: startAtIso,
-          durationMinutes: 60
-        })
-      })
-      if (!response.ok) {
-        let message = 'Impossibile riprogrammare la lezione.'
-        try {
-          const payload = await response.json()
-          message = extractErrorMessage(payload, message)
-        } catch {
-          // ignore
-        }
-        throw new Error(message)
-      }
-      toast.success('Lezione riprogrammata.')
-      setIsRescheduleOpen(false)
-      await loadLesson()
-      await loadBookings()
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile riprogrammare la lezione.'
-      )
-    } finally {
-      setIsRescheduling(false)
-    }
-  }, [lesson, loadBookings, loadLesson, rescheduleForm])
+    rescheduleLesson.mutate({
+      id: lesson.id,
+      tutorId: rescheduleForm.tutorId,
+      subjectId: rescheduleForm.subjectId === OPEN_SUBJECT_VALUE ? null : rescheduleForm.subjectId,
+      startAt: combineDateAndTime(rescheduleForm.date, timeValue).toISOString()
+    })
+  }
 
   return {
     isRescheduleOpen,

@@ -19,6 +19,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 import { formatItalianDate } from '@/lib/format-date'
 import { dayKeyOf } from '@/lib/school-week'
 import { cn } from '@/lib/utils'
@@ -29,490 +31,214 @@ import { RescheduleLessonDialog } from '@/components/admin-lesson-details/resche
 import { useBookStudent } from '@/components/admin-lesson-details/use-book-student'
 import { useRescheduleLesson } from '@/components/admin-lesson-details/use-reschedule-lesson'
 import type { Lesson, Booking, Tutor, Student, Subject } from '@/components/admin-lesson-details/shared'
-import { normalizePaged, formatBookingStatus, countsBadgeLabel, countsBadgeVariant, isCanceledStatus, isCanceledBooking, lessonOccupiedSeats, lessonDailySeatsLabel, tutorClassLabel, tutorLabel, studentLabel, studentClassLabel, extractErrorMessage } from '@/components/admin-lesson-details/shared'
+import { normalizePaged, formatBookingStatus, countsBadgeLabel, countsBadgeVariant, isCanceledStatus, isCanceledBooking, lessonOccupiedSeats, lessonDailySeatsLabel, tutorClassLabel, tutorLabel, studentLabel, studentClassLabel } from '@/components/admin-lesson-details/shared'
+
+// Stable while the bookings load, so the memos built on them do not rerun on every render.
+const noBookings: Booking[] = []
 
 export default function AdminLessonDetailsPage() {
   const params = useParams()
   const here = useHere()
   const lessonId = params?.id as string
 
-  const [lesson, setLesson] = React.useState<Lesson | null>(null)
-  const [lessonLoading, setLessonLoading] = React.useState(true)
-
-  const [bookings, setBookings] = React.useState<Booking[]>([])
-  const [bookingsLoading, setBookingsLoading] = React.useState(true)
+  const queryClient = useQueryClient()
+  const { data: lesson = null, isPending: lessonLoading } = useQuery({
+    queryKey: ['lessons', lessonId],
+    queryFn: () => apiFetch<Lesson>(`/api/lessons/${lessonId}`, 'Impossibile caricare la lezione.')
+  })
+  const { data: bookings = noBookings, isPending: bookingsLoading } = useQuery({
+    queryKey: ['lessons', lessonId, 'bookings'],
+    queryFn: async () => normalizePaged<Booking>(await apiFetch(`/api/lessons/${lessonId}/bookings`, 'Impossibile caricare le prenotazioni.')).items
+  })
   const [bookingFilter, setBookingFilter] = React.useState<
     'confirmed' | 'canceled' | 'all'
   >('all')
 
-  const [subject, setSubject] = React.useState<Subject | null>(null)
-  const [subjectLoading, setSubjectLoading] = React.useState(false)
+  // Subject, tutor and students only name things on the page: without them it still works.
+  const { data: subject = null, isFetching: subjectLoading } = useQuery({
+    queryKey: ['subjects', lesson?.subjectId],
+    queryFn: () => apiFetch<Subject>(`/api/subjects/${lesson?.subjectId}`, 'Impossibile caricare la materia.'),
+    enabled: Boolean(lesson?.subjectId),
+    meta: { inline: true }
+  })
   // An open lesson has no subject until a booking picks one of its tutor's.
   const subjectLabel =
     lesson && !lesson.subjectId ? '-' : (subject?.name ?? '-')
   const bookingSubjectOptions = lesson?.subjectOptions ?? []
-  const [tutor, setTutor] = React.useState<Tutor | null>(null)
-  const [tutorLoading, setTutorLoading] = React.useState(false)
-  const [studentMap, setStudentMap] = React.useState<Map<string, Student>>(
-    () => new Map()
-  )
+  const { data: tutor = null, isPending: tutorPending } = useQuery({
+    queryKey: ['users', lesson?.tutorId],
+    queryFn: () => apiFetch<Tutor>(`/api/users/${lesson?.tutorId}`, 'Impossibile caricare il tutor.'),
+    enabled: Boolean(lesson?.tutorId),
+    meta: { inline: true }
+  })
+  const tutorLoading = Boolean(lesson?.tutorId) && tutorPending
+  const studentIds = Array.from(new Set(bookings.map((booking) => booking.studentId)))
+  const studentResults = useQueries({
+    queries: studentIds.map((id) => ({
+      queryKey: ['users', id],
+      queryFn: () => apiFetch<Student>(`/api/users/${id}`, 'Impossibile caricare lo studente.'),
+      meta: { inline: true }
+    }))
+  })
+  const studentMap = new Map<string, Student>()
+  studentResults.forEach((result) => {
+    if (result.data) studentMap.set(result.data.id, result.data)
+  })
 
   const [selectedBooking, setSelectedBooking] = React.useState<Booking | null>(
     null
   )
-  const [presenceSaving, setPresenceSaving] = React.useState<
-    Record<string, boolean>
-  >({})
 
   const [topicTarget, setTopicTarget] = React.useState<Booking | null>(null)
   const [topicValue, setTopicValue] = React.useState('')
-  const [isUpdatingTopic, setIsUpdatingTopic] = React.useState(false)
 
   const [cancelTarget, setCancelTarget] = React.useState<Booking | null>(null)
-  const [isCanceling, setIsCanceling] = React.useState(false)
   const [cancelCountsForStudent, setCancelCountsForStudent] =
     React.useState(false)
 
   const [countsTarget, setCountsTarget] = React.useState<Booking | null>(null)
   const [countsValue, setCountsValue] = React.useState(false)
-  const [isUpdatingCounts, setIsUpdatingCounts] = React.useState(false)
 
   const [lessonCountsOpen, setLessonCountsOpen] = React.useState(false)
   const [lessonCountsValue, setLessonCountsValue] = React.useState(false)
-  const [isUpdatingLessonCounts, setIsUpdatingLessonCounts] =
-    React.useState(false)
 
   const [cancelLessonOpen, setCancelLessonOpen] = React.useState(false)
   const [cancelLessonCountsForTutor, setCancelLessonCountsForTutor] =
     React.useState(false)
-  const [isCancellingLesson, setIsCancellingLesson] = React.useState(false)
 
-
-
-  const loadLesson = React.useCallback(async () => {
-    setLessonLoading(true)
-    try {
-      const response = await fetch(`/api/lessons/${lessonId}`)
-      if (!response.ok) {
-        throw new Error('Impossibile caricare la lezione.')
-      }
-      const payload = await response.json()
-      setLesson(payload as Lesson)
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile caricare la lezione.'
-      )
-    } finally {
-      setLessonLoading(false)
-    }
-  }, [lessonId])
-
-  const loadBookings = React.useCallback(async () => {
-    setBookingsLoading(true)
-    try {
-      const response = await fetch(`/api/lessons/${lessonId}/bookings`)
-      if (!response.ok) {
-        throw new Error('Impossibile caricare le prenotazioni.')
-      }
-      const payload = await response.json()
-      const { items } = normalizePaged<Booking>(payload)
-      setBookings(items)
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile caricare le prenotazioni.'
-      )
-    } finally {
-      setBookingsLoading(false)
-    }
-  }, [lessonId])
-
-  const loadSubject = React.useCallback(async (subjectId: string) => {
-    setSubjectLoading(true)
-    try {
-      const response = await fetch(`/api/subjects/${subjectId}`)
-      if (!response.ok) {
-        setSubject(null)
-        return
-      }
-      const payload = await response.json()
-      setSubject(payload as Subject)
-    } catch {
-      // ignore
-    } finally {
-      setSubjectLoading(false)
-    }
-  }, [])
-
-  const loadTutor = React.useCallback(async (tutorId: string) => {
-    setTutorLoading(true)
-    try {
-      const response = await fetch(`/api/users/${tutorId}`)
-      if (!response.ok) {
-        setTutor(null)
-        return
-      }
-      const payload = await response.json()
-      setTutor(payload as Tutor)
-    } catch {
-      // ignore
-    } finally {
-      setTutorLoading(false)
-    }
-  }, [])
-
-  const reschedule = useRescheduleLesson({ lesson, loadLesson, loadBookings })
-  const bookStudent = useBookStudent({ lessonId, loadLesson, loadBookings })
+  // Every change here can move seats, hours and counts: the lesson, its bookings and the lists.
+  const reloadLessons = React.useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['lessons'] }),
+    [queryClient]
+  )
+  const reschedule = useRescheduleLesson({ lesson, reloadLessons })
+  const bookStudent = useBookStudent({ lessonId, reloadLessons })
   const { handleOpenReschedule } = reschedule
   const { setBookStudentOpen } = bookStudent
 
-
-
-  React.useEffect(() => {
-    void loadLesson()
-    void loadBookings()
-  }, [loadLesson, loadBookings])
-
-  React.useEffect(() => {
-    if (!lesson?.subjectId) {
-      return
+  const savePresence = useMutation({
+    mutationFn: ({ booking, value }: { booking: Booking, value: boolean | null }) => apiFetch(
+      `/api/lessons/${lessonId}/bookings/${booking.id}/presence`,
+      'Impossibile aggiornare la presenza.',
+      jsonBody('PATCH', { present: value })
+    ),
+    onSuccess: () => {
+      toast.success('Presenza aggiornata.')
+      return reloadLessons()
     }
-    void loadSubject(lesson.subjectId)
-  }, [lesson?.subjectId, loadSubject])
+  })
+  const presenceSaving: Record<string, boolean> = savePresence.isPending && savePresence.variables
+    ? { [savePresence.variables.booking.id]: true }
+    : {}
+  const handlePresenceSave = (booking: Booking, value: boolean | null) =>
+    savePresence.mutateAsync({ booking, value }).then(() => {}, () => {})
 
-  React.useEffect(() => {
-    if (!lesson?.tutorId) {
-      return
-    }
-    void loadTutor(lesson.tutorId)
-  }, [lesson?.tutorId, loadTutor])
-
-  React.useEffect(() => {
-    if (bookings.length === 0) {
-      return
-    }
-
-    let isMounted = true
-    const missingIds = Array.from(
-      new Set(
-        bookings
-          .map((booking) => booking.studentId)
-          .filter((id) => !studentMap.has(id))
-      )
-    )
-
-    if (missingIds.length === 0) {
-      return
-    }
-
-    async function loadMissingStudents() {
-      const results = await Promise.allSettled(
-        missingIds.map(async (id) => {
-          const response = await fetch(`/api/users/${id}`)
-          if (!response.ok) {
-            return null
-          }
-          const payload = await response.json()
-          return payload as Student
-        })
-      )
-
-      if (!isMounted) {
-        return
-      }
-
-      setStudentMap((prev) => {
-        const next = new Map(prev)
-        results.forEach((result) => {
-          if (result.status === 'fulfilled' && result.value) {
-            next.set(result.value.id, result.value)
-          }
-        })
-        return next
-      })
-    }
-
-    void loadMissingStudents()
-
-    return () => {
-      isMounted = false
-    }
-  }, [bookings, studentMap])
-
-
-  const handlePresenceSave = React.useCallback(
-    async (booking: Booking, value: boolean | null) => {
-      setPresenceSaving((prev) => ({ ...prev, [booking.id]: true }))
-
-      try {
-        const response = await fetch(
-          `/api/lessons/${lessonId}/bookings/${booking.id}/presence`,
-          {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ present: value })
-          }
-        )
-        if (!response.ok) {
-          let message = 'Impossibile aggiornare la presenza.'
-          try {
-            const payload = await response.json()
-            message = extractErrorMessage(payload, message)
-          } catch {
-            // ignore
-          }
-          throw new Error(message)
-        }
-        toast.success('Presenza aggiornata.')
-        await loadBookings()
-        await loadLesson()
-      } catch (err) {
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : 'Impossibile aggiornare la presenza.'
-        )
-      } finally {
-        setPresenceSaving((prev) => ({ ...prev, [booking.id]: false }))
-      }
-    },
-    [lessonId, loadBookings, loadLesson]
-  )
-
-
-  const handleTopicUpdate = React.useCallback(async () => {
-    if (!topicTarget) {
-      return
-    }
-
-    const nextTopic = topicValue.trim()
-    if (!nextTopic) {
-      toast.error("Inserisci un argomento valido.")
-      return
-    }
-
-    setIsUpdatingTopic(true)
-
-    try {
-      const response = await fetch(
-        `/api/lessons/${lessonId}/bookings/${topicTarget.id}/topic`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ topic: nextTopic })
-        }
-      )
-      if (!response.ok) {
-        let message = "Impossibile aggiornare l'argomento."
-        try {
-          const payload = await response.json()
-          message = extractErrorMessage(payload, message)
-        } catch {
-          // ignore
-        }
-        throw new Error(message)
-      }
+  const updateTopic = useMutation({
+    mutationFn: ({ booking, topic }: { booking: Booking, topic: string }) => apiFetch(
+      `/api/lessons/${lessonId}/bookings/${booking.id}/topic`,
+      "Impossibile aggiornare l'argomento.",
+      jsonBody('PATCH', { topic })
+    ),
+    onSuccess: () => {
       toast.success('Argomento aggiornato.')
       setTopicTarget(null)
       setTopicValue('')
-      await loadBookings()
-      await loadLesson()
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : "Impossibile aggiornare l'argomento."
-      )
-    } finally {
-      setIsUpdatingTopic(false)
+      return reloadLessons()
     }
-  }, [lessonId, loadBookings, loadLesson, topicTarget, topicValue])
-
-  const handleCancelBooking = React.useCallback(async () => {
-    if (!cancelTarget) {
+  })
+  const isUpdatingTopic = updateTopic.isPending
+  const handleTopicUpdate = () => {
+    if (!topicTarget) return
+    const topic = topicValue.trim()
+    if (!topic) {
+      toast.error('Inserisci un argomento valido.')
       return
     }
+    updateTopic.mutate({ booking: topicTarget, topic })
+  }
 
-    setIsCanceling(true)
-
-    try {
-      const response = await fetch(
-        `/api/lessons/${lessonId}/bookings/${cancelTarget.id}/cancel`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ countsForStudent: cancelCountsForStudent })
-        }
-      )
-      if (!response.ok) {
-        let message = 'Impossibile annullare la prenotazione.'
-        try {
-          const payload = await response.json()
-          message = extractErrorMessage(payload, message)
-        } catch {
-          // ignore
-        }
-        throw new Error(message)
-      }
+  const cancelBooking = useMutation({
+    mutationFn: ({ booking, countsForStudent }: { booking: Booking, countsForStudent: boolean }) => apiFetch(
+      `/api/lessons/${lessonId}/bookings/${booking.id}/cancel`,
+      'Impossibile annullare la prenotazione.',
+      jsonBody('PATCH', { countsForStudent })
+    ),
+    onSuccess: () => {
       toast.success('Prenotazione annullata.')
       setCancelTarget(null)
-      await loadBookings()
-      await loadLesson()
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile annullare la prenotazione.'
-      )
-    } finally {
-      setIsCanceling(false)
+      return reloadLessons()
     }
-  }, [cancelCountsForStudent, cancelTarget, lessonId, loadBookings, loadLesson])
+  })
+  const isCanceling = cancelBooking.isPending
+  const handleCancelBooking = () => {
+    if (cancelTarget) cancelBooking.mutate({ booking: cancelTarget, countsForStudent: cancelCountsForStudent })
+  }
 
-  const handleOpenTopicDialog = React.useCallback((booking: Booking) => {
+  const handleOpenTopicDialog = (booking: Booking) => {
     setTopicTarget(booking)
     setTopicValue(booking.topic)
-  }, [])
+  }
 
-  const handleOpenCancelDialog = React.useCallback((booking: Booking) => {
+  const handleOpenCancelDialog = (booking: Booking) => {
     setCancelTarget(booking)
     setCancelCountsForStudent(Boolean(booking.countsForStudent))
-  }, [])
+  }
 
-  const handleOpenCountsDialog = React.useCallback((booking: Booking) => {
+  const handleOpenCountsDialog = (booking: Booking) => {
     setCountsTarget(booking)
     setCountsValue(Boolean(booking.countsForStudent))
-  }, [])
+  }
 
-  const handleUpdateCounts = React.useCallback(async () => {
-    if (!countsTarget) {
-      return
-    }
-
-    setIsUpdatingCounts(true)
-
-    try {
-      const response = await fetch(
-        `/api/lessons/${lessonId}/bookings/${countsTarget.id}/counts`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ countsForStudent: countsValue })
-        }
-      )
-      if (!response.ok) {
-        let message = 'Impossibile aggiornare il conteggio.'
-        try {
-          const payload = await response.json()
-          message = extractErrorMessage(payload, message)
-        } catch {
-          // ignore
-        }
-        throw new Error(message)
-      }
+  const updateCounts = useMutation({
+    mutationFn: ({ booking, countsForStudent }: { booking: Booking, countsForStudent: boolean }) => apiFetch(
+      `/api/lessons/${lessonId}/bookings/${booking.id}/counts`,
+      'Impossibile aggiornare il conteggio.',
+      jsonBody('PATCH', { countsForStudent })
+    ),
+    onSuccess: () => {
       toast.success('Conteggio aggiornato.')
       setCountsTarget(null)
-      await loadBookings()
-      await loadLesson()
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile aggiornare il conteggio.'
-      )
-    } finally {
-      setIsUpdatingCounts(false)
+      return reloadLessons()
     }
-  }, [countsTarget, countsValue, lessonId, loadBookings, loadLesson])
+  })
+  const isUpdatingCounts = updateCounts.isPending
+  const handleUpdateCounts = () => {
+    if (countsTarget) updateCounts.mutate({ booking: countsTarget, countsForStudent: countsValue })
+  }
 
-  const handleCancelLesson = React.useCallback(async () => {
-    if (!lesson) {
-      return
-    }
-
-    setIsCancellingLesson(true)
-
-    try {
-      const response = await fetch(`/api/lessons/${lesson.id}/cancel`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          countsForTutor: cancelLessonCountsForTutor
-        })
-      })
-      if (!response.ok) {
-        let message = 'Impossibile annullare la lezione.'
-        try {
-          const payload = await response.json()
-          message = extractErrorMessage(payload, message)
-        } catch {
-          // ignore
-        }
-        throw new Error(message)
-      }
+  const cancelLesson = useMutation({
+    mutationFn: ({ id, countsForTutor }: { id: string, countsForTutor: boolean }) => apiFetch(
+      `/api/lessons/${id}/cancel`,
+      'Impossibile annullare la lezione.',
+      jsonBody('POST', { countsForTutor })
+    ),
+    onSuccess: () => {
       toast.success('Lezione annullata.')
       setCancelLessonOpen(false)
-      await loadLesson()
-      await loadBookings()
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile annullare la lezione.'
-      )
-    } finally {
-      setIsCancellingLesson(false)
+      return reloadLessons()
     }
-  }, [cancelLessonCountsForTutor, lesson, loadBookings, loadLesson])
+  })
+  const isCancellingLesson = cancelLesson.isPending
+  const handleCancelLesson = () => {
+    if (lesson) cancelLesson.mutate({ id: lesson.id, countsForTutor: cancelLessonCountsForTutor })
+  }
 
-  const handleUpdateLessonCounts = React.useCallback(async () => {
-    if (!lesson) {
-      return
-    }
-
-    setIsUpdatingLessonCounts(true)
-
-    try {
-      const response = await fetch(`/api/lessons/${lesson.id}/counts`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ countsForTutor: lessonCountsValue })
-      })
-      if (!response.ok) {
-        let message = 'Impossibile aggiornare il conteggio tutor.'
-        try {
-          const payload = await response.json()
-          message = extractErrorMessage(payload, message)
-        } catch {
-          // ignore
-        }
-        throw new Error(message)
-      }
+  const updateLessonCounts = useMutation({
+    mutationFn: ({ id, countsForTutor }: { id: string, countsForTutor: boolean }) => apiFetch(
+      `/api/lessons/${id}/counts`,
+      'Impossibile aggiornare il conteggio tutor.',
+      jsonBody('PATCH', { countsForTutor })
+    ),
+    onSuccess: () => {
       toast.success('Conteggio tutor aggiornato.')
       setLessonCountsOpen(false)
-      await loadLesson()
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile aggiornare il conteggio tutor.'
-      )
-    } finally {
-      setIsUpdatingLessonCounts(false)
+      return reloadLessons()
     }
-  }, [lesson, lessonCountsValue, loadLesson])
-
+  })
+  const isUpdatingLessonCounts = updateLessonCounts.isPending
+  const handleUpdateLessonCounts = () => {
+    if (lesson) updateLessonCounts.mutate({ id: lesson.id, countsForTutor: lessonCountsValue })
+  }
 
   const filteredBookings = React.useMemo(() => {
     if (bookingFilter === 'all') {
@@ -753,7 +479,7 @@ export default function AdminLessonDetailsPage() {
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
-                void handleTopicUpdate()
+                handleTopicUpdate()
               }}
               disabled={isUpdatingTopic}
             >
@@ -813,7 +539,7 @@ export default function AdminLessonDetailsPage() {
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
-                void handleCancelBooking()
+                handleCancelBooking()
               }}
               disabled={isCanceling}
             >
@@ -864,7 +590,7 @@ export default function AdminLessonDetailsPage() {
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
-                void handleCancelLesson()
+                handleCancelLesson()
               }}
               disabled={isCancellingLesson}
             >
@@ -904,7 +630,7 @@ export default function AdminLessonDetailsPage() {
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
-                void handleUpdateCounts()
+                handleUpdateCounts()
               }}
               disabled={isUpdatingCounts}
             >
@@ -942,7 +668,7 @@ export default function AdminLessonDetailsPage() {
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
-                void handleUpdateLessonCounts()
+                handleUpdateLessonCounts()
               }}
               disabled={isUpdatingLessonCounts}
             >

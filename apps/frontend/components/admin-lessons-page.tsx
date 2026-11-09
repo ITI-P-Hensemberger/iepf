@@ -44,6 +44,8 @@ import {
 } from '@/components/ui/table'
 
 import { toast } from 'sonner'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 
 import { formatItalianDate } from '@/lib/format-date'
 import { lessonSubject } from '@/lib/lesson-subject'
@@ -196,6 +198,13 @@ function buildTutorOptionLabel(tutor: Tutor): string {
   return tutorLabel(tutor) ?? tutor.id
 }
 
+const TUTORS_QUERY = 'role=tutor&limit=200&offset=0'
+// Stable while nothing has loaded, so the memos built on them do not rerun on every render.
+const noLessons: Lesson[] = []
+const noSubjects: Subject[] = []
+const noTutors: Tutor[] = []
+const noSubjectIds: string[] = []
+
 export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.ReactNode } = {}) {
   const router = useRouter()
   const here = useHere()
@@ -204,14 +213,15 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
   const searchParamsString = searchParams.toString()
 
   const [filters, setFilters] = React.useState<LessonFilters>(defaultFilters)
-  const [lessons, setLessons] = React.useState<Lesson[]>([])
-  const [total, setTotal] = React.useState(0)
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [subjects, setSubjects] = React.useState<Subject[]>([])
-  const [subjectsLoading, setSubjectsLoading] = React.useState(true)
-
-  const [tutors, setTutors] = React.useState<Tutor[]>([])
-  const [tutorsLoading, setTutorsLoading] = React.useState(true)
+  const queryClient = useQueryClient()
+  const { data: subjects = noSubjects, isPending: subjectsLoading } = useQuery({
+    queryKey: ['subjects'],
+    queryFn: async () => extractPayloadArray<Subject>(await apiFetch('/api/subjects', 'Impossibile caricare le materie.'))
+  })
+  const { data: tutors = noTutors, isPending: tutorsLoading } = useQuery({
+    queryKey: ['users', TUTORS_QUERY],
+    queryFn: async () => extractPayloadArray<Tutor>(await apiFetch(`/api/users?${TUTORS_QUERY}`, 'Impossibile caricare i tutor.'))
+  })
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
   const schoolDays = useSchoolDays()
   const [createForm, setCreateForm] = React.useState({
@@ -220,11 +230,17 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     date: undefined as Date | undefined,
     time: '15:00'
   })
-  const [isCreating, setIsCreating] = React.useState(false)
-  const [createTutorSubjectIds, setCreateTutorSubjectIds] =
-    React.useState<Set<string>>(new Set())
-  const [createTutorSubjectsLoading, setCreateTutorSubjectsLoading] =
-    React.useState(false)
+  // The tutor's subjects come first in the create dialog; without them every subject is listed.
+  const tutorSubjectsResult = useQuery({
+    queryKey: ['users', createForm.tutorId, 'subjects'],
+    queryFn: async () => extractPayloadArray<Subject>(await apiFetch(`/api/tutors/${createForm.tutorId}/subjects`, 'Impossibile caricare le materie.'))
+      .map((subject) => subject.id),
+    enabled: isCreateOpen && Boolean(createForm.tutorId),
+    meta: { inline: true }
+  })
+  const createTutorSubjectsLoading = tutorSubjectsResult.isFetching
+  const tutorSubjectIds = isCreateOpen && createForm.tutorId ? (tutorSubjectsResult.data ?? noSubjectIds) : noSubjectIds
+  const createTutorSubjectIds = React.useMemo(() => new Set(tutorSubjectIds), [tutorSubjectIds])
 
   const parsePage = React.useCallback(
     (key: string) => {
@@ -314,8 +330,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     return { preferred, others }
   }, [createTutorSubjectIds, sortedSubjects])
 
-  const loadLessons = React.useCallback(async () => {
-    setIsLoading(true)
+  const lessonsQuery = React.useMemo(() => {
     const params = new URLSearchParams()
     if (currentFilters.tutorId) {
       params.set('tutorId', currentFilters.tutorId)
@@ -340,187 +355,21 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     params.set('sortDir', currentFilters.sortDir)
     params.set('limit', String(pageSize))
     params.set('offset', String((currentFilters.page - 1) * pageSize))
-
-    try {
-      const response = await fetch(`/api/lessons?${params.toString()}`)
-      if (!response.ok) {
-        throw new Error('Impossibile caricare le lezioni.')
-      }
-      const payload = await response.json()
-      const data = payload && typeof payload === 'object' ? payload : null
-      const items = Array.isArray(data?.data)
-        ? (data?.data as Lesson[])
-        : Array.isArray(data?.items)
-          ? (data?.items as Lesson[])
-          : Array.isArray(data?.results)
-            ? (data?.results as Lesson[])
-            : Array.isArray(data?.rows)
-              ? (data?.rows as Lesson[])
-              : []
-      const totalValue =
-        typeof data?.total === 'number'
-          ? data.total
-          : Array.isArray(data?.data)
-            ? data.data.length
-            : items.length
-      setLessons(items)
-      setTotal(totalValue)
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile caricare le lezioni.'
-      )
-      setLessons([])
-      setTotal(0)
-    } finally {
-      setIsLoading(false)
-    }
+    return params.toString()
   }, [currentFilters])
-
-  React.useEffect(() => {
-    let isMounted = true
-
-    async function loadSubjects() {
-      setSubjectsLoading(true)
-
-      try {
-        const response = await fetch('/api/subjects')
-        if (!response.ok) {
-          throw new Error('Impossibile caricare le materie.')
-        }
-        const payload = await response.json()
-        const items = extractPayloadArray<Subject>(payload)
-        if (isMounted) {
-          setSubjects(items)
-        }
-      } catch (err) {
-        if (isMounted) {
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : 'Impossibile caricare le materie.'
-          )
-        }
-      } finally {
-        if (isMounted) {
-          setSubjectsLoading(false)
-        }
-      }
-    }
-
-    async function loadTutors() {
-      setTutorsLoading(true)
-
-      try {
-        const params = new URLSearchParams({
-          role: 'tutor',
-          limit: '200',
-          offset: '0'
-        })
-        const response = await fetch(`/api/users?${params.toString()}`)
-        if (!response.ok) {
-          throw new Error('Impossibile caricare i tutor.')
-        }
-        const payload = await response.json()
-        const data = payload && typeof payload === 'object' ? payload : null
-        const items = Array.isArray(data?.data)
-          ? (data?.data as Tutor[])
-          : Array.isArray(data?.items)
-            ? (data?.items as Tutor[])
-            : Array.isArray(data?.results)
-              ? (data?.results as Tutor[])
-              : Array.isArray(data?.rows)
-                ? (data?.rows as Tutor[])
-                : []
-        if (isMounted) {
-          setTutors(items)
-        }
-      } catch (err) {
-        if (isMounted) {
-          toast.error(
-            err instanceof Error ? err.message : 'Impossibile caricare i tutor.'
-          )
-        }
-      } finally {
-        if (isMounted) {
-          setTutorsLoading(false)
-        }
-      }
-    }
-
-    void loadSubjects()
-    void loadTutors()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
-
-  React.useEffect(() => {
-    void loadLessons()
-  }, [loadLessons])
-
-  React.useEffect(() => {
-    if (!isCreateOpen || !createForm.tutorId) {
-      setCreateTutorSubjectIds(new Set())
-      return
-    }
-
-    let isMounted = true
-
-    async function loadTutorSubjects() {
-      setCreateTutorSubjectsLoading(true)
-      try {
-        const response = await fetch(
-          `/api/tutors/${createForm.tutorId}/subjects`
-        )
-        if (!response.ok) {
-          throw new Error('Impossibile caricare le materie.')
-        }
-        const payload = await response.json()
-        const items = extractPayloadArray<Subject>(payload)
-        const resolvedItems =
-          items.length === 0 &&
-          payload &&
-          typeof payload === 'object' &&
-          'data' in payload
-            ? extractPayloadArray<Subject>(
-                (payload as { data?: unknown }).data
-              )
-            : items
-        if (isMounted) {
-          const ids = resolvedItems
-            .map((item) => {
-              const candidate = item as Subject & {
-                subjectId?: string
-                subject?: { id?: string } | null
-              }
-              return (
-                candidate.id ||
-                candidate.subjectId ||
-                candidate.subject?.id ||
-                ''
-              )
-            })
-            .filter((value) => value)
-          setCreateTutorSubjectIds(new Set(ids))
-        }
-      } catch {
-        if (isMounted) {
-          setCreateTutorSubjectIds(new Set())
-        }
-      } finally {
-        if (isMounted) {
-          setCreateTutorSubjectsLoading(false)
-        }
-      }
-    }
-
-    void loadTutorSubjects()
-
-    return () => {
-      isMounted = false
-    }
-  }, [createForm.tutorId, isCreateOpen])
+  const lessonsResult = useQuery({
+    queryKey: ['lessons', lessonsQuery],
+    queryFn: async () => {
+      const payload = await apiFetch<{ total?: number }>(`/api/lessons?${lessonsQuery}`, 'Impossibile caricare le lezioni.')
+      const items = extractPayloadArray<Lesson>(payload)
+      return { items, total: typeof payload?.total === 'number' ? payload.total : items.length }
+    },
+    // The rows stay in place while the next page or filter loads.
+    placeholderData: keepPreviousData
+  })
+  const lessons = lessonsResult.data?.items ?? noLessons
+  const total = lessonsResult.data?.total ?? 0
+  const isLoading = lessonsResult.isFetching
 
   const appliedFilters = React.useMemo(
     () => ({
@@ -636,7 +485,20 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     setIsCreateOpen(true)
   }, [])
 
-  const handleCreate = React.useCallback(async () => {
+  const createLesson = useMutation({
+    mutationFn: (body: { tutorId: string, subjectId: string | null, startAt: string }) =>
+      apiFetch<{ lessonId?: string, id?: string }>('/api/lessons', 'Impossibile creare la lezione.', jsonBody('POST', { ...body, durationMinutes: 60 })),
+    onSuccess: async (payload) => {
+      toast.success('Lezione creata.')
+      setIsCreateOpen(false)
+      await queryClient.invalidateQueries({ queryKey: ['lessons'] })
+      const createdLessonId = (payload?.lessonId ?? payload?.id ?? '').trim()
+      if (createdLessonId) router.push(withFrom(`/admin/lessons/${createdLessonId}`, here))
+    }
+  })
+  const isCreating = createLesson.isPending
+
+  const handleCreate = () => {
     if (!createForm.tutorId.trim()) {
       toast.error('Seleziona un tutor valido.')
       return
@@ -648,70 +510,13 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     const timeValue = AVAILABLE_TIMES.includes(createForm.time)
       ? createForm.time
       : '15:00'
-    const startAtIso = combineDateAndTime(
-      createForm.date,
-      timeValue
-    ).toISOString()
-
-    setIsCreating(true)
-
-    try {
-      const response = await fetch('/api/lessons', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          tutorId: createForm.tutorId,
-          // No subject: an open lesson, whose first booking picks one of the tutor's subjects.
-          subjectId: createForm.subjectId || null,
-          startAt: startAtIso,
-          durationMinutes: 60
-        })
-      })
-      if (!response.ok) {
-        let message = 'Impossibile creare la lezione.'
-        try {
-          const payload = await response.json()
-          if (payload && typeof payload === 'object' && 'message' in payload) {
-            message = String(payload.message || message)
-          }
-        } catch {
-          // ignore
-        }
-        throw new Error(message)
-      }
-      let createdLessonId: string | null = null
-      try {
-        const payload = await response.json()
-        if (payload && typeof payload === 'object') {
-          const candidate =
-            'lessonId' in payload
-              ? (payload.lessonId as string | undefined)
-              : 'id' in payload
-                ? (payload.id as string | undefined)
-                : null
-          createdLessonId = candidate && candidate.trim() ? candidate : null
-        }
-      } catch {
-        // ignore
-      }
-      toast.success('Lezione creata.')
-      setIsCreateOpen(false)
-      if (createdLessonId) {
-        router.push(withFrom(`/admin/lessons/${createdLessonId}`, here))
-        return
-      }
-      await loadLessons()
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile creare la lezione.'
-      )
-    } finally {
-      setIsCreating(false)
-    }
-  }, [createForm, here, loadLessons, router])
-
+    createLesson.mutate({
+      tutorId: createForm.tutorId,
+      // No subject: an open lesson, whose first booking picks one of the tutor's subjects.
+      subjectId: createForm.subjectId || null,
+      startAt: combineDateAndTime(createForm.date, timeValue).toISOString()
+    })
+  }
 
   const firstLoad = useFirstLoad(isLoading)
   return (
@@ -1037,7 +842,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
-                void handleCreate()
+                handleCreate()
               }}
               disabled={isCreating}
             >
