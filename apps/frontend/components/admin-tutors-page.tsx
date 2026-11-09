@@ -15,6 +15,9 @@ import {
 } from '@tanstack/react-table'
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 
 import { Button } from '@/components/ui/button'
 import { FilterForm } from '@/components/filter-form'
@@ -90,6 +93,21 @@ type PagedPayloadObject<T> = {
   rows?: T[]
   results?: T[]
 }
+
+// A list's request: role filters, then the search, sort and page from the URL.
+function listQuery(filters: TableFilters & { page: number }, base: Record<string, string> = {}) {
+  const params = new URLSearchParams(base)
+  if (filters.search.trim()) params.set('q', filters.search.trim())
+  params.set('sortBy', filters.sortBy)
+  params.set('sortDir', filters.sortDir)
+  params.set('limit', String(pageSize))
+  params.set('offset', String((filters.page - 1) * pageSize))
+  return params.toString()
+}
+
+// Stable while nothing has loaded, so the tables do not rebuild on every render.
+const noTutors: Tutor[] = []
+const noInvites: PendingInvite[] = []
 
 function normalizePaged<T>(payload: unknown): { items: T[]; total: number } {
   if (!payload) {
@@ -292,26 +310,11 @@ export default function AdminTutorsPage() {
   // The open tab lives in the URL, so it is still open after a trip to a detail page and back.
   const listTab = (['inactive', 'invites'] as const).find((value) => value === searchParams.get('tab')) ?? 'active'
   const searchParamsString = searchParams.toString()
-  const [activeTutors, setActiveTutors] = React.useState<Tutor[]>([])
-  const [inactiveTutors, setInactiveTutors] = React.useState<Tutor[]>([])
-  const [pendingInvites, setPendingInvites] = React.useState<PendingInvite[]>(
-    []
-  )
-  const [activeTotal, setActiveTotal] = React.useState(0)
-  const [inactiveTotal, setInactiveTotal] = React.useState(0)
-  const [pendingTotal, setPendingTotal] = React.useState(0)
-  const [activeLoading, setActiveLoading] = React.useState(true)
-  const [inactiveLoading, setInactiveLoading] = React.useState(true)
-  const [pendingLoading, setPendingLoading] = React.useState(true)
-  const [pendingDeletingId, setPendingDeletingId] = React.useState<
-    string | null
-  >(null)
   const [inviteToDelete, setInviteToDelete] =
     React.useState<PendingInvite | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = React.useState(false)
   const [showInviteDialog, setShowInviteDialog] = React.useState(false)
   const [inviteEmails, setInviteEmails] = React.useState('')
-  const [isInviting, setIsInviting] = React.useState(false)
   const [activeFilters, setActiveFilters] =
     React.useState<TableFilters>(defaultTutorFilters)
   const [inactiveFilters, setInactiveFilters] =
@@ -479,101 +482,35 @@ export default function AdminTutorsPage() {
     [pathname, router, searchParamsString]
   )
 
-  const loadTutors = React.useCallback(
-    async (options: {
-      isActive: boolean
-      search: string
-      sort: { sortBy: string; sortDir: 'asc' | 'desc' }
-      page: number
-    }) => {
-      const { isActive, search, sort, page } = options
-      const params = new URLSearchParams()
-      params.set('role', 'tutor')
-      params.set('isActive', String(isActive))
-      if (search.trim()) {
-        params.set('q', search.trim())
-      }
-      params.set('sortBy', sort.sortBy)
-      params.set('sortDir', sort.sortDir)
-      params.set('limit', String(pageSize))
-      params.set('offset', String((page - 1) * pageSize))
-
-      if (isActive) {
-        setActiveLoading(true)
-      } else {
-        setInactiveLoading(true)
-      }
-
-      try {
-        const response = await fetch(`/api/users?${params.toString()}`)
-        if (!response.ok) {
-          throw new Error('Impossibile caricare i tutor.')
-        }
-        const payload = await response.json()
-        const { items, total } = normalizePaged<Tutor>(payload)
-        if (isActive) {
-          setActiveTutors(items)
-          setActiveTotal(total)
-        } else {
-          setInactiveTutors(items)
-          setInactiveTotal(total)
-        }
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Impossibile caricare i tutor.'
-        toast.error(message)
-      } finally {
-        if (isActive) {
-          setActiveLoading(false)
-        } else {
-          setInactiveLoading(false)
-        }
-      }
-    },
-    []
-  )
-
-  const loadPendingInvites = React.useCallback(
-    async (options: {
-      search: string
-      sort: { sortBy: string; sortDir: 'asc' | 'desc' }
-      page: number
-    }) => {
-      const { search, sort, page } = options
-      const params = new URLSearchParams()
-      if (search.trim()) {
-        params.set('q', search.trim())
-      }
-      params.set('sortBy', sort.sortBy)
-      params.set('sortDir', sort.sortDir)
-      params.set('limit', String(pageSize))
-      params.set('offset', String((page - 1) * pageSize))
-
-      setPendingLoading(true)
-
-      try {
-        const response = await fetch(
-          `/api/auth/tutor-invite?${params.toString()}`
-        )
-        if (!response.ok) {
-          throw new Error('Impossibile caricare gli inviti.')
-        }
-        const payload = await response.json()
-        const { items, total } = normalizePaged<PendingInvite>(payload)
-        setPendingInvites(items)
-        setPendingTotal(total)
-      } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : 'Impossibile caricare gli inviti.'
-        toast.error(message)
-      } finally {
-        setPendingLoading(false)
-      }
-    },
-    []
-  )
+  const queryClient = useQueryClient()
+  const activeQuery = listQuery(currentActiveFilters, { role: 'tutor', isActive: 'true' })
+  const inactiveQuery = listQuery(currentInactiveFilters, { role: 'tutor', isActive: 'false' })
+  const pendingQuery = listQuery(currentPendingFilters)
+  // The rows stay in place while the next page or search loads.
+  const activeResult = useQuery({
+    queryKey: ['users', activeQuery],
+    queryFn: async () => normalizePaged<Tutor>(await apiFetch(`/api/users?${activeQuery}`, 'Impossibile caricare i tutor.')),
+    placeholderData: keepPreviousData
+  })
+  const inactiveResult = useQuery({
+    queryKey: ['users', inactiveQuery],
+    queryFn: async () => normalizePaged<Tutor>(await apiFetch(`/api/users?${inactiveQuery}`, 'Impossibile caricare i tutor.')),
+    placeholderData: keepPreviousData
+  })
+  const pendingResult = useQuery({
+    queryKey: ['tutor-invites', pendingQuery],
+    queryFn: async () => normalizePaged<PendingInvite>(await apiFetch(`/api/auth/tutor-invite?${pendingQuery}`, 'Impossibile caricare gli inviti.')),
+    placeholderData: keepPreviousData
+  })
+  const activeTutors = activeResult.data?.items ?? noTutors
+  const activeTotal = activeResult.data?.total ?? 0
+  const activeLoading = activeResult.isFetching
+  const inactiveTutors = inactiveResult.data?.items ?? noTutors
+  const inactiveTotal = inactiveResult.data?.total ?? 0
+  const inactiveLoading = inactiveResult.isFetching
+  const pendingInvites = pendingResult.data?.items ?? noInvites
+  const pendingTotal = pendingResult.data?.total ?? 0
+  const pendingLoading = pendingResult.isFetching
 
   const parseAndValidateEmails = React.useCallback(
     (
@@ -621,16 +558,45 @@ export default function AdminTutorsPage() {
     []
   )
 
-  const handleInviteTutor = React.useCallback(async () => {
-    // Parse and validate emails
-    const { valid, invalid } = parseAndValidateEmails(inviteEmails)
+  // Each address on its own: one failure does not stop the others, and the dialog stays open
+  // with the addresses to retry.
+  const inviteTutors = useMutation({
+    mutationFn: async (emails: string[]) => {
+      const results = await Promise.allSettled(emails.map((email) =>
+        apiFetch('/api/auth/tutor-invite/request', 'Richiesta non riuscita.', jsonBody('POST', { email }))
+      ))
+      return results.map((result, index) => ({
+        email: emails[index],
+        error: result.status === 'rejected' ? (result.reason as Error).message : null
+      }))
+    },
+    onSuccess: (results) => {
+      const sent = results.filter((result) => !result.error).length
+      const failureList = results
+        .filter((result) => result.error)
+        .map(({ email, error }) => `• ${email}: ${error}`)
+        .join('\n')
+      if (sent > 0) void queryClient.invalidateQueries({ queryKey: ['tutor-invites'] })
+      if (sent === results.length) {
+        toast.success(`${sent} ${sent === 1 ? 'invito inviato' : 'inviti inviati'}.`)
+        setInviteEmails('')
+        setShowInviteDialog(false)
+      } else if (sent > 0) {
+        const failed = results.length - sent
+        toast.error(`${sent} ${sent === 1 ? 'invito inviato' : 'inviti inviati'}.\n${failed} ${failed === 1 ? 'fallito' : 'falliti'}:\n${failureList}`)
+      } else {
+        toast.error(`Tutti gli inviti sono falliti:\n${failureList}`)
+      }
+    }
+  })
+  const isInviting = inviteTutors.isPending
 
-    // Check if any emails were provided
+  const handleInviteTutor = () => {
+    const { valid, invalid } = parseAndValidateEmails(inviteEmails)
     if (valid.length === 0 && invalid.length === 0) {
       toast.error('Inserisci almeno un indirizzo email.')
       return
     }
-
     // Block submission if any invalid emails
     if (invalid.length > 0) {
       const errorList = invalid
@@ -641,197 +607,28 @@ export default function AdminTutorsPage() {
       )
       return
     }
+    inviteTutors.mutate(valid)
+  }
 
-    setIsInviting(true)
-
-    try {
-      // Send all invites in parallel
-      const results = await Promise.allSettled(
-        valid.map((email) =>
-          fetch('/api/auth/tutor-invite/request', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email })
-          }).then(async (res) => {
-            if (!res.ok) {
-              const payload = await res.json()
-              throw new Error(payload.message || 'Richiesta non riuscita.')
-            }
-            return { email, success: true }
-          })
-        )
-      )
-
-      // Collect successes and failures
-      const successes: string[] = []
-      const failures: Array<{ email: string; error: string }> = []
-
-      results.forEach((result, index) => {
-        const email = valid[index]
-        if (result.status === 'fulfilled') {
-          successes.push(email)
-        } else {
-          failures.push({
-            email,
-            error: result.reason?.message || 'Errore sconosciuto'
-          })
-        }
-      })
-
-      // Build feedback message
-      if (successes.length === valid.length) {
-        // All succeeded
-        toast.success(
-          `${successes.length} ${successes.length === 1 ? 'invito inviato' : 'inviti inviati'}.`
-        )
-        setInviteEmails('')
-        setShowInviteDialog(false)
-        void loadPendingInvites({
-          search: currentPendingFilters.search,
-          sort: {
-            sortBy: currentPendingFilters.sortBy,
-            sortDir: currentPendingFilters.sortDir
-          },
-          page: currentPendingFilters.page
-        })
-      } else if (successes.length > 0) {
-        // Partial success
-        const failureList = failures
-          .map(({ email, error }) => `• ${email}: ${error}`)
-          .join('\n')
-        toast.error(
-          `${successes.length} ${successes.length === 1 ? 'invito inviato' : 'inviti inviati'}.\n${failures.length} ${failures.length === 1 ? 'fallito' : 'falliti'}:\n${failureList}`
-        )
-        // Don't close dialog, let admin retry failed ones
-      } else {
-        // All failed
-        const failureList = failures
-          .map(({ email, error }) => `• ${email}: ${error}`)
-          .join('\n')
-        toast.error(`Tutti gli inviti sono falliti:\n${failureList}`)
-      }
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Si è verificato un errore. Riprova.'
-      )
-    } finally {
-      setIsInviting(false)
+  const deleteInvite = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/auth/tutor-invite/${id}`, "Impossibile eliminare l'invito.", jsonBody('DELETE')),
+    onSuccess: () => {
+      toast.success('Invito eliminato.')
+      setShowDeleteDialog(false)
+      setInviteToDelete(null)
+      return queryClient.invalidateQueries({ queryKey: ['tutor-invites'] })
     }
-  }, [
-    currentPendingFilters.page,
-    currentPendingFilters.search,
-    currentPendingFilters.sortBy,
-    currentPendingFilters.sortDir,
-    inviteEmails,
-    loadPendingInvites,
-    parseAndValidateEmails
-  ])
+  })
+  const pendingDeletingId = deleteInvite.isPending ? deleteInvite.variables : null
 
-  const handleDeleteInvite = React.useCallback(
-    async () => {
-      if (!inviteToDelete) return
-      const invite = inviteToDelete
-      setPendingDeletingId(invite.id)
-      try {
-        const response = await fetch(`/api/auth/tutor-invite/${invite.id}`, {
-          method: 'DELETE'
-        })
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null)
-          throw new Error(
-            payload?.message || "Impossibile eliminare l'invito."
-          )
-        }
-        toast.success('Invito eliminato.')
-        void loadPendingInvites({
-          search: currentPendingFilters.search,
-          sort: {
-            sortBy: currentPendingFilters.sortBy,
-            sortDir: currentPendingFilters.sortDir
-          },
-          page: currentPendingFilters.page
-        })
-        setShowDeleteDialog(false)
-        setInviteToDelete(null)
-      } catch (err) {
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : "Impossibile eliminare l'invito."
-        )
-      } finally {
-        setPendingDeletingId(null)
-      }
-    },
-    [
-      currentPendingFilters.page,
-      currentPendingFilters.search,
-      currentPendingFilters.sortBy,
-      currentPendingFilters.sortDir,
-      inviteToDelete,
-      loadPendingInvites
-    ]
-  )
+  const handleDeleteInvite = () => {
+    if (inviteToDelete) deleteInvite.mutate(inviteToDelete.id)
+  }
 
   const openDeleteDialog = React.useCallback((invite: PendingInvite) => {
     setInviteToDelete(invite)
     setShowDeleteDialog(true)
   }, [])
-
-  React.useEffect(() => {
-    void loadTutors({
-      isActive: true,
-      search: currentActiveFilters.search,
-      sort: {
-        sortBy: currentActiveFilters.sortBy,
-        sortDir: currentActiveFilters.sortDir
-      },
-      page: currentActiveFilters.page
-    })
-  }, [
-    currentActiveFilters.page,
-    currentActiveFilters.search,
-    currentActiveFilters.sortBy,
-    currentActiveFilters.sortDir,
-    loadTutors
-  ])
-
-  React.useEffect(() => {
-    void loadTutors({
-      isActive: false,
-      search: currentInactiveFilters.search,
-      sort: {
-        sortBy: currentInactiveFilters.sortBy,
-        sortDir: currentInactiveFilters.sortDir
-      },
-      page: currentInactiveFilters.page
-    })
-  }, [
-    currentInactiveFilters.page,
-    currentInactiveFilters.search,
-    currentInactiveFilters.sortBy,
-    currentInactiveFilters.sortDir,
-    loadTutors
-  ])
-
-  React.useEffect(() => {
-    void loadPendingInvites({
-      search: currentPendingFilters.search,
-      sort: {
-        sortBy: currentPendingFilters.sortBy,
-        sortDir: currentPendingFilters.sortDir
-      },
-      page: currentPendingFilters.page
-    })
-  }, [
-    currentPendingFilters.page,
-    currentPendingFilters.search,
-    currentPendingFilters.sortBy,
-    currentPendingFilters.sortDir,
-    loadPendingInvites
-  ])
 
   const makeColumns = React.useCallback(() => {
     const columns: ColumnDef<Tutor>[] = [
@@ -1091,7 +888,7 @@ export default function AdminTutorsPage() {
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
-                void handleInviteTutor()
+                handleInviteTutor()
               }}
               disabled={isInviting || !inviteEmails.trim()}
             >
@@ -1124,7 +921,7 @@ export default function AdminTutorsPage() {
               Annulla
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => void handleDeleteInvite()}
+              onClick={handleDeleteInvite}
               disabled={Boolean(pendingDeletingId) || !inviteToDelete}
               variant='destructive'
             >
