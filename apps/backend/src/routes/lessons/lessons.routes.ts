@@ -407,6 +407,10 @@ export const getLesson = createRoute({
       lessonSchema,
       'Lesson details'
     ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Only admins and the lesson\'s tutor; the message says when it went to another tutor'
+    ),
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.NOT_FOUND),
       'Lesson not found'

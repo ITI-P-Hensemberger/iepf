@@ -14,6 +14,7 @@ import { users } from '@/db/schemas/users.schema'
 import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { wasTutorOf } from '@/lib/lesson-history'
 import { bookingMatches, dateMatches, likePattern, personMatches, subjectMatches } from '@/lib/lesson-search'
 import { getStudentTokenBalance } from '@/lib/lesson-tokens'
 import { buildPagedResponse } from '@/lib/pagination'
@@ -693,7 +694,16 @@ export const getLesson: AppRouteHandler<GetLessonRoute> = async (c) => {
   })
 
   if (!lesson) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
+    return c.json(buildErrorResponse('Lezione non trovata.'), HttpStatusCodes.NOT_FOUND)
+  }
+
+  // Only admins and the lesson's own tutor open it; a tutor it was taken from learns why.
+  const isAdmin = currentUser.role === 'admin' && currentUser.isActive === true
+  if (!isAdmin && !(currentUser.role === 'tutor' && currentUser.id === lesson.tutorId)) {
+    const message = currentUser.role === 'tutor' && await wasTutorOf(lesson.id, currentUser.id)
+      ? 'Questa lezione è stata affidata a un altro tutor: non devi più tenerla.'
+      : 'Questa lezione non è tra le tue.'
+    return c.json(buildErrorResponse(message), HttpStatusCodes.FORBIDDEN)
   }
 
   const tutorOptions = await getTutorSubjectOptions([lesson.tutorId])

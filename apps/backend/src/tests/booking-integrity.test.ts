@@ -441,6 +441,28 @@ describe('reschedule in place', () => {
     expect((await reschedule(lessonId, {}, tutorToken)).status).toBe(403)
   })
 
+  it('opens a lesson only to admins and its tutor, telling a replaced tutor why', async () => {
+    const lessonId = await createLesson(3)
+    const otherTutor = await createTutor(5)
+    const [{ email }] = await db.select({ email: users.email }).from(users).where(eq(users.id, otherTutor))
+    const otherToken = await login(email, 'Integrity123!')
+    const student = await createStudent(0)
+    const open = (token: string) => request(`/lessons/${lessonId}`, { method: 'GET', token })
+
+    expect((await open(adminToken)).status).toBe(200)
+    expect((await open(tutorToken)).status).toBe(200)
+    expect((await open(student.token)).status).toBe(403)
+    const stranger = await open(otherToken)
+    expect(stranger.status).toBe(403)
+    expect((await stranger.json()).error.message).toBe('Questa lezione non è tra le tue.')
+
+    expect((await reschedule(lessonId, { tutorId: otherTutor })).status).toBe(200)
+    expect((await open(otherToken)).status).toBe(200)
+    const replaced = await open(tutorToken)
+    expect(replaced.status).toBe(403)
+    expect((await replaced.json()).error.message).toBe('Questa lezione è stata affidata a un altro tutor: non devi più tenerla.')
+  })
+
   it('drops the history with a past lesson nobody booked', async () => {
     const lessonId = await createLesson(3)
     const past = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)

@@ -148,15 +148,18 @@ export default function TutorLessonDetailsPage() {
   const params = useParams()
   const lessonId = String(params?.id ?? '')
   const queryClient = useQueryClient()
-  const { data: lesson = null, isPending: lessonLoading } = useQuery({
+  // A lesson that is not theirs (or no longer, after a reschedule) is refused: the page says why.
+  const { data: lesson = null, isPending: lessonLoading, error: lessonError } = useQuery({
     queryKey: ['lessons', lessonId],
     queryFn: () => apiFetch<Lesson>(`/api/lessons/${lessonId}`, 'Impossibile caricare la lezione.'),
-    enabled: Boolean(lessonId)
+    enabled: Boolean(lessonId),
+    retry: false,
+    meta: { inline: true }
   })
   const { data: bookings = noBookings, isPending: bookingsLoading } = useQuery({
     queryKey: ['lessons', lessonId, 'bookings'],
     queryFn: async () => extractPayloadArray<Booking>(await apiFetch(`/api/lessons/${lessonId}/bookings`, 'Impossibile caricare le prenotazioni.')),
-    enabled: Boolean(lessonId)
+    enabled: lesson !== null
   })
   const { data: subjects = noSubjects } = useQuery({
     queryKey: ['subjects'],
@@ -165,7 +168,7 @@ export default function TutorLessonDetailsPage() {
   const { data: feedbackItems } = useQuery({
     queryKey: ['feedback', 'me', 'lesson', lessonId],
     queryFn: async () => extractPayloadArray<Feedback>(await apiFetch(`/api/feedback/me?lessonId=${lessonId}&limit=200`, 'Impossibile caricare i feedback.')),
-    enabled: Boolean(lessonId)
+    enabled: lesson !== null
   })
   const feedbackByBooking = React.useMemo(() => new Map((feedbackItems ?? []).map((item) => [item.bookingId, item])), [feedbackItems])
   // Students only name the bookings: one that fails to load is left without a name.
@@ -293,7 +296,7 @@ export default function TutorLessonDetailsPage() {
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10'>
         <div className='mx-auto max-w-6xl space-y-6'>
-          {lessonLoading && !lesson ? (
+          {lessonLoading && !lesson && !lessonError ? (
             <>
               <PageHeader title='Lezione' backHref={backFallback} />
               <Skeleton className='h-16' />
@@ -301,7 +304,7 @@ export default function TutorLessonDetailsPage() {
           ) : !lesson ? (
             <>
               <PageHeader title='Lezione' backHref={backFallback} />
-              <EmptyState>Lezione non disponibile.</EmptyState>
+              <EmptyState>{lessonError?.message ?? 'Lezione non disponibile.'}</EmptyState>
             </>
           ) : (
             <LessonSummary
@@ -323,6 +326,7 @@ export default function TutorLessonDetailsPage() {
             />
           )}
 
+          {!lessonError && (
           <section className='space-y-3'>
             <div className='flex flex-wrap items-baseline justify-between gap-2'>
               <h2 className='text-lg font-semibold'>Studenti</h2>
@@ -413,6 +417,7 @@ export default function TutorLessonDetailsPage() {
               })
             )}
           </section>
+          )}
         </div>
       </div>
 

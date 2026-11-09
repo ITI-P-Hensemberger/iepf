@@ -1,5 +1,5 @@
 // Purpose: Record and read how an admin changed a lesson: when, by whom, before and after.
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 
 import type { LessonVersion } from '@/db/schemas/lesson-changes.schema'
 import type { DbTransaction } from '@/lib/lesson-tokens'
@@ -35,4 +35,16 @@ export async function listLessonHistory(lessonId: string) {
     .from(lessonChanges)
     .where(eq(lessonChanges.lessonId, lessonId))
     .orderBy(asc(lessonChanges.createdAt))
+}
+
+// Whether a reschedule moved the lesson away from this tutor.
+export async function wasTutorOf(lessonId: string, tutorId: string) {
+  const [row] = await db.select({ id: lessonChanges.id })
+    .from(lessonChanges)
+    .where(and(
+      eq(lessonChanges.lessonId, lessonId),
+      sql`${lessonChanges.before}->>'tutorId' = ${tutorId}`
+    ))
+    .limit(1)
+  return Boolean(row)
 }

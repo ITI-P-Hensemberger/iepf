@@ -8271,6 +8271,27 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Only admins and the lesson's tutor; the message says when it went to another tutor */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Accesso negato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
                 /** @description Lesson not found */
                 404: {
                     headers: {
