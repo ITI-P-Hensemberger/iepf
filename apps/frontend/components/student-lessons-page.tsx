@@ -97,7 +97,10 @@ export default function StudentLessonsPage() {
     placeholderData: keepPreviousData
   })
   const lessons = lessonsQuery.data?.pages.flat() ?? noLessons
-  const loading = lessonsQuery.isFetching
+  const loading = lessonsQuery.isPending
+  // Another tab's or search's rows, shown dimmed until the new ones arrive.
+  const stale = lessonsQuery.isPlaceholderData
+  const loadingMore = lessonsQuery.isFetchingNextPage
   const hasMore = lessonsQuery.hasNextPage
 
   const setParam = (key: string, value: string) => {
@@ -162,8 +165,8 @@ export default function StudentLessonsPage() {
             </div>
           </StickyBar>
 
-          <div className='mt-6 space-y-6'>
-            {loading && lessons.length === 0 ? (
+          <div className={cn('mt-6 space-y-6', stale && 'opacity-60 transition-opacity')} aria-busy={stale}>
+            {loading ? (
               <>
                 <Skeleton className='h-28' />
                 <Skeleton className='h-28' />
@@ -200,8 +203,8 @@ export default function StudentLessonsPage() {
               ))
             )}
             {hasMore && (
-              <Button variant='outline' className={cn('w-full', loading && 'opacity-60')} disabled={loading} onClick={() => void lessonsQuery.fetchNextPage()}>
-                {loading ? 'Caricamento...' : 'Mostra altre'}
+              <Button variant='outline' className={cn('w-full', loadingMore && 'opacity-60')} disabled={loadingMore || stale} onClick={() => void lessonsQuery.fetchNextPage()}>
+                {loadingMore ? 'Caricamento...' : 'Mostra altre'}
               </Button>
             )}
           </div>
