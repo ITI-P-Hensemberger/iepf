@@ -7,7 +7,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CalendarCheck, ChevronLeft, ChevronRight } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api-fetch'
 
 import { Button } from '@/components/ui/button'
@@ -73,13 +73,15 @@ export default function AdminDayPage() {
   const grouping: Grouping =
     searchParams.get('group') === 'subject' ? 'subject' : 'tutor'
 
-  // Each day once: going back to a day already seen shows it at once and refreshes it.
-  const { data: lessons = noLessons, isPending: loading } = useQuery({
+  // Each day once: going back to a day already seen shows it at once and refreshes it. A new day
+  // keeps the previous one on screen, dimmed, until it arrives: nothing jumps.
+  const { data: lessons = noLessons, isPending: loading, isPlaceholderData: stale } = useQuery({
     queryKey: ['lessons', 'schedule', dayKey],
     queryFn: async () => extractPayloadArray<ScheduleLesson>(await apiFetch(
       `/api/lessons/schedule?${new URLSearchParams(dayRange(dayKey))}`,
       'Impossibile caricare le lezioni del giorno.'
-    ))
+    )),
+    placeholderData: keepPreviousData
   })
 
   const setParam = (key: string, value: string) => {
@@ -140,7 +142,7 @@ export default function AdminDayPage() {
         </div>
       </StickyBar>
 
-      <DayOverview lessons={lessons} loading={loading} grouping={grouping} />
+      <DayOverview lessons={lessons} loading={loading} stale={stale} grouping={grouping} />
       <p className='text-xs text-muted-foreground'>
         Bordo tratteggiato: lezione ancora senza materia, la sceglie il primo
         studente che prenota. Le lezioni mai prenotate vengono eliminate la
@@ -156,11 +158,14 @@ export default function AdminDayPage() {
 export function DayOverview({
   lessons,
   loading,
+  stale = false,
   grouping,
   emptyMessage = 'Nessuna lezione in questo giorno.'
 }: {
   lessons: ScheduleLesson[]
+  // loading: nothing to show yet; stale: another day's lessons, shown until the new ones arrive.
   loading: boolean
+  stale?: boolean
   grouping: Grouping
   emptyMessage?: string
 }) {
@@ -176,9 +181,10 @@ export function DayOverview({
             a === '' ? 1 : b === '' ? -1 : a.localeCompare(b, 'it')
           )
           .map(([, list]) => list)
+  const dim = cn(stale && 'opacity-60 transition-opacity')
   return (
     <>
-      <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
+      <div className={cn('grid grid-cols-2 gap-3 sm:grid-cols-4', dim)} aria-busy={stale}>
         <Figure label='Lezioni' value={summary.slots} />
         <Figure label='Studenti prenotati' value={summary.booked} />
         <Figure label='Posti ancora prenotabili' value={summary.free} />
@@ -193,7 +199,7 @@ export function DayOverview({
       ) : lessons.length === 0 ? (
         <EmptyState>{emptyMessage}</EmptyState>
       ) : (
-        <div className='divide-y rounded-lg border bg-card'>
+        <div className={cn('divide-y rounded-lg border bg-card', dim)} aria-busy={stale}>
           {groups.map((group) => (
             <GroupRow
               key={
