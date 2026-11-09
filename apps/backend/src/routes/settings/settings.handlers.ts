@@ -15,6 +15,7 @@ import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { verifyPassword } from '@/lib/password'
+import { ensureAdmin } from '@/lib/require-admin'
 import { clearReportExport, hasRecentReportExport, REPORT_VALID_MINUTES } from '@/lib/year-report-export'
 
 import type {
@@ -39,20 +40,6 @@ const defaultMaintenance = maintenanceSchema.parse({
 
 const defaultServiceMessages = serviceMessagesSchema.parse({})
 const defaultClosureDates = closureDatesSchema.parse([])
-
-function forbid(): never {
-  throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
-    message: HttpStatusPhrases.FORBIDDEN
-  })
-}
-
-function ensureAdmin(c: HandlerContext) {
-  const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
-    forbid()
-  }
-  return currentUser
-}
 
 async function readSetting<T>(key: string, fallback: T): Promise<T> {
   const row = await db.query.globalSettings.findFirst({

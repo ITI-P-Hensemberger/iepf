@@ -2,18 +2,15 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
+import { safeInternalPath } from '@/lib/safe-redirect'
+
 // Back always leads where the user came from. A link to an inner page carries the page it was
 // opened on in ?from= (path and query, so filters, tabs and days survive); the inner page's back
 // button goes there, or to its usual parent when the page was opened some other way.
 export const FROM_PARAM = 'from'
 
 // Only a path on this site: never another host, never a protocol.
-export function safeFrom(value: string | null | undefined): string | null {
-  if (!value || !value.startsWith('/') || value.startsWith('//') || value.includes('\\')) {
-    return null
-  }
-  return value
-}
+export const safeFrom = safeInternalPath
 
 // href with ?from=<from> added, keeping the rest of its query.
 export function withFrom(href: string, from: string) {

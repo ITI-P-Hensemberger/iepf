@@ -8,6 +8,7 @@ describe('back links', () => {
     expect(safeFrom('https://example.com')).toBeNull()
     expect(safeFrom('//example.com/admin')).toBeNull()
     expect(safeFrom('/\\example.com')).toBeNull()
+    expect(safeFrom('/\t/example.com')).toBeNull()
     expect(safeFrom('home')).toBeNull()
     expect(safeFrom(null)).toBeNull()
   })

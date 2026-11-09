@@ -43,24 +43,12 @@ export async function passwordResetTokenOwner(token: string) {
 }
 
 export async function consumePasswordResetToken(token: string) {
-  const tokenHash = hashToken(token)
-  const found = await db.query.passwordResetTokens.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.tokenHash, tokenHash)
-    },
-    columns: {
-      id: true,
-      userId: true,
-      expiresAt: true
-    }
-  })
+  // One statement: of two concurrent confirmations only one gets the row back.
+  const [found] = await db.delete(passwordResetTokens)
+    .where(eq(passwordResetTokens.tokenHash, hashToken(token)))
+    .returning({ userId: passwordResetTokens.userId, expiresAt: passwordResetTokens.expiresAt })
 
-  if (!found) {
-    return null
-  }
-
-  if (found.expiresAt <= new Date()) {
-    await db.delete(passwordResetTokens).where(eq(passwordResetTokens.id, found.id))
+  if (!found || found.expiresAt <= new Date()) {
     return null
   }
 
@@ -75,12 +63,5 @@ export async function consumePasswordResetToken(token: string) {
     }
   })
 
-  if (!user) {
-    await db.delete(passwordResetTokens).where(eq(passwordResetTokens.id, found.id))
-    return null
-  }
-
-  await db.delete(passwordResetTokens).where(eq(passwordResetTokens.id, found.id))
-
-  return user
+  return user ?? null
 }
