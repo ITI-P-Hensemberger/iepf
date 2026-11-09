@@ -362,8 +362,9 @@ export default function TutorLessonDetailsPage() {
                         )}
                       </div>
                     </div>
-                    {/* The topic stretches down to the presence buttons, its text staying at the top. */}
-                    <div className='flex flex-col gap-4 sm:flex-row sm:items-stretch'>
+                    {/* The topic stretches down to the presence buttons, its text staying at the top.
+                        On phones the feedback button sits right above them: a wider gap keeps taps apart. */}
+                    <div className='flex flex-col gap-8 sm:flex-row sm:items-stretch sm:gap-4'>
                       <div className='flex min-w-0 flex-1 flex-col gap-3'>
                         {booking.topic && <p className='flex-1 rounded-md bg-muted/50 px-3 py-2 text-sm whitespace-pre-wrap'>{booking.topic}</p>}
                         {(canGiveFeedback || existing) && (

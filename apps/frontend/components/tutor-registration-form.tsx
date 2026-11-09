@@ -42,6 +42,7 @@ import { extractPayloadArray } from '@/lib/backend-response'
 import { TUTOR_YEARS } from '@/lib/school-years'
 import { apiFetch } from '@/lib/api-fetch'
 import { confirmInvite } from '@/lib/auth-client'
+import { PERSON_NAME_PATTERN } from '@/lib/person-name'
 
 function normalizeName(value: string) {
   const trimmed = value.trim()
@@ -57,12 +58,12 @@ const formSchema = z
       .string()
       .trim()
       .min(2, 'Il nome è obbligatorio')
-      .regex(/^[\p{L}]+$/u, 'Il nome può contenere solo lettere'),
+      .regex(PERSON_NAME_PATTERN, 'Il nome può contenere solo lettere e apostrofi'),
     last_name: z
       .string()
       .trim()
       .min(2, 'Il cognome è obbligatorio')
-      .regex(/^[\p{L}]+$/u, 'Il cognome può contenere solo lettere'),
+      .regex(PERSON_NAME_PATTERN, 'Il cognome può contenere solo lettere e apostrofi'),
     year: z.string().min(1, "L'anno è obbligatorio"),
     sectionId: z.string().min(1, 'La sezione è obbligatoria'),
     password: z

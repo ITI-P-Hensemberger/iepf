@@ -46,6 +46,7 @@ import {
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { formatItalianDate } from '@/lib/format-date'
+import { PERSON_NAME_PATTERN } from '@/lib/person-name'
 
 function normalizeName(value: string) {
   const trimmed = value.trim()
@@ -64,12 +65,12 @@ const formSchema = z.object({
     .string()
     .trim()
     .min(2, 'Il nome e obbligatorio')
-    .regex(/^[\p{L}]+$/u, 'Il nome puo contenere solo lettere'),
+    .regex(PERSON_NAME_PATTERN, 'Il nome può contenere solo lettere e apostrofi'),
   lastName: z
     .string()
     .trim()
     .min(2, 'Il cognome e obbligatorio')
-    .regex(/^[\p{L}]+$/u, 'Il cognome puo contenere solo lettere'),
+    .regex(PERSON_NAME_PATTERN, 'Il cognome può contenere solo lettere e apostrofi'),
   email: z.string().email('Indirizzo email non valido')
 })
 
