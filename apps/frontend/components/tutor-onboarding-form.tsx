@@ -228,7 +228,8 @@ export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
         {step === 0 ? (
           <>
             <span />
-            <Button type='button' onClick={() => void next()}>
+            {/* Its own key: reused as the submit button below, the click that opens step 2 would also send the form. */}
+            <Button key='next' type='button' onClick={() => void next()}>
               Avanti
             </Button>
           </>
@@ -237,7 +238,7 @@ export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
             <Button type='button' variant='outline' onClick={() => setStep(0)} disabled={isSubmitting}>
               Indietro
             </Button>
-            <Button type='submit' form='tutor-onboarding-form' disabled={isSubmitting}>
+            <Button key='submit' type='submit' form='tutor-onboarding-form' disabled={isSubmitting}>
               {isSubmitting ? 'Salvataggio...' : 'Salva e continua'}
             </Button>
           </>
