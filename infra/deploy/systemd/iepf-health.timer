@@ -1,0 +1,11 @@
+[Unit]
+Description=IEPF hourly health check
+
+[Timer]
+# Off the hour, away from the jobs.
+OnCalendar=*-*-* *:17:00 Europe/Rome
+Unit=iepf-health.service
+Persistent=false
+
+[Install]
+WantedBy=timers.target

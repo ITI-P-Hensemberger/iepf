@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from changes import classify, changed_paths  # noqa: E402
 
 DEPLOY = Path(__file__).resolve().parents[1] / 'deploy'
-BUNDLE_MEMBERS = ['compose.yaml', 'apply.sh', 'job.sh', 'backup.sh', 'restore-test.sh', 'alert.sh', 'install-timers.sh', 'systemd', 'request.json', 'release-id']
+BUNDLE_MEMBERS = ['compose.yaml', 'apply.sh', 'job.sh', 'backup.sh', 'restore-test.sh', 'health-check.sh', 'alert.sh', 'install-timers.sh', 'systemd', 'request.json', 'release-id']
 # Part of the release ID, so components deployed by one run never share a directory.
 SLOTS = {'backend': 1, 'frontend': 2, 'infra': 3, 'rollback': 4}
 REGISTRY = 'ghcr.io/iti-p-hensemberger'
@@ -73,7 +73,7 @@ def release_id(run_id, attempt, component):
 def build_bundle(request, release, target):
     with tempfile.TemporaryDirectory() as temp:
         stage = Path(temp)
-        for name in ('compose.yaml', 'apply.sh', 'job.sh', 'backup.sh', 'restore-test.sh', 'alert.sh', 'install-timers.sh'):
+        for name in ('compose.yaml', 'apply.sh', 'job.sh', 'backup.sh', 'restore-test.sh', 'health-check.sh', 'alert.sh', 'install-timers.sh'):
             shutil.copy2(DEPLOY / name, stage / name)
         shutil.copytree(DEPLOY / 'systemd', stage / 'systemd')
         (stage / 'request.json').write_text(json.dumps(request))
