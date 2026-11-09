@@ -42,6 +42,8 @@ class ClassifyTests(unittest.TestCase):
     def test_documentation_never_releases(self):
         result = changes.classify(['apps/backend/README.md', 'infra/deploy/README.md', 'README.md', 'docs/cutover.md'])
         self.assertEqual({k for k in on(result) if k.endswith('_release')}, set())
+        # Nor does it run the apps' checks: markdown is not linted, tested or built.
+        self.assertEqual(on(changes.classify(['apps/frontend/CLAUDE.md', 'apps/backend/AGENTS.md'])), set())
 
     def test_only_bundle_files_release_infra(self):
         for path in ['infra/deploy/compose.yaml', 'infra/deploy/apply.sh', 'infra/deploy/systemd/iepf-backup.timer']:
