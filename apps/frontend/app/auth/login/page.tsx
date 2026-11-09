@@ -7,12 +7,13 @@ import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
 import { startLoginSession } from '@/lib/announcement-dismissals'
 import { notifyAuthChanged } from '@/lib/auth-events'
+import { SESSION_KEY } from '@/lib/use-session'
 import { safeInternalPath } from '@/lib/safe-redirect'
 import { apiFetch, jsonBody } from '@/lib/api-fetch'
 import { AuthLayout } from '@/components/auth-layout'
@@ -72,6 +73,7 @@ function LoginContent() {
   })
 
   // An unverified email is an answer, not an error: it shows the button to send the email again.
+  const queryClient = useQueryClient()
   const login = useMutation({
     mutationFn: async (values: LoginFormValues) => {
       const response = await fetch('/api/auth/login', jsonBody('POST', {
@@ -94,6 +96,8 @@ function LoginContent() {
         return
       }
       startLoginSession(window.localStorage)
+      // The next page reads the new session, not the signed-out one kept from before.
+      queryClient.removeQueries({ queryKey: SESSION_KEY })
       notifyAuthChanged()
       router.push(destinationAfterLogin(result, safeInternalPath(nextParam)))
     }
