@@ -5,6 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { TUTOR_ONBOARDED_FLAG as ONBOARDED_FLAG } from '@/components/push-prompt'
 
@@ -12,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { STICKY_CARD_FOOTER } from '@/components/sticky-footer'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { tutorSubjectsKey } from '@/lib/use-tutor-onboarding'
 import { SubjectSelector } from '@/components/subject-selector'
 import { WeekdayAvailabilitySelector } from '@/components/weekday-availability-selector'
 
@@ -59,6 +62,8 @@ type TutorOnboardingFormProps = {
 const STEPS = ['Materie', 'Disponibilità'] as const
 
 export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
+  const router = useRouter()
+  const queryClient = useQueryClient()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [step, setStep] = React.useState(0)
 
@@ -130,10 +135,9 @@ export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
       } catch {
         // Without storage the tutor home simply skips the push invite.
       }
-      // Redirect to tutor home with full page reload to refresh data.
-      // Temporary: docs/TODO.md item 25 replaces this with invalidating the onboarding data.
-      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-      window.location.href = '/tutor'
+      // The guard reads the subjects again before the tutor home opens.
+      await queryClient.invalidateQueries({ queryKey: tutorSubjectsKey(tutorId) })
+      router.replace('/tutor')
     } catch (err) {
       toast.error(
         err instanceof Error

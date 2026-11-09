@@ -10,6 +10,9 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { History, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 
 import {
   AlertDialog,
@@ -121,6 +124,10 @@ const defaultFilters: FeedbackFilters = {
   sortDir: 'desc'
 }
 
+// Stable empty lists, so memos keyed on them do not rerun while data loads.
+const noUsers: User[] = []
+const noSubjects: Subject[] = []
+
 function normalizePaged<T>(payload: unknown): { items: T[]; total: number } {
   if (!payload) {
     return { items: [], total: 0 }
@@ -221,23 +228,11 @@ export default function AdminFeedbackPage() {
   const searchParamsString = searchParams.toString()
 
   const [filters, setFilters] = React.useState<FeedbackFilters>(defaultFilters)
-  const [feedback, setFeedback] = React.useState<Feedback[]>([])
-  const [total, setTotal] = React.useState(0)
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [usersLoading, setUsersLoading] = React.useState(false)
-  const [students, setStudents] = React.useState<User[]>([])
-  const [tutors, setTutors] = React.useState<User[]>([])
-  const [subjects, setSubjects] = React.useState<Subject[]>([])
-  const [lessonMap, setLessonMap] = React.useState<Record<string, LessonInfo>>(
-    {}
-  )
 
   const [editTarget, setEditTarget] = React.useState<Feedback | null>(null)
   const [editForm, setEditForm] = React.useState({ rating: '', text: '' })
-  const [isUpdating, setIsUpdating] = React.useState(false)
 
   const [deleteTarget, setDeleteTarget] = React.useState<Feedback | null>(null)
-  const [isDeleting, setIsDeleting] = React.useState(false)
   const [detailTarget, setDetailTarget] = React.useState<Feedback | null>(null)
   // Deleted feedback stays in the history: shown on request, marked, never editable.
   const [showDeleted, setShowDeleted] = React.useState(false)
@@ -374,8 +369,7 @@ export default function AdminFeedbackPage() {
     [pathname, router, searchParamsString]
   )
 
-  const loadFeedback = React.useCallback(async () => {
-    setIsLoading(true)
+  const feedbackQuery = React.useMemo(() => {
     const params = new URLSearchParams()
     if (currentFilters.lessonId) {
       params.set('lessonId', currentFilters.lessonId)
@@ -409,116 +403,69 @@ export default function AdminFeedbackPage() {
     }
     params.set('limit', String(pageSize))
     params.set('offset', String((currentFilters.page - 1) * pageSize))
-
-    try {
-      const response = await fetch(`/api/feedback?${params.toString()}`)
-      if (!response.ok) {
-        throw new Error('Impossibile caricare i feedback.')
-      }
-      const payload = await response.json()
-      const { items, total } = normalizePaged<Feedback>(payload)
-      setFeedback(items)
-      setTotal(total)
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile caricare i feedback.'
-      )
-    } finally {
-      setIsLoading(false)
-    }
+    return params.toString()
   }, [currentFilters, showDeleted])
 
-  React.useEffect(() => {
-    void loadFeedback()
-  }, [loadFeedback])
+  const queryClient = useQueryClient()
+  const feedbackResult = useQuery({
+    queryKey: ['feedback', feedbackQuery],
+    queryFn: async () => normalizePaged<Feedback>(await apiFetch(`/api/feedback?${feedbackQuery}`, 'Impossibile caricare i feedback.')),
+    // The rows stay in place while the next page or filter loads.
+    placeholderData: keepPreviousData
+  })
+  const feedback = feedbackResult.data?.items ?? []
+  const total = feedbackResult.data?.total ?? 0
+  const isLoading = feedbackResult.isFetching
 
-  const loadUsers = React.useCallback(async () => {
-    setUsersLoading(true)
-    try {
+  const usersResult = useQuery({
+    queryKey: ['users', 'students-and-tutors'],
+    queryFn: async () => {
       const [studentsResponse, tutorsResponse] = await Promise.all([
         fetch('/api/users?role=student&limit=200&offset=0'),
         fetch('/api/users?role=tutor&limit=200&offset=0')
-      ])
-
-      if (studentsResponse.ok) {
-        const payload = await studentsResponse.json()
-        const { items } = normalizePaged<User>(payload)
-        setStudents(items)
-      }
-      if (tutorsResponse.ok) {
-        const payload = await tutorsResponse.json()
-        const { items } = normalizePaged<User>(payload)
-        setTutors(items)
-      }
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile caricare gli utenti.'
-      )
-    } finally {
-      setUsersLoading(false)
-    }
-  }, [])
-
-  React.useEffect(() => {
-    void loadUsers()
-  }, [loadUsers])
-
-  const loadSubjects = React.useCallback(async () => {
-    try {
-      const response = await fetch('/api/subjects')
-      if (!response.ok) {
-        return
-      }
-      const payload = await response.json()
-      setSubjects(extractPayloadArray<Subject>(payload))
-    } catch {
-      // ignore subject errors for now
-    }
-  }, [])
-
-  React.useEffect(() => {
-    void loadSubjects()
-  }, [loadSubjects])
-
-  React.useEffect(() => {
-    if (!feedback.length) return
-    const uniqueLessonIds = Array.from(
-      new Set(feedback.map((item) => item.lessonId).filter(Boolean))
-    )
-    const missingIds = uniqueLessonIds.filter((id) => !lessonMap[id])
-    if (!missingIds.length) return
-
-    let isCancelled = false
-    void (async () => {
-      const results = await Promise.all(
-        missingIds.map(async (lessonId) => {
-          try {
-            const response = await fetch(`/api/lessons/${lessonId}`)
-            if (!response.ok) return null
-            const payload = await response.json()
-            const lesson = extractPayloadObject<LessonInfo>(payload)
-            return lesson ? { lessonId, lesson } : null
-          } catch {
-            return null
-          }
-        })
-      )
-      if (isCancelled) return
-      setLessonMap((prev) => {
-        const next = { ...prev }
-        results.forEach((result) => {
-          if (result?.lesson) {
-            next[result.lessonId] = result.lesson
-          }
-        })
-        return next
+      ]).catch(() => {
+        throw new Error('Impossibile caricare gli utenti.')
       })
-    })()
-
-    return () => {
-      isCancelled = true
+      return {
+        students: studentsResponse.ok ? normalizePaged<User>(await studentsResponse.json()).items : [],
+        tutors: tutorsResponse.ok ? normalizePaged<User>(await tutorsResponse.json()).items : []
+      }
     }
-  }, [feedback, lessonMap])
+  })
+  const students = usersResult.data?.students ?? noUsers
+  const tutors = usersResult.data?.tutors ?? noUsers
+  const usersLoading = usersResult.isFetching
+
+  // Subjects only name things in the list: without them the page still works, so no toast.
+  const { data: subjects = noSubjects } = useQuery({
+    queryKey: ['subjects'],
+    queryFn: async () => {
+      const response = await fetch('/api/subjects').catch(() => null)
+      return response?.ok ? extractPayloadArray<Subject>(await response.json()) : []
+    }
+  })
+
+  // Each lesson once, cached across pages; a lesson that fails to load is just left out.
+  const lessonIds = Array.from(new Set(feedback.map((item) => item.lessonId).filter(Boolean)))
+  const lessonResults = useQueries({
+    queries: lessonIds.map((lessonId) => ({
+      queryKey: ['lesson', lessonId],
+      queryFn: async () => {
+        const response = await fetch(`/api/lessons/${lessonId}`).catch(() => null)
+        return response?.ok ? extractPayloadObject<LessonInfo>(await response.json()) : null
+      },
+      staleTime: Infinity
+    }))
+  })
+  const lessonMap: Record<string, LessonInfo> = {}
+  lessonResults.forEach((result, index) => {
+    if (result.data) lessonMap[lessonIds[index]] = result.data
+  })
+
+  const reloadFeedback = React.useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['feedback'] }),
+    [queryClient]
+  )
 
   const userMap = React.useMemo(() => {
     const map = new Map<string, User>()
@@ -556,71 +503,40 @@ export default function AdminFeedbackPage() {
     })
   }, [])
 
-  const handleUpdate = React.useCallback(async () => {
-    if (!editTarget) return
+  const updateFeedback = useMutation({
+    mutationFn: ({ id, rating, text }: { id: string, rating: number, text: string }) =>
+      apiFetch(`/api/feedback/${id}`, 'Impossibile aggiornare il feedback.', jsonBody('PATCH', { rating, text: text.trim() || undefined })),
+    onSuccess: () => {
+      toast.success('Feedback aggiornato.')
+      setEditTarget(null)
+      return reloadFeedback()
+    }
+  })
+  const isUpdating = updateFeedback.isPending
 
-    const ratingValue = Number(editForm.rating)
-    if (!Number.isFinite(ratingValue) || ratingValue < 1 || ratingValue > 5) {
+  const handleUpdate = () => {
+    if (!editTarget) return
+    const rating = Number(editForm.rating)
+    if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
       toast.error('Il rating deve essere compreso tra 1 e 5.')
       return
     }
+    updateFeedback.mutate({ id: editTarget.id, rating, text: editForm.text })
+  }
 
-    setIsUpdating(true)
-    try {
-      const response = await fetch(`/api/feedback/${editTarget.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rating: ratingValue,
-          text: editForm.text.trim() || undefined
-        })
-      })
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        throw new Error(
-          payload?.message || 'Impossibile aggiornare il feedback.'
-        )
-      }
-      toast.success('Feedback aggiornato.')
-      setEditTarget(null)
-      await loadFeedback()
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile aggiornare il feedback.'
-      )
-    } finally {
-      setIsUpdating(false)
-    }
-  }, [editForm, editTarget, loadFeedback])
-
-  const handleDelete = React.useCallback(async () => {
-    if (!deleteTarget) return
-    setIsDeleting(true)
-    try {
-      const response = await fetch(`/api/feedback/${deleteTarget.id}`, {
-        method: 'DELETE'
-      })
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        throw new Error(
-          payload?.message || 'Impossibile eliminare il feedback.'
-        )
-      }
+  const deleteFeedback = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/feedback/${id}`, 'Impossibile eliminare il feedback.', jsonBody('DELETE')),
+    onSuccess: () => {
       toast.success('Feedback eliminato.')
       setDeleteTarget(null)
-      await loadFeedback()
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile eliminare il feedback.'
-      )
-    } finally {
-      setIsDeleting(false)
+      return reloadFeedback()
     }
-  }, [deleteTarget, loadFeedback])
+  })
+  const isDeleting = deleteFeedback.isPending
+
+  const handleDelete = () => {
+    if (deleteTarget) deleteFeedback.mutate(deleteTarget.id)
+  }
 
   // The list under either tab: the same rows, filtered by the open tab.
   const firstLoad = useFirstLoad(isLoading)
@@ -1023,7 +939,7 @@ export default function AdminFeedbackPage() {
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
-                void handleUpdate()
+                handleUpdate()
               }}
               disabled={isUpdating}
             >
@@ -1093,7 +1009,7 @@ export default function AdminFeedbackPage() {
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
-                void handleDelete()
+                handleDelete()
               }}
               disabled={isDeleting}
             >
