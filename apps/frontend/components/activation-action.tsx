@@ -72,7 +72,7 @@ function ActivationHistory({ userId }: { userId: string }) {
             : events === null
               ? <p className='text-sm text-muted-foreground'>Caricamento...</p>
               : events.length === 0
-                ? <p className='text-sm text-muted-foreground'>Nessuna operazione registrata. Le operazioni precedenti all’introduzione dello storico non compaiono.</p>
+                ? <p className='text-sm text-muted-foreground'>Nessuna operazione registrata.</p>
                 : (
                     <ol className='space-y-3'>
                       {events.map(event => (

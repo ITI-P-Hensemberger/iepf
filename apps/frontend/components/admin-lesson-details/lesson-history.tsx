@@ -75,7 +75,7 @@ export function LessonHistory({ lessonId }: { lessonId: string }) {
               : changes === null
                 ? <p className='text-sm text-muted-foreground'>Caricamento...</p>
                 : changes.length === 0
-                  ? <p className='text-sm text-muted-foreground'>Nessuna modifica registrata. Le riprogrammazioni precedenti all’introduzione dello storico non compaiono.</p>
+                  ? <p className='text-sm text-muted-foreground'>Nessuna modifica registrata.</p>
                   : (
                       <ol className='space-y-3'>
                         {changes.map(change => (
