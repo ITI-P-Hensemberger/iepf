@@ -1,10 +1,8 @@
 // Purpose: Subjects route handlers.
-import type { Context } from 'hono'
 
 import { and, eq, ilike, ne, or, sql } from 'drizzle-orm'
-import { HTTPException } from 'hono/http-exception'
 
-import type { AppBindings, AppRouteHandler } from '@/lib/types'
+import type { AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
 import { subjects } from '@/db/schemas/subjects.schema'
@@ -14,11 +12,10 @@ import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { buildPagedResponse } from '@/lib/pagination'
+import { ensureAdmin } from '@/lib/require-admin'
 import { canonicalSubjectName } from '@/lib/subject-name'
 
 import type { CreateRoute, GetOneRoute, ListRoute, PatchRoute, RemoveRoute } from './subjects.routes'
-
-type HandlerContext = Context<AppBindings>
 
 function buildDuplicateCanonicalNameError() {
   return buildErrorResponse(ZOD_ERROR_MESSAGES.CANONICAL_NAME_EXISTS, {
@@ -46,22 +43,7 @@ async function sameSubject(canonicalName: string, name: string, exceptId?: strin
   return row ?? null
 }
 
-function forbid(): never {
-  throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
-    message: HttpStatusPhrases.FORBIDDEN
-  })
-}
-
 // Enforce admin-only access for subject mutations.
-function ensureAdmin(c: HandlerContext) {
-  const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
-    forbid()
-  }
-
-  return currentUser
-}
-
 export const list: AppRouteHandler<ListRoute> = async (c) => {
   const query = c.req.valid('query')
 

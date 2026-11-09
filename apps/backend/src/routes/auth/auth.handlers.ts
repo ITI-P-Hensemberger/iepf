@@ -1,7 +1,7 @@
 // Purpose: Auth route handlers.
 import type { Context } from 'hono'
 
-import { and, eq, gt, ilike, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, ilike, sql } from 'drizzle-orm'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
@@ -34,9 +34,10 @@ import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { sendMail } from '@/lib/mailer'
 import { buildPagedResponse } from '@/lib/pagination'
-import { hashPassword, verifyPassword } from '@/lib/password'
+import { dummyHash, hashPassword, verifyPassword } from '@/lib/password'
 import { consumePasswordResetToken, issuePasswordResetToken, passwordResetTokenOwner } from '@/lib/password-reset'
 import { issueRefreshToken, revokeRefreshToken, revokeUserRefreshTokens, rotateRefreshToken } from '@/lib/refresh-tokens'
+import { ensureAdmin } from '@/lib/require-admin'
 import { issueTutorInviteToken, lockTutorInviteToken } from '@/lib/tutor-invite'
 
 import type {
@@ -92,13 +93,10 @@ export const login: AppRouteHandler<LoginRoute> = async (c) => {
     }
   })
 
-  if (!user) {
-    return unauthorized(c)
-  }
+  // Unknown emails hash too, so response time does not reveal which accounts exist.
+  const isValid = await verifyPassword(user?.passwordHash ?? await dummyHash(), credentials.password)
 
-  const isValid = await verifyPassword(user.passwordHash, credentials.password)
-
-  if (!isValid) {
+  if (!user || !isValid) {
     return unauthorized(c)
   }
 
@@ -261,51 +259,34 @@ export const register: AppRouteHandler<RegisterRoute> = async (c) => {
   )
 }
 
-export const listTutorInvites: AppRouteHandler<ListTutorInvitesRoute> = async (c) => {
-  const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
-  }
-
-  const query = c.req.valid('query')
-  const now = new Date()
-
+// Tutor and admin invites share their columns, so one listing serves both tables.
+async function listInvites(
+  c: Context<AppBindings>,
+  table: typeof tutorInviteTokens | typeof adminInviteTokens,
+  query: { includeExpired?: boolean, q?: string, sortBy: string, sortDir: string, limit: number, offset: number }
+) {
   const conditions = []
   if (!query.includeExpired) {
-    conditions.push(gt(tutorInviteTokens.expiresAt, now))
+    conditions.push(gt(table.expiresAt, new Date()))
   }
   if (query.q) {
-    conditions.push(ilike(tutorInviteTokens.email, `%${query.q}%`))
+    conditions.push(ilike(table.email, `%${query.q}%`))
   }
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+  const direction = query.sortDir === 'desc' ? desc : asc
 
-  const rows = await db.query.tutorInviteTokens.findMany({
-    where: whereClause,
-    columns: {
-      id: true,
-      email: true,
-      expiresAt: true,
-      createdAt: true
-    },
-    orderBy(fields, operators) {
-      const direction = query.sortDir === 'desc' ? operators.desc : operators.asc
-      return query.sortBy === 'createdAt'
-        ? direction(fields.createdAt)
-        : direction(fields.expiresAt)
-    },
-    limit: query.limit,
-    offset: query.offset
-  })
+  const rows = await db
+    .select({ id: table.id, email: table.email, expiresAt: table.expiresAt, createdAt: table.createdAt })
+    .from(table)
+    .where(whereClause)
+    .orderBy(direction(query.sortBy === 'createdAt' ? table.createdAt : table.expiresAt))
+    .limit(query.limit)
+    .offset(query.offset)
 
-  const totalQuery = db
+  const [{ total }] = await db
     .select({ total: sql<number>`count(*)` })
-    .from(tutorInviteTokens)
-
-  if (whereClause) {
-    totalQuery.where(whereClause)
-  }
-
-  const [{ total }] = await totalQuery
+    .from(table)
+    .where(whereClause)
 
   const data = rows.map(row => ({
     id: row.id,
@@ -318,72 +299,20 @@ export const listTutorInvites: AppRouteHandler<ListTutorInvitesRoute> = async (c
     buildPagedResponse(data, Number(total), query.limit, query.offset),
     HttpStatusCodes.OK
   )
+}
+
+export const listTutorInvites: AppRouteHandler<ListTutorInvitesRoute> = async (c) => {
+  ensureAdmin(c)
+  return listInvites(c, tutorInviteTokens, c.req.valid('query'))
 }
 
 export const listAdminInvites: AppRouteHandler<ListAdminInvitesRoute> = async (c) => {
-  const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
-  }
-
-  const query = c.req.valid('query')
-  const now = new Date()
-
-  const conditions = []
-  if (!query.includeExpired) {
-    conditions.push(gt(adminInviteTokens.expiresAt, now))
-  }
-  if (query.q) {
-    conditions.push(ilike(adminInviteTokens.email, `%${query.q}%`))
-  }
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined
-
-  const rows = await db.query.adminInviteTokens.findMany({
-    where: whereClause,
-    columns: {
-      id: true,
-      email: true,
-      expiresAt: true,
-      createdAt: true
-    },
-    orderBy(fields, operators) {
-      const direction = query.sortDir === 'desc' ? operators.desc : operators.asc
-      return query.sortBy === 'createdAt'
-        ? direction(fields.createdAt)
-        : direction(fields.expiresAt)
-    },
-    limit: query.limit,
-    offset: query.offset
-  })
-
-  const totalQuery = db
-    .select({ total: sql<number>`count(*)` })
-    .from(adminInviteTokens)
-
-  if (whereClause) {
-    totalQuery.where(whereClause)
-  }
-
-  const [{ total }] = await totalQuery
-
-  const data = rows.map(row => ({
-    id: row.id,
-    email: row.email,
-    expiresAt: row.expiresAt.toISOString(),
-    createdAt: row.createdAt.toISOString()
-  }))
-
-  return c.json(
-    buildPagedResponse(data, Number(total), query.limit, query.offset),
-    HttpStatusCodes.OK
-  )
+  ensureAdmin(c)
+  return listInvites(c, adminInviteTokens, c.req.valid('query'))
 }
 
 export const deleteAdminInvite: AppRouteHandler<DeleteAdminInviteRoute> = async (c) => {
-  const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
-  }
+  ensureAdmin(c)
 
   const payload = c.req.valid('param')
   const [deleted] = await db.delete(adminInviteTokens)
@@ -398,10 +327,7 @@ export const deleteAdminInvite: AppRouteHandler<DeleteAdminInviteRoute> = async 
 }
 
 export const inviteAdmin: AppRouteHandler<InviteAdminRoute> = async (c) => {
-  const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
-  }
+  ensureAdmin(c)
 
   const payload = c.req.valid('json')
 
@@ -514,10 +440,7 @@ export const confirmAdminInvite: AppRouteHandler<ConfirmAdminInviteRoute> = asyn
 }
 
 export const deleteTutorInvite: AppRouteHandler<DeleteTutorInviteRoute> = async (c) => {
-  const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
-  }
+  ensureAdmin(c)
 
   const payload = c.req.valid('param')
   const [deleted] = await db.delete(tutorInviteTokens)
@@ -532,10 +455,7 @@ export const deleteTutorInvite: AppRouteHandler<DeleteTutorInviteRoute> = async 
 }
 
 export const inviteTutor: AppRouteHandler<InviteTutorRoute> = async (c) => {
-  const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
-    return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
-  }
+  const currentUser = ensureAdmin(c)
 
   const payload = c.req.valid('json')
 

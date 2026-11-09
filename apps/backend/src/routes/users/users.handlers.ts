@@ -2,7 +2,6 @@
 import type { Context } from 'hono'
 
 import { and, eq, isNotNull, isNull } from 'drizzle-orm'
-import { HTTPException } from 'hono/http-exception'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
@@ -27,6 +26,7 @@ import { buildPagedResponse } from '@/lib/pagination'
 import { verifyPassword } from '@/lib/password'
 import { notifyUsers } from '@/lib/push'
 import { activationChangedPush } from '@/lib/push-messages'
+import { ensureAdmin, forbid } from '@/lib/require-admin'
 import { isYearInRange, STUDENT_YEARS, TUTOR_YEARS, yearRangeMessage } from '@/lib/school-years'
 
 import type { ActivationHistoryRoute, GetOneRoute, ListRoute, PatchRoute, RemoveRoute } from './users.routes'
@@ -53,21 +53,6 @@ function buildDuplicateEmailError() {
       }
     ]
   })
-}
-
-function forbid(): never {
-  throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
-    message: HttpStatusPhrases.FORBIDDEN
-  })
-}
-
-function ensureAdmin(c: HandlerContext) {
-  const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
-    forbid()
-  }
-
-  return currentUser
 }
 
 function ensureAdminOrActivator(c: HandlerContext) {
@@ -928,6 +913,10 @@ export const remove: AppRouteHandler<RemoveRoute> = async (c) => {
 
   const { id } = c.req.valid('param')
   const { password } = c.req.valid('json')
+  // Deleting yourself could leave nobody able to manage the site.
+  if (id === admin.id) {
+    return c.json(buildErrorResponse('Non puoi eliminare il tuo account.'), HttpStatusCodes.FORBIDDEN)
+  }
   const own = await db.query.users.findFirst({
     where(fields, operators) {
       return operators.eq(fields.id, admin.id)

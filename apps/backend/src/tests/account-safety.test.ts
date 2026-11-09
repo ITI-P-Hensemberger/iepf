@@ -1,5 +1,6 @@
 // Purpose: Pin what a session alone cannot do: change the password or email of its own account,
 // or turn an impersonation into another admin's session.
+import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import app from '@/app'
@@ -65,6 +66,14 @@ describe('own profile', () => {
       const name = await call(`/users/${ids[role]}`, { token: tokens[role], method: 'PATCH', body: { firstName: 'Nuovo' } })
       expect(name.status).toBe(200)
     }
+  })
+})
+
+describe('deleting accounts', () => {
+  it('refuses an admin deleting their own account', async () => {
+    const response = await call(`/users/${ids.admin}`, { token: tokens.admin, method: 'DELETE', body: { password: DEV_PASSWORD } })
+    expect(response.status).toBe(403)
+    expect(await db.query.users.findFirst({ where: eq(users.id, ids.admin), columns: { id: true } })).toBeDefined()
   })
 })
 

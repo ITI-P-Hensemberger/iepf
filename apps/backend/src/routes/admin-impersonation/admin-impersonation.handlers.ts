@@ -1,10 +1,8 @@
 // Purpose: Admin impersonation handlers.
-import type { Context } from 'hono'
 
 import { eq } from 'drizzle-orm'
-import { HTTPException } from 'hono/http-exception'
 
-import type { AppBindings, AppRouteHandler, AuthenticatedUser } from '@/lib/types'
+import type { AppRouteHandler, AuthenticatedUser } from '@/lib/types'
 
 import db from '@/db'
 import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
@@ -13,25 +11,9 @@ import { createAccessToken, createImpersonationToken } from '@/lib/auth'
 import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
+import { ensureAdmin, forbid } from '@/lib/require-admin'
 
 import type { EndImpersonationRoute, ImpersonateRoute } from './admin-impersonation.routes'
-
-type HandlerContext = Context<AppBindings>
-
-function forbid(): never {
-  throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
-    message: HttpStatusPhrases.FORBIDDEN
-  })
-}
-
-function ensureAdmin(c: HandlerContext) {
-  const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
-    forbid()
-  }
-
-  return currentUser
-}
 
 async function loadUser(userId: string) {
   return db.query.users.findFirst({

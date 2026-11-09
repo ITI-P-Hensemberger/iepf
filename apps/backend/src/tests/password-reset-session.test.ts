@@ -49,6 +49,12 @@ afterAll(async () => {
   await closeDb()
 })
 
+describe('login', () => {
+  it('refuses an unknown email', async () => {
+    expect((await login('nessuno@example.test')).status).toBe(401)
+  })
+})
+
 describe('password reset while signed in', () => {
   it('tells whether the link belongs to the signed-in user, without using it up', async () => {
     const { token } = await issuePasswordResetToken(ids.student)
@@ -75,6 +81,15 @@ describe('password reset while signed in', () => {
     expect((await login('student@example.test', 'NuovaPassword1!')).status).toBe(200)
     // The link works once.
     expect(await check(token)).toEqual({ valid: false, sameUser: false })
+  })
+
+  it('lets only one of two simultaneous confirmations use the link', async () => {
+    const { token } = await issuePasswordResetToken(ids.activator)
+    const statuses = (await Promise.all([
+      call('/auth/password/reset/confirm', { token, password: 'PrimaPassword1!' }),
+      call('/auth/password/reset/confirm', { token, password: 'SecondaPassword1!' })
+    ])).map(response => response.status)
+    expect(statuses.filter(status => status === 200)).toHaveLength(1)
   })
 
   it('cannot spare a session of another user', async () => {

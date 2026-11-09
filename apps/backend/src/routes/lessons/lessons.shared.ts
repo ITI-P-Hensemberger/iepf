@@ -2,7 +2,6 @@
 import type { Context } from 'hono'
 
 import { and, asc, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm'
-import { HTTPException } from 'hono/http-exception'
 
 import type { BookingOutcome } from '@/lib/analytics'
 import type { DbExecutor, DbTransaction } from '@/lib/lesson-tokens'
@@ -15,25 +14,11 @@ import { subjects } from '@/db/schemas/subjects.schema'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
 import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { classLabel as schoolClassLabel } from '@/lib/class-label'
-import * as HttpStatusCodes from '@/lib/http-status-codes'
-import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { schoolDayKey, schoolDayRange } from '@/lib/school-time'
 
 export type HandlerContext = Context<AppBindings>
 
-export function forbid(): never {
-  throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
-    message: HttpStatusPhrases.FORBIDDEN
-  })
-}
-
-export function ensureAdmin(c: HandlerContext) {
-  const currentUser = c.get('currentUser')
-  if (!currentUser || currentUser.role !== 'admin' || currentUser.isActive !== true) {
-    forbid()
-  }
-  return currentUser
-}
+export { ensureAdmin, forbid } from '@/lib/require-admin'
 
 export interface LessonEmailDetails<S extends string | null> {
   lessonId: string
