@@ -32,6 +32,14 @@ if [[ ! -s /etc/docker/daemon.json ]]; then
   printf '{\n  "log-driver": "json-file",\n  "log-opts": { "max-size": "10m", "max-file": "3" }\n}\n' > /etc/docker/daemon.json
 fi
 
+# Display: no virtual GPU driver. After a few days qxl fails ("[TTM] Buffer eviction failed")
+# and blocks whatever writes to the screen; on 2026-11-09 it froze systemd while shutting down
+# for a reboot. The console falls back to text mode, and kernel messages also go to ttyS0.
+if [[ ! -f /etc/modprobe.d/iepf-no-qxl.conf ]]; then
+  printf 'blacklist qxl\ninstall qxl /bin/false\n' > /etc/modprobe.d/iepf-no-qxl.conf
+  update-initramfs -u
+fi
+
 # Updates: all Ubuntu updates, kernel included, installed at night after the night jobs
 # (backup 02:00, cleanup 03:30), with a reboot at 04:30 when one is needed.
 cat > /etc/apt/apt.conf.d/52iepf-unattended <<'CONF'

@@ -138,7 +138,8 @@ righe; se fallisce arriva l'avviso. A mano: `systemctl start iepf-restore-test.s
 Server: `host-setup.sh` applica la configurazione che il bundle non porta, ed è
 rieseguibile. SSH solo con chiave (root compreso, che usa il deploy), journal massimo
 500 MB, log dei container limitati, logrotate senza la doppia regola di cloud-init,
-aggiornamenti Ubuntu completi (kernel compreso) alle 04:00, dopo backup e pulizia, con
+driver video virtuale `qxl` disattivato (dopo qualche giorno si guasta e blocca lo
+spegnimento: è successo il 9/11), aggiornamenti Ubuntu completi (kernel compreso) alle 04:00, dopo backup e pulizia, con
 riavvio alle 04:30 se serve. Da eseguire su una VPS nuova e a ogni modifica:
 `ssh iepf 'bash -s' < infra/deploy/host-setup.sh`.
 
