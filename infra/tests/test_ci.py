@@ -167,7 +167,7 @@ class BundleTests(unittest.TestCase):
         with tarfile.open(target) as archive:
             names = archive.getnames()
             top = {name.split('/')[0] for name in names}
-            self.assertEqual(top, {'compose.yaml', 'apply.sh', 'job.sh', 'backup.sh', 'restore-test.sh', 'alert.sh', 'install-timers.sh', 'systemd', 'request.json', 'release-id'})
+            self.assertEqual(top, {'compose.yaml', 'apply.sh', 'job.sh', 'backup.sh', 'restore-test.sh', 'health-check.sh', 'alert.sh', 'install-timers.sh', 'systemd', 'request.json', 'release-id'})
             self.assertIn('systemd/iepf-job@.service', names)
             self.assertEqual(archive.extractfile('release-id').read(), b'9-13\n')
             self.assertEqual(json.load(archive.extractfile('request.json')), {'component': 'infra'})

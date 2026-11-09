@@ -131,6 +131,14 @@ rclone copy gdrive:postgres-backups/config/FILE.tar.gz.gpg .
 gpg --batch --pinentry-mode loopback --passphrase-file backup.key -d FILE.tar.gz.gpg | tar -xzf - -C /opt/iepf/shared
 ```
 
+Controllo di salute: ogni ora ai :17 `iepf-health` controlla disco (80%), RAM disponibile
+(300 MB), swap (90%), stato dei container, servizi systemd in errore, scadenza del
+certificato TLS (14 giorni) ed errori del kernel dell'ultima ora (task bloccati, `qxl`, OOM).
+Manda un messaggio a `ALERT_WEBHOOK_URL` solo quando l'elenco dei problemi cambia, e uno
+quando tutto torna a posto; l'ultimo elenco sta in `shared/health.last`. Se la VPS è giù non
+può avvisare: per quello serve il monitoraggio esterno (UptimeRobot), che va collegato a
+ntfy anche dal suo lato. A mano: `systemctl start iepf-health.service`.
+
 Prova di ripristino: la prima domenica del mese alle 05:30 `iepf-restore-test` carica
 l'ultimo backup locale in un PostgreSQL temporaneo senza rete e controlla che `users` abbia
 righe; se fallisce arriva l'avviso. A mano: `systemctl start iepf-restore-test.service`.

@@ -25,7 +25,7 @@ class DeployTests(unittest.TestCase):
         self.bin = self.base / 'bin'
         for p in [self.root / 'shared', self.root / 'releases', self.bundle, self.bin]:
             p.mkdir(parents=True)
-        for name in ['apply.sh', 'backup.sh', 'restore-test.sh', 'job.sh', 'alert.sh', 'install-timers.sh', 'compose.yaml']:
+        for name in ['apply.sh', 'backup.sh', 'restore-test.sh', 'health-check.sh', 'job.sh', 'alert.sh', 'install-timers.sh', 'compose.yaml']:
             text = (SOURCE / name).read_text().replace('ROOT=/opt/iepf', f'ROOT={self.root}')
             (self.bundle / name).write_text(text)
         import shutil
@@ -206,6 +206,56 @@ if name=='curl' and fail=='http': sys.exit(1)
         r = subprocess.run(['bash', str(self.bundle / 'restore-test.sh')], env=dict(self.env, FAIL='restore'), capture_output=True, text=True)
         self.assertNotEqual(r.returncode, 0)
 
+    def run_health(self, **state):
+        # Its own fakes: disk, memory, containers, services, certificate and kernel log.
+        fakes = self.base / 'health-bin'
+        fakes.mkdir(exist_ok=True)
+        scripts = {
+            'df': 'echo "Use%"; echo " ${DISK:-40}%"',
+            'free': 'echo "Mem: 3900 800 100 30 3000 ${AVAILABLE:-3000}"; echo "Swap: 512 ${SWAP_USED:-10} 502"',
+            'docker': 'case "$*" in *traefik*) echo "${TRAEFIK:-running}";; *backend*) echo "${BACKEND:-healthy}";; *) echo healthy;; esac',
+            'systemctl': 'echo "${FAILED:-}"',
+            'openssl': 'case "$1" in x509) echo "notAfter=$(date -d "+${CERT_DAYS:-60} days" "+%b %d %H:%M:%S %Y GMT")";; esac',
+            'journalctl': 'printf "%b" "${KERNEL:-}"',
+            'curl': 'echo "$*" >> "$CURL_LOG"; [ "${CURL_FAIL:-}" != 1 ]',
+        }
+        for name, body in scripts.items():
+            (fakes / name).write_text('#!/usr/bin/env bash\n' + body + '\n')
+            (fakes / name).chmod(0o755)
+        (self.root / 'shared' / 'host.env').write_text('ALERT_WEBHOOK_URL=https://ntfy.example/iepf\n')
+        env = dict(self.env, PATH=f'{fakes}:{self.env["PATH"]}', CURL_LOG=str(self.base / 'curl.log'), **state)
+        return subprocess.run(['bash', str(self.bundle / 'health-check.sh')], env=env, capture_output=True, text=True)
+
+    def alerts(self):
+        log = self.base / 'curl.log'
+        return log.read_text().splitlines() if log.exists() else []
+
+    def test_health_check_alerts_once_per_change(self):
+        self.assertEqual(self.run_health().returncode, 0)
+        self.assertEqual(self.alerts(), [])
+        r = self.run_health(DISK='85', BACKEND='unhealthy')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(len(self.alerts()), 1)
+        self.assertIn('disco al 85%', self.alerts()[0])
+        self.assertIn('iepf-backend-1: unhealthy', self.alerts()[0])
+        self.run_health(DISK='85', BACKEND='unhealthy')
+        self.assertEqual(len(self.alerts()), 1)
+        self.run_health()
+        self.assertEqual(len(self.alerts()), 2)
+        self.assertIn('risolto', self.alerts()[1])
+
+    def test_health_check_covers_memory_services_certificate_and_kernel(self):
+        r = self.run_health(AVAILABLE='200', SWAP_USED='500', TRAEFIK='exited', FAILED='logrotate.service', CERT_DAYS='5', KERNEL='[TTM] Buffer eviction failed\\n')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        alert = self.alerts()[0]
+        for text in ['RAM disponibile 200 MB', 'swap usato al 97%', 'traefik: exited', 'servizi in errore: logrotate.service', 'certificato TLS in scadenza tra', "1 errori del kernel"]:
+            self.assertIn(text, alert)
+
+    def test_health_check_retries_an_alert_that_was_not_sent(self):
+        self.assertNotEqual(self.run_health(DISK='90', CURL_FAIL='1').returncode, 0)
+        self.run_health(DISK='90')
+        self.assertEqual(len(self.alerts()), 2)
+
     def run_install_timers(self, crontab):
         (self.previous / 'systemd').mkdir()
         (self.previous / 'alert.sh').write_text('')
@@ -239,7 +289,7 @@ if name=='curl' and fail=='http': sys.exit(1)
             self.assertEqual(script.count(timer.name), 2, timer.name)
 
     def test_scheduled_units_alert_on_failure(self):
-        for name in ['iepf-job@.service', 'iepf-backup.service', 'iepf-restore-test.service']:
+        for name in ['iepf-job@.service', 'iepf-backup.service', 'iepf-restore-test.service', 'iepf-health.service']:
             self.assertIn('OnFailure=iepf-alert@%n.service', (SOURCE / 'systemd' / name).read_text())
 
 if __name__ == '__main__':
