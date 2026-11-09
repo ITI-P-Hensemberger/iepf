@@ -7,7 +7,7 @@ import * as React from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { TriangleAlert, UserRound } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -125,7 +125,7 @@ export default function AdminAdminDetailPage() {
     resetOptions: { keepDirtyValues: true }
   })
 
-  const watchedEmail = form.watch('email')
+  const watchedEmail = useWatch({ control: form.control, name: 'email' })
   const emailChanged = React.useMemo(() => {
     if (!admin) {
       return false

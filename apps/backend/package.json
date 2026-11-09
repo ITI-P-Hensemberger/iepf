@@ -8,7 +8,7 @@
     "start": "node ./dist/src/index.js",
     "typecheck": "tsc --noEmit",
     "api:types": "ENV_FILE=.env.test tsx src/scripts/generate-api-types.ts",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "lint:fix": "pnpm run lint --fix",
     "test": "cross-env NODE_ENV=test vitest run",
     "build": "tsc && tsc-alias",

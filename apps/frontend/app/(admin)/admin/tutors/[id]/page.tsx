@@ -13,7 +13,7 @@ import { ConfirmDeleteDialog } from '@/components/confirm-delete-dialog'
 import { ActivationAction } from '@/components/activation-action'
 import { DangerAction, DangerZone } from '@/components/danger-zone'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -261,7 +261,7 @@ export default function AdminTutorDetailPage() {
     mode: 'onBlur'
   })
 
-  const watchedEmail = form.watch('email')
+  const watchedEmail = useWatch({ control: form.control, name: 'email' })
   const emailChanged = React.useMemo(() => {
     if (!tutor) {
       return false
@@ -271,7 +271,7 @@ export default function AdminTutorDetailPage() {
     )
   }, [tutor, watchedEmail])
 
-  const currentSubjectIds = subjectsForm.watch('subjectIds')
+  const currentSubjectIds = useWatch({ control: subjectsForm.control, name: 'subjectIds' })
   const subjectsDirty = React.useMemo(() => {
     const current = new Set(currentSubjectIds)
     const original = new Set(originalSubjects)

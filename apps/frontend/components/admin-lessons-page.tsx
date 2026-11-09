@@ -52,6 +52,7 @@ import { lessonSubject } from '@/lib/lesson-subject'
 import { type DateRange } from 'react-day-picker'
 
 import { extractPayloadArray } from '@/lib/backend-response'
+import { useResetOnChange } from '@/lib/use-reset-on-change'
 
 const pageSize = 20
 const AVAILABLE_TIMES = ['13:00', '14:00', '15:00', '16:00']
@@ -276,17 +277,16 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     }
   }, [parsePage, searchParams])
 
-  React.useEffect(() => {
-    setFilters({
-      search: currentFilters.search,
-      tutorId: currentFilters.tutorId,
-      subjectId: currentFilters.subjectId,
-      status: currentFilters.status,
-      sortBy: currentFilters.sortBy,
-      sortDir: currentFilters.sortDir,
-      dateRange: currentFilters.dateRange
-    })
-  }, [currentFilters])
+  // Follows the URL when it changes from outside (back, a link, a reset).
+  useResetOnChange({
+    search: currentFilters.search,
+    tutorId: currentFilters.tutorId,
+    subjectId: currentFilters.subjectId,
+    status: currentFilters.status,
+    sortBy: currentFilters.sortBy,
+    sortDir: currentFilters.sortDir,
+    dateRange: currentFilters.dateRange
+  }, setFilters)
 
   const subjectMap = React.useMemo(() => {
     const map = new Map<string, Subject>()

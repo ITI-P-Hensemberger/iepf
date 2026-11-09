@@ -44,6 +44,7 @@ import { useSetParam } from '@/lib/back-link'
 import { Checkbox } from './ui/checkbox'
 import { logout } from '@/lib/auth-client'
 import { classLabel } from '@/lib/class-label'
+import { useResetOnChange } from '@/lib/use-reset-on-change'
 
 const pageSize = 20
 
@@ -370,43 +371,19 @@ export default function ActivatorStudentsPage() {
     [buildFilters]
   )
 
-  React.useEffect(() => {
-    setActiveFilters((prev) => {
-      const next = {
-        search: currentActiveFilters.search,
-        sortBy: currentActiveFilters.sortBy,
-        sortDir: currentActiveFilters.sortDir
-      }
-      return prev.search === next.search &&
-        prev.sortBy === next.sortBy &&
-        prev.sortDir === next.sortDir
-        ? prev
-        : next
-    })
-  }, [
-    currentActiveFilters.search,
-    currentActiveFilters.sortBy,
-    currentActiveFilters.sortDir
-  ])
+  // Follows the URL when it changes from outside (back, a link, a reset).
+  useResetOnChange({
+    search: currentActiveFilters.search,
+    sortBy: currentActiveFilters.sortBy,
+    sortDir: currentActiveFilters.sortDir
+  }, setActiveFilters)
 
-  React.useEffect(() => {
-    setInactiveFilters((prev) => {
-      const next = {
-        search: currentInactiveFilters.search,
-        sortBy: currentInactiveFilters.sortBy,
-        sortDir: currentInactiveFilters.sortDir
-      }
-      return prev.search === next.search &&
-        prev.sortBy === next.sortBy &&
-        prev.sortDir === next.sortDir
-        ? prev
-        : next
-    })
-  }, [
-    currentInactiveFilters.search,
-    currentInactiveFilters.sortBy,
-    currentInactiveFilters.sortDir
-  ])
+  // Follows the URL when it changes from outside (back, a link, a reset).
+  useResetOnChange({
+    search: currentInactiveFilters.search,
+    sortBy: currentInactiveFilters.sortBy,
+    sortDir: currentInactiveFilters.sortDir
+  }, setInactiveFilters)
 
   const updateParams = React.useCallback(
     (

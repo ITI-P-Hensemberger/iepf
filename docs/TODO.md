@@ -509,7 +509,14 @@ I punti 1 e 5 sono operativi e possono procedere in parallelo agli altri.
   - **Stima:** L (S per la sola valutazione)
   - **Dipendenze:** 22, 23, 24
 
-- [ ] **26. Azzerare i warning lint del frontend**
+- [x] **26. Azzerare i warning lint del frontend**
+  - **Fatto (2026-11-09):** 0 warning, e `pnpm run lint` fallisce sui warning
+    (`--max-warnings 0`) in frontend e backend, quindi anche in CI. Dopo il punto 25 ne restavano
+    16: i 4 `incompatible-library` erano `form.watch` di React Hook Form, sostituito da `useWatch`
+    (non `useReactTable`, e nessuno è silenziato). Gli 8 `set-state-in-effect` dei filtri che
+    seguono l'URL usano `useResetOnChange` (`lib/use-reset-on-change.ts`, che aggiorna lo stato
+    durante il render). Il banner di impersonazione legge i cookie con `useSyncExternalStore`, e lo
+    stato push del dispositivo è una query.
   - **Problema:** su `main` (`39e38ab`, 2026-11-06) `npx eslint .` in `apps/frontend` dà
     **73 warning** (0 errori) in 31 file, tutti dalle regole React Compiler di
     `eslint-plugin-react-hooks`: `set-state-in-effect` 63, `incompatible-library` 4,

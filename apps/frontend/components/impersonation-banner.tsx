@@ -11,22 +11,28 @@ type ImpersonationInfo = {
   email?: string
 }
 
+// Who is being impersonated, as one string so the snapshot stays the same between reads.
+function readImpersonationKey() {
+  if (readCookie('iepf_impersonating') !== 'true') return ''
+  return JSON.stringify([readCookie('iepf_impersonated_role'), readCookie('iepf_impersonated_email')])
+}
+
+// Impersonation starts and ends with a full reload: nothing to listen to in between.
+function subscribeNever() {
+  return () => {}
+}
+
 export default function ImpersonationBanner() {
-  const [info, setInfo] = React.useState<ImpersonationInfo | null>(null)
   const [isEnding, setIsEnding] = React.useState(false)
   const bannerRef = React.useRef<HTMLDivElement | null>(null)
 
-  React.useEffect(() => {
-    const isActive = readCookie('iepf_impersonating') === 'true'
-    if (!isActive) {
-      setInfo(null)
-      return
-    }
-    setInfo({
-      role: readCookie('iepf_impersonated_role') ?? undefined,
-      email: readCookie('iepf_impersonated_email') ?? undefined
-    })
-  }, [])
+  // The cookies only exist in the browser: on the server, and before hydration, there is no banner.
+  const cookieKey = React.useSyncExternalStore(subscribeNever, readImpersonationKey, () => '')
+  const info = React.useMemo<ImpersonationInfo | null>(() => {
+    if (!cookieKey) return null
+    const [role, email] = JSON.parse(cookieKey) as [string | null, string | null]
+    return { role: role ?? undefined, email: email ?? undefined }
+  }, [cookieKey])
 
   React.useEffect(() => {
     const root = document.documentElement

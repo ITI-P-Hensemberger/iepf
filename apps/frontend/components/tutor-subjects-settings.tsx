@@ -4,7 +4,7 @@ import { STICKY_CARD_FOOTER } from '@/components/sticky-footer'
 import { cn } from '@/lib/utils'
 import * as React from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
 
@@ -54,7 +54,7 @@ export function TutorSubjectsSettings() {
   })
 
   // Custom isDirty logic - compare current vs original sets
-  const currentSubjectIds = form.watch('subjectIds')
+  const currentSubjectIds = useWatch({ control: form.control, name: 'subjectIds' })
   const isDirty = React.useMemo(() => {
     const current = new Set(currentSubjectIds)
     const original = new Set(originalSubjects)

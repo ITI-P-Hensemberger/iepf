@@ -45,6 +45,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatItalianDate } from '@/lib/format-date'
 import { classLabel } from '@/lib/class-label'
+import { useResetOnChange } from '@/lib/use-reset-on-change'
 
 const pageSize = 20
 
@@ -395,62 +396,26 @@ export default function AdminTutorsPage() {
     [buildFilters]
   )
 
-  React.useEffect(() => {
-    setActiveFilters((prev) => {
-      const next = {
-        search: currentActiveFilters.search,
-        sortBy: currentActiveFilters.sortBy,
-        sortDir: currentActiveFilters.sortDir
-      }
-      return prev.search === next.search &&
-        prev.sortBy === next.sortBy &&
-        prev.sortDir === next.sortDir
-        ? prev
-        : next
-    })
-  }, [
-    currentActiveFilters.search,
-    currentActiveFilters.sortBy,
-    currentActiveFilters.sortDir
-  ])
+  // Follows the URL when it changes from outside (back, a link, a reset).
+  useResetOnChange({
+    search: currentActiveFilters.search,
+    sortBy: currentActiveFilters.sortBy,
+    sortDir: currentActiveFilters.sortDir
+  }, setActiveFilters)
 
-  React.useEffect(() => {
-    setInactiveFilters((prev) => {
-      const next = {
-        search: currentInactiveFilters.search,
-        sortBy: currentInactiveFilters.sortBy,
-        sortDir: currentInactiveFilters.sortDir
-      }
-      return prev.search === next.search &&
-        prev.sortBy === next.sortBy &&
-        prev.sortDir === next.sortDir
-        ? prev
-        : next
-    })
-  }, [
-    currentInactiveFilters.search,
-    currentInactiveFilters.sortBy,
-    currentInactiveFilters.sortDir
-  ])
+  // Follows the URL when it changes from outside (back, a link, a reset).
+  useResetOnChange({
+    search: currentInactiveFilters.search,
+    sortBy: currentInactiveFilters.sortBy,
+    sortDir: currentInactiveFilters.sortDir
+  }, setInactiveFilters)
 
-  React.useEffect(() => {
-    setPendingFilters((prev) => {
-      const next = {
-        search: currentPendingFilters.search,
-        sortBy: currentPendingFilters.sortBy,
-        sortDir: currentPendingFilters.sortDir
-      }
-      return prev.search === next.search &&
-        prev.sortBy === next.sortBy &&
-        prev.sortDir === next.sortDir
-        ? prev
-        : next
-    })
-  }, [
-    currentPendingFilters.search,
-    currentPendingFilters.sortBy,
-    currentPendingFilters.sortDir
-  ])
+  // Follows the URL when it changes from outside (back, a link, a reset).
+  useResetOnChange({
+    search: currentPendingFilters.search,
+    sortBy: currentPendingFilters.sortBy,
+    sortDir: currentPendingFilters.sortDir
+  }, setPendingFilters)
 
   const updateParams = React.useCallback(
     (
