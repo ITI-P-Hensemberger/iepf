@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Decide which IEPF components a change affects. Single source for the CI path filters."""
+import json
 import os
 from pathlib import Path
 import subprocess
 import sys
+import urllib.request
 
 APPS = ('backend', 'frontend')
 # A change here can alter what either application installs or builds.
@@ -67,7 +69,44 @@ def has_commit(sha, cwd=None):
     return True
 
 
-def plan(env, cwd=None):
+def github_api(env):
+    token, repo = env.get('GITHUB_TOKEN'), env.get('GITHUB_REPOSITORY')
+    if not token or not repo:
+        return None
+
+    def get(path):
+        request = urllib.request.Request(f'https://api.github.com/repos/{repo}/{path}', headers={
+            'Authorization': f'Bearer {token}', 'Accept': 'application/vnd.github+json'})
+        with urllib.request.urlopen(request, timeout=20) as response:
+            return json.load(response)
+    return get
+
+
+def checked_on_pull_request(head, api, cwd=None):
+    """True when this push is a merged pull request whose exact tree already passed this workflow.
+
+    A pull request run tests its head merged into main. When the squash commit on main has the
+    same tree as that head, the head already contained main, so the run tested this very tree."""
+    if api is None:
+        return False
+    try:
+        tree = git('rev-parse', f'{head}^{{tree}}', cwd=cwd).strip()
+        for pull in api(f'commits/{head}/pulls'):
+            if not pull.get('merged_at'):
+                continue
+            sha = pull['head']['sha']
+            if api(f'git/commits/{sha}')['tree']['sha'] != tree:
+                continue
+            runs = api(f'actions/workflows/ci-release.yml/runs?event=pull_request&status=success&head_sha={sha}')
+            if runs.get('total_count', 0) > 0:
+                return True
+    except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError):
+        # Any doubt runs the checks again.
+        return False
+    return False
+
+
+def plan(env, cwd=None, api=None):
     event = env['EVENT_NAME']
     head = env['HEAD_SHA']
     if event == 'workflow_dispatch':
@@ -86,6 +125,11 @@ def plan(env, cwd=None):
     if event == 'push':
         # Every production deploy validates the infrastructure first.
         result['infra_checks'] = True
+        # The app checks already passed on the pull request for this exact tree: the images still
+        # build and deploy, without testing the same code twice.
+        if checked_on_pull_request(head, api if api is not None else github_api(env), cwd):
+            for app in APPS:
+                result[f'{app}_checks'] = False
     return result
 
 

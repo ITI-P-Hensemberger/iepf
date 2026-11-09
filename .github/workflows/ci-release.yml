@@ -30,6 +30,11 @@ concurrency:
 jobs:
   changes:
     runs-on: ubuntu-26.04
+    # Read only: on main it looks up the pull request and its run to skip checks already passed.
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
     outputs:
       backend_checks: ${{ steps.plan.outputs.backend_checks }}
       backend_release: ${{ steps.plan.outputs.backend_release }}
@@ -53,6 +58,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           INPUT_COMPONENT: ${{ inputs.component }}
           INPUT_IMAGE: ${{ inputs.image }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: python3 infra/ci/changes.py
 
   # One runner per app: each job is billed by the started minute and pays its own setup, so

@@ -89,6 +89,46 @@ class HistoryTests(unittest.TestCase):
         self.assertIn('frontend_release', result)
         self.assertIn('infra_checks', result)
 
+    def fake_api(self, head_tree, run_count=1, merged=True):
+        """GitHub's answers for a squash commit whose pull request head has `head_tree`."""
+        def get(path):
+            if path.startswith('commits/'):
+                return [{'merged_at': '2026-11-09T00:00:00Z' if merged else None, 'head': {'sha': 'prhead'}}]
+            if path == 'git/commits/prhead':
+                return {'tree': {'sha': head_tree}}
+            if path.startswith('actions/workflows/ci-release.yml/runs?') and 'head_sha=prhead' in path:
+                return {'total_count': run_count}
+            raise AssertionError(path)
+        return get
+
+    def test_main_skips_app_checks_the_pull_request_already_passed(self):
+        head = self.commit('apps/frontend/c.ts')
+        tree = subprocess.check_output(['git', 'rev-parse', f'{head}^{{tree}}'], cwd=self.repo, text=True).strip()
+        env = {'EVENT_NAME': 'push', 'BASE_SHA': self.first, 'HEAD_SHA': head}
+        result = on(changes.plan(env, cwd=self.repo, api=self.fake_api(tree)))
+        # The images still build and deploy; the infrastructure is still checked.
+        self.assertEqual(result, {'frontend_release', 'infra_checks'})
+
+    def test_main_checks_again_when_anything_differs(self):
+        head = self.commit('apps/frontend/c.ts')
+        tree = subprocess.check_output(['git', 'rev-parse', f'{head}^{{tree}}'], cwd=self.repo, text=True).strip()
+        env = {'EVENT_NAME': 'push', 'BASE_SHA': self.first, 'HEAD_SHA': head}
+        for api in (
+            self.fake_api('another-tree'),         # main moved after the pull request run
+            self.fake_api(tree, run_count=0),      # no successful run for that head
+            self.fake_api(tree, merged=False),     # a commit not from a merged pull request
+            lambda path: (_ for _ in ()).throw(OSError('GitHub down'))
+        ):
+            self.assertIn('frontend_checks', on(changes.plan(env, cwd=self.repo, api=api)))
+        # Without a token nothing is asked to GitHub and every check runs.
+        self.assertIn('frontend_checks', on(changes.plan(env, cwd=self.repo)))
+
+    def test_pull_requests_never_skip_their_checks(self):
+        head = self.commit('apps/frontend/c.ts')
+        tree = subprocess.check_output(['git', 'rev-parse', f'{head}^{{tree}}'], cwd=self.repo, text=True).strip()
+        env = {'EVENT_NAME': 'pull_request', 'BASE_SHA': self.first, 'HEAD_SHA': head}
+        self.assertIn('frontend_checks', on(changes.plan(env, cwd=self.repo, api=self.fake_api(tree))))
+
     def test_new_branch_or_force_push_changes_everything(self):
         for base in ['0' * 40, 'f' * 40, '']:
             self.assertEqual(self.plan(BASE_SHA=base, HEAD_SHA=self.first), changes.everything())
