@@ -147,6 +147,13 @@ Prova di ripristino: la prima domenica del mese alle 05:30 `iepf-restore-test` c
 l'ultimo backup locale in un PostgreSQL temporaneo senza rete e controlla che `users` abbia
 righe; se fallisce arriva l'avviso. A mano: `systemctl start iepf-restore-test.service`.
 
+Ripristino da Drive provato il 2026-11-09: il dump cifrato delle 02:23 (4,2 MB), scaricato con
+`ssh iepf 'rclone cat gdrive:postgres-backups/FILE' > FILE` e decifrato fuori dalla VPS con la
+passphrase del gestore password, si carica in meno di un secondo in un PostgreSQL 16 temporaneo
+senza rete (stessa immagine della produzione). 26 tabelle su 31 avevano gli stessi conteggi della
+produzione; le altre 5 differivano solo per il lavoro di `cleanup-data` delle 03:30 e per
+l'attività successiva (analytics, audit, token). Dump e container sono stati cancellati dopo la prova.
+
 Server: `host-setup.sh` applica la configurazione che il bundle non porta, ed è
 rieseguibile. SSH solo con chiave (root compreso, che usa il deploy), journal massimo
 500 MB, log dei container limitati, logrotate senza la doppia regola di cloud-init,
