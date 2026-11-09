@@ -193,15 +193,28 @@ export default function StudentBookPage() {
     }
   })
 
-  const { data: lessons = noLessons, isFetching: lessonsLoading } = useQuery({
+  // Another day keeps the previous one on screen, dimmed, until it arrives: nothing jumps.
+  const lessonsQuery = useQuery({
     queryKey: ['lessons', 'available', dayKey, subjectId],
-    queryFn: async () => extractPayloadArray<LessonAvailable>(await apiFetch(
-      `/api/lessons/available?${new URLSearchParams({ ...dayRange(dayKey), subjectId, limit: '200' })}`,
-      'Impossibile caricare le lezioni.'
-    )),
-    select: (items) => items.toSorted((a, b) => a.startAt.localeCompare(b.startAt) || Number(b.canBook) - Number(a.canBook)),
-    enabled: Boolean(subjectId && dayKey)
+    queryFn: async () => ({
+      day: dayKey,
+      items: extractPayloadArray<LessonAvailable>(await apiFetch(
+        `/api/lessons/available?${new URLSearchParams({ ...dayRange(dayKey), subjectId, limit: '200' })}`,
+        'Impossibile caricare le lezioni.'
+      ))
+    }),
+    select: (data) => ({
+      day: data.day,
+      items: data.items.toSorted((a, b) => a.startAt.localeCompare(b.startAt) || Number(b.canBook) - Number(a.canBook))
+    }),
+    enabled: Boolean(subjectId && dayKey),
+    // Only the same subject's previous day: another subject's lessons would be misleading.
+    placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[3] === subjectId ? previous : undefined)
   })
+  const lessons = lessonsQuery.data?.items ?? noLessons
+  const lessonsDay = lessonsQuery.data?.day ?? dayKey
+  const lessonsLoading = lessonsQuery.isPending
+  const lessonsStale = lessonsQuery.isPlaceholderData
 
   const days = schoolDays(mondayKey)
   const dayInfo = new Map(current?.days.map((entry) => [entry.day, entry]) ?? [])
@@ -333,7 +346,9 @@ export default function StudentBookPage() {
                   dayInfo={dayInfo}
                   summaryLoading={countsLoading}
                   lessons={lessons}
+                  lessonsDay={lessonsDay}
                   lessonsLoading={lessonsLoading}
+                  lessonsStale={lessonsStale}
                   subjectName={subjectName}
                   onPickDay={(day) => setStep({ subject: subjectId, day })}
                   onBook={openBooking}
@@ -498,7 +513,9 @@ function DayStep({
   dayInfo,
   summaryLoading,
   lessons,
+  lessonsDay,
   lessonsLoading,
+  lessonsStale,
   subjectName,
   onPickDay,
   onBook
@@ -509,12 +526,14 @@ function DayStep({
   dayInfo: Map<string, { count: number, booked: boolean }>
   summaryLoading: boolean
   lessons: LessonAvailable[]
+  lessonsDay: string
   lessonsLoading: boolean
+  lessonsStale: boolean
   subjectName: string
   onPickDay: (day: string) => void
   onBook: (lesson: LessonAvailable) => void
 }) {
-  const selected = dayInfo.get(dayKey)
+  const selected = dayInfo.get(lessonsDay)
   const firstCutoff = lessons[0]?.bookingCutoff
   return (
     <div className='mt-4 space-y-4'>
@@ -570,15 +589,15 @@ function DayStep({
           <Skeleton className='h-16' />
         </div>
       ) : lessons.length === 0 ? (
-        <Card>
+        <Card className={cn(lessonsStale && 'opacity-60 transition-opacity')} aria-busy={lessonsStale}>
           <CardContent className='py-6 text-sm text-muted-foreground'>
             {selected?.booked ? 'Questo giorno hai già una lezione.' : 'Nessuna lezione per questo giorno.'}
           </CardContent>
         </Card>
       ) : (
-        <div className='space-y-2'>
+        <div className={cn('space-y-2', lessonsStale && 'opacity-60 transition-opacity')} aria-busy={lessonsStale}>
           <h3 className='text-sm font-medium text-muted-foreground'>
-            {capitalize(longDayFormat.format(new Date(`${dayKey}T12:00:00`)))}
+            {capitalize(longDayFormat.format(new Date(`${lessonsDay}T12:00:00`)))}
           </h3>
           {lessons.map((lesson) => (
             <LessonCard key={lesson.id} lesson={lesson} onBook={onBook} />

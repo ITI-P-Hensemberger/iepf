@@ -14,7 +14,8 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { apiFetch } from '@/lib/api-fetch'
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { cn } from '@/lib/utils'
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { formatItalianDate } from '@/lib/format-date'
 
 const PAGE = 20
@@ -82,9 +83,13 @@ export function AdminUserLessons({ role, userId }: { role: 'tutor' | 'student', 
       return { items, total: Number(payload?.total ?? items.length), offset: pageParam }
     },
     getNextPageParam: (last) => (last.offset + last.items.length < last.total ? last.offset + last.items.length : undefined),
+    // Another period or search keeps these rows on screen, dimmed, until the new ones arrive.
+    placeholderData: keepPreviousData,
     meta: { inline: true }
   })
-  const loading = lessons.isFetching
+  const loading = lessons.isPending
+  const stale = lessons.isPlaceholderData
+  const loadingMore = lessons.isFetchingNextPage
   const error = lessons.isError
   const total = lessons.data?.pages[0]?.total ?? 0
   const rows: Row[] = (lessons.data?.pages ?? []).flatMap(page => page.items).map(lesson => role === 'student'
@@ -120,7 +125,7 @@ export function AdminUserLessons({ role, userId }: { role: 'tutor' | 'student', 
           onValueChange={(value) => setWhen(value as When)}
           options={[{ value: 'past', label: pastLabel }, { value: 'upcoming', label: 'In programma' }]}
         />
-        {!loading && !error && (
+        {!loading && !error && !stale && (
           <span className='text-sm text-muted-foreground'>
             {total} {total === 1 ? 'lezione' : 'lezioni'}
           </span>
@@ -133,7 +138,7 @@ export function AdminUserLessons({ role, userId }: { role: 'tutor' | 'student', 
         >
           Impossibile caricare le lezioni.
         </EmptyState>
-      ) : loading && rows.length === 0 ? (
+      ) : loading ? (
         <div className='space-y-2'>
           <Skeleton className='h-16' />
           <Skeleton className='h-16' />
@@ -148,7 +153,7 @@ export function AdminUserLessons({ role, userId }: { role: 'tutor' | 'student', 
         </EmptyState>
       ) : (
         <>
-          <ul className='divide-y rounded-lg border bg-card'>
+          <ul className={cn('divide-y rounded-lg border bg-card', stale && 'opacity-60 transition-opacity')} aria-busy={stale}>
             {rows.map(row => (
               <li key={`${row.id}-${row.startAt}`}>
                 <Link
@@ -170,8 +175,8 @@ export function AdminUserLessons({ role, userId }: { role: 'tutor' | 'student', 
             ))}
           </ul>
           {rows.length < total && (
-            <Button variant='outline' className='w-full sm:w-auto' disabled={loading} onClick={() => void lessons.fetchNextPage()}>
-              {loading ? 'Caricamento...' : 'Mostra altre'}
+            <Button variant='outline' className='w-full sm:w-auto' disabled={loadingMore || stale} onClick={() => void lessons.fetchNextPage()}>
+              {loadingMore ? 'Caricamento...' : 'Mostra altre'}
             </Button>
           )}
         </>
