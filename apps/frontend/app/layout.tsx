@@ -50,8 +50,8 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <SettingsProvider>
-            <QueryProvider>
+          <QueryProvider>
+            <SettingsProvider>
             <SessionRefresh />
             <div className='flex min-h-dvh flex-col'>
               <ImpersonationBanner />
@@ -59,8 +59,8 @@ export default function RootLayout({
               <Footer />
               <Toaster />
             </div>
-            </QueryProvider>
-          </SettingsProvider>
+            </SettingsProvider>
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>

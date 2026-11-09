@@ -30,7 +30,6 @@ import {
   TableRow
 } from '@/components/ui/table'
 
-import { toast } from 'sonner'
 
 import { formatItalianDate } from '@/lib/format-date'
 import { lessonSubject } from '@/lib/lesson-subject'
@@ -39,6 +38,8 @@ import { type DateRange } from 'react-day-picker'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { useSession } from '@/lib/use-session'
 import { PushInviteCard } from '@/components/push-prompt'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { apiFetch } from '@/lib/api-fetch'
 
 const pageSize = 20
 
@@ -175,6 +176,9 @@ function isLessonNonBookable(lesson: Lesson) {
   return occupancy >= dailySeats
 }
 
+const noLessons: Lesson[] = []
+const noSubjects: Subject[] = []
+
 export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.ReactNode } = {}) {
   const router = useRouter()
   const here = useHere()
@@ -184,11 +188,10 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
   const { profile, isLoading: isProfileLoading } = useSession()
 
   const [filters, setFilters] = React.useState<LessonFilters>(defaultFilters)
-  const [lessons, setLessons] = React.useState<Lesson[]>([])
-  const [total, setTotal] = React.useState(0)
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [subjects, setSubjects] = React.useState<Subject[]>([])
-  const [subjectsLoading, setSubjectsLoading] = React.useState(true)
+  const { data: subjects = noSubjects, isPending: subjectsLoading } = useQuery({
+    queryKey: ['subjects'],
+    queryFn: async () => extractPayloadArray<Subject>(await apiFetch('/api/subjects', 'Impossibile caricare le materie.'))
+  })
 
 
   const parsePage = React.useCallback(
@@ -242,18 +245,9 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     return [...subjects].sort((a, b) => a.name.localeCompare(b.name))
   }, [subjects])
 
-  const loadLessons = React.useCallback(async () => {
-    setIsLoading(true)
+  const lessonsQuery = React.useMemo(() => {
     const params = new URLSearchParams()
-    if (!profile?.id) {
-      if (!isProfileLoading) {
-        setLessons([])
-        setTotal(0)
-        setIsLoading(false)
-      }
-      return
-    }
-    params.set('tutorId', profile.id)
+    params.set('tutorId', profile?.id ?? '')
     if (currentFilters.subjectId) {
       params.set('subjectId', currentFilters.subjectId)
     }
@@ -274,83 +268,22 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     params.set('sortDir', currentFilters.sortDir)
     params.set('limit', String(pageSize))
     params.set('offset', String((currentFilters.page - 1) * pageSize))
-
-    try {
-      const response = await fetch(`/api/lessons?${params.toString()}`)
-      if (!response.ok) {
-        throw new Error('Impossibile caricare le lezioni.')
-      }
-      const payload = await response.json()
-      const data = payload && typeof payload === 'object' ? payload : null
-      const items = Array.isArray(data?.data)
-        ? (data?.data as Lesson[])
-        : Array.isArray(data?.items)
-          ? (data?.items as Lesson[])
-          : Array.isArray(data?.results)
-            ? (data?.results as Lesson[])
-            : Array.isArray(data?.rows)
-              ? (data?.rows as Lesson[])
-              : []
-      const totalValue =
-        typeof data?.total === 'number'
-          ? data.total
-          : Array.isArray(data?.data)
-            ? data.data.length
-            : items.length
-      setLessons(items)
-      setTotal(totalValue)
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile caricare le lezioni.'
-      )
-      setLessons([])
-      setTotal(0)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [currentFilters, isProfileLoading, profile?.id])
-
-  React.useEffect(() => {
-    let isMounted = true
-
-    async function loadSubjects() {
-      setSubjectsLoading(true)
-
-      try {
-        const response = await fetch('/api/subjects')
-        if (!response.ok) {
-          throw new Error('Impossibile caricare le materie.')
-        }
-        const payload = await response.json()
-        const items = extractPayloadArray<Subject>(payload)
-        if (isMounted) {
-          setSubjects(items)
-        }
-      } catch (err) {
-        if (isMounted) {
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : 'Impossibile caricare le materie.'
-          )
-        }
-      } finally {
-        if (isMounted) {
-          setSubjectsLoading(false)
-        }
-      }
-    }
-
-    void loadSubjects()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
-
-  React.useEffect(() => {
-    void loadLessons()
-  }, [loadLessons])
+    return params.toString()
+  }, [currentFilters, profile?.id])
+  const lessonsResult = useQuery({
+    queryKey: ['lessons', lessonsQuery],
+    queryFn: async () => {
+      const payload = await apiFetch<{ total?: number }>(`/api/lessons?${lessonsQuery}`, 'Impossibile caricare le lezioni.')
+      const items = extractPayloadArray<Lesson>(payload)
+      return { items, total: typeof payload?.total === 'number' ? payload.total : items.length }
+    },
+    enabled: Boolean(profile?.id),
+    // The rows stay in place while the next page or filter loads.
+    placeholderData: keepPreviousData
+  })
+  const lessons = lessonsResult.data?.items ?? noLessons
+  const total = lessonsResult.data?.total ?? 0
+  const isLoading = isProfileLoading || lessonsResult.isFetching
 
   const appliedFilters = React.useMemo(
     () => ({

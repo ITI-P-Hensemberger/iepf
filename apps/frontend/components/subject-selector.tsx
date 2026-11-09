@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { BookOpen, Check, X } from 'lucide-react'
-import { toast } from 'sonner'
+import { useQuery } from '@tanstack/react-query'
 
 import { EmptyState } from '@/components/empty-state'
 import { SearchField } from '@/components/search-field'
@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 
+import { apiFetch } from '@/lib/api-fetch'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { cn } from '@/lib/utils'
 
@@ -30,6 +31,8 @@ type SubjectSelectorProps = {
   stickySearch?: boolean
 }
 
+const noSubjects: Subject[] = []
+
 export function SubjectSelector({
   value,
   onChange,
@@ -38,56 +41,15 @@ export function SubjectSelector({
   saved,
   stickySearch = false
 }: SubjectSelectorProps) {
-  const [subjects, setSubjects] = React.useState<Subject[]>(
-    providedSubjects || []
-  )
-  const [isLoading, setIsLoading] = React.useState(!providedSubjects)
+  // Shares the cache with every other list of subjects; not loaded when they are passed in.
+  const subjectsQuery = useQuery({
+    queryKey: ['subjects'],
+    queryFn: async () => extractPayloadArray<Subject>(await apiFetch('/api/subjects', 'Impossibile caricare le materie.')),
+    enabled: !providedSubjects
+  })
+  const subjects = providedSubjects ?? subjectsQuery.data ?? noSubjects
+  const isLoading = !providedSubjects && subjectsQuery.isPending
   const [searchQuery, setSearchQuery] = React.useState('')
-
-  React.useEffect(() => {
-    // If subjects are provided as props, don't fetch
-    if (providedSubjects) {
-      setSubjects(providedSubjects)
-      setIsLoading(false)
-      return
-    }
-
-    let isMounted = true
-
-    async function loadSubjects() {
-      setIsLoading(true)
-
-      try {
-        const response = await fetch('/api/subjects')
-        if (!response.ok) {
-          throw new Error('Impossibile caricare le materie.')
-        }
-        const payload = await response.json()
-        const data = extractPayloadArray<Subject>(payload)
-        if (isMounted) {
-          setSubjects(data)
-        }
-      } catch (err) {
-        if (isMounted) {
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : 'Impossibile caricare le materie.'
-          )
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    void loadSubjects()
-
-    return () => {
-      isMounted = false
-    }
-  }, [providedSubjects])
 
   const filteredSubjects = React.useMemo(() => {
     if (!searchQuery.trim()) return subjects

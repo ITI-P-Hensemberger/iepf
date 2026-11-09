@@ -264,6 +264,8 @@ export default function AdminSettingsPage() {
   const saveSettings = (body: unknown, fallback: string) =>
     apiFetch('/api/settings', fallback, jsonBody('PATCH', body)).then((payload) => {
       queryClient.setQueryData(['settings'], payload)
+      // The date pickers read the closures on their own.
+      void queryClient.invalidateQueries({ queryKey: ['settings', 'closures'] })
       return normalizeSettings(payload)
     })
 

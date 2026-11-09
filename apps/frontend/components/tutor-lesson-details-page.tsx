@@ -33,6 +33,8 @@ import { lessonSubject } from '@/lib/lesson-subject'
 import { dayKeyOf, mondayOf } from '@/lib/school-week'
 import { capitalizeFirst } from '@/lib/capitalize'
 import { FEEDBACK_LOCKED_NOTICE, FeedbackHistoryToggle } from '@/components/feedback-history'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 
 type Lesson = {
   id: string
@@ -139,22 +141,47 @@ function studentClassLabel(student?: Student | null) {
   return student ? classLabel(student.year, student.sectionName) : null
 }
 
+const noBookings: Booking[] = []
+const noSubjects: Subject[] = []
+
 export default function TutorLessonDetailsPage() {
   const params = useParams()
   const lessonId = String(params?.id ?? '')
-  const [lesson, setLesson] = React.useState<Lesson | null>(null)
-  const [lessonLoading, setLessonLoading] = React.useState(true)
-  const [bookings, setBookings] = React.useState<Booking[]>([])
-  const [bookingsLoading, setBookingsLoading] = React.useState(true)
-  const [subjects, setSubjects] = React.useState<Subject[]>([])
-  const [studentMap, setStudentMap] = React.useState<Map<string, Student>>(
-    new Map()
-  )
-  const [presenceSaving, setPresenceSaving] = React.useState<
-    Record<string, boolean>
-  >({})
+  const queryClient = useQueryClient()
+  const { data: lesson = null, isPending: lessonLoading } = useQuery({
+    queryKey: ['lessons', lessonId],
+    queryFn: () => apiFetch<Lesson>(`/api/lessons/${lessonId}`, 'Impossibile caricare la lezione.'),
+    enabled: Boolean(lessonId)
+  })
+  const { data: bookings = noBookings, isPending: bookingsLoading } = useQuery({
+    queryKey: ['lessons', lessonId, 'bookings'],
+    queryFn: async () => extractPayloadArray<Booking>(await apiFetch(`/api/lessons/${lessonId}/bookings`, 'Impossibile caricare le prenotazioni.')),
+    enabled: Boolean(lessonId)
+  })
+  const { data: subjects = noSubjects } = useQuery({
+    queryKey: ['subjects'],
+    queryFn: async () => extractPayloadArray<Subject>(await apiFetch('/api/subjects', 'Impossibile caricare le materie.'))
+  })
+  const { data: feedbackItems } = useQuery({
+    queryKey: ['feedback', 'me', 'lesson', lessonId],
+    queryFn: async () => extractPayloadArray<Feedback>(await apiFetch(`/api/feedback/me?lessonId=${lessonId}&limit=200`, 'Impossibile caricare i feedback.')),
+    enabled: Boolean(lessonId)
+  })
+  const feedbackByBooking = React.useMemo(() => new Map((feedbackItems ?? []).map((item) => [item.bookingId, item])), [feedbackItems])
+  // Students only name the bookings: one that fails to load is left without a name.
+  const studentIds = Array.from(new Set(bookings.map((booking) => booking.studentId)))
+  const studentResults = useQueries({
+    queries: studentIds.map((id) => ({
+      queryKey: ['users', id],
+      queryFn: () => apiFetch<Student>(`/api/users/${id}`, 'Impossibile caricare lo studente.'),
+      meta: { inline: true }
+    }))
+  })
+  const studentMap = new Map<string, Student>()
+  studentResults.forEach((result) => {
+    if (result.data) studentMap.set(result.data.id, result.data)
+  })
   const [cancelOpen, setCancelOpen] = React.useState(false)
-  const [isCancelling, setIsCancelling] = React.useState(false)
   const [feedbackOpen, setFeedbackOpen] = React.useState(false)
   // Past the week the tutor can still read what they wrote, no longer change it.
   const [feedbackReadonly, setFeedbackReadonly] = React.useState(false)
@@ -166,10 +193,6 @@ export default function TutorLessonDetailsPage() {
   )
   const [feedbackText, setFeedbackText] = React.useState('')
   const [feedbackRating, setFeedbackRating] = React.useState<number>(5)
-  const [isSavingFeedback, setIsSavingFeedback] = React.useState(false)
-  const [feedbackByBooking, setFeedbackByBooking] = React.useState<
-    Map<string, Feedback>
-  >(new Map())
 
   const subjectMap = React.useMemo(() => {
     const map = new Map<string, Subject>()
@@ -191,210 +214,51 @@ export default function TutorLessonDetailsPage() {
     !isCanceledStatus(lesson?.status) &&
     !hasConfirmedBookings
 
-  const loadLesson = React.useCallback(async () => {
-    if (!lessonId) return
-    setLessonLoading(true)
-    try {
-      const response = await fetch(`/api/lessons/${lessonId}`)
-      if (!response.ok) {
-        throw new Error('Impossibile caricare la lezione.')
-      }
-      const payload = await response.json()
-      setLesson(payload as Lesson)
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile caricare la lezione.'
-      )
-    } finally {
-      setLessonLoading(false)
+  const reloadLesson = () => queryClient.invalidateQueries({ queryKey: ['lessons'] })
+
+  const presenceMutation = useMutation({
+    mutationFn: ({ booking, value }: { booking: Booking, value: boolean | null }) =>
+      apiFetch(`/api/lessons/${lessonId}/bookings/${booking.id}/presence`, 'Impossibile aggiornare la presenza.', jsonBody('PATCH', { present: value })),
+    onSuccess: () => {
+      toast.success('Presenza aggiornata.')
+      return reloadLesson()
     }
-  }, [lessonId])
+  })
+  const presenceSaving: Record<string, boolean> = presenceMutation.isPending && presenceMutation.variables
+    ? { [presenceMutation.variables.booking.id]: true }
+    : {}
+  const handlePresenceSave = (booking: Booking, value: boolean | null) =>
+    presenceMutation.mutateAsync({ booking, value }).then(() => {}, () => {})
 
-  const loadBookings = React.useCallback(async () => {
-    if (!lessonId) return
-    setBookingsLoading(true)
-    try {
-      const response = await fetch(`/api/lessons/${lessonId}/bookings`)
-      if (!response.ok) {
-        throw new Error('Impossibile caricare le prenotazioni.')
-      }
-      const payload = await response.json()
-      setBookings(extractPayloadArray<Booking>(payload))
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile caricare le prenotazioni.'
-      )
-    } finally {
-      setBookingsLoading(false)
-    }
-  }, [lessonId])
-
-  const loadFeedback = React.useCallback(async () => {
-    if (!lessonId) return
-    try {
-      const response = await fetch(
-        `/api/feedback/me?lessonId=${lessonId}&limit=200`
-      )
-      if (!response.ok) {
-        throw new Error('Impossibile caricare i feedback.')
-      }
-      const payload = await response.json()
-      const items = extractPayloadArray<Feedback>(payload)
-      setFeedbackByBooking(
-        new Map(items.map((item) => [item.bookingId, item]))
-      )
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile caricare i feedback.'
-      )
-    }
-  }, [lessonId])
-
-  React.useEffect(() => {
-    void loadLesson()
-    void loadBookings()
-    void loadFeedback()
-  }, [loadBookings, loadFeedback, loadLesson])
-
-  React.useEffect(() => {
-    let isMounted = true
-
-    async function loadSubjects() {
-      try {
-        const response = await fetch('/api/subjects')
-        if (!response.ok) {
-          throw new Error('Impossibile caricare le materie.')
-        }
-        const payload = await response.json()
-        if (isMounted) {
-          setSubjects(extractPayloadArray<Subject>(payload))
-        }
-      } catch (err) {
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : 'Impossibile caricare le materie.'
-        )
-      }
-    }
-
-    void loadSubjects()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
-
-  React.useEffect(() => {
-    let isMounted = true
-    const missingIds = Array.from(
-      new Set(
-        bookings
-          .map((booking) => booking.studentId)
-          .filter((id) => !studentMap.has(id))
-      )
-    )
-
-    if (missingIds.length === 0) {
-      return
-    }
-
-    async function loadMissingStudents() {
-      const results = await Promise.allSettled(
-        missingIds.map(async (id) => {
-          const response = await fetch(`/api/users/${id}`)
-          if (!response.ok) {
-            return null
-          }
-          const payload = await response.json()
-          return payload as Student
-        })
-      )
-
-      if (!isMounted) {
-        return
-      }
-
-      setStudentMap((prev) => {
-        const next = new Map(prev)
-        results.forEach((result) => {
-          if (result.status === 'fulfilled' && result.value) {
-            next.set(result.value.id, result.value)
-          }
-        })
-        return next
-      })
-    }
-
-    void loadMissingStudents()
-
-    return () => {
-      isMounted = false
-    }
-  }, [bookings, studentMap])
-
-  const handlePresenceSave = React.useCallback(
-    async (booking: Booking, value: boolean | null) => {
-      setPresenceSaving((prev) => ({ ...prev, [booking.id]: true }))
-      try {
-        const response = await fetch(
-          `/api/lessons/${lessonId}/bookings/${booking.id}/presence`,
-          {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ present: value })
-          }
-        )
-        if (!response.ok) {
-          throw new Error('Impossibile aggiornare la presenza.')
-        }
-        toast.success('Presenza aggiornata.')
-        await loadBookings()
-      } catch (err) {
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : 'Impossibile aggiornare la presenza.'
-        )
-      } finally {
-        setPresenceSaving((prev) => ({ ...prev, [booking.id]: false }))
-      }
-    },
-    [lessonId, loadBookings]
-  )
-
-  const handleCancelLesson = React.useCallback(async () => {
-    if (!lessonId) return
-    setIsCancelling(true)
-    try {
-      const response = await fetch(`/api/lessons/${lessonId}/cancel`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({})
-      })
-      if (!response.ok) {
-        throw new Error('Impossibile annullare la lezione.')
-      }
+  const cancelMutation = useMutation({
+    mutationFn: () => apiFetch(`/api/lessons/${lessonId}/cancel`, 'Impossibile annullare la lezione.', jsonBody('POST', {})),
+    onSuccess: () => {
       toast.success('Lezione annullata.')
       setCancelOpen(false)
-      await loadLesson()
-      await loadBookings()
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile annullare la lezione.'
-      )
-    } finally {
-      setIsCancelling(false)
+      return reloadLesson()
     }
-  }, [lessonId, loadBookings, loadLesson])
+  })
+  const isCancelling = cancelMutation.isPending
+  const handleCancelLesson = () => {
+    if (lessonId) cancelMutation.mutate()
+  }
 
-  const handleSaveFeedback = React.useCallback(async () => {
+  const saveFeedback = useMutation({
+    mutationFn: ({ target, targetId, value }: { target: Booking, targetId: string | null, value: { rating: number, text: string } }) => targetId
+      ? apiFetch(`/api/lessons/${lessonId}/feedback/${targetId}`, 'Impossibile salvare il feedback.', jsonBody('PATCH', value))
+      : apiFetch(`/api/lessons/${lessonId}/feedback`, 'Impossibile salvare il feedback.', jsonBody('POST', { bookingId: target.id, ...value })),
+    onSuccess: () => {
+      toast.success('Feedback salvato.')
+      setFeedbackOpen(false)
+      setFeedbackTarget(null)
+      setFeedbackTargetId(null)
+      setFeedbackText('')
+      return queryClient.invalidateQueries({ queryKey: ['feedback'] })
+    }
+  })
+  const isSavingFeedback = saveFeedback.isPending
+
+  const handleSaveFeedback = () => {
     if (!feedbackTarget || !lessonId) {
       return
     }
@@ -415,65 +279,8 @@ export default function TutorLessonDetailsPage() {
       toast.error('Seleziona un rating valido.')
       return
     }
-    setIsSavingFeedback(true)
-    try {
-      const requestBody = feedbackTargetId
-        ? {
-            rating: feedbackRating,
-            text: trimmed
-          }
-        : {
-            bookingId: feedbackTarget.id,
-            rating: feedbackRating,
-            text: trimmed
-          }
-      const response = await fetch(
-        feedbackTargetId
-          ? `/api/lessons/${lessonId}/feedback/${feedbackTargetId}`
-          : `/api/lessons/${lessonId}/feedback`,
-        {
-          method: feedbackTargetId ? 'PATCH' : 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(requestBody)
-        }
-      )
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        throw new Error(payload?.message || 'Impossibile salvare il feedback.')
-      }
-      const saved = (await response.json().catch(() => null)) as Feedback | null
-      if (saved?.bookingId) {
-        setFeedbackByBooking((prev) => {
-          const next = new Map(prev)
-          next.set(saved.bookingId, saved)
-          return next
-        })
-        setFeedbackTargetId(saved.id)
-      } else {
-        await loadFeedback()
-      }
-      toast.success('Feedback salvato.')
-      setFeedbackOpen(false)
-      setFeedbackTarget(null)
-      setFeedbackTargetId(null)
-      setFeedbackText('')
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Impossibile salvare il feedback.'
-      )
-    } finally {
-      setIsSavingFeedback(false)
-    }
-  }, [
-    feedbackTarget,
-    feedbackTargetId,
-    feedbackRating,
-    feedbackText,
-    lessonId,
-    loadFeedback
-  ])
+    saveFeedback.mutate({ target: feedbackTarget, targetId: feedbackTargetId, value: { rating: feedbackRating, text: trimmed } })
+  }
 
   const state = lesson ? lessonStateOf(lesson) : null
   const presence = usePresenceConfirm()
@@ -623,7 +430,7 @@ export default function TutorLessonDetailsPage() {
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
-                void handleCancelLesson()
+                handleCancelLesson()
               }}
               disabled={isCancelling}
             >
@@ -674,7 +481,7 @@ export default function TutorLessonDetailsPage() {
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
-                void handleSaveFeedback()
+                handleSaveFeedback()
               }}
               disabled={isSavingFeedback}
             >

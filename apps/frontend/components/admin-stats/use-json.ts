@@ -1,44 +1,20 @@
 'use client'
 
-import * as React from 'react'
-import { toast } from 'sonner'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 
-type Result<T> = { url: string, data?: T, failed?: boolean }
+import { apiFetch } from '@/lib/api-fetch'
 
-// GETs a JSON endpoint whenever the URL changes. Loading is derived from which URL the last
-// answer belongs to, so no state is set synchronously inside the effect. The previous data
-// stays available while the next URL loads, so tables keep their rows during paging.
+// GETs a JSON endpoint whenever the URL changes. The previous data stays available while the
+// next URL loads, so tables keep their rows during paging; a failure shows as a toast.
 export function useJson<T>(url: string | null, errorMessage: string) {
-  const [result, setResult] = React.useState<Result<T> | null>(null)
-  const [previous, setPrevious] = React.useState<T | undefined>(undefined)
-
-  React.useEffect(() => {
-    if (!url) return
-    let active = true
-    fetch(url, { cache: 'no-store' })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(errorMessage)
-        return (await response.json()) as T
-      })
-      .then((data) => {
-        if (!active) return
-        setResult({ url, data })
-        setPrevious(data)
-      })
-      .catch(() => {
-        if (!active) return
-        setResult({ url, failed: true })
-        toast.error(errorMessage)
-      })
-    return () => {
-      active = false
-    }
-  }, [url, errorMessage])
-
-  const current = result?.url === url ? result : null
+  const query = useQuery({
+    queryKey: ['admin-stats', url],
+    queryFn: () => apiFetch<T>(url ?? '', errorMessage),
+    enabled: url !== null,
+    placeholderData: keepPreviousData
+  })
   return {
-    data: current ? current.data : previous,
-    loading: url !== null && current === null,
-    failed: current?.failed === true
+    data: query.data,
+    loading: url !== null && (query.isPending || query.isPlaceholderData)
   }
 }

@@ -8,7 +8,6 @@ import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
 import { CalendarClock, CalendarDays, ChevronRight } from 'lucide-react'
-import { toast } from 'sonner'
 
 import { PushInviteCard, TUTOR_ONBOARDED_FLAG as ONBOARDED_FLAG } from '@/components/push-prompt'
 import { TutorLessonList } from '@/components/tutor-lesson-list'
@@ -19,6 +18,8 @@ import { extractPayloadArray } from '@/lib/backend-response'
 import { isCanceled, subjectLabel, type ScheduleLesson } from '@/lib/lesson-schedule'
 import { addDaysToKey, dayKeyOf, dayRange } from '@/lib/school-week'
 import { useSession } from '@/lib/use-session'
+import { useQuery } from '@tanstack/react-query'
+import { apiFetch } from '@/lib/api-fetch'
 
 const timeFormat = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' })
 const dayFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })
@@ -28,10 +29,10 @@ function capitalize(value: string) {
 }
 
 async function fetchSchedule(from: string, to: string) {
-  const response = await fetch(`/api/lessons/schedule?${new URLSearchParams({ from, to })}`)
-  if (!response.ok) throw new Error('Impossibile caricare le lezioni.')
-  return extractPayloadArray<ScheduleLesson>(await response.json())
+  return extractPayloadArray<ScheduleLesson>(await apiFetch(`/api/lessons/schedule?${new URLSearchParams({ from, to })}`, 'Impossibile caricare le lezioni.'))
 }
+
+const noLessons: ScheduleLesson[] = []
 
 export default function TutorPage() {
   const { profile, isLoading: isProfileLoading } = useSession()
@@ -46,30 +47,18 @@ export default function TutorPage() {
       return false
     }
   })
-  const [today, setToday] = React.useState<ScheduleLesson[]>([])
-  const [coming, setComing] = React.useState<ScheduleLesson[]>([])
-  const [loading, setLoading] = React.useState(true)
-
-  const load = React.useCallback(async (quiet = false) => {
-    if (!quiet) setLoading(true)
-    try {
-      const todayKey = dayKeyOf(new Date())
-      const [todayLessons, nextLessons] = await Promise.all([
-        fetchSchedule(dayRange(todayKey).from, dayRange(todayKey).to),
-        fetchSchedule(dayRange(addDaysToKey(todayKey, 1)).from, dayRange(addDaysToKey(todayKey, 14)).to)
-      ])
-      setToday(todayLessons)
-      setComing(nextLessons)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Impossibile caricare le lezioni.')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  const todayKey = dayKeyOf(new Date())
+  const todayResult = useQuery({
+    queryKey: ['lessons', 'schedule', todayKey],
+    queryFn: () => fetchSchedule(dayRange(todayKey).from, dayRange(todayKey).to)
+  })
+  const comingResult = useQuery({
+    queryKey: ['lessons', 'schedule-two-weeks', todayKey],
+    queryFn: () => fetchSchedule(dayRange(addDaysToKey(todayKey, 1)).from, dayRange(addDaysToKey(todayKey, 14)).to)
+  })
+  const today = todayResult.data ?? noLessons
+  const coming = comingResult.data ?? noLessons
+  const loading = todayResult.isPending || comingResult.isPending
 
   const booked = coming.filter((lesson) => !isCanceled(lesson) && lesson.bookings.length > 0)
   const open = coming.filter((lesson) => !isCanceled(lesson) && lesson.bookings.length === 0).length
@@ -109,7 +98,7 @@ export default function TutorPage() {
               <EmptyState>Oggi non hai lezioni.</EmptyState>
             ) : (
               <div className='rounded-lg border bg-card'>
-                <TutorLessonList lessons={today} onChanged={() => load(true)} />
+                <TutorLessonList lessons={today} />
               </div>
             )}
           </section>

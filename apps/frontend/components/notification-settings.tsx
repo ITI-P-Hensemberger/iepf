@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { toast } from 'sonner'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -22,6 +23,10 @@ import {
 } from '@/lib/push-client'
 import { type PushSetupState, pushSetupState } from '@/lib/push-platform'
 import { setOptedOut } from '@/lib/push-prompt'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
+
+const PREFERENCES_KEY = ['notification-preferences']
+const DEVICE_KEY = ['push-device']
 
 const USER_LABELS: Array<{
   key: UserCategory
@@ -103,78 +108,69 @@ export function NotificationSettings({
   role: 'student' | 'tutor' | 'admin'
   userId: string
 }) {
-  const [device, setDevice] = React.useState<
-    PushSetupState | 'done' | 'loading'
-  >('loading')
-  const [deviceCount, setDeviceCount] = React.useState<number | null>(null)
-  const [preferences, setPreferences] = React.useState<PushPreferences | null>(
-    null
-  )
-  const [busy, setBusy] = React.useState(false)
+  const queryClient = useQueryClient()
+  // Without them the section simply shows no switches.
+  const { data: preferences = null } = useQuery({
+    queryKey: PREFERENCES_KEY,
+    queryFn: () => apiFetch<PushPreferences>('/api/notifications/preferences', 'Impossibile caricare le preferenze.'),
+    meta: { inline: true }
+  })
 
-  const evaluate = React.useCallback(async () => {
-    // Nothing is asked here: the permission prompt only follows a click on "Attiva".
-    const state = pushSetupState(await readPushEnvironment())
-    if (state === 'enabled') {
-      await refreshPushSubscription().catch(() => undefined)
-    }
-    setDevice(state)
-    setDeviceCount(await fetchDeviceCount())
-  }, [])
-
-  React.useEffect(() => {
-    void evaluate()
-  }, [evaluate])
-
-  React.useEffect(() => {
-    void (async () => {
-      const response = await fetch('/api/notifications/preferences', {
-        cache: 'no-store'
-      })
-      if (response.ok) {
-        setPreferences((await response.json()) as PushPreferences)
+  // This device's push state and how many devices get push. Nothing is asked here: the
+  // permission prompt only follows a click on "Attiva".
+  const deviceQuery = useQuery({
+    queryKey: DEVICE_KEY,
+    queryFn: async () => {
+      const state = pushSetupState(await readPushEnvironment())
+      if (state === 'enabled') {
+        await refreshPushSubscription().catch(() => undefined)
       }
-    })()
-  }, [])
+      return { state, count: await fetchDeviceCount() }
+    },
+    gcTime: 0,
+    retry: false,
+    meta: { inline: true }
+  })
+  // The setup guide moves through its steps here, until the device is read again.
+  const [guideState, setGuideState] = React.useState<PushSetupState | 'done' | null>(null)
+  const device: PushSetupState | 'done' | 'loading' = guideState ?? deviceQuery.data?.state ?? 'loading'
+  const deviceCount = deviceQuery.data?.count ?? null
+  const setDevice = setGuideState
 
   const changed = React.useCallback(() => {
     notifyPushSetupChanged()
-    void evaluate()
-  }, [evaluate])
+    void queryClient.invalidateQueries({ queryKey: DEVICE_KEY }).then(() => setGuideState(null))
+  }, [queryClient])
 
   // Computers only: phones go through PushSetupGuide.
-  async function handleEnableHere() {
-    setBusy(true)
-    try {
-      await enablePush()
+  const enableHere = useMutation({
+    mutationFn: async () => {
+      try {
+        await enablePush()
+      } catch (error) {
+        throw error instanceof Error ? error : new Error('Non è stato possibile attivare le notifiche.')
+      }
+    },
+    onSuccess: () => {
       setOptedOut(window.localStorage, userId, false)
       toast.success('Notifiche attivate su questo computer.')
       changed()
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : 'Non è stato possibile attivare le notifiche.'
-      )
-    } finally {
-      setBusy(false)
     }
-  }
-
-  async function handleDisable() {
-    setBusy(true)
-    try {
-      await disablePush()
+  })
+  const disable = useMutation({
+    mutationFn: () => disablePush().catch(() => {
+      throw new Error('Non è stato possibile disattivare le notifiche.')
+    }),
+    onSuccess: () => {
       // Off on purpose: no more requests on this device.
       setOptedOut(window.localStorage, userId, true)
       toast.success('Notifiche disattivate su questo dispositivo.')
       changed()
-    } catch {
-      toast.error('Non è stato possibile disattivare le notifiche.')
-    } finally {
-      setBusy(false)
     }
-  }
+  })
+  const busy = enableHere.isPending || disable.isPending
+  const handleEnableHere = () => enableHere.mutate()
+  const handleDisable = () => disable.mutate()
 
   // Avvisi admin che non arriverebbero da nessuna parte: email spenta e nessun dispositivo.
   const unreachable =
@@ -184,30 +180,34 @@ export function NotificationSettings({
         )
       : []
 
-  async function handleToggle(key: PreferenceKey, value: boolean) {
-    const previous = preferences
-    setPreferences((current) =>
-      current ? { ...current, [key]: value } : current
-    )
-    const response = await fetch('/api/notifications/preferences', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ [key]: value })
-    })
-    if (!response.ok) {
-      setPreferences(previous)
-      toast.error(
-        response.status === 403
+  // The switch moves at once and goes back if the save fails.
+  const toggle = useMutation({
+    mutationFn: async ({ key, value }: { key: PreferenceKey, value: boolean }) => {
+      const response = await fetch('/api/notifications/preferences', jsonBody('PUT', { [key]: value }))
+      if (!response.ok) {
+        throw new Error(response.status === 403
           ? 'Le preferenze si cambiano solo dal proprio account.'
-          : 'Non è stato possibile salvare la preferenza.'
-      )
-      return
+          : 'Non è stato possibile salvare la preferenza.')
+      }
+    },
+    onMutate: ({ key, value }) => {
+      const previous = queryClient.getQueryData<PushPreferences>(PREFERENCES_KEY)
+      queryClient.setQueryData<PushPreferences>(PREFERENCES_KEY, (current) => current && { ...current, [key]: value })
+      return { previous }
+    },
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData(PREFERENCES_KEY, context?.previous)
+    },
+    onSuccess: () => {
+      // Saved at once: a short confirmation, no "Save" button.
+      toast.success('Preferenza salvata.', {
+        id: 'notification-preference',
+        duration: 1500
+      })
     }
-    // Saved at once: a short confirmation, no "Save" button.
-    toast.success('Preferenza salvata.', {
-      id: 'notification-preference',
-      duration: 1500
-    })
+  })
+  function handleToggle(key: PreferenceKey, value: boolean) {
+    toggle.mutate({ key, value })
   }
 
   const userCategories = USER_LABELS.filter(

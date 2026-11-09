@@ -1,6 +1,8 @@
 'use client'
 
-import * as React from 'react'
+import { useQuery } from '@tanstack/react-query'
+
+import { apiFetch } from '@/lib/api-fetch'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -14,24 +16,15 @@ const ROLE_LABELS: Record<Coverage['role'], string> = {
 
 // How many verified users get push on at least one device: whether the request to turn it on works.
 export function PushCoverageCard() {
-  const [rows, setRows] = React.useState<Coverage[] | null>(null)
-
-  React.useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const response = await fetch('/api/admin/stats/push/coverage', { cache: 'no-store' })
-        if (!response.ok) return
-        const payload = (await response.json()) as Coverage[]
-        if (!cancelled && Array.isArray(payload)) setRows(payload)
-      } catch {
-        // The overview works without this card.
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  // The overview works without this card: a failure leaves it on dashes, with no toast.
+  const { data: rows = null } = useQuery({
+    queryKey: ['admin-stats', 'push-coverage'],
+    queryFn: async () => {
+      const payload = await apiFetch<Coverage[]>('/api/admin/stats/push/coverage', 'Impossibile caricare le notifiche attive.')
+      return Array.isArray(payload) ? payload : null
+    },
+    meta: { inline: true }
+  })
 
   return (
     <Card>

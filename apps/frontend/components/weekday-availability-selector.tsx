@@ -29,6 +29,18 @@ export type WeekdayAvailability = {
   startTime: StartTime | null
 }
 
+// Every school day once, as the API returns it or off when it is missing.
+export function normalizeWeekdays(payload: { weekdays?: WeekdayAvailability[] }): WeekdayAvailability[] {
+  return WEEKDAYS.map((day) => {
+    const match = payload.weekdays?.find((item) => item.weekday === day.value)
+    return {
+      weekday: day.value,
+      isAvailable: match?.isAvailable ?? false,
+      startTime: match?.isAvailable ? (match?.startTime ?? null) : null
+    }
+  })
+}
+
 type WeekdayAvailabilitySelectorProps = {
   value: WeekdayAvailability[]
   onChange: (value: WeekdayAvailability[]) => void

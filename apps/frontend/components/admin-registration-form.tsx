@@ -6,7 +6,7 @@ import * as React from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
-import { toast } from 'sonner'
+import { useMutation } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/input-group'
 import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
+import { confirmInvite } from '@/lib/auth-client'
 
 function normalizeName(value: string) {
   const trimmed = value.trim()
@@ -81,8 +82,6 @@ export function AdminRegistrationForm({
 }: AdminRegistrationFormProps) {
   const [showPassword, setShowPassword] = React.useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false)
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [isSuccess, setIsSuccess] = React.useState(false)
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -96,42 +95,23 @@ export function AdminRegistrationForm({
   })
 
 
-  async function onSubmit(data: z.infer<typeof formSchema>) {
-    setIsSubmitting(true)
-
-    try {
-      const normalizedFirstName = normalizeName(data.first_name)
-      const normalizedLastName = normalizeName(data.last_name)
-
-      const response = await fetch('/api/auth/admin-invite/confirm', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          token,
-          firstName: normalizedFirstName,
-          lastName: normalizedLastName,
-          password: data.password
-        })
-      })
-
-      if (!response.ok) {
-        if (response.status == 401) {
-          throw new Error('Token scaduto o già utilizzato.')
-        }
-        const payload = (await response.json()) as { message?: string }
-        throw new Error(payload.message || 'Registrazione fallita.')
-      }
-
+  const register = useMutation({
+    mutationFn: (data: z.infer<typeof formSchema>) => confirmInvite('/api/auth/admin-invite/confirm', {
+      token,
+      firstName: normalizeName(data.first_name),
+      lastName: normalizeName(data.last_name),
+      password: data.password
+    }),
+    onSuccess: () => {
       form.reset()
-      setIsSuccess(true)
       onSuccess?.()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Registrazione fallita.')
-    } finally {
-      setIsSubmitting(false)
     }
+  })
+  const isSubmitting = register.isPending
+  const isSuccess = register.isSuccess
+
+  function onSubmit(data: z.infer<typeof formSchema>) {
+    register.mutate(data)
   }
 
   if (isSuccess) {

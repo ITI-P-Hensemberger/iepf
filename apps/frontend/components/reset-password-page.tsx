@@ -7,6 +7,7 @@ import * as z from 'zod'
 import { CircleCheck, CircleX, UserX } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import { AuthLayout } from '@/components/auth-layout'
@@ -19,6 +20,7 @@ import {
   FieldLabel
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 
 const formSchema = z
   .object({
@@ -67,32 +69,22 @@ export default function ResetPasswordPage() {
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
   const hasToken = Boolean(token)
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [isSuccess, setIsSuccess] = React.useState(false)
-  const [message, setMessage] = React.useState<string | null>(null)
-  const [messageTone, setMessageTone] = React.useState<'success' | 'error' | null>(
-    null
-  )
-  const [link, setLink] = React.useState<LinkState>(token ? 'checking' : 'invalid')
-  const [isSigningOut, setIsSigningOut] = React.useState(false)
+  // Checked once per link; a failed check never throws, the form still tries.
+  const linkCheck = useQuery({
+    queryKey: ['reset-link', token],
+    queryFn: () => checkLink(token ?? ''),
+    enabled: hasToken,
+    gcTime: 0
+  })
+  const link: LinkState = !token ? 'invalid' : linkCheck.data ?? 'checking'
 
-  React.useEffect(() => {
-    if (!token) return
-    let active = true
-    void checkLink(token).then((state) => {
-      if (active) setLink(state)
-    })
-    return () => {
-      active = false
-    }
-  }, [token])
-
-  async function signOutAndContinue() {
-    setIsSigningOut(true)
-    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null)
+  const signOut = useMutation({
+    mutationFn: () => fetch('/api/auth/logout', { method: 'POST' }).catch(() => null),
     // A full reload, so nothing of the previous user stays in memory; the link is kept.
-    window.location.reload()
-  }
+    onSuccess: () => window.location.reload()
+  })
+  const isSigningOut = signOut.isPending || signOut.isSuccess
+  const signOutAndContinue = () => signOut.mutate()
 
   const form = useForm<ResetFormValues>({
     resolver: zodResolver(formSchema),
@@ -102,51 +94,28 @@ export default function ResetPasswordPage() {
     }
   })
 
-  async function onSubmit(values: ResetFormValues) {
+  // The outcome shows in the page, not as a toast.
+  const confirm = useMutation({
+    mutationFn: (values: ResetFormValues) => apiFetch(
+      '/api/auth/password/reset/confirm',
+      'Reset della password non riuscito.',
+      jsonBody('POST', { token, password: values.password })
+    ),
+    onSuccess: () => form.reset(),
+    meta: { inline: true }
+  })
+  const isSubmitting = confirm.isPending
+  const isSuccess = confirm.isSuccess
+  const [missingToken, setMissingToken] = React.useState(false)
+  const message = missingToken ? 'Token mancante o non valido.' : confirm.error?.message ?? null
+  const messageTone = message ? 'error' : null
+
+  function onSubmit(values: ResetFormValues) {
     if (!token) {
-      setMessage('Token mancante o non valido.')
-      setMessageTone('error')
+      setMissingToken(true)
       return
     }
-
-    setIsSubmitting(true)
-    setMessage(null)
-    setMessageTone(null)
-
-    try {
-      const response = await fetch('/api/auth/password/reset/confirm', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ token, password: values.password })
-      })
-
-      if (!response.ok) {
-        let message = 'Reset della password non riuscito.'
-        try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
-        } catch {
-          message = 'Reset della password non riuscito.'
-        }
-        throw new Error(message)
-      }
-
-      setIsSuccess(true)
-      setMessage('Password aggiornata.')
-      setMessageTone('success')
-      form.reset()
-    } catch (err) {
-      setMessage(
-        err instanceof Error
-          ? err.message
-          : 'Reset della password non riuscito.'
-      )
-      setMessageTone('error')
-    } finally {
-      setIsSubmitting(false)
-    }
+    confirm.mutate(values)
   }
 
   const signedIn = link === 'mine'

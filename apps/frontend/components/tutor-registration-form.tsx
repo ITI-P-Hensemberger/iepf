@@ -6,7 +6,7 @@ import * as React from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
-import { toast } from 'sonner'
+import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
@@ -40,6 +40,8 @@ import Link from 'next/link'
 
 import { extractPayloadArray } from '@/lib/backend-response'
 import { TUTOR_YEARS } from '@/lib/school-years'
+import { apiFetch } from '@/lib/api-fetch'
+import { confirmInvite } from '@/lib/auth-client'
 
 function normalizeName(value: string) {
   const trimmed = value.trim()
@@ -101,18 +103,21 @@ type TutorRegistrationFormProps = {
   onSuccess?: () => void
 }
 
+const noSections: Array<{ id: string; name: string }> = []
+
 export function TutorRegistrationForm({
   token,
   onSuccess
 }: TutorRegistrationFormProps) {
   const [showPassword, setShowPassword] = React.useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false)
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [isSuccess, setIsSuccess] = React.useState(false)
-  const [sections, setSections] = React.useState<
-    Array<{ id: string; name: string }>
-  >([])
-  const [isLoadingSections, setIsLoadingSections] = React.useState(true)
+  // The same list the admin pages use, from the shared cache.
+  const sectionsQuery = useQuery({
+    queryKey: ['class-sections'],
+    queryFn: async () => extractPayloadArray<{ id: string; name: string }>(await apiFetch('/api/class-sections', 'Impossibile caricare le sezioni.'))
+  })
+  const sections = sectionsQuery.data ?? noSections
+  const isLoadingSections = sectionsQuery.isPending
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -127,46 +132,6 @@ export function TutorRegistrationForm({
     }
   })
 
-  React.useEffect(() => {
-    let isMounted = true
-
-    async function loadSections() {
-      setIsLoadingSections(true)
-
-      try {
-        const response = await fetch('/api/class-sections')
-        if (!response.ok) {
-          throw new Error('Impossibile caricare le sezioni.')
-        }
-        const payload = await response.json()
-        const data = extractPayloadArray<{
-          id: string
-          name: string
-        }>(payload)
-        if (isMounted) {
-          setSections(data)
-        }
-      } catch (err) {
-        if (isMounted) {
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : 'Impossibile caricare le sezioni.'
-          )
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingSections(false)
-        }
-      }
-    }
-
-    loadSections()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
 
   const groupedSections = React.useMemo(() => {
     const scient: Array<{ id: string; name: string }> = []
@@ -210,47 +175,29 @@ export function TutorRegistrationForm({
     return { scient, mech, elec, chem, info }
   }, [sections])
 
-  async function onSubmit(data: z.infer<typeof formSchema>) {
-    setIsSubmitting(true)
-
-    const yearValue = data.year?.trim() ?? ''
-    const sectionValue = data.sectionId?.trim() ?? ''
-
-    try {
-      const normalizedFirstName = normalizeName(data.first_name)
-      const normalizedLastName = normalizeName(data.last_name)
-
-      const response = await fetch('/api/auth/tutor-invite/confirm', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          token,
-          firstName: normalizedFirstName,
-          lastName: normalizedLastName,
-          password: data.password,
-          year: yearValue ? Number(yearValue) : undefined,
-          sectionId: sectionValue ? sectionValue : undefined
-        })
+  const register = useMutation({
+    mutationFn: (data: z.infer<typeof formSchema>) => {
+      const yearValue = data.year?.trim() ?? ''
+      const sectionValue = data.sectionId?.trim() ?? ''
+      return confirmInvite('/api/auth/tutor-invite/confirm', {
+        token,
+        firstName: normalizeName(data.first_name),
+        lastName: normalizeName(data.last_name),
+        password: data.password,
+        year: yearValue ? Number(yearValue) : undefined,
+        sectionId: sectionValue ? sectionValue : undefined
       })
-
-      if (!response.ok) {
-        if (response.status == 401) {
-          throw new Error('Token scaduto o già utilizzato.')
-        }
-        const payload = (await response.json()) as { message?: string }
-        throw new Error(payload.message || 'Registrazione fallita.')
-      }
-
+    },
+    onSuccess: () => {
       form.reset()
-      setIsSuccess(true)
       onSuccess?.()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Registrazione fallita.')
-    } finally {
-      setIsSubmitting(false)
     }
+  })
+  const isSubmitting = register.isPending
+  const isSuccess = register.isSuccess
+
+  function onSubmit(data: z.infer<typeof formSchema>) {
+    register.mutate(data)
   }
 
   if (isSuccess) {

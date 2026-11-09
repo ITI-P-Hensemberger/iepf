@@ -6,7 +6,7 @@ import * as React from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
-import { toast } from 'sonner'
+import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
@@ -40,6 +40,7 @@ import Link from 'next/link'
 
 import { extractPayloadArray } from '@/lib/backend-response'
 import { STUDENT_YEARS } from '@/lib/school-years'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 const formSchema = z
   .object({
     first_name: z
@@ -101,15 +102,18 @@ type RegistrationFormProps = {
   onSuccess?: () => void
 }
 
+const noSections: Array<{ id: string; name: string }> = []
+
 export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
   const [showPassword, setShowPassword] = React.useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false)
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [isSuccess, setIsSuccess] = React.useState(false)
-  const [sections, setSections] = React.useState<
-    Array<{ id: string; name: string }>
-  >([])
-  const [isLoadingSections, setIsLoadingSections] = React.useState(true)
+  // The same list the admin pages use, from the shared cache.
+  const sectionsQuery = useQuery({
+    queryKey: ['class-sections'],
+    queryFn: async () => extractPayloadArray<{ id: string; name: string }>(await apiFetch('/api/class-sections', 'Impossibile caricare le sezioni.'))
+  })
+  const sections = sectionsQuery.data ?? noSections
+  const isLoadingSections = sectionsQuery.isPending
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -166,101 +170,28 @@ export function RegistrationForm({ onSuccess }: RegistrationFormProps) {
     return { scient, mech, elec, chem, info }
   }, [sections])
 
-  React.useEffect(() => {
-    let isMounted = true
 
-    async function loadSections() {
-      setIsLoadingSections(true)
-
-      try {
-        const response = await fetch('/api/class-sections')
-        if (!response.ok) {
-          throw new Error('Impossibile caricare le sezioni.')
-        }
-        const payload = await response.json()
-        const data = extractPayloadArray<{
-          id: string
-          name: string
-        }>(payload)
-        if (isMounted) {
-          setSections(data)
-        }
-      } catch (err) {
-        if (isMounted) {
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : 'Impossibile caricare le sezioni.'
-          )
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingSections(false)
-        }
-      }
-    }
-
-    loadSections()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
-
-  async function onSubmit(data: z.infer<typeof formSchema>) {
-    setIsSubmitting(true)
-
-    try {
-      const normalizedFirstName = normalizeName(data.first_name)
-      const normalizedLastName = normalizeName(data.last_name)
-      const normalizedEmail = normalizeEmail(data.email)
-
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: normalizedEmail,
-          firstName: normalizedFirstName,
-          lastName: normalizedLastName,
-          password: data.password,
-          year: Number(data.year),
-          sectionId: data.sectionId
-        })
-      })
-
-      if (!response.ok) {
-        let message = 'Si è verificato un errore, riprova.'
-
-        try {
-          const payload = (await response.json()) as {
-            message?: string
-            error?: { issues?: Array<{ message?: string }> }
-          }
-          message =
-            payload.message ?? payload.error?.issues?.[0]?.message ?? message
-        } catch {
-          message = 'Si è verificato un errore, riprova.'
-        }
-
-        throw new Error(message)
-      }
-
+  const register = useMutation({
+    mutationFn: (data: z.infer<typeof formSchema>) => apiFetch('/api/auth/register', 'Si è verificato un errore, riprova.', jsonBody('POST', {
+      email: normalizeEmail(data.email),
+      firstName: normalizeName(data.first_name),
+      lastName: normalizeName(data.last_name),
+      password: data.password,
+      year: Number(data.year),
+      sectionId: data.sectionId
+    })),
+    onSuccess: () => {
       form.reset()
       setShowPassword(false)
       setShowConfirmPassword(false)
-      setIsSuccess(true)
       onSuccess?.()
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Si è verificato un errore, riprova.'
-      )
-    } finally {
-      setIsSubmitting(false)
     }
+  })
+  const isSubmitting = register.isPending
+  const isSuccess = register.isSuccess
+
+  function onSubmit(data: z.infer<typeof formSchema>) {
+    register.mutate(data)
   }
 
   if (isSuccess) {

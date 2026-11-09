@@ -4,9 +4,9 @@ import * as React from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
-import { toast } from 'sonner'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 import { useRouter } from 'next/navigation'
-import { useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { TUTOR_ONBOARDED_FLAG as ONBOARDED_FLAG } from '@/components/push-prompt'
 
@@ -64,7 +64,6 @@ const STEPS = ['Materie', 'Disponibilità'] as const
 export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [step, setStep] = React.useState(0)
 
   const form = useForm<OnboardingFormValues>({
@@ -80,56 +79,25 @@ export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
     mode: 'onBlur'
   })
 
-  async function onSubmit(data: OnboardingFormValues) {
-    setIsSubmitting(true)
-
-    try {
-      // Assign each selected subject
+  const submit = useMutation({
+    mutationFn: async (data: OnboardingFormValues) => {
+      // One subject at a time: the first failure stops the step with its message.
       for (const subjectId of data.subjectIds) {
-        const response = await fetch(`/api/tutors/${tutorId}/subjects`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ subjectId })
-        })
-
-        if (!response.ok) {
-          const payload = (await response.json()) as { message?: string }
-          throw new Error(
-            payload.message || "Errore durante l'assegnazione delle materie."
-          )
-        }
+        await apiFetch(`/api/tutors/${tutorId}/subjects`, "Errore durante l'assegnazione delle materie.", jsonBody('POST', { subjectId }))
       }
-
-      // Update weekday availability
-      const weekdaysPayload = data.weekdays.map((day) => ({
-        weekday: day.weekday,
-        isAvailable: day.isAvailable,
-        startTime: day.isAvailable ? day.startTime : null
-      }))
-
-      const availabilityResponse = await fetch(
+      await apiFetch(
         `/api/tutors/${tutorId}/weekday-availability`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ weekdays: weekdaysPayload })
-        }
+        "Errore durante l'aggiornamento della disponibilità.",
+        jsonBody('PUT', {
+          weekdays: data.weekdays.map((day) => ({
+            weekday: day.weekday,
+            isAvailable: day.isAvailable,
+            startTime: day.isAvailable ? day.startTime : null
+          }))
+        })
       )
-
-      if (!availabilityResponse.ok) {
-        const payload = (await availabilityResponse.json()) as {
-          message?: string
-        }
-        throw new Error(
-          payload.message ||
-            "Errore durante l'aggiornamento della disponibilità."
-        )
-      }
-
+    },
+    onSuccess: async () => {
       try {
         window.sessionStorage.setItem(ONBOARDED_FLAG, '1')
       } catch {
@@ -138,15 +106,13 @@ export function TutorOnboardingForm({ tutorId }: TutorOnboardingFormProps) {
       // The guard reads the subjects again before the tutor home opens.
       await queryClient.invalidateQueries({ queryKey: tutorSubjectsKey(tutorId) })
       router.replace('/tutor')
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Si è verificato un errore. Riprova.'
-      )
-    } finally {
-      setIsSubmitting(false)
     }
+  })
+  // Stays on while the tutor home opens, so the button cannot be pressed twice.
+  const isSubmitting = submit.isPending || submit.isSuccess
+
+  function onSubmit(data: OnboardingFormValues) {
+    submit.mutate(data)
   }
 
   async function next() {

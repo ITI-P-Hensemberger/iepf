@@ -2,6 +2,9 @@
 
 import * as React from 'react'
 
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+
+import { apiFetch } from '@/lib/api-fetch'
 import { AUTH_CHANGED_EVENT } from '@/lib/auth-events'
 
 type MessageLevel = 'info' | 'warning' | 'error' | 'success'
@@ -26,7 +29,6 @@ export type SettingsPayload = {
 type SettingsContextValue = {
   settings: SettingsPayload | null
   isLoading: boolean
-  refresh: () => Promise<void>
 }
 
 const SettingsContext = React.createContext<SettingsContextValue | null>(null)
@@ -51,44 +53,27 @@ function normalizeSettings(payload: unknown): SettingsPayload {
   }
 }
 
+// Read once and again when someone signs in or out; a failure leaves the app without the banner.
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = React.useState<SettingsPayload | null>(null)
-  const [isLoading, setIsLoading] = React.useState(true)
-
-  const refresh = React.useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const response = await fetch('/api/settings/me')
-      if (!response.ok) {
-        throw new Error('Failed to fetch settings.')
-      }
-      const payload = await response.json()
-      setSettings(normalizeSettings(payload))
-    } catch {
-      setSettings(null)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
-
-  React.useEffect(() => {
-    void refresh()
-  }, [refresh])
+  const queryClient = useQueryClient()
+  const { data: settings = null, isPending: isLoading } = useQuery({
+    queryKey: ['settings', 'me'],
+    queryFn: async () => normalizeSettings(await apiFetch('/api/settings/me', 'Impossibile caricare le impostazioni.')),
+    retry: false,
+    meta: { inline: true }
+  })
 
   React.useEffect(() => {
     const handleAuthChanged = () => {
-      void refresh()
+      void queryClient.invalidateQueries({ queryKey: ['settings', 'me'] })
     }
     window.addEventListener(AUTH_CHANGED_EVENT, handleAuthChanged)
     return () => {
       window.removeEventListener(AUTH_CHANGED_EVENT, handleAuthChanged)
     }
-  }, [refresh])
+  }, [queryClient])
 
-  const value = React.useMemo(
-    () => ({ settings, isLoading, refresh }),
-    [settings, isLoading, refresh]
-  )
+  const value = React.useMemo(() => ({ settings, isLoading }), [settings, isLoading])
 
   return (
     <SettingsContext.Provider value={value}>
