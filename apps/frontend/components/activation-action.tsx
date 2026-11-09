@@ -2,6 +2,9 @@
 
 import * as React from 'react'
 import { toast } from 'sonner'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 
 import { DangerAction } from '@/components/danger-zone'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
@@ -49,27 +52,15 @@ const dateTime = new Intl.DateTimeFormat('it-IT', {
 })
 
 // Every activation and deactivation, newest first; loaded when opened, again after a change.
-function ActivationHistory({ userId, version }: { userId: string, version: number }) {
+function ActivationHistory({ userId }: { userId: string }) {
   const [open, setOpen] = React.useState(false)
-  const [events, setEvents] = React.useState<ActivationEvent[] | null>(null)
-  const [error, setError] = React.useState(false)
-
-  React.useEffect(() => {
-    if (!open) return
-    let current = true
-    fetch(`/api/users/${userId}/activation-history`, { cache: 'no-store' })
-      .then(response => (response.ok ? response.json() as Promise<ActivationEvent[]> : Promise.reject(new Error('history'))))
-      .then((data) => {
-        if (current) {
-          setEvents([...data].reverse())
-          setError(false)
-        }
-      })
-      .catch(() => current && setError(true))
-    return () => {
-      current = false
-    }
-  }, [open, userId, version])
+  const { data, isError: error } = useQuery({
+    queryKey: ['users', userId, 'activation-history'],
+    queryFn: async () => [...await apiFetch<ActivationEvent[]>(`/api/users/${userId}/activation-history`, 'Impossibile caricare lo storico.')].reverse(),
+    enabled: open,
+    meta: { inline: true }
+  })
+  const events = data ?? null
 
   return (
     <Accordion type='single' collapsible onValueChange={value => setOpen(value === 'history')} className='px-4 sm:px-6'>
@@ -111,45 +102,36 @@ function ActivationHistory({ userId, version }: { userId: string, version: numbe
 export function ActivationAction({
   userId,
   isActive,
-  who,
-  onChange
+  who
 }: {
   userId: string
   isActive: boolean
   who: string
-  onChange: (isActive: boolean) => void
 }) {
+  const queryClient = useQueryClient()
   const [open, setOpen] = React.useState(false)
   const [reason, setReason] = React.useState('')
-  const [busy, setBusy] = React.useState(false)
-  const [version, setVersion] = React.useState(0)
   const next = !isActive
 
-  async function confirm(event: React.MouseEvent) {
-    event.preventDefault()
-    setBusy(true)
-    try {
-      const response = await fetch(`/api/users/${userId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(next ? { isActive: true } : { isActive: false, deactivationReason: reason.trim() })
-      })
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null) as { message?: string } | null
-        throw new Error(payload?.message ?? 'Impossibile aggiornare l’account.')
-      }
+  const change = useMutation({
+    mutationFn: () => apiFetch(
+      `/api/users/${userId}`,
+      'Impossibile aggiornare l’account.',
+      jsonBody('PATCH', next ? { isActive: true } : { isActive: false, deactivationReason: reason.trim() })
+    ),
+    onSuccess: () => {
       toast.success(next ? 'Account attivato.' : 'Account disattivato.')
-      onChange(next)
-      setVersion(value => value + 1)
       setOpen(false)
       setReason('')
+      // The user's page, the lists and the history.
+      return queryClient.invalidateQueries({ queryKey: ['users'] })
     }
-    catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Impossibile aggiornare l’account.')
-    }
-    finally {
-      setBusy(false)
-    }
+  })
+  const busy = change.isPending
+
+  function confirm(event: React.MouseEvent) {
+    event.preventDefault()
+    change.mutate()
   }
 
   return (
@@ -165,7 +147,7 @@ export function ActivationAction({
           </Button>
         )}
       />
-      <ActivationHistory userId={userId} version={version} />
+      <ActivationHistory userId={userId} />
       <AlertDialog open={open} onOpenChange={value => !busy && setOpen(value)}>
         <AlertDialogContent>
           <AlertDialogHeader>

@@ -9,7 +9,10 @@ import { toast } from 'sonner'
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   const [client] = React.useState(() => new QueryClient({
     queryCache: new QueryCache({
-      onError: (error) => toast.error(error.message)
+      // meta.inline: the page shows the failure itself, in place of the data.
+      onError: (error, query) => {
+        if (!query.meta?.inline) toast.error(error.message)
+      }
     }),
     mutationCache: new MutationCache({
       onError: (error) => toast.error(error.message)

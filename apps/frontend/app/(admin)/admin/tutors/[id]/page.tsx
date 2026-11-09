@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { BlockSkeleton } from '@/components/loading'
 import * as React from 'react'
 import Link from 'next/link'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { BookOpen, CalendarClock, History, TriangleAlert, UserRound } from 'lucide-react'
 
 import { AdminUserLessons } from '@/components/admin-user-lessons'
@@ -16,6 +16,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
+import { useDeleteUser } from '@/lib/use-delete-user'
 
 import { Button } from '@/components/ui/button'
 import { SectionLayout } from '@/components/section-layout'
@@ -164,9 +168,24 @@ const SECTIONS = [
   { value: 'danger', label: 'Danger zone', icon: TriangleAlert, separatorBefore: true }
 ] as const
 
+// Every weekday of the form, off unless the backend says otherwise.
+function normalizeWeekdays(payload: { weekdays?: WeekdayAvailability[] }): WeekdayAvailability[] {
+  return WEEKDAYS.map((day) => {
+    const match = payload.weekdays?.find((item) => item.weekday === day.value)
+    return {
+      weekday: day.value,
+      isAvailable: match?.isAvailable ?? false,
+      startTime: match?.isAvailable ? (match?.startTime ?? null) : null
+    }
+  })
+}
+
+// Stable while the data loads, so the memos built on them do not rerun on every render.
+const noSections: Section[] = []
+const noSubjectIds: string[] = []
+
 export default function AdminTutorDetailPage() {
   const params = useParams()
-  const router = useRouter()
   const tutorId = String(params?.id ?? '')
   const tab = useSearchParams().get('tab')
   const here = useHere()
@@ -177,32 +196,51 @@ export default function AdminTutorDetailPage() {
       ? tab
       : 'account'
 
-  const [tutor, setTutor] = React.useState<Tutor | null>(null)
-  const [sections, setSections] = React.useState<Section[]>([])
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [settingsLoading, setSettingsLoading] = React.useState(true)
-  const [originalDailyCapacity, setOriginalDailyCapacity] = React.useState<
-    number | null
-  >(null)
+  const queryClient = useQueryClient()
   const [showEmailAlert, setShowEmailAlert] = React.useState(false)
   const [pendingValues, setPendingValues] =
     React.useState<TutorFormValues | null>(null)
   const [showDeleteAlert, setShowDeleteAlert] = React.useState(false)
-  const [isDeleting, setIsDeleting] = React.useState(false)
-  const [availabilityWeekdays, setAvailabilityWeekdays] = React.useState<
-    WeekdayAvailability[] | null
-  >(null)
-  const [availabilityLoading, setAvailabilityLoading] = React.useState(true)
-  const [availabilitySubmitting, setAvailabilitySubmitting] =
-    React.useState(false)
-  const [originalSubjects, setOriginalSubjects] = React.useState<string[]>([])
-  const [subjectsLoading, setSubjectsLoading] = React.useState(true)
-  const [subjectsSubmitting, setSubjectsSubmitting] = React.useState(false)
-  const [dailyCapacityValue, setDailyCapacityValue] =
-    React.useState<TutorFormValues['dailyCapacity']>('1')
-  const [isImpersonating, setIsImpersonating] = React.useState(false)
 
+  const { data: tutor = null, isPending: isLoading } = useQuery({
+    queryKey: ['users', tutorId],
+    queryFn: () => apiFetch<Tutor>(`/api/users/${tutorId}`, 'Impossibile recuperare il tutor.'),
+    enabled: Boolean(tutorId)
+  })
+  const { data: sections = noSections } = useQuery({
+    queryKey: ['class-sections'],
+    queryFn: async () => extractPayloadArray<Section>(await apiFetch('/api/class-sections', 'Impossibile recuperare le sezioni.'))
+  })
+  const { data: originalDailyCapacity = null, isPending: settingsLoading } = useQuery({
+    queryKey: ['users', tutorId, 'settings'],
+    queryFn: async () => {
+      const payload = await apiFetch<{ dailyCapacity?: number }>(`/api/tutors/${tutorId}/settings`, 'Impossibile caricare le impostazioni del tutor.')
+      const capacity = Number(payload.dailyCapacity)
+      return capacity >= 1 && capacity <= 4 ? capacity : 1
+    },
+    enabled: Boolean(tutorId)
+  })
+  const availabilityResult = useQuery({
+    queryKey: ['users', tutorId, 'availability'],
+    queryFn: async () => normalizeWeekdays(await apiFetch<{ weekdays?: WeekdayAvailability[] }>(
+      `/api/tutors/${tutorId}/weekday-availability`,
+      'Impossibile caricare la disponibilità.'
+    )),
+    enabled: Boolean(tutorId)
+  })
+  // If the availability does not load, the form starts from every day off.
+  const availabilityWeekdays = availabilityResult.data ?? (availabilityResult.isError ? normalizeWeekdays({}) : null)
+  const availabilityLoading = availabilityResult.isPending && !availabilityResult.isError
+  const subjectsResult = useQuery({
+    queryKey: ['users', tutorId, 'subjects'],
+    queryFn: async () => extractPayloadArray<TutorSubject>(await apiFetch(`/api/tutors/${tutorId}/subjects`, 'Impossibile caricare le materie.'))
+      .map((subject) => subject.id),
+    enabled: Boolean(tutorId)
+  })
+  const originalSubjects = subjectsResult.data ?? noSubjectIds
+  const subjectsLoading = subjectsResult.isPending
+
+  // The forms follow what loads; what the admin is typing stays when it reloads.
   const form = useForm<TutorFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -212,18 +250,33 @@ export default function AdminTutorDetailPage() {
       year: '',
       sectionId: '',
       dailyCapacity: '1'
-    }
+    },
+    values: tutor
+      ? {
+          firstName: tutor.firstName ?? '',
+          lastName: tutor.lastName ?? '',
+          email: tutor.email ?? '',
+          year: tutor.year ? String(tutor.year) : '',
+          sectionId: tutor.sectionId ?? '',
+          dailyCapacity: String(originalDailyCapacity ?? 1) as TutorFormValues['dailyCapacity']
+        }
+      : undefined,
+    resetOptions: { keepDirtyValues: true }
   })
 
   const availabilityForm = useForm<AvailabilityFormValues>({
     resolver: zodResolver(availabilitySchema),
     defaultValues: { weekdays: [] },
+    values: availabilityWeekdays ? { weekdays: availabilityWeekdays } : undefined,
+    resetOptions: { keepDirtyValues: true },
     mode: 'onBlur'
   })
 
   const subjectsForm = useForm<SubjectsFormValues>({
     resolver: zodResolver(subjectsSchema),
     defaultValues: { subjectIds: [] },
+    values: subjectsResult.data ? { subjectIds: subjectsResult.data } : undefined,
+    resetOptions: { keepDirtyValues: true },
     mode: 'onBlur'
   })
 
@@ -244,231 +297,6 @@ export default function AdminTutorDetailPage() {
     if (current.size !== original.size) return true
     return [...current].some((id) => !original.has(id))
   }, [currentSubjectIds, originalSubjects])
-
-  React.useEffect(() => {
-    let isMounted = true
-
-    async function loadTutor() {
-      setIsLoading(true)
-
-      try {
-        const response = await fetch(`/api/users/${tutorId}`)
-        if (!response.ok) {
-          throw new Error('Impossibile recuperare il tutor.')
-        }
-        const data = (await response.json()) as Tutor
-        if (isMounted) {
-          setTutor(data)
-          form.reset({
-            firstName: data.firstName ?? '',
-            lastName: data.lastName ?? '',
-            email: data.email ?? '',
-            year: data.year ? String(data.year) : '',
-            sectionId: data.sectionId ?? '',
-            dailyCapacity: dailyCapacityValue
-          })
-        }
-      } catch (err) {
-        if (isMounted) {
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : 'Impossibile recuperare il tutor.'
-          )
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    async function loadSections() {
-      try {
-        const response = await fetch('/api/class-sections')
-        if (!response.ok) {
-          throw new Error('Impossibile recuperare le sezioni.')
-        }
-        const payload = await response.json()
-        const data = extractPayloadArray<Section>(payload)
-        if (isMounted) {
-          setSections(data)
-        }
-      } catch (err) {
-        if (isMounted) {
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : 'Impossibile recuperare le sezioni.'
-          )
-        }
-      }
-    }
-
-    if (tutorId) {
-      void loadTutor()
-      void loadSections()
-    }
-
-    return () => {
-      isMounted = false
-    }
-  }, [dailyCapacityValue, form, tutorId])
-
-  React.useEffect(() => {
-    if (!tutorId) return
-    let isMounted = true
-
-    async function fetchSettings() {
-      setSettingsLoading(true)
-      try {
-        const response = await fetch(`/api/tutors/${tutorId}/settings`)
-        if (!response.ok) {
-          throw new Error('Impossibile caricare le impostazioni del tutor.')
-        }
-        const payload = (await response.json()) as { dailyCapacity?: number }
-        const dailyCapacity =
-          Number(payload.dailyCapacity) >= 1 &&
-          Number(payload.dailyCapacity) <= 4
-            ? Number(payload.dailyCapacity)
-            : 1
-        if (isMounted) {
-          setOriginalDailyCapacity(dailyCapacity)
-          setDailyCapacityValue(
-            String(dailyCapacity) as TutorFormValues['dailyCapacity']
-          )
-          form.setValue(
-            'dailyCapacity',
-            String(dailyCapacity) as TutorFormValues['dailyCapacity'],
-            {
-              shouldDirty: false
-            }
-          )
-        }
-      } catch (err) {
-        if (isMounted) {
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : 'Impossibile caricare le impostazioni del tutor.'
-          )
-        }
-      } finally {
-        if (isMounted) {
-          setSettingsLoading(false)
-        }
-      }
-    }
-
-    void fetchSettings()
-
-    return () => {
-      isMounted = false
-    }
-  }, [form, tutorId])
-
-  React.useEffect(() => {
-    if (!tutorId) return
-
-    let isMounted = true
-
-    async function fetchAvailability() {
-      setAvailabilityLoading(true)
-      try {
-        const response = await fetch(
-          `/api/tutors/${tutorId}/weekday-availability`
-        )
-        if (!response.ok) {
-          throw new Error('Impossibile caricare la disponibilità.')
-        }
-        const payload = (await response.json()) as {
-          weekdays?: WeekdayAvailability[]
-        }
-        const normalizedWeekdays = WEEKDAYS.map((day) => {
-          const match = payload.weekdays?.find(
-            (item) => item.weekday === day.value
-          )
-          return {
-            weekday: day.value,
-            isAvailable: match?.isAvailable ?? false,
-            startTime: match?.isAvailable ? (match?.startTime ?? null) : null
-          }
-        })
-        if (isMounted) {
-          setAvailabilityWeekdays(normalizedWeekdays)
-        }
-      } catch (err) {
-        if (isMounted) {
-          setAvailabilityWeekdays(
-            WEEKDAYS.map((day) => ({
-              weekday: day.value,
-              isAvailable: false,
-              startTime: null
-            }))
-          )
-        }
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : 'Impossibile caricare la disponibilità.'
-        )
-      } finally {
-        if (isMounted) {
-          setAvailabilityLoading(false)
-        }
-      }
-    }
-
-    void fetchAvailability()
-
-    return () => {
-      isMounted = false
-    }
-  }, [tutorId])
-
-  React.useEffect(() => {
-    if (!tutorId) return
-
-    let isMounted = true
-
-    async function fetchSubjects() {
-      setSubjectsLoading(true)
-      try {
-        const response = await fetch(`/api/tutors/${tutorId}/subjects`)
-        if (!response.ok) {
-          throw new Error('Impossibile caricare le materie.')
-        }
-        const payload = await response.json()
-        const subjects = extractPayloadArray<TutorSubject>(payload)
-        const subjectIds = subjects.map((subject) => subject.id)
-        if (isMounted) {
-          setOriginalSubjects(subjectIds)
-          subjectsForm.reset({ subjectIds })
-        }
-      } catch (err) {
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : 'Impossibile caricare le materie.'
-        )
-      } finally {
-        if (isMounted) {
-          setSubjectsLoading(false)
-        }
-      }
-    }
-
-    void fetchSubjects()
-
-    return () => {
-      isMounted = false
-    }
-  }, [subjectsForm, tutorId])
-
-  React.useEffect(() => {
-    if (availabilityWeekdays === null) return
-    availabilityForm.reset({ weekdays: availabilityWeekdays })
-  }, [availabilityForm, availabilityWeekdays])
 
   const groupedSections = React.useMemo(() => {
     const scient: Section[] = []
@@ -514,150 +342,47 @@ export default function AdminTutorDetailPage() {
     }
   }, [sections])
 
-  async function submitTutor(
-    values: TutorFormValues,
-    options?: { suppressToast?: boolean }
-  ) {
-    setIsSubmitting(true)
-
-    try {
-      const normalizedFirstName = normalizeName(values.firstName)
-      const normalizedLastName = normalizeName(values.lastName)
-      const normalizedEmail = normalizeEmail(values.email)
-
-      const response = await fetch(`/api/users/${tutorId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          firstName: normalizedFirstName,
-          lastName: normalizedLastName,
-          email: normalizedEmail,
-          year: Number(values.year),
-          sectionId: values.sectionId
-        })
+  const updateTutor = useMutation({
+    mutationFn: (values: TutorFormValues) => apiFetch(
+      `/api/users/${tutorId}`,
+      'Impossibile aggiornare il tutor.',
+      jsonBody('PATCH', {
+        firstName: normalizeName(values.firstName),
+        lastName: normalizeName(values.lastName),
+        email: normalizeEmail(values.email),
+        year: Number(values.year),
+        sectionId: values.sectionId
       })
+    )
+  })
+  const updateSettings = useMutation({
+    mutationFn: (dailyCapacity: number) => apiFetch(
+      `/api/tutors/${tutorId}/settings`,
+      'Impossibile aggiornare le impostazioni del tutor.',
+      jsonBody('PUT', { dailyCapacity })
+    )
+  })
+  const isSubmitting = updateTutor.isPending || updateSettings.isPending
 
-      if (!response.ok) {
-        let message = 'Impossibile aggiornare il tutor.'
-        try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
-        } catch {
-          message = 'Impossibile aggiornare il tutor.'
-        }
-        throw new Error(message)
-      }
-
-      if (!options?.suppressToast) {
-        toast.success('Tutor aggiornato.')
-      }
-      setTutor((prev) =>
-        prev
-          ? {
-              ...prev,
-              firstName: normalizedFirstName,
-              lastName: normalizedLastName,
-              email: normalizedEmail,
-              year: Number(values.year),
-              sectionId: values.sectionId
-            }
-          : prev
-      )
-      form.reset(values)
-      setDailyCapacityValue(values.dailyCapacity)
-      return true
-    } catch (err) {
-      if (!options?.suppressToast) {
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : 'Impossibile aggiornare il tutor.'
-        )
-      }
-      return false
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  async function submitTutorSettings(
-    dailyCapacity: number,
-    options?: { suppressToast?: boolean }
-  ) {
-    try {
-      const response = await fetch(`/api/tutors/${tutorId}/settings`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dailyCapacity })
-      })
-      if (!response.ok) {
-        let message = 'Impossibile aggiornare le impostazioni del tutor.'
-        try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
-        } catch {
-          message = 'Impossibile aggiornare le impostazioni del tutor.'
-        }
-        throw new Error(message)
-      }
-      setOriginalDailyCapacity(dailyCapacity)
-      if (!options?.suppressToast) {
-        toast.success('Impostazioni tutor aggiornate.')
-      }
-      return true
-    } catch (err) {
-      if (!options?.suppressToast) {
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : 'Impossibile aggiornare le impostazioni del tutor.'
-        )
-      }
-      return false
-    }
-  }
-
+  // The account and the daily capacity are saved by two calls: one message for both.
   async function handleConfirmedSubmit(values: TutorFormValues) {
-    const dirtyFields = form.formState.dirtyFields
-    const hasUserChanges = Object.keys(dirtyFields).some(
+    const hasUserChanges = Object.keys(form.formState.dirtyFields).some(
       (key) => key !== 'dailyCapacity'
     )
-    const dailyCapacityValue = Number(values.dailyCapacity)
+    const dailyCapacity = Number(values.dailyCapacity)
     const shouldUpdateSettings =
-      Number.isFinite(dailyCapacityValue) &&
-      dailyCapacityValue >= 1 &&
-      dailyCapacityValue <= 4 &&
-      dailyCapacityValue !== originalDailyCapacity
-    const showCombinedToast = hasUserChanges && shouldUpdateSettings
-
-    let userUpdated = true
-    if (hasUserChanges) {
-      userUpdated = await submitTutor(values, {
-        suppressToast: showCombinedToast
-      })
-    }
-
-    let settingsUpdated = true
-    if (shouldUpdateSettings) {
-      settingsUpdated = await submitTutorSettings(dailyCapacityValue, {
-        suppressToast: showCombinedToast
-      })
-    }
-
-    if (!hasUserChanges && settingsUpdated) {
+      Number.isFinite(dailyCapacity) &&
+      dailyCapacity >= 1 &&
+      dailyCapacity <= 4 &&
+      dailyCapacity !== originalDailyCapacity
+    const ok = (promise: Promise<unknown>) => promise.then(() => true, () => false)
+    const userUpdated = hasUserChanges ? await ok(updateTutor.mutateAsync(values)) : true
+    const settingsUpdated = shouldUpdateSettings ? await ok(updateSettings.mutateAsync(dailyCapacity)) : true
+    if (userUpdated && settingsUpdated) {
+      toast.success(hasUserChanges ? 'Tutor aggiornato.' : 'Impostazioni tutor aggiornate.')
       form.reset(values)
     }
-    setDailyCapacityValue(values.dailyCapacity)
-
-    if (!userUpdated || !settingsUpdated) {
-      return
-    }
-
-    if (showCombinedToast) {
-      toast.success('Tutor aggiornato.')
-    }
+    await queryClient.invalidateQueries({ queryKey: ['users'] })
   }
 
   async function onSubmit(values: TutorFormValues) {
@@ -675,197 +400,77 @@ export default function AdminTutorDetailPage() {
     await handleConfirmedSubmit(values)
   }
 
+  const { remove, isDeleting } = useDeleteUser(tutorId, 'Impossibile eliminare il tutor.', '/admin/tutors')
   // Returns the error to show in the dialog (a wrong password), or null.
   async function handleDelete(password: string): Promise<string | null> {
-    if (!tutorId) {
-      return null
-    }
-    setIsDeleting(true)
-    try {
-      const response = await fetch(`/api/users/${tutorId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
-      })
-      if (response.status === 403) {
-        return 'Password non corretta.'
-      }
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null) as { message?: string } | null
-        throw new Error(payload?.message ?? 'Impossibile eliminare il tutor.')
-      }
-      setShowDeleteAlert(false)
-      router.push('/admin/tutors')
-      return null
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Impossibile eliminare il tutor.')
-      setShowDeleteAlert(false)
-      return null
-    } finally {
-      setIsDeleting(false)
-    }
+    const wrongPassword = await remove(password)
+    if (!wrongPassword) setShowDeleteAlert(false)
+    return wrongPassword
   }
 
-  async function handleImpersonate() {
-    if (!tutorId) return
-    setIsImpersonating(true)
-    try {
-      const response = await fetch('/api/admin/impersonate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: tutorId })
-      })
-      if (!response.ok) {
-        let message = "Impossibile avviare l'impersonazione."
-        try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
-        } catch {
-          message = "Impossibile avviare l'impersonazione."
-        }
-        throw new Error(message)
-      }
-      const payload = (await response.json()) as {
-        impersonatedUser?: { role?: string }
-      }
-      const role = payload.impersonatedUser?.role ?? 'tutor'
-      const redirect = role === 'student' ? '/student' : '/tutor'
-      window.location.href = redirect
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : "Impossibile avviare l'impersonazione."
-      )
-    } finally {
-      setIsImpersonating(false)
+  // A full reload: nothing of the admin's session may stay in memory.
+  const impersonate = useMutation({
+    mutationFn: () => apiFetch<{ impersonatedUser?: { role?: string } }>(
+      '/api/admin/impersonate',
+      "Impossibile avviare l'impersonazione.",
+      jsonBody('POST', { userId: tutorId })
+    ),
+    onSuccess: (payload) => {
+      window.location.href = payload.impersonatedUser?.role === 'student' ? '/student' : '/tutor'
     }
+  })
+  const isImpersonating = impersonate.isPending
+  const handleImpersonate = () => {
+    if (tutorId) impersonate.mutate()
   }
 
-  async function submitAvailability(values: AvailabilityFormValues) {
-    if (!tutorId) return
-    setAvailabilitySubmitting(true)
-
-    try {
-      const weekdaysPayload = values.weekdays.map((day) => ({
-        weekday: day.weekday,
-        isAvailable: day.isAvailable,
-        startTime: day.isAvailable ? day.startTime : null
-      }))
-
-      const response = await fetch(
-        `/api/tutors/${tutorId}/weekday-availability`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ weekdays: weekdaysPayload })
-        }
-      )
-
-      if (!response.ok) {
-        const payload = (await response.json()) as { message?: string }
-        throw new Error(
-          payload.message || 'Impossibile aggiornare la disponibilità.'
-        )
-      }
-
-      const refetchResponse = await fetch(
-        `/api/tutors/${tutorId}/weekday-availability`
-      )
-      const refetchPayload = (await refetchResponse.json()) as {
-        weekdays?: WeekdayAvailability[]
-      }
-      const normalizedWeekdays = WEEKDAYS.map((day) => {
-        const match = refetchPayload.weekdays?.find(
-          (item) => item.weekday === day.value
-        )
-        return {
-          weekday: day.value,
-          isAvailable: match?.isAvailable ?? false,
-          startTime: match?.isAvailable ? (match?.startTime ?? null) : null
-        }
+  const saveAvailability = useMutation({
+    mutationFn: (values: AvailabilityFormValues) => apiFetch(
+      `/api/tutors/${tutorId}/weekday-availability`,
+      'Impossibile aggiornare la disponibilità.',
+      jsonBody('PUT', {
+        weekdays: values.weekdays.map((day) => ({
+          weekday: day.weekday,
+          isAvailable: day.isAvailable,
+          startTime: day.isAvailable ? day.startTime : null
+        }))
       })
-
-      setAvailabilityWeekdays(normalizedWeekdays)
-      availabilityForm.reset({ weekdays: normalizedWeekdays })
+    ),
+    onSuccess: (_, values) => {
       toast.success('Disponibilità aggiornata.')
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile aggiornare la disponibilità. Riprova.'
-      )
-    } finally {
-      setAvailabilitySubmitting(false)
+      availabilityForm.reset(values)
+      return queryClient.invalidateQueries({ queryKey: ['users', tutorId, 'availability'] })
     }
+  })
+  const availabilitySubmitting = saveAvailability.isPending
+  const submitAvailability = (values: AvailabilityFormValues) => {
+    if (tutorId) saveAvailability.mutate(values)
   }
 
-  async function submitSubjects(values: SubjectsFormValues) {
-    if (!tutorId) return
-
-    setSubjectsSubmitting(true)
-
-    const toAdd = values.subjectIds.filter(
-      (id) => !originalSubjects.includes(id)
-    )
-    const toRemove = originalSubjects.filter(
-      (id) => !values.subjectIds.includes(id)
-    )
-    const errors: string[] = []
-
-    if (toRemove.length > 0) {
-      const deleteResults = await Promise.allSettled(
-        toRemove.map((id) =>
-          fetch(`/api/tutors/${tutorId}/subjects/${id}`, {
-            method: 'DELETE'
-          })
-        )
-      )
-      deleteResults.forEach((result) => {
-        if (result.status === 'rejected' || !result.value.ok) {
-          errors.push('Impossibile rimuovere una materia')
-        }
-      })
-    }
-
-    if (toAdd.length > 0) {
-      const addResults = await Promise.allSettled(
-        toAdd.map((id) =>
-          fetch(`/api/tutors/${tutorId}/subjects`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ subjectId: id })
-          })
-        )
-      )
-      addResults.forEach((result) => {
-        if (result.status === 'rejected' || !result.value.ok) {
-          errors.push('Impossibile aggiungere una materia')
-        }
-      })
-    }
-
-    try {
-      const response = await fetch(`/api/tutors/${tutorId}/subjects`)
-      const payload = await response.json()
-      const subjects = extractPayloadArray<TutorSubject>(payload)
-      const subjectIds = subjects.map((subject) => subject.id)
-
-      setOriginalSubjects(subjectIds)
-      subjectsForm.reset({ subjectIds })
-
+  // Each subject added or removed on its own: the ones that fail are listed, the others stay.
+  const saveSubjects = useMutation({
+    mutationFn: async (values: SubjectsFormValues) => {
+      const toAdd = values.subjectIds.filter((id) => !originalSubjects.includes(id))
+      const toRemove = originalSubjects.filter((id) => !values.subjectIds.includes(id))
+      const results = await Promise.allSettled([
+        ...toRemove.map((id) => apiFetch(`/api/tutors/${tutorId}/subjects/${id}`, 'Impossibile rimuovere una materia', jsonBody('DELETE'))),
+        ...toAdd.map((id) => apiFetch(`/api/tutors/${tutorId}/subjects`, 'Impossibile aggiungere una materia', jsonBody('POST', { subjectId: id })))
+      ])
+      return results.flatMap((result) => (result.status === 'rejected' ? [(result.reason as Error).message] : []))
+    },
+    onSuccess: async (errors, values) => {
+      subjectsForm.reset(values)
+      await queryClient.invalidateQueries({ queryKey: ['users', tutorId, 'subjects'] })
       if (errors.length > 0) {
-        toast.error(
-          `Alcune operazioni non sono riuscite:\n${errors.join('\n')}`
-        )
+        toast.error(`Alcune operazioni non sono riuscite:\n${errors.join('\n')}`)
       } else {
         toast.success('Materie aggiornate.')
       }
-    } catch {
-      toast.error('Impossibile aggiornare le materie. Riprova.')
-    } finally {
-      setSubjectsSubmitting(false)
     }
+  })
+  const subjectsSubmitting = saveSubjects.isPending
+  const submitSubjects = (values: SubjectsFormValues) => {
+    if (tutorId) saveSubjects.mutate(values)
   }
 
   const changeSection = (value: string) =>
@@ -1391,7 +996,6 @@ export default function AdminTutorDetailPage() {
               userId={tutorId}
               isActive={tutor.isActive === true}
               who='Il tutor'
-              onChange={isActive => setTutor(prev => (prev ? { ...prev, isActive } : prev))}
             />
           )}
           <DangerAction

@@ -4,6 +4,9 @@ import { SegmentedTabs } from '@/components/segmented-tabs'
 import * as React from 'react'
 import { Minus, Plus } from 'lucide-react'
 import { toast } from 'sonner'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 
 import { EmptyState } from '@/components/empty-state'
 import { Button } from '@/components/ui/button'
@@ -34,74 +37,51 @@ function hoursLabel(n: number) {
 
 // The "Ore di lezione" section of a student in the admin area: the balance, a form to add or
 // remove hours by hand with a preview of the result, and every manual change made so far.
-export function AdminStudentHours({
-  studentId,
-  onBalanceChange
-}: {
-  studentId: string
-  onBalanceChange?: (balance: number) => void
-}) {
-  const [balance, setBalance] = React.useState<number | null>(null)
-  const [history, setHistory] = React.useState<HistoryItem[]>([])
-  const [loading, setLoading] = React.useState(true)
+export function AdminStudentHours({ studentId }: { studentId: string }) {
+  const queryClient = useQueryClient()
   const [direction, setDirection] = React.useState<Direction>('add')
   const [amount, setAmount] = React.useState(1)
   const [reason, setReason] = React.useState('')
-  const [saving, setSaving] = React.useState(false)
 
-  const load = React.useCallback(async () => {
-    try {
-      const response = await fetch(`/api/users/${studentId}/tokens/history`)
-      if (!response.ok) throw new Error()
-      const payload = (await response.json()) as { lessonTokens: number, items: HistoryItem[] }
-      setBalance(payload.lessonTokens)
-      setHistory(payload.items)
-    } catch {
-      toast.error('Impossibile caricare lo storico delle ore.')
-    } finally {
-      setLoading(false)
-    }
-  }, [studentId])
-
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  const { data, isPending: loading } = useQuery({
+    queryKey: ['users', studentId, 'tokens'],
+    queryFn: () => apiFetch<{ lessonTokens: number, items: HistoryItem[] }>(
+      `/api/users/${studentId}/tokens/history`,
+      'Impossibile caricare lo storico delle ore.'
+    )
+  })
+  const balance = data?.lessonTokens ?? null
+  const history = data?.items ?? []
 
   const delta = direction === 'add' ? amount : -amount
   // The balance never goes below zero: the backend applies only what is there.
   const after = balance === null ? null : Math.max(0, balance + delta)
   const valid = Number.isInteger(amount) && amount > 0 && reason.trim().length > 0
 
-  async function submit(event: React.FormEvent) {
+  const adjust = useMutation({
+    mutationFn: (change: { delta: number, reason: string }) => apiFetch(
+      `/api/users/${studentId}/tokens/adjust`,
+      'Impossibile aggiornare le ore di lezione.',
+      jsonBody('POST', change)
+    ),
+    onSuccess: (_, change) => {
+      const hours = capitalizeFirst(hoursLabel(Math.abs(change.delta)))
+      toast.success(change.delta > 0 ? `${hours} aggiunte.` : `${hours} tolte.`)
+      setAmount(1)
+      setReason('')
+      // The balance here and on the rest of the student's page.
+      return queryClient.invalidateQueries({ queryKey: ['users', studentId] })
+    }
+  })
+  const saving = adjust.isPending
+
+  function submit(event: React.FormEvent) {
     event.preventDefault()
     if (!valid) {
       toast.error(reason.trim() ? 'Inserisci un numero di ore valido.' : 'Inserisci una motivazione.')
       return
     }
-    setSaving(true)
-    try {
-      const response = await fetch(`/api/users/${studentId}/tokens/adjust`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ delta, reason: reason.trim() })
-      })
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null) as { message?: string } | null
-        throw new Error(payload?.message ?? 'Impossibile aggiornare le ore di lezione.')
-      }
-      const payload = (await response.json()) as { lessonTokens?: number | null }
-      const next = payload.lessonTokens ?? 0
-      setBalance(next)
-      onBalanceChange?.(next)
-      setAmount(1)
-      setReason('')
-      toast.success(direction === 'add' ? `${capitalizeFirst(hoursLabel(amount))} aggiunte.` : `${capitalizeFirst(hoursLabel(amount))} tolte.`)
-      void load()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Impossibile aggiornare le ore di lezione.')
-    } finally {
-      setSaving(false)
-    }
+    adjust.mutate({ delta, reason: reason.trim() })
   }
 
   return (

@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { BlockSkeleton } from '@/components/loading'
 import * as React from 'react'
 import Link from 'next/link'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { History, Hourglass, TriangleAlert, UserRound } from 'lucide-react'
 
 import { AdminStudentHours } from '@/components/admin-student-hours'
@@ -17,6 +17,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
+import { useDeleteUser } from '@/lib/use-delete-user'
 
 import { Button } from '@/components/ui/button'
 import { SectionLayout } from '@/components/section-layout'
@@ -115,9 +119,11 @@ const SECTIONS = [
   { value: 'danger', label: 'Danger zone', icon: TriangleAlert, separatorBefore: true }
 ] as const
 
+// Stable while the sections load, so the grouped lists are not rebuilt on every render.
+const noSections: Section[] = []
+
 export default function AdminStudentDetailPage() {
   const params = useParams()
-  const router = useRouter()
   const studentId = String(params?.id ?? '')
   const tab = useSearchParams().get('tab')
   const here = useHere()
@@ -125,16 +131,21 @@ export default function AdminStudentDetailPage() {
   const setParam = useSetParam()
   const active = tab === 'hours' || tab === 'lessons' || tab === 'danger' ? tab : 'account'
 
-  const [student, setStudent] = React.useState<Student | null>(null)
-  const [sections, setSections] = React.useState<Section[]>([])
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const queryClient = useQueryClient()
   const [showEmailAlert, setShowEmailAlert] = React.useState(false)
   const [pendingValues, setPendingValues] =
     React.useState<StudentFormValues | null>(null)
   const [showDeleteAlert, setShowDeleteAlert] = React.useState(false)
-  const [isDeleting, setIsDeleting] = React.useState(false)
-  const [isImpersonating, setIsImpersonating] = React.useState(false)
+
+  const { data: student = null, isPending: isLoading } = useQuery({
+    queryKey: ['users', studentId],
+    queryFn: () => apiFetch<Student>(`/api/users/${studentId}`, 'Impossibile recuperare lo studente.'),
+    enabled: Boolean(studentId)
+  })
+  const { data: sections = noSections } = useQuery({
+    queryKey: ['class-sections'],
+    queryFn: async () => extractPayloadArray<Section>(await apiFetch('/api/class-sections', 'Impossibile recuperare le sezioni.'))
+  })
 
   const form = useForm<StudentFormValues>({
     resolver: zodResolver(formSchema),
@@ -144,7 +155,18 @@ export default function AdminStudentDetailPage() {
       email: '',
       year: '',
       sectionId: ''
-    }
+    },
+    // Follows the loaded student; what the admin is typing stays when it reloads.
+    values: student
+      ? {
+          firstName: student.firstName ?? '',
+          lastName: student.lastName ?? '',
+          email: student.email ?? '',
+          year: student.year ? String(student.year) : '',
+          sectionId: student.sectionId ?? ''
+        }
+      : undefined,
+    resetOptions: { keepDirtyValues: true }
   })
 
   const watchedEmail = form.watch('email')
@@ -156,75 +178,6 @@ export default function AdminStudentDetailPage() {
       normalizeEmail(watchedEmail ?? '') !== normalizeEmail(student.email ?? '')
     )
   }, [student, watchedEmail])
-
-  React.useEffect(() => {
-    let isMounted = true
-
-    async function loadStudent() {
-      setIsLoading(true)
-
-      try {
-        const response = await fetch(`/api/users/${studentId}`)
-        if (!response.ok) {
-          throw new Error('Impossibile recuperare lo studente.')
-        }
-        const data = (await response.json()) as Student
-        if (isMounted) {
-          setStudent(data)
-          form.reset({
-            firstName: data.firstName ?? '',
-            lastName: data.lastName ?? '',
-            email: data.email ?? '',
-            year: data.year ? String(data.year) : '',
-            sectionId: data.sectionId ?? ''
-          })
-        }
-      } catch (err) {
-        if (isMounted) {
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : 'Impossibile recuperare lo studente.'
-          )
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    async function loadSections() {
-      try {
-        const response = await fetch('/api/class-sections')
-        if (!response.ok) {
-          throw new Error('Impossibile recuperare le sezioni.')
-        }
-        const payload = await response.json()
-        const data = extractPayloadArray<Section>(payload)
-        if (isMounted) {
-          setSections(data)
-        }
-      } catch (err) {
-        if (isMounted) {
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : 'Impossibile recuperare le sezioni.'
-          )
-        }
-      }
-    }
-
-    if (studentId) {
-      void loadStudent()
-      void loadSections()
-    }
-
-    return () => {
-      isMounted = false
-    }
-  }, [form, studentId])
 
   const groupedSections = React.useMemo(() => {
     const scient: Section[] = []
@@ -270,63 +223,26 @@ export default function AdminStudentDetailPage() {
     }
   }, [sections])
 
-  async function submitStudent(values: StudentFormValues) {
-    setIsSubmitting(true)
-
-    try {
-      const normalizedFirstName = normalizeName(values.firstName)
-      const normalizedLastName = normalizeName(values.lastName)
-      const normalizedEmail = normalizeEmail(values.email)
-
-      const response = await fetch(`/api/users/${studentId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          firstName: normalizedFirstName,
-          lastName: normalizedLastName,
-          email: normalizedEmail,
-          year: Number(values.year),
-          sectionId: values.sectionId
-        })
+  const updateStudent = useMutation({
+    mutationFn: (values: StudentFormValues) => apiFetch(
+      `/api/users/${studentId}`,
+      'Impossibile aggiornare lo studente.',
+      jsonBody('PATCH', {
+        firstName: normalizeName(values.firstName),
+        lastName: normalizeName(values.lastName),
+        email: normalizeEmail(values.email),
+        year: Number(values.year),
+        sectionId: values.sectionId
       })
-
-      if (!response.ok) {
-        let message = 'Impossibile aggiornare lo studente.'
-        try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
-        } catch {
-          message = 'Impossibile aggiornare lo studente.'
-        }
-        throw new Error(message)
-      }
-
+    ),
+    onSuccess: (_, values) => {
       toast.success('Studente aggiornato.')
-      setStudent((prev) =>
-        prev
-          ? {
-              ...prev,
-              firstName: normalizedFirstName,
-              lastName: normalizedLastName,
-              email: normalizedEmail,
-              year: Number(values.year),
-              sectionId: values.sectionId
-            }
-          : prev
-      )
       form.reset(values)
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile aggiornare lo studente.'
-      )
-    } finally {
-      setIsSubmitting(false)
+      return queryClient.invalidateQueries({ queryKey: ['users'] })
     }
-  }
+  })
+  const isSubmitting = updateStudent.isPending
+  const submitStudent = (values: StudentFormValues) => updateStudent.mutateAsync(values).catch(() => {})
 
   async function onSubmit(values: StudentFormValues) {
     if (!form.formState.isDirty) {
@@ -343,71 +259,28 @@ export default function AdminStudentDetailPage() {
     await submitStudent(values)
   }
 
+  const { remove, isDeleting } = useDeleteUser(studentId, 'Impossibile eliminare lo studente.', '/admin/students')
   // Returns the error to show in the dialog (a wrong password), or null.
   async function handleDelete(password: string): Promise<string | null> {
-    if (!studentId) {
-      return null
-    }
-    setIsDeleting(true)
-    try {
-      const response = await fetch(`/api/users/${studentId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
-      })
-      if (response.status === 403) {
-        return 'Password non corretta.'
-      }
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null) as { message?: string } | null
-        throw new Error(payload?.message ?? 'Impossibile eliminare lo studente.')
-      }
-      setShowDeleteAlert(false)
-      router.push('/admin/students')
-      return null
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Impossibile eliminare lo studente.')
-      setShowDeleteAlert(false)
-      return null
-    } finally {
-      setIsDeleting(false)
-    }
+    const wrongPassword = await remove(password)
+    if (!wrongPassword) setShowDeleteAlert(false)
+    return wrongPassword
   }
 
-  async function handleImpersonate() {
-    if (!studentId) return
-    setIsImpersonating(true)
-    try {
-      const response = await fetch('/api/admin/impersonate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: studentId })
-      })
-      if (!response.ok) {
-        let message = "Impossibile avviare l'impersonazione."
-        try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
-        } catch {
-          message = "Impossibile avviare l'impersonazione."
-        }
-        throw new Error(message)
-      }
-      const payload = (await response.json()) as {
-        impersonatedUser?: { role?: string }
-      }
-      const role = payload.impersonatedUser?.role ?? 'student'
-      const redirect = role === 'tutor' ? '/tutor' : '/student'
-      window.location.href = redirect
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : "Impossibile avviare l'impersonazione."
-      )
-    } finally {
-      setIsImpersonating(false)
+  // A full reload: nothing of the admin's session may stay in memory.
+  const impersonate = useMutation({
+    mutationFn: () => apiFetch<{ impersonatedUser?: { role?: string } }>(
+      '/api/admin/impersonate',
+      "Impossibile avviare l'impersonazione.",
+      jsonBody('POST', { userId: studentId })
+    ),
+    onSuccess: (payload) => {
+      window.location.href = payload.impersonatedUser?.role === 'tutor' ? '/tutor' : '/student'
     }
+  })
+  const isImpersonating = impersonate.isPending
+  const handleImpersonate = () => {
+    if (studentId) impersonate.mutate()
   }
 
   const changeSection = (value: string) => setParam('tab', value === 'account' ? null : value)
@@ -760,12 +633,7 @@ export default function AdminStudentDetailPage() {
         </Card>
       )}
       {active === 'hours' && studentId && (
-        <AdminStudentHours
-          studentId={studentId}
-          onBalanceChange={(lessonTokens) =>
-            setStudent((prev) => (prev ? { ...prev, lessonTokens } : prev))
-          }
-        />
+        <AdminStudentHours studentId={studentId} />
       )}
 
       <AlertDialog open={showEmailAlert} onOpenChange={setShowEmailAlert}>
@@ -815,7 +683,6 @@ export default function AdminStudentDetailPage() {
               userId={studentId}
               isActive={student.isActive === true}
               who='Lo studente'
-              onChange={isActive => setStudent(prev => (prev ? { ...prev, isActive } : prev))}
             />
           )}
           <DangerAction

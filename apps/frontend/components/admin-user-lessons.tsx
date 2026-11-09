@@ -13,6 +13,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { extractPayloadArray } from '@/lib/backend-response'
+import { apiFetch } from '@/lib/api-fetch'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { formatItalianDate } from '@/lib/format-date'
 
 const PAGE = 20
@@ -51,73 +53,55 @@ export function AdminUserLessons({ role, userId }: { role: 'tutor' | 'student', 
     const timer = window.setTimeout(() => setQ(search.trim()), SEARCH_DELAY)
     return () => window.clearTimeout(timer)
   }, [search])
-  const [rows, setRows] = React.useState<Row[]>([])
-  const [total, setTotal] = React.useState(0)
-  const [loading, setLoading] = React.useState(true)
-  const [error, setError] = React.useState(false)
-  const subjects = React.useRef<Map<string, string> | null>(null)
+  const { data: subjectList } = useQuery({
+    queryKey: ['subjects'],
+    queryFn: async () => extractPayloadArray<{ id: string, name: string }>(await apiFetch('/api/subjects', 'Impossibile caricare le materie.')),
+    enabled: role === 'tutor'
+  })
+  const subjectNames = new Map((subjectList ?? []).map(subject => [subject.id, subject.name]))
 
-  const load = React.useCallback(async (offset: number) => {
-    setLoading(true)
-    setError(false)
-    try {
-      const now = new Date().toISOString()
+  // PAGE lessons at a time; "Mostra altre" asks for the next ones.
+  const lessons = useInfiniteQuery({
+    queryKey: ['lessons', role, userId, when, q],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({
         limit: String(PAGE),
-        offset: String(offset),
+        offset: String(pageParam),
         sortBy: 'startAt',
         sortDir: when === 'past' ? 'desc' : 'asc',
-        [when === 'past' ? 'to' : 'from']: now
+        [when === 'past' ? 'to' : 'from']: new Date().toISOString()
       })
       if (q) params.set('q', q)
-      let next: Row[]
-      let count: number
-      if (role === 'student') {
-        params.set('studentId', userId)
-        const response = await fetch(`/api/lessons/me?${params}`)
-        if (!response.ok) throw new Error()
-        const payload = await response.json()
-        const items = extractPayloadArray<StudentLesson>(payload)
-        count = Number(payload?.total ?? items.length)
-        next = items.map(lesson => ({
-          id: lesson.id,
-          startAt: lesson.startAt,
-          title: lesson.subjectName,
-          detail: [`${lesson.tutorFirstName} ${lesson.tutorLastName}`, lesson.topic].filter(Boolean).join(' · '),
-          badge: <StatusBadge lesson={lesson} />
-        }))
-      } else {
-        params.set('tutorId', userId)
-        if (!subjects.current) {
-          const response = await fetch('/api/subjects')
-          const list = response.ok ? extractPayloadArray<{ id: string, name: string }>(await response.json()) : []
-          subjects.current = new Map(list.map(subject => [subject.id, subject.name]))
-        }
-        const response = await fetch(`/api/lessons?${params}`)
-        if (!response.ok) throw new Error()
-        const payload = await response.json()
-        const items = extractPayloadArray<TutorLesson>(payload)
-        count = Number(payload?.total ?? items.length)
-        next = items.map(lesson => ({
-          id: lesson.id,
-          startAt: lesson.startAt,
-          title: (lesson.subjectId && subjects.current?.get(lesson.subjectId)) || 'Materia non ancora scelta',
-          detail: '',
-          badge: tutorBadge(lesson, when)
-        }))
+      params.set(role === 'student' ? 'studentId' : 'tutorId', userId)
+      const payload = await apiFetch<{ total?: number }>(
+        `${role === 'student' ? '/api/lessons/me' : '/api/lessons'}?${params}`,
+        'Impossibile caricare le lezioni.'
+      )
+      const items = extractPayloadArray<StudentLesson & TutorLesson>(payload)
+      return { items, total: Number(payload?.total ?? items.length), offset: pageParam }
+    },
+    getNextPageParam: (last) => (last.offset + last.items.length < last.total ? last.offset + last.items.length : undefined),
+    meta: { inline: true }
+  })
+  const loading = lessons.isFetching
+  const error = lessons.isError
+  const total = lessons.data?.pages[0]?.total ?? 0
+  const rows: Row[] = (lessons.data?.pages ?? []).flatMap(page => page.items).map(lesson => role === 'student'
+    ? {
+        id: lesson.id,
+        startAt: lesson.startAt,
+        title: lesson.subjectName,
+        detail: [`${lesson.tutorFirstName} ${lesson.tutorLastName}`, lesson.topic].filter(Boolean).join(' · '),
+        badge: <StatusBadge lesson={lesson} />
       }
-      setRows(previous => offset === 0 ? next : [...previous, ...next])
-      setTotal(count)
-    } catch {
-      setError(true)
-    } finally {
-      setLoading(false)
-    }
-  }, [role, userId, when, q])
-
-  React.useEffect(() => {
-    void load(0)
-  }, [load])
+    : {
+        id: lesson.id,
+        startAt: lesson.startAt,
+        title: (lesson.subjectId && subjectNames.get(lesson.subjectId)) || 'Materia non ancora scelta',
+        detail: '',
+        badge: tutorBadge(lesson, when)
+      })
 
   const pastLabel = role === 'tutor' ? 'Svolte' : 'Passate'
 
@@ -145,7 +129,7 @@ export function AdminUserLessons({ role, userId }: { role: 'tutor' | 'student', 
 
       {error ? (
         <EmptyState
-          action={<Button variant='outline' size='sm' onClick={() => void load(0)}>Riprova</Button>}
+          action={<Button variant='outline' size='sm' onClick={() => void lessons.refetch()}>Riprova</Button>}
         >
           Impossibile caricare le lezioni.
         </EmptyState>
@@ -186,7 +170,7 @@ export function AdminUserLessons({ role, userId }: { role: 'tutor' | 'student', 
             ))}
           </ul>
           {rows.length < total && (
-            <Button variant='outline' className='w-full sm:w-auto' disabled={loading} onClick={() => void load(rows.length)}>
+            <Button variant='outline' className='w-full sm:w-auto' disabled={loading} onClick={() => void lessons.fetchNextPage()}>
               {loading ? 'Caricamento...' : 'Mostra altre'}
             </Button>
           )}
