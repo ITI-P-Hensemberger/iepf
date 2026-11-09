@@ -121,11 +121,13 @@ export function BookStudentDialog({ booking, lesson, bookingSubjectOptions }: { 
               <AlertDialogAction
                 onClick={(event) => {
                   event.preventDefault()
-                  void handleCreateBooking()
+                  handleCreateBooking()
                 }}
                 disabled={
                   isCreatingBooking ||
                   !selectedStudentId ||
+                  // The backend needs a topic, as when students book themselves.
+                  !bookingTopic.trim() ||
                   (!lesson?.subjectId && !bookingSubjectId)
                 }
               >

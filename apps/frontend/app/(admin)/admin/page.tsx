@@ -10,7 +10,8 @@ import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
 import { BookOpen, ChevronRight, GraduationCap, MessageSquare, Users } from 'lucide-react'
-import { toast } from 'sonner'
+import { useQuery } from '@tanstack/react-query'
+import { apiFetch } from '@/lib/api-fetch'
 
 import { DayOverview } from '@/components/admin-day-page'
 import { PushInviteCard } from '@/components/push-prompt'
@@ -37,37 +38,26 @@ const AREAS = [
 ]
 
 async function fetchSchedule(from: string, to: string) {
-  const response = await fetch(`/api/lessons/schedule?${new URLSearchParams({ from, to })}`)
-  if (!response.ok) throw new Error('Impossibile caricare le lezioni.')
-  return extractPayloadArray<ScheduleLesson>(await response.json())
+  return extractPayloadArray<ScheduleLesson>(await apiFetch(`/api/lessons/schedule?${new URLSearchParams({ from, to })}`, 'Impossibile caricare le lezioni.'))
 }
+
+const noLessons: ScheduleLesson[] = []
 
 export default function AdminPage() {
   const { profile, isLoading: isProfileLoading } = useSession()
-  const [today, setToday] = React.useState<ScheduleLesson[]>([])
-  const [coming, setComing] = React.useState<ScheduleLesson[]>([])
-  const [loading, setLoading] = React.useState(true)
-
-  React.useEffect(() => {
-    let active = true
-    const todayKey = dayKeyOf(new Date())
-    Promise.all([
-      fetchSchedule(dayRange(todayKey).from, dayRange(todayKey).to),
-      fetchSchedule(dayRange(addDaysToKey(todayKey, 1)).from, dayRange(addDaysToKey(todayKey, 7)).to)
-    ])
-      .then(([todayLessons, nextLessons]) => {
-        if (!active) return
-        setToday(todayLessons)
-        setComing(nextLessons)
-      })
-      .catch((err) => toast.error(err instanceof Error ? err.message : 'Impossibile caricare le lezioni.'))
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [])
+  const todayKey = dayKeyOf(new Date())
+  // Today shares its key with the day view of the lessons page.
+  const todayResult = useQuery({
+    queryKey: ['lessons', 'schedule', todayKey],
+    queryFn: () => fetchSchedule(dayRange(todayKey).from, dayRange(todayKey).to)
+  })
+  const comingResult = useQuery({
+    queryKey: ['lessons', 'schedule-week', todayKey],
+    queryFn: () => fetchSchedule(dayRange(addDaysToKey(todayKey, 1)).from, dayRange(addDaysToKey(todayKey, 7)).to)
+  })
+  const today = todayResult.data ?? noLessons
+  const coming = comingResult.data ?? noLessons
+  const loading = todayResult.isPending || comingResult.isPending
 
   const booked = coming.filter((lesson) => !isCanceled(lesson) && lesson.bookings.length > 0)
   // A slot nobody booked once bookings closed will not take place: today it is only noise.

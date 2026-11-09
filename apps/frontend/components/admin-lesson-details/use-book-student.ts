@@ -1,39 +1,26 @@
 // Purpose: State and actions of the dialog that books a student on the admin lesson details page.
 import * as React from 'react'
 import { toast } from 'sonner'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 import type { Student } from './shared'
-import { normalizePaged, studentLabel, studentClassLabel, extractErrorMessage } from './shared'
+import { normalizePaged, studentLabel, studentClassLabel } from './shared'
 
-export function useBookStudent({ lessonId, loadLesson, loadBookings }: { lessonId: string, loadLesson: () => Promise<void>, loadBookings: () => Promise<void> }) {
+const STUDENTS_QUERY = 'role=student&limit=200&offset=0'
+const noStudents: Student[] = []
+
+export function useBookStudent({ lessonId, reloadLessons }: { lessonId: string, reloadLessons: () => Promise<void> }) {
   const [bookStudentOpen, setBookStudentOpen] = React.useState(false)
-  const [studentsLoading, setStudentsLoading] = React.useState(false)
-  const [students, setStudents] = React.useState<Student[]>([])
+  // Loaded the first time the dialog opens.
+  const { data: students = noStudents, isFetching: studentsLoading } = useQuery({
+    queryKey: ['users', STUDENTS_QUERY],
+    queryFn: async () => normalizePaged<Student>(await apiFetch(`/api/users?${STUDENTS_QUERY}`, 'Impossibile caricare gli studenti.')).items,
+    enabled: bookStudentOpen
+  })
   const [studentSearch, setStudentSearch] = React.useState('')
   const [selectedStudentId, setSelectedStudentId] = React.useState('')
   const [bookingTopic, setBookingTopic] = React.useState('')
   const [bookingSubjectId, setBookingSubjectId] = React.useState('')
-  const [isCreatingBooking, setIsCreatingBooking] = React.useState(false)
-
-  const loadStudents = React.useCallback(async () => {
-    setStudentsLoading(true)
-    try {
-      const response = await fetch('/api/users?role=student&limit=200&offset=0')
-      if (!response.ok) {
-        throw new Error('Impossibile caricare gli studenti.')
-      }
-      const payload = await response.json()
-      const { items } = normalizePaged<Student>(payload)
-      setStudents(items)
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile caricare gli studenti.'
-      )
-    } finally {
-      setStudentsLoading(false)
-    }
-  }, [])
 
   const sortedStudents = React.useMemo(() => {
     return [...students].sort((a, b) => {
@@ -60,58 +47,26 @@ export function useBookStudent({ lessonId, loadLesson, loadBookings }: { lessonI
     })
   }, [sortedStudents, studentSearch])
 
-  React.useEffect(() => {
-    if (!bookStudentOpen || students.length > 0) {
-      return
-    }
-    void loadStudents()
-  }, [bookStudentOpen, loadStudents, students.length])
-
-  const handleCreateBooking = React.useCallback(async () => {
-    if (!selectedStudentId) {
-      return
-    }
-    setIsCreatingBooking(true)
-    try {
-      const response = await fetch(`/api/lessons/${lessonId}/book`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          studentId: selectedStudentId,
-          topic: bookingTopic.trim() ? bookingTopic.trim() : undefined,
-          subjectId: bookingSubjectId || undefined
-        })
-      })
-      if (!response.ok) {
-        let message = 'Impossibile creare la prenotazione.'
-        try {
-          const payload = await response.json()
-          message = extractErrorMessage(payload, message)
-        } catch {
-          // ignore
-        }
-        throw new Error(message)
-      }
+  const createBooking = useMutation({
+    mutationFn: () => apiFetch(`/api/lessons/${lessonId}/book`, 'Impossibile creare la prenotazione.', jsonBody('POST', {
+      studentId: selectedStudentId,
+      topic: bookingTopic.trim(),
+      subjectId: bookingSubjectId || undefined
+    })),
+    onSuccess: () => {
       toast.success('Prenotazione creata.')
       setBookStudentOpen(false)
       setSelectedStudentId('')
       setBookingTopic('')
       setBookingSubjectId('')
       setStudentSearch('')
-      await loadBookings()
-      await loadLesson()
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile creare la prenotazione.'
-      )
-    } finally {
-      setIsCreatingBooking(false)
+      return reloadLessons()
     }
-  }, [bookingSubjectId, bookingTopic, lessonId, loadBookings, loadLesson, selectedStudentId])
+  })
+  const isCreatingBooking = createBooking.isPending
+  const handleCreateBooking = () => {
+    if (selectedStudentId && bookingTopic.trim()) createBooking.mutate()
+  }
 
   return {
     bookStudentOpen,

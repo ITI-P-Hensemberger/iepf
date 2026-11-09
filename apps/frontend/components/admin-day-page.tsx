@@ -7,7 +7,8 @@ import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CalendarCheck, ChevronLeft, ChevronRight } from 'lucide-react'
-import { toast } from 'sonner'
+import { useQuery } from '@tanstack/react-query'
+import { apiFetch } from '@/lib/api-fetch'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -61,6 +62,8 @@ function firstSchoolDay(key: string) {
   return [0, 6].includes(dateOfKey(key).getDay()) ? stepSchoolDay(key, 1) : key
 }
 
+const noLessons: ScheduleLesson[] = []
+
 export default function AdminDayPage() {
   const router = useRouter()
   const pathname = usePathname()
@@ -70,8 +73,14 @@ export default function AdminDayPage() {
   const grouping: Grouping =
     searchParams.get('group') === 'subject' ? 'subject' : 'tutor'
 
-  const [lessons, setLessons] = React.useState<ScheduleLesson[]>([])
-  const [loading, setLoading] = React.useState(true)
+  // Each day once: going back to a day already seen shows it at once and refreshes it.
+  const { data: lessons = noLessons, isPending: loading } = useQuery({
+    queryKey: ['lessons', 'schedule', dayKey],
+    queryFn: async () => extractPayloadArray<ScheduleLesson>(await apiFetch(
+      `/api/lessons/schedule?${new URLSearchParams(dayRange(dayKey))}`,
+      'Impossibile caricare le lezioni del giorno.'
+    ))
+  })
 
   const setParam = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString())
@@ -79,30 +88,6 @@ export default function AdminDayPage() {
     router.replace(`${pathname}?${params}`, { scroll: false })
   }
 
-  React.useEffect(() => {
-    let active = true
-    setLoading(true)
-    fetch(`/api/lessons/schedule?${new URLSearchParams(dayRange(dayKey))}`)
-      .then(async (response) => {
-        if (!response.ok)
-          throw new Error('Impossibile caricare le lezioni del giorno.')
-        const items = extractPayloadArray<ScheduleLesson>(await response.json())
-        if (active) setLessons(items)
-      })
-      .catch((err) =>
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : 'Impossibile caricare le lezioni del giorno.'
-        )
-      )
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [dayKey])
 
   return (
     <div className='space-y-4'>

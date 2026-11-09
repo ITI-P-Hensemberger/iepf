@@ -221,19 +221,3 @@ export function studentLabel(student?: Student) {
 export function studentClassLabel(student?: Student) {
   return student ? classLabel(student.year, student.sectionName) ?? '' : ''
 }
-
-export function extractErrorMessage(payload: unknown, fallback: string) {
-  if (payload && typeof payload === 'object') {
-    const record = payload as Record<string, unknown>
-    if (typeof record.message === 'string') {
-      return record.message
-    }
-    if (record.error && typeof record.error === 'object') {
-      const error = record.error as Record<string, unknown>
-      if (typeof error.message === 'string') {
-        return error.message
-      }
-    }
-  }
-  return fallback
-}
