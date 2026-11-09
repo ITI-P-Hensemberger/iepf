@@ -9,6 +9,8 @@ import { History } from 'lucide-react'
 import { StarRating } from '@/components/star-rating'
 import { diffWords } from '@/lib/text-diff'
 import { cn } from '@/lib/utils'
+import { useQuery } from '@tanstack/react-query'
+import { apiFetch } from '@/lib/api-fetch'
 
 export type FeedbackVersion = {
   id: string
@@ -70,28 +72,14 @@ function ChangedText({ before, after }: { before: string, after: string }) {
 // what changed from the version before highlighted. The author reads "Tu" and "Amministratore";
 // the admins read the names.
 export function FeedbackHistory({ feedbackId, audience }: { feedbackId: string, audience: 'author' | 'admin' }) {
-  const [data, setData] = React.useState<FeedbackHistoryPayload | null>(null)
-  const [error, setError] = React.useState<string | null>(null)
+  // Its failure shows here, in place of the history.
+  const { data, error } = useQuery({
+    queryKey: ['feedback', feedbackId, 'history'],
+    queryFn: () => apiFetch<FeedbackHistoryPayload>(`/api/feedback/${feedbackId}/history`, 'Impossibile caricare la cronologia.', { cache: 'no-store' }),
+    meta: { inline: true }
+  })
 
-  React.useEffect(() => {
-    let active = true
-    void (async () => {
-      try {
-        const response = await fetch(`/api/feedback/${feedbackId}/history`, { cache: 'no-store' })
-        const payload = await response.json().catch(() => null)
-        if (!response.ok) throw new Error(payload?.message || 'Impossibile caricare la cronologia.')
-        if (active) setData(payload as FeedbackHistoryPayload)
-      }
-      catch (err) {
-        if (active) setError(err instanceof Error ? err.message : 'Impossibile caricare la cronologia.')
-      }
-    })()
-    return () => {
-      active = false
-    }
-  }, [feedbackId])
-
-  if (error) return <p className='text-sm text-destructive'>{error}</p>
+  if (error) return <p className='text-sm text-destructive'>{error.message}</p>
   if (!data) return <BlockSkeleton lines={2} />
 
   const { versions } = data

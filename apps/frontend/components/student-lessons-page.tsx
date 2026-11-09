@@ -10,7 +10,6 @@ import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CalendarPlus } from 'lucide-react'
-import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/page-header'
 import { LessonHoursBadge } from '@/components/lesson-hours-badge'
@@ -36,6 +35,8 @@ import { groupBy } from '@/lib/lesson-schedule'
 import { dayKeyOf } from '@/lib/school-week'
 import { cn } from '@/lib/utils'
 import { useSession } from '@/lib/use-session'
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
+import { apiFetch } from '@/lib/api-fetch'
 
 type Tab = 'upcoming' | 'past' | 'canceled'
 
@@ -68,6 +69,8 @@ function query(tab: Tab, offset: number, q: string) {
   return params
 }
 
+const noLessons: StudentLesson[] = []
+
 export default function StudentLessonsPage() {
   const router = useRouter()
   const pathname = usePathname()
@@ -78,12 +81,24 @@ export default function StudentLessonsPage() {
   const q = searchParams.get('q') ?? ''
   const [search, setSearch] = React.useState(q)
 
-  const [lessons, setLessons] = React.useState<StudentLesson[]>([])
-  const [loading, setLoading] = React.useState(true)
-  const [hasMore, setHasMore] = React.useState(false)
   const [cancelTarget, setCancelTarget] = React.useState<StudentLesson | null>(null)
   const [feedbackTarget, setFeedbackTarget] = React.useState<StudentLesson | null>(null)
   const feedback = useStudentFeedback()
+
+  // PAGE lessons at a time; "Mostra altre" asks for the next ones. A new tab or search keeps
+  // the rows on screen until its own arrive.
+  const lessonsQuery = useInfiniteQuery({
+    queryKey: ['lessons', 'me', tab, q],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => extractPayloadArray<StudentLesson>(
+      await apiFetch(`/api/lessons/me?${query(tab, pageParam, q)}`, 'Impossibile caricare le lezioni.')
+    ),
+    getNextPageParam: (last, pages) => (last.length === PAGE ? pages.flat().length : undefined),
+    placeholderData: keepPreviousData
+  })
+  const lessons = lessonsQuery.data?.pages.flat() ?? noLessons
+  const loading = lessonsQuery.isFetching
+  const hasMore = lessonsQuery.hasNextPage
 
   const setParam = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString())
@@ -92,25 +107,6 @@ export default function StudentLessonsPage() {
     const next = params.toString()
     router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false })
   }
-
-  const load = React.useCallback(async (offset = 0) => {
-    setLoading(true)
-    try {
-      const response = await fetch(`/api/lessons/me?${query(tab, offset, q)}`)
-      if (!response.ok) throw new Error('Impossibile caricare le lezioni.')
-      const items = extractPayloadArray<StudentLesson>(await response.json())
-      setLessons((prev) => (offset === 0 ? items : [...prev, ...items]))
-      setHasMore(items.length === PAGE)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Impossibile caricare le lezioni.')
-    } finally {
-      setLoading(false)
-    }
-  }, [tab, q])
-
-  React.useEffect(() => {
-    void load()
-  }, [load])
 
   // The search reaches the URL (and the list) a moment after the last key.
   React.useEffect(() => {
@@ -204,7 +200,7 @@ export default function StudentLessonsPage() {
               ))
             )}
             {hasMore && (
-              <Button variant='outline' className={cn('w-full', loading && 'opacity-60')} disabled={loading} onClick={() => void load(lessons.length)}>
+              <Button variant='outline' className={cn('w-full', loading && 'opacity-60')} disabled={loading} onClick={() => void lessonsQuery.fetchNextPage()}>
                 {loading ? 'Caricamento...' : 'Mostra altre'}
               </Button>
             )}
@@ -217,7 +213,7 @@ export default function StudentLessonsPage() {
         onClose={() => setCancelTarget(null)}
         onCanceled={() => {
           setCancelTarget(null)
-          void load()
+          // The hours left change.
           void refresh()
         }}
       />
@@ -225,7 +221,6 @@ export default function StudentLessonsPage() {
         lesson={feedbackTarget}
         existing={feedbackTarget ? feedback.byBooking.get(feedbackTarget.bookingId) : undefined}
         onClose={() => setFeedbackTarget(null)}
-        onSaved={feedback.remember}
       />
     </main>
   )

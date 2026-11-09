@@ -70,6 +70,8 @@ import { track } from '@/lib/usage-analytics'
 import { useSession } from '@/lib/use-session'
 import { cn } from '@/lib/utils'
 import { capitalizeFirst } from '@/lib/capitalize'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 
 type LessonAvailable = {
   id: string
@@ -132,6 +134,9 @@ function cutoffLabel(iso: string) {
   return `${new Intl.DateTimeFormat('it-IT', { weekday: 'short' }).format(date)} alle ${timeFormat.format(date)}`
 }
 
+const noSubjects: SubjectOption[] = []
+const noLessons: LessonAvailable[] = []
+
 export default function StudentBookPage() {
   const router = useRouter()
   const pathname = usePathname()
@@ -148,21 +153,13 @@ export default function StudentBookPage() {
   const subjectId = searchParams.get('subject') ?? ''
   const dayKey = searchParams.get('day') ?? ''
 
-  const [allSubjects, setAllSubjects] = React.useState<SubjectOption[]>([])
-  // The summary remembers which week and subject it counts, so a stale one is never read as fresh.
-  const [summary, setSummary] = React.useState<(Summary & { key: string }) | null>(null)
-  const [summaryLoading, setSummaryLoading] = React.useState(true)
-  const [lessons, setLessons] = React.useState<LessonAvailable[]>([])
-  const [lessonsLoading, setLessonsLoading] = React.useState(false)
-
+  const queryClient = useQueryClient()
   const [target, setTarget] = React.useState<LessonAvailable | null>(null)
   const [topic, setTopic] = React.useState('')
-  const [isBooking, setIsBooking] = React.useState(false)
   const [booked, setBooked] = React.useState<Booked | null>(null)
   const [upcoming, setUpcoming] = React.useState<MyLesson[]>([])
 
   const [requestSubjectId, setRequestSubjectId] = React.useState('')
-  const [isRequesting, setIsRequesting] = React.useState(false)
 
   const setStep = React.useCallback(
     (next: { subject?: string, day?: string }, replace = false) => {
@@ -180,64 +177,33 @@ export default function StudentBookPage() {
   )
 
   // Every subject, for the request form: the steps only show subjects the student can book.
-  React.useEffect(() => {
-    let active = true
-    fetch('/api/subjects')
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload) => {
-        if (active) setAllSubjects(extractPayloadArray<SubjectOption>(payload))
-      })
-      .catch(() => undefined)
-    return () => {
-      active = false
-    }
-  }, [])
+  const { data: allSubjects = noSubjects } = useQuery({
+    queryKey: ['subjects'],
+    queryFn: async () => extractPayloadArray<SubjectOption>(await apiFetch('/api/subjects', 'Impossibile caricare le materie.')),
+    meta: { inline: true }
+  })
 
-  const loadSummary = React.useCallback(async () => {
-    setSummaryLoading(true)
-    try {
+  // One summary per week and subject: a stale one is never read as fresh.
+  const { data: current = null, isPending: countsLoading } = useQuery({
+    queryKey: ['lessons', 'available-summary', mondayKey, subjectId],
+    queryFn: () => {
       const params = new URLSearchParams(weekRange(mondayKey))
       if (subjectId) params.set('subjectId', subjectId)
-      const response = await fetch(`/api/lessons/available/summary?${params}`)
-      if (!response.ok) throw new Error('Impossibile caricare le lezioni disponibili.')
-      setSummary({ ...((await response.json()) as Summary), key: `${mondayKey}|${subjectId}` })
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Impossibile caricare le lezioni disponibili.')
-    } finally {
-      setSummaryLoading(false)
+      return apiFetch<Summary>(`/api/lessons/available/summary?${params}`, 'Impossibile caricare le lezioni disponibili.')
     }
-  }, [mondayKey, subjectId])
+  })
 
-  const loadLessons = React.useCallback(async () => {
-    if (!subjectId || !dayKey) {
-      setLessons([])
-      return
-    }
-    setLessonsLoading(true)
-    try {
-      const params = new URLSearchParams({ ...dayRange(dayKey), subjectId, limit: '200' })
-      const response = await fetch(`/api/lessons/available?${params}`)
-      if (!response.ok) throw new Error('Impossibile caricare le lezioni.')
-      const items = extractPayloadArray<LessonAvailable>(await response.json())
-      setLessons(items.toSorted((a, b) => a.startAt.localeCompare(b.startAt) || Number(b.canBook) - Number(a.canBook)))
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Impossibile caricare le lezioni.')
-    } finally {
-      setLessonsLoading(false)
-    }
-  }, [dayKey, subjectId])
-
-  React.useEffect(() => {
-    void loadSummary()
-  }, [loadSummary])
-
-  React.useEffect(() => {
-    void loadLessons()
-  }, [loadLessons])
+  const { data: lessons = noLessons, isFetching: lessonsLoading } = useQuery({
+    queryKey: ['lessons', 'available', dayKey, subjectId],
+    queryFn: async () => extractPayloadArray<LessonAvailable>(await apiFetch(
+      `/api/lessons/available?${new URLSearchParams({ ...dayRange(dayKey), subjectId, limit: '200' })}`,
+      'Impossibile caricare le lezioni.'
+    )),
+    select: (items) => items.toSorted((a, b) => a.startAt.localeCompare(b.startAt) || Number(b.canBook) - Number(a.canBook)),
+    enabled: Boolean(subjectId && dayKey)
+  })
 
   const days = schoolDays(mondayKey)
-  const current = summary?.key === `${mondayKey}|${subjectId}` ? summary : null
-  const countsLoading = summaryLoading || !current
   const dayInfo = new Map(current?.days.map((entry) => [entry.day, entry]) ?? [])
   // Bookings close the evening before, so today and earlier can never be picked.
   const firstOpenDay = days.find((day) => day > todayKey && (dayInfo.get(day)?.count ?? 0) > 0 && !dayInfo.get(day)?.booked)
@@ -260,67 +226,54 @@ export default function StudentBookPage() {
     track('book_dialog_open')
   }
 
-  const handleBooking = async () => {
+  const book = useMutation({
+    // The student picked the subject first: an open lesson becomes a lesson of it.
+    mutationFn: ({ lesson, topic }: { lesson: LessonAvailable, topic: string }) =>
+      apiFetch(`/api/lessons/${lesson.id}/book`, 'Impossibile prenotare la lezione.', jsonBody('POST', { topic, subjectId })),
+    onSuccess: async (_, { lesson }) => {
+      setBooked({
+        startAt: lesson.startAt,
+        tutorName: `${lesson.tutorFirstName} ${lesson.tutorLastName}`,
+        subjectName,
+        bookingCutoff: lesson.bookingCutoff
+      })
+      setTarget(null)
+      // Seats, days and the student's own lessons all change.
+      void queryClient.invalidateQueries({ queryKey: ['lessons'] })
+      await refresh()
+      const params = new URLSearchParams({ from: new Date().toISOString(), bookingStatus: 'confirmed', limit: '5' })
+      setUpcoming(extractPayloadArray<MyLesson>(await apiFetch(`/api/lessons/me?${params}`, 'Impossibile caricare le tue lezioni.').catch(() => [])))
+    },
+    // Someone may have taken the last seat: show the lessons as they are now.
+    onError: () => queryClient.invalidateQueries({ queryKey: ['lessons', 'available'] })
+  })
+  const isBooking = book.isPending
+
+  const handleBooking = () => {
     if (!target) return
     const trimmed = topic.trim()
     if (!trimmed) {
       toast.error('Scrivi l\'argomento della lezione.')
       return
     }
-    setIsBooking(true)
-    try {
-      const response = await fetch(`/api/lessons/${target.id}/book`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // The student picked the subject first: an open lesson becomes a lesson of it.
-        body: JSON.stringify({ topic: trimmed, subjectId })
-      })
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        throw new Error(payload?.message || 'Impossibile prenotare la lezione.')
-      }
-      setBooked({
-        startAt: target.startAt,
-        tutorName: `${target.tutorFirstName} ${target.tutorLastName}`,
-        subjectName,
-        bookingCutoff: target.bookingCutoff
-      })
-      setTarget(null)
-      await refresh()
-      const params = new URLSearchParams({ from: new Date().toISOString(), bookingStatus: 'confirmed', limit: '5' })
-      const mine = await fetch(`/api/lessons/me?${params}`)
-      setUpcoming(mine.ok ? extractPayloadArray<MyLesson>(await mine.json()) : [])
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Impossibile prenotare la lezione.')
-      void loadLessons()
-    } finally {
-      setIsBooking(false)
-    }
+    book.mutate({ lesson: target, topic: trimmed })
   }
 
-  const handleSubjectRequest = async () => {
+  const requestSubject = useMutation({
+    mutationFn: (id: string) => apiFetch('/api/subject-requests', 'Impossibile inviare la richiesta.', jsonBody('POST', { subjectId: id })),
+    onSuccess: () => {
+      toast.success('Richiesta inviata.')
+      setRequestSubjectId('')
+    }
+  })
+  const isRequesting = requestSubject.isPending
+
+  const handleSubjectRequest = () => {
     if (!requestSubjectId) {
       toast.error('Seleziona una materia.')
       return
     }
-    setIsRequesting(true)
-    try {
-      const response = await fetch('/api/subject-requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subjectId: requestSubjectId })
-      })
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        throw new Error(payload?.message || 'Impossibile inviare la richiesta.')
-      }
-      toast.success('Richiesta inviata.')
-      setRequestSubjectId('')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Impossibile inviare la richiesta.')
-    } finally {
-      setIsRequesting(false)
-    }
+    requestSubject.mutate(requestSubjectId)
   }
 
   // A new booking starts again from step 1, at the top of the page.
@@ -399,7 +352,7 @@ export default function StudentBookPage() {
                         className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end'
                         onSubmit={(event) => {
                           event.preventDefault()
-                          void handleSubjectRequest()
+                          handleSubjectRequest()
                         }}
                       >
                         <Field className='gap-2'>
@@ -462,7 +415,7 @@ export default function StudentBookPage() {
               disabled={isBooking}
               onClick={(event) => {
                 event.preventDefault()
-                void handleBooking()
+                handleBooking()
               }}
             >
               {isBooking ? 'Prenotazione...' : 'Prenota'}

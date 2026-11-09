@@ -7,7 +7,6 @@ import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import Link from 'next/link'
 import { CalendarPlus, ChevronRight } from 'lucide-react'
-import { toast } from 'sonner'
 
 import { LessonHoursBadge } from '@/components/lesson-hours-badge'
 import { NoHoursCard } from '@/components/no-hours-notice'
@@ -24,45 +23,43 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { hasNoHoursLeft } from '@/lib/lesson-hours'
 import { useSession } from '@/lib/use-session'
+import { useQuery } from '@tanstack/react-query'
+import { apiFetch } from '@/lib/api-fetch'
 
 const HOUR = 60 * 60 * 1000
 
 async function fetchMyLessons(params: Record<string, string>) {
-  const response = await fetch(`/api/lessons/me?${new URLSearchParams({ bookingStatus: 'confirmed', limit: '50', ...params })}`)
-  if (!response.ok) throw new Error('Impossibile caricare le lezioni.')
-  return extractPayloadArray<StudentLesson>(await response.json())
+  return extractPayloadArray<StudentLesson>(await apiFetch(
+    `/api/lessons/me?${new URLSearchParams({ bookingStatus: 'confirmed', limit: '50', ...params })}`,
+    'Impossibile caricare le lezioni.'
+  ))
 }
+
+const noLessons: StudentLesson[] = []
 
 export default function StudentPage() {
   const { profile, isLoading: isProfileLoading, refresh } = useSession()
-  const [upcoming, setUpcoming] = React.useState<StudentLesson[]>([])
-  const [recent, setRecent] = React.useState<StudentLesson[]>([])
-  const [loading, setLoading] = React.useState(true)
   const [cancelTarget, setCancelTarget] = React.useState<StudentLesson | null>(null)
   const [feedbackTarget, setFeedbackTarget] = React.useState<StudentLesson | null>(null)
   const feedback = useStudentFeedback()
 
-  const load = React.useCallback(async () => {
-    setLoading(true)
-    try {
+  const { data, isPending: loading } = useQuery({
+    queryKey: ['lessons', 'me', 'home'],
+    queryFn: async () => {
       const now = Date.now()
       // A lesson under way still counts as the next one until it ends.
       const [next, past] = await Promise.all([
         fetchMyLessons({ from: new Date(now - 2 * HOUR).toISOString(), sortDir: 'asc' }),
         fetchMyLessons({ from: new Date(now - 14 * 24 * HOUR).toISOString(), to: new Date(now).toISOString(), sortDir: 'desc' })
       ])
-      setUpcoming(next.filter((lesson) => new Date(lesson.startAt).getTime() + lesson.durationMinutes * 60_000 > now))
-      setRecent(past)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Impossibile caricare le lezioni.')
-    } finally {
-      setLoading(false)
+      return {
+        upcoming: next.filter((lesson) => new Date(lesson.startAt).getTime() + lesson.durationMinutes * 60_000 > now),
+        recent: past
+      }
     }
-  }, [])
-
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  })
+  const upcoming = data?.upcoming ?? noLessons
+  const recent = data?.recent ?? noLessons
 
   const [nextLesson, ...later] = upcoming
   const toRate = recent.filter((lesson) => lessonActions(lesson).canRate && !feedback.byBooking.has(lesson.bookingId))
@@ -160,7 +157,7 @@ export default function StudentPage() {
         onClose={() => setCancelTarget(null)}
         onCanceled={() => {
           setCancelTarget(null)
-          void load()
+          // The hours left change.
           void refresh()
         }}
       />
@@ -168,7 +165,6 @@ export default function StudentPage() {
         lesson={feedbackTarget}
         existing={feedbackTarget ? feedback.byBooking.get(feedbackTarget.bookingId) : undefined}
         onClose={() => setFeedbackTarget(null)}
-        onSaved={feedback.remember}
       />
     </main>
   )
