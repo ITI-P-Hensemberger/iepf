@@ -4,12 +4,16 @@ import { STICKY_CARD_FOOTER } from '@/components/sticky-footer'
 import { cn } from '@/lib/utils'
 import { BlockSkeleton } from '@/components/loading'
 import * as React from 'react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { TriangleAlert, UserRound } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
+import { useDeleteUser } from '@/lib/use-delete-user'
 
 import { Button } from '@/components/ui/button'
 import { ConfirmDeleteDialog } from '@/components/confirm-delete-dialog'
@@ -93,17 +97,19 @@ export default function AdminAdminDetailPage() {
   const backHref = useBackHref('/admin/admins')
   const setParam = useSetParam()
   const active = useSearchParams().get('tab') === 'danger' ? 'danger' : 'account'
-  const router = useRouter()
   const adminId = String(params?.id ?? '')
 
-  const [admin, setAdmin] = React.useState<Admin | null>(null)
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const queryClient = useQueryClient()
   const [showEmailAlert, setShowEmailAlert] = React.useState(false)
   const [pendingValues, setPendingValues] =
     React.useState<AdminFormValues | null>(null)
   const [showDeleteAlert, setShowDeleteAlert] = React.useState(false)
-  const [isDeleting, setIsDeleting] = React.useState(false)
+
+  const { data: admin = null, isPending: isLoading } = useQuery({
+    queryKey: ['users', adminId],
+    queryFn: () => apiFetch<Admin>(`/api/users/${adminId}`, "Impossibile recuperare l'admin."),
+    enabled: Boolean(adminId)
+  })
 
   const form = useForm<AdminFormValues>({
     resolver: zodResolver(formSchema),
@@ -111,7 +117,12 @@ export default function AdminAdminDetailPage() {
       firstName: '',
       lastName: '',
       email: ''
-    }
+    },
+    // Follows the loaded admin; what is being typed stays when it reloads.
+    values: admin
+      ? { firstName: admin.firstName ?? '', lastName: admin.lastName ?? '', email: admin.email ?? '' }
+      : undefined,
+    resetOptions: { keepDirtyValues: true }
   })
 
   const watchedEmail = form.watch('email')
@@ -122,101 +133,24 @@ export default function AdminAdminDetailPage() {
     return normalizeEmail(watchedEmail ?? '') !== normalizeEmail(admin.email)
   }, [admin, watchedEmail])
 
-  React.useEffect(() => {
-    let isMounted = true
-
-    async function loadAdmin() {
-      setIsLoading(true)
-
-      try {
-        const response = await fetch(`/api/users/${adminId}`)
-        if (!response.ok) {
-          throw new Error("Impossibile recuperare l'admin.")
-        }
-        const data = (await response.json()) as Admin
-        if (isMounted) {
-          setAdmin(data)
-          form.reset({
-            firstName: data.firstName ?? '',
-            lastName: data.lastName ?? '',
-            email: data.email ?? ''
-          })
-        }
-      } catch (err) {
-        if (isMounted) {
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : "Impossibile recuperare l'admin."
-          )
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    if (adminId) {
-      void loadAdmin()
-    }
-
-    return () => {
-      isMounted = false
-    }
-  }, [form, adminId])
-
-  async function submitAdmin(values: AdminFormValues) {
-    setIsSubmitting(true)
-
-    try {
-      const normalizedFirstName = normalizeName(values.firstName)
-      const normalizedLastName = normalizeName(values.lastName)
-      const normalizedEmail = normalizeEmail(values.email)
-
-      const response = await fetch(`/api/users/${adminId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          firstName: normalizedFirstName,
-          lastName: normalizedLastName,
-          email: normalizedEmail
-        })
+  const updateAdmin = useMutation({
+    mutationFn: (values: AdminFormValues) => apiFetch(
+      `/api/users/${adminId}`,
+      "Impossibile aggiornare l'admin.",
+      jsonBody('PATCH', {
+        firstName: normalizeName(values.firstName),
+        lastName: normalizeName(values.lastName),
+        email: normalizeEmail(values.email)
       })
-
-      if (!response.ok) {
-        let message = "Impossibile aggiornare l'admin."
-        try {
-          const payload = (await response.json()) as { message?: string }
-          message = payload.message ?? message
-        } catch {
-          message = "Impossibile aggiornare l'admin."
-        }
-        throw new Error(message)
-      }
-
+    ),
+    onSuccess: (_, values) => {
       toast.success('Admin aggiornato.')
-      setAdmin((prev) =>
-        prev
-          ? {
-              ...prev,
-              firstName: normalizedFirstName,
-              lastName: normalizedLastName,
-              email: normalizedEmail
-            }
-          : prev
-      )
       form.reset(values)
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Impossibile aggiornare l'admin."
-      )
-    } finally {
-      setIsSubmitting(false)
+      return queryClient.invalidateQueries({ queryKey: ['users'] })
     }
-  }
+  })
+  const isSubmitting = updateAdmin.isPending
+  const submitAdmin = (values: AdminFormValues) => updateAdmin.mutateAsync(values).catch(() => {})
 
   async function onSubmit(values: AdminFormValues) {
     if (!form.formState.isDirty) {
@@ -233,35 +167,12 @@ export default function AdminAdminDetailPage() {
     await submitAdmin(values)
   }
 
+  const { remove, isDeleting } = useDeleteUser(adminId, "Impossibile eliminare l'admin.", '/admin/admins')
   // Returns the error to show in the dialog (a wrong password), or null.
   async function handleDelete(password: string): Promise<string | null> {
-    if (!adminId) {
-      return null
-    }
-    setIsDeleting(true)
-    try {
-      const response = await fetch(`/api/users/${adminId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
-      })
-      if (response.status === 403) {
-        return 'Password non corretta.'
-      }
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null) as { message?: string } | null
-        throw new Error(payload?.message ?? "Impossibile eliminare l'admin.")
-      }
-      setShowDeleteAlert(false)
-      router.push('/admin/admins')
-      return null
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Impossibile eliminare l'admin.")
-      setShowDeleteAlert(false)
-      return null
-    } finally {
-      setIsDeleting(false)
-    }
+    const wrongPassword = await remove(password)
+    if (!wrongPassword) setShowDeleteAlert(false)
+    return wrongPassword
   }
 
   const changeSection = (value: string) => setParam('tab', value === 'account' ? null : value)
@@ -443,7 +354,6 @@ export default function AdminAdminDetailPage() {
                   userId={adminId}
                   isActive={admin.isActive === true}
                   who='L’admin'
-                  onChange={isActive => setAdmin(prev => (prev ? { ...prev, isActive } : prev))}
                 />
               )}
               <DangerAction
