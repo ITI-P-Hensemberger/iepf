@@ -14,7 +14,7 @@ import { ConfirmDeleteDialog } from '@/components/confirm-delete-dialog'
 import { ActivationAction } from '@/components/activation-action'
 import { DangerAction, DangerZone } from '@/components/danger-zone'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -169,7 +169,7 @@ export default function AdminStudentDetailPage() {
     resetOptions: { keepDirtyValues: true }
   })
 
-  const watchedEmail = form.watch('email')
+  const watchedEmail = useWatch({ control: form.control, name: 'email' })
   const emailChanged = React.useMemo(() => {
     if (!student) {
       return false

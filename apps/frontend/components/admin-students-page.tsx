@@ -31,6 +31,7 @@ import {
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { classLabel } from '@/lib/class-label'
+import { useResetOnChange } from '@/lib/use-reset-on-change'
 
 const pageSize = 20
 
@@ -345,9 +346,7 @@ function StudentList({ list, applied, data }: {
   const [filters, setFilters] = React.useState<StudentFilters>(applied)
 
   // Follows the URL when it changes from outside (back, a link).
-  React.useEffect(() => {
-    setFilters({ search: applied.search, sortBy: applied.sortBy, sortDir: applied.sortDir })
-  }, [applied.search, applied.sortBy, applied.sortDir])
+  useResetOnChange({ search: applied.search, sortBy: applied.sortBy, sortDir: applied.sortDir }, setFilters)
 
   const apply = (next: StudentFilters) => {
     const params = new URLSearchParams(searchParams.toString())

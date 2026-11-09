@@ -55,6 +55,7 @@ import { FeedbackHistory, FeedbackHistoryToggle } from '@/components/feedback-hi
 import { StarRating } from '@/components/star-rating'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
+import { useResetOnChange } from '@/lib/use-reset-on-change'
 
 const pageSize = 20
 
@@ -287,22 +288,18 @@ export default function AdminFeedbackPage() {
     }
   }, [parsePage, searchParams])
 
-  React.useEffect(() => {
-    setFilters((prev) => {
-      const next = {
-        search: currentFilters.search,
-        lessonId: currentFilters.lessonId,
-        authorUserId: currentFilters.authorUserId,
-        targetUserId: currentFilters.targetUserId,
-        authorRole: currentFilters.authorRole,
-        rating: currentFilters.rating,
-        dateRange: currentFilters.dateRange,
-        sortBy: currentFilters.sortBy,
-        sortDir: currentFilters.sortDir
-      }
-      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next
-    })
-  }, [currentFilters])
+  // Follows the URL when it changes from outside (back, a link, a reset).
+  useResetOnChange({
+    search: currentFilters.search,
+    lessonId: currentFilters.lessonId,
+    authorUserId: currentFilters.authorUserId,
+    targetUserId: currentFilters.targetUserId,
+    authorRole: currentFilters.authorRole,
+    rating: currentFilters.rating,
+    dateRange: currentFilters.dateRange,
+    sortBy: currentFilters.sortBy,
+    sortDir: currentFilters.sortDir
+  }, setFilters)
 
   const updateParams = React.useCallback(
     (nextPage: number, nextFilters: FeedbackFilters) => {

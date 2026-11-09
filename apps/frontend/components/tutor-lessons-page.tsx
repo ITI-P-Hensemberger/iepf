@@ -40,6 +40,7 @@ import { useSession } from '@/lib/use-session'
 import { PushInviteCard } from '@/components/push-prompt'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api-fetch'
+import { useResetOnChange } from '@/lib/use-reset-on-change'
 
 const pageSize = 20
 
@@ -225,15 +226,14 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
     }
   }, [parsePage, searchParams])
 
-  React.useEffect(() => {
-    setFilters({
-      search: currentFilters.search,
-      subjectId: currentFilters.subjectId,
-      status: currentFilters.status,
-      sortDir: currentFilters.sortDir,
-      dateRange: currentFilters.dateRange
-    })
-  }, [currentFilters])
+  // Follows the URL when it changes from outside (back, a link, a reset).
+  useResetOnChange({
+    search: currentFilters.search,
+    subjectId: currentFilters.subjectId,
+    status: currentFilters.status,
+    sortDir: currentFilters.sortDir,
+    dateRange: currentFilters.dateRange
+  }, setFilters)
 
   const subjectMap = React.useMemo(() => {
     const map = new Map<string, Subject>()

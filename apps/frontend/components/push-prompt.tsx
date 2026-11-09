@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BellRing, X } from 'lucide-react'
 
 import { popupFrameClassName } from '@/components/announcement-popup'
@@ -19,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { fetchDeviceCount, isImpersonating, isPushConfigured, readPushEnvironment } from '@/lib/push-client'
 import { type PushSetupState, pushSetupState } from '@/lib/push-platform'
+import { useResetOnChange } from '@/lib/use-reset-on-change'
 import { notifyPushSetupChanged, PUSH_SETUP_CHANGED_EVENT, readPromptState, shouldPrompt, snooze } from '@/lib/push-prompt'
 
 const OPEN_EVENT = 'iepf:open-push-setup'
@@ -39,34 +41,29 @@ export function openPushSetup() {
 
 // What, if anything, this device still needs. null: nothing to offer here.
 export function usePushSetup(role: string | null | undefined) {
-  const [state, setState] = React.useState<PushSetupState | null>(null)
+  const queryClient = useQueryClient()
+  const { data = null } = useQuery({
+    queryKey: ['push-setup', role ?? null],
+    queryFn: async (): Promise<PushSetupState | null> => {
+      if (!isPushRole(role) || isImpersonating() || !(await isPushConfigured())) return null
+      const next = pushSetupState(await readPushEnvironment())
+      if (next === 'enabled' || next === 'unsupported') return null
+      // A computer only asks when no device receives push yet: the phone is what matters.
+      if (next === 'desktop' && (await fetchDeviceCount()) !== 0) return null
+      return next
+    },
+    retry: false,
+    meta: { inline: true }
+  })
 
-  const evaluate = React.useCallback(async () => {
-    if (!isPushRole(role) || isImpersonating() || !(await isPushConfigured())) {
-      setState(null)
-      return
-    }
-    const next = pushSetupState(await readPushEnvironment())
-    if (next === 'enabled' || next === 'unsupported') {
-      setState(null)
-      return
-    }
-    // A computer only asks when no device receives push yet: the phone is what matters.
-    if (next === 'desktop' && (await fetchDeviceCount()) !== 0) {
-      setState(null)
-      return
-    }
-    setState(next)
-  }, [role])
-
+  // Turning push on or off anywhere reads this device again.
   React.useEffect(() => {
-    void evaluate()
-    const handleChange = () => void evaluate()
+    const handleChange = () => void queryClient.invalidateQueries({ queryKey: ['push-setup'] })
     window.addEventListener(PUSH_SETUP_CHANGED_EVENT, handleChange)
     return () => window.removeEventListener(PUSH_SETUP_CHANGED_EVENT, handleChange)
-  }, [evaluate])
+  }, [queryClient])
 
-  return state
+  return data
 }
 
 export { notifyPushSetupChanged }
@@ -82,13 +79,13 @@ export function PushPrompt({ userId, role }: { userId: string, role: PushRole })
     () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get(SETUP_PARAM) === '1'
   )
 
-  React.useEffect(() => {
-    if (!available) return
-    if (forced || shouldPrompt(readPromptState(window.localStorage, userId))) {
-      setState(available)
+  // Opens when this device turns out to need setup, unless it was put off for later.
+  useResetOnChange(available, (next) => {
+    if (next && (forced || shouldPrompt(readPromptState(window.localStorage, userId)))) {
+      setState(next)
       setOpen(true)
     }
-  }, [available, forced, userId])
+  })
 
   React.useEffect(() => {
     const handleOpen = () => {
