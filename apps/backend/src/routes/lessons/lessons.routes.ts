@@ -654,6 +654,46 @@ export const rescheduleLesson = createRoute({
   }
 })
 
+const lessonVersionSchema = z.object({
+  startAt: z.string(),
+  durationMinutes: z.number(),
+  tutorId: z.string(),
+  tutorName: z.string(),
+  subjectId: z.string().nullable(),
+  subjectName: z.string().nullable()
+})
+
+const lessonChangeSchema = z.object({
+  id: z.string(),
+  before: lessonVersionSchema,
+  after: lessonVersionSchema,
+  actorName: z.string(),
+  actorRole: z.string(),
+  createdAt: z.date()
+})
+
+export const lessonHistory = createRoute({
+  path: '/lessons/{lessonId}/history',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  request: {
+    params: LessonIdParamsSchema
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(z.array(lessonChangeSchema), 'Reschedules of the lesson, oldest first'),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Admin access required'
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(createErrorSchema(LessonIdParamsSchema), 'Invalid id error'),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
 export const createLesson = createRoute({
   path: '/lessons',
   method: 'post',
@@ -817,6 +857,7 @@ export type BookGeneratedLessonRoute = typeof bookGeneratedLesson
 export type CancelBookingRoute = typeof cancelBooking
 export type CancelLessonRoute = typeof cancelLesson
 export type RescheduleLessonRoute = typeof rescheduleLesson
+export type LessonHistoryRoute = typeof lessonHistory
 export type SetBookingPresenceRoute = typeof setBookingPresence
 export type UpdateBookingTopicRoute = typeof updateBookingTopic
 export type UpdateLessonCountsRoute = typeof updateLessonCounts

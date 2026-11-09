@@ -10,6 +10,8 @@ import { auditLogs } from '@/db/schemas/audit-logs.schema'
 import { classSections } from '@/db/schemas/class-sections.schema'
 import { emailVerificationTokens } from '@/db/schemas/email-verification-tokens.schema'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
+import { lessonChanges } from '@/db/schemas/lesson-changes.schema'
+import { lessonFeedback } from '@/db/schemas/lesson-feedback.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
 import { passwordResetTokens } from '@/db/schemas/password-reset-tokens.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
@@ -22,6 +24,7 @@ import { users } from '@/db/schemas/users.schema'
 import env from '@/env'
 import { issueAdminInviteToken } from '@/lib/admin-invite'
 import { createImpersonationToken } from '@/lib/auth'
+import { deleteUnbookedLessons } from '@/lib/data-retention'
 import { cleanDatabase } from '@/lib/db-cleanup'
 import { isUniqueConstraintError } from '@/lib/db-errors'
 import { DEV_PASSWORD, seedDevelopmentData } from '@/lib/dev-seed'
@@ -284,21 +287,6 @@ describe('booking integrity', () => {
     expect(statuses(responses)).toEqual([201, 409])
   })
 
-  it('moves confirmed bookings when a lesson is rescheduled', async () => {
-    const student = await createStudent(2)
-    const lessonId = await createLesson(3)
-    expect((await book(lessonId, student.token)).status).toBe(201)
-    const response = await request(`/lessons/${lessonId}/reschedule`, {
-      token: adminToken,
-      body: { tutorId: ids.tutor, subjectId, startAt: nextLessonDay().toISOString(), durationMinutes: 60 }
-    })
-    expect(response.status).toBe(200)
-    const { lessonId: movedTo } = await response.json()
-    expect(await confirmedBookings(lessonId)).toHaveLength(0)
-    expect(await confirmedBookings(movedTo)).toHaveLength(1)
-    expect(await getStudentTokenBalance(student.id)).toBe(1)
-  })
-
   it('rejects a duplicate confirmed booking at database level but allows rebooking', async () => {
     const student = await createStudent(0)
     const lessonId = await createLesson(3)
@@ -359,6 +347,107 @@ describe('booking integrity', () => {
 
     expect((await remove({ password: DEV_PASSWORD })).status).toBe(204)
     expect(await db.query.users.findFirst({ where: (fields, { eq }) => eq(fields.id, student.id) })).toBeUndefined()
+  })
+})
+
+describe('reschedule in place', () => {
+  function reschedule(lessonId: string, changes: Record<string, unknown> = {}, token = adminToken) {
+    return request(`/lessons/${lessonId}/reschedule`, {
+      token,
+      body: { tutorId: ids.tutor, subjectId, startAt: nextLessonDay().toISOString(), durationMinutes: 60, ...changes }
+    })
+  }
+
+  async function history(lessonId: string) {
+    return db.select().from(lessonChanges).where(eq(lessonChanges.lessonId, lessonId))
+  }
+
+  it('keeps the lesson, its bookings, presence and feedback, and refunds nothing', async () => {
+    const student = await createStudent(2)
+    const lessonId = await createLesson(3)
+    expect((await book(lessonId, student.token)).status).toBe(201)
+    const [booking] = await confirmedBookings(lessonId)
+    await db.update(lessonBookings).set({ studentPresence: true, studentPresenceAt: new Date() }).where(eq(lessonBookings.id, booking.id))
+    const [feedback] = await db.insert(lessonFeedback).values({ lessonId, bookingId: booking.id, authorUserId: ids.tutor, targetUserId: student.id, authorRole: 'tutor', rating: 5 }).returning()
+
+    const newStart = nextLessonDay()
+    const response = await reschedule(lessonId, { startAt: newStart.toISOString() })
+    expect(response.status).toBe(200)
+    expect((await response.json()).lessonId).toBe(lessonId)
+
+    const lesson = await db.query.lessons.findFirst({ where: eq(lessons.id, lessonId) })
+    expect(lesson?.status).not.toBe('canceled')
+    expect(lesson?.startAt.getTime()).toBe(newStart.getTime())
+    const bookings = await db.select().from(lessonBookings).where(eq(lessonBookings.lessonId, lessonId))
+    expect(bookings).toHaveLength(1)
+    expect(bookings[0]).toMatchObject({ id: booking.id, status: 'confirmed', studentPresence: true })
+    expect(await db.query.lessonFeedback.findFirst({ where: eq(lessonFeedback.id, feedback.id) })).toMatchObject({ lessonId, bookingId: booking.id })
+    expect(await getStudentTokenBalance(student.id)).toBe(1)
+  })
+
+  it('moves the bookings to a subject the admin sets, and leaves them on an open lesson', async () => {
+    const student = await createStudent(2)
+    const lessonId = await createLesson(3)
+    expect((await book(lessonId, student.token)).status).toBe(201)
+    const [other] = await db.insert(subjects).values({ name: 'Riprogrammata', canonicalName: 'riprogrammata' }).returning({ id: subjects.id })
+
+    expect((await reschedule(lessonId, { subjectId: other.id })).status).toBe(200)
+    expect((await confirmedBookings(lessonId))[0].subjectId).toBe(other.id)
+
+    expect((await reschedule(lessonId, { subjectId: null })).status).toBe(200)
+    expect((await confirmedBookings(lessonId))[0].subjectId).toBe(other.id)
+    expect((await db.query.lessons.findFirst({ where: eq(lessons.id, lessonId) }))?.subjectFromBooking).toBe(true)
+  })
+
+  it('keeps a manual count for the same tutor and credits a new tutor only for marked presences', async () => {
+    const lessonId = await createLesson(3)
+    await db.update(lessons).set({ countsForTutor: true }).where(eq(lessons.id, lessonId))
+    expect((await reschedule(lessonId)).status).toBe(200)
+    expect((await db.query.lessons.findFirst({ where: eq(lessons.id, lessonId) }))?.countsForTutor).toBe(true)
+
+    const otherTutor = await createTutor(5)
+    expect((await reschedule(lessonId, { tutorId: otherTutor })).status).toBe(200)
+    expect((await db.query.lessons.findFirst({ where: eq(lessons.id, lessonId) }))).toMatchObject({ tutorId: otherTutor, countsForTutor: false, seats: 20 })
+  })
+
+  it('records each change with the names before and after, and nothing when nothing changed', async () => {
+    const lessonId = await createLesson(3)
+    const lesson = await db.query.lessons.findFirst({ where: eq(lessons.id, lessonId) })
+    const otherTutor = await createTutor(5)
+    expect((await reschedule(lessonId, { startAt: lesson!.startAt.toISOString() })).status).toBe(200)
+    expect(await history(lessonId)).toHaveLength(0)
+
+    const newStart = nextLessonDay()
+    expect((await reschedule(lessonId, { startAt: newStart.toISOString(), tutorId: otherTutor, durationMinutes: 90 })).status).toBe(200)
+    const [change] = await history(lessonId)
+    expect(change).toMatchObject({
+      actorId: ids.admin,
+      actorRole: 'admin',
+      before: { startAt: lesson!.startAt.toISOString(), tutorId: ids.tutor, subjectId, durationMinutes: 60 },
+      after: { startAt: newStart.toISOString(), tutorId: otherTutor, tutorName: 'Integrity Tutor', subjectId, durationMinutes: 90 }
+    })
+    expect(change.before.subjectName).toEqual(expect.any(String))
+  })
+
+  it('shows the history only to admins', async () => {
+    const lessonId = await createLesson(3)
+    expect((await reschedule(lessonId)).status).toBe(200)
+    const response = await request(`/lessons/${lessonId}/history`, { method: 'GET', token: adminToken })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toHaveLength(1)
+    expect((await request(`/lessons/${lessonId}/history`, { method: 'GET', token: tutorToken })).status).toBe(403)
+    const student = await createStudent(0)
+    expect((await request(`/lessons/${lessonId}/history`, { method: 'GET', token: student.token })).status).toBe(403)
+    expect((await reschedule(lessonId, {}, tutorToken)).status).toBe(403)
+  })
+
+  it('drops the history with a past lesson nobody booked', async () => {
+    const lessonId = await createLesson(3)
+    const past = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    expect((await reschedule(lessonId, { startAt: past.toISOString() })).status).toBe(200)
+    expect(await history(lessonId)).toHaveLength(1)
+    await deleteUnbookedLessons(new Date())
+    expect(await history(lessonId)).toHaveLength(0)
   })
 })
 

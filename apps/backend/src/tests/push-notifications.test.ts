@@ -480,7 +480,10 @@ describe('reschedule notifications', () => {
     expect(titlesFor('student')).toEqual(['Tutor cambiato'])
     expect(titlesFor('tutor')).toEqual(['Lezione riassegnata'])
     expect(titlesFor('other-tutor')).toEqual(['Nuova lezione assegnata'])
-    expect(String(sent.find(({ target }) => target.endpoint === endpoint('other-tutor'))?.payload.body)).toContain('1 studente prenotato')
+    const assigned = sent.find(({ target }) => target.endpoint === endpoint('other-tutor'))?.payload
+    expect(String(assigned?.body)).toContain('1 studente prenotato')
+    // The lesson keeps its id: the new tutor's link opens the same lesson.
+    expect(assigned).toMatchObject({ url: `/tutor/lessons/${lessonId}`, tag: `lesson-${lessonId}` })
     expect(JSON.stringify(sent)).not.toContain('Argomento privato')
   })
 

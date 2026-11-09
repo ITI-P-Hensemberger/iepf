@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { LessonSummary } from '@/components/lesson-summary'
+import { LessonHistory } from '@/components/admin-lesson-details/lesson-history'
 import { PresenceButtons } from '@/components/presence-buttons'
 import { usePresenceConfirm } from '@/components/presence-confirm'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -444,6 +445,8 @@ export default function AdminLessonDetailsPage() {
               })
             )}
           </section>
+
+          <LessonHistory lessonId={lessonId} />
         </div>
       </div>
 
