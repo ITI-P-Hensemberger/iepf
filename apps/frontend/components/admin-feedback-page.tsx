@@ -10,7 +10,9 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { History, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { keepPreviousData, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+
+import { apiFetch, jsonBody } from '@/lib/api-fetch'
 
 import {
   AlertDialog,
@@ -229,10 +231,8 @@ export default function AdminFeedbackPage() {
 
   const [editTarget, setEditTarget] = React.useState<Feedback | null>(null)
   const [editForm, setEditForm] = React.useState({ rating: '', text: '' })
-  const [isUpdating, setIsUpdating] = React.useState(false)
 
   const [deleteTarget, setDeleteTarget] = React.useState<Feedback | null>(null)
-  const [isDeleting, setIsDeleting] = React.useState(false)
   const [detailTarget, setDetailTarget] = React.useState<Feedback | null>(null)
   // Deleted feedback stays in the history: shown on request, marked, never editable.
   const [showDeleted, setShowDeleted] = React.useState(false)
@@ -409,13 +409,7 @@ export default function AdminFeedbackPage() {
   const queryClient = useQueryClient()
   const feedbackResult = useQuery({
     queryKey: ['feedback', feedbackQuery],
-    queryFn: async () => {
-      const response = await fetch(`/api/feedback?${feedbackQuery}`)
-      if (!response.ok) {
-        throw new Error('Impossibile caricare i feedback.')
-      }
-      return normalizePaged<Feedback>(await response.json())
-    },
+    queryFn: async () => normalizePaged<Feedback>(await apiFetch(`/api/feedback?${feedbackQuery}`, 'Impossibile caricare i feedback.')),
     // The rows stay in place while the next page or filter loads.
     placeholderData: keepPreviousData
   })
@@ -509,71 +503,40 @@ export default function AdminFeedbackPage() {
     })
   }, [])
 
-  const handleUpdate = React.useCallback(async () => {
-    if (!editTarget) return
+  const updateFeedback = useMutation({
+    mutationFn: ({ id, rating, text }: { id: string, rating: number, text: string }) =>
+      apiFetch(`/api/feedback/${id}`, 'Impossibile aggiornare il feedback.', jsonBody('PATCH', { rating, text: text.trim() || undefined })),
+    onSuccess: () => {
+      toast.success('Feedback aggiornato.')
+      setEditTarget(null)
+      return reloadFeedback()
+    }
+  })
+  const isUpdating = updateFeedback.isPending
 
-    const ratingValue = Number(editForm.rating)
-    if (!Number.isFinite(ratingValue) || ratingValue < 1 || ratingValue > 5) {
+  const handleUpdate = () => {
+    if (!editTarget) return
+    const rating = Number(editForm.rating)
+    if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
       toast.error('Il rating deve essere compreso tra 1 e 5.')
       return
     }
+    updateFeedback.mutate({ id: editTarget.id, rating, text: editForm.text })
+  }
 
-    setIsUpdating(true)
-    try {
-      const response = await fetch(`/api/feedback/${editTarget.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rating: ratingValue,
-          text: editForm.text.trim() || undefined
-        })
-      })
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        throw new Error(
-          payload?.message || 'Impossibile aggiornare il feedback.'
-        )
-      }
-      toast.success('Feedback aggiornato.')
-      setEditTarget(null)
-      await reloadFeedback()
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile aggiornare il feedback.'
-      )
-    } finally {
-      setIsUpdating(false)
-    }
-  }, [editForm, editTarget, reloadFeedback])
-
-  const handleDelete = React.useCallback(async () => {
-    if (!deleteTarget) return
-    setIsDeleting(true)
-    try {
-      const response = await fetch(`/api/feedback/${deleteTarget.id}`, {
-        method: 'DELETE'
-      })
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        throw new Error(
-          payload?.message || 'Impossibile eliminare il feedback.'
-        )
-      }
+  const deleteFeedback = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/feedback/${id}`, 'Impossibile eliminare il feedback.', jsonBody('DELETE')),
+    onSuccess: () => {
       toast.success('Feedback eliminato.')
       setDeleteTarget(null)
-      await reloadFeedback()
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile eliminare il feedback.'
-      )
-    } finally {
-      setIsDeleting(false)
+      return reloadFeedback()
     }
-  }, [deleteTarget, reloadFeedback])
+  })
+  const isDeleting = deleteFeedback.isPending
+
+  const handleDelete = () => {
+    if (deleteTarget) deleteFeedback.mutate(deleteTarget.id)
+  }
 
   // The list under either tab: the same rows, filtered by the open tab.
   const firstLoad = useFirstLoad(isLoading)
@@ -976,7 +939,7 @@ export default function AdminFeedbackPage() {
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
-                void handleUpdate()
+                handleUpdate()
               }}
               disabled={isUpdating}
             >
@@ -1046,7 +1009,7 @@ export default function AdminFeedbackPage() {
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
-                void handleDelete()
+                handleDelete()
               }}
               disabled={isDeleting}
             >
