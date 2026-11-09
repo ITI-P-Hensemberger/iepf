@@ -47,10 +47,11 @@ export function TutorLessonList({ lessons }: { lessons: ScheduleLesson[] }) {
 
   const presence = usePresenceConfirm()
 
-  // Pressing the mark already set takes it back; either way the tutor confirms first.
+  // Tutors can switch a mark but not take it back (the backend refuses): pressing the mark
+  // already set does nothing. Every change is confirmed first.
   const savePresence = (lesson: ScheduleLesson, booking: ScheduleBooking, present: boolean) => {
-    const next = booking.studentPresence === present ? null : present
-    presence.ask({ studentName: booking.studentName, present: next, run: () => writePresence(lesson, booking, next) })
+    if (booking.studentPresence === present) return
+    presence.ask({ studentName: booking.studentName, present, run: () => writePresence(lesson, booking, present) })
   }
 
   const reloadLessons = () => queryClient.invalidateQueries({ queryKey: ['lessons'] })

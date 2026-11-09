@@ -12,6 +12,9 @@ test('tutor marks presence in the lesson under way, from the home', async ({ pag
   await row('Paolo Conti').getByRole('button', { name: 'Presente' }).click()
   await page.getByRole('alertdialog', { name: 'Segnare Paolo Conti presente?' }).getByRole('button', { name: 'Conferma' }).click()
   await expect(row('Paolo Conti').getByRole('button', { name: 'Presente' })).toHaveAttribute('aria-pressed', 'true')
+  // Tutors cannot take a mark back: pressing it again asks nothing.
+  await row('Paolo Conti').getByRole('button', { name: 'Presente' }).click()
+  await expect(page.getByRole('alertdialog')).toHaveCount(0)
   await row('Irene Sala').getByRole('button', { name: 'Assente' }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Conferma' }).click()
   await expect(row('Irene Sala').getByRole('button', { name: 'Assente' })).toHaveAttribute('aria-pressed', 'true')

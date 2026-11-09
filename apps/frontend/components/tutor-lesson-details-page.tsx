@@ -402,8 +402,9 @@ export default function TutorLessonDetailsPage() {
                         <PresenceButtons
                           value={booking.studentPresence}
                           disabled={isSaving}
-                          onPresent={() => presence.ask({ studentName: studentLabel(student), present: booking.studentPresence === true ? null : true, run: () => handlePresenceSave(booking, booking.studentPresence === true ? null : true) })}
-                          onAbsent={() => presence.ask({ studentName: studentLabel(student), present: booking.studentPresence === false ? null : false, run: () => handlePresenceSave(booking, booking.studentPresence === false ? null : false) })}
+                          // Tutors can switch a mark but not take it back (the backend refuses).
+                          onPresent={() => booking.studentPresence !== true && presence.ask({ studentName: studentLabel(student), present: true, run: () => handlePresenceSave(booking, true) })}
+                          onAbsent={() => booking.studentPresence !== false && presence.ask({ studentName: studentLabel(student), present: false, run: () => handlePresenceSave(booking, false) })}
                         />
                       )}
                     </div>
