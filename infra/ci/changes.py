@@ -38,11 +38,9 @@ def classify(paths):
             if path == API_TYPES:
                 result['backend_checks'] = True
             for app in APPS:
-                if path.startswith(f'apps/{app}/'):
-                    result[f'{app}_checks'] = True
-                    # Documentation never reaches the running image's behaviour.
-                    if not path.endswith('.md'):
-                        result[f'{app}_release'] = True
+                # Documentation is neither linted, tested nor shipped: it needs no checks.
+                if path.startswith(f'apps/{app}/') and not path.endswith('.md'):
+                    result[f'{app}_checks'] = result[f'{app}_release'] = True
     return result
 
 
