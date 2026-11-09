@@ -21,9 +21,11 @@ on:
         type: string
 permissions:
   contents: read
+# Every job names its Ubuntu release: a move to the next one is its own PR, proved by the CI,
+# not a label that changes under us (ubuntu-latest).
 jobs:
   changes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       backend_checks: ${{ steps.plan.outputs.backend_checks }}
       backend_release: ${{ steps.plan.outputs.backend_release }}
@@ -53,7 +55,7 @@ jobs:
   backend-checks:
     needs: changes
     if: needs.changes.outputs.backend_checks == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -118,7 +120,7 @@ jobs:
   frontend-checks:
     needs: changes
     if: needs.changes.outputs.frontend_checks == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -144,7 +146,7 @@ jobs:
   e2e:
     needs: changes
     if: needs.changes.outputs.backend_checks == 'true' || needs.changes.outputs.frontend_checks == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     services:
       postgres:
@@ -191,7 +193,7 @@ jobs:
   infra-checks:
     needs: changes
     if: needs.changes.outputs.infra_checks == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: infra
@@ -228,7 +230,7 @@ jobs:
   checks-passed:
     needs: [backend-checks, frontend-checks, e2e, infra-checks]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - env:
           FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
@@ -238,7 +240,7 @@ jobs:
   backend-image:
     needs: changes
     if: needs.changes.outputs.backend_release == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       packages: write
@@ -286,7 +288,7 @@ jobs:
   frontend-image:
     needs: changes
     if: needs.changes.outputs.frontend_release == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       packages: write
@@ -328,7 +330,7 @@ jobs:
         || needs.changes.outputs.backend_release == 'true'
         || needs.changes.outputs.frontend_release == 'true'
         || needs.changes.outputs.infra_release == 'true')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 60
     concurrency:
       group: production
