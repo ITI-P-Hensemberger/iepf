@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useQuery } from '@tanstack/react-query'
 
 export type SessionProfile = {
   id?: string
@@ -22,43 +23,40 @@ type UseSessionResult = {
   refresh: () => Promise<void>
 }
 
+export const SESSION_KEY = ['session']
+
+async function fetchSession(): Promise<SessionProfile | null> {
+  const response = await fetch('/api/auth/session', { cache: 'no-store' }).catch(() => {
+    throw new Error('Impossibile recuperare la sessione.')
+  })
+  // Signed out (or the session expired): no profile, not an error.
+  if (!response.ok) return null
+  return (await response.json()) as SessionProfile | null
+}
+
+// The signed-in user, read once for every guard, header and page on screen, and again when a new
+// page mounts. The login drops it (logout and impersonation reload the page), so no guard sees
+// the signed-out answer from before.
 export function useSession(): UseSessionResult {
-  const [profile, setProfile] = React.useState<SessionProfile | null>(null)
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
+  const query = useQuery({
+    queryKey: SESSION_KEY,
+    queryFn: fetchSession,
+    retry: false,
+    meta: { inline: true }
+  })
 
-  const fetchSession = React.useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
+  const { refetch } = query
+  const refresh = React.useCallback(async () => {
+    await refetch()
+  }, [refetch])
 
-    try {
-      const response = await fetch('/api/auth/session', { cache: 'no-store' })
-      if (!response.ok) {
-        setProfile(null)
-        setIsLoading(false)
-        return
-      }
-      const data = (await response.json()) as SessionProfile | null
-      setProfile(data)
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Impossibile recuperare la sessione.'
-      )
-      setProfile(null)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
-
-  React.useEffect(() => {
-    void fetchSession()
-  }, [fetchSession])
-
+  const profile = query.data ?? null
   return {
     profile,
-    isLoading,
+    // Only the first load: a reread keeps what is on screen, so the guards never unmount the page.
+    isLoading: query.isPending,
     isAuthenticated: Boolean(profile),
-    error,
-    refresh: fetchSession
+    error: query.error?.message ?? null,
+    refresh
   }
 }
