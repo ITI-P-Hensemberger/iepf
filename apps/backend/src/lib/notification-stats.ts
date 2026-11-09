@@ -7,7 +7,7 @@ import { notificationPreferences } from '@/db/schemas/notification-preferences.s
 import { notifications } from '@/db/schemas/notifications.schema'
 import { pushSubscriptions } from '@/db/schemas/push-subscriptions.schema'
 import { KEEP_NOTIFICATIONS_DAYS } from '@/lib/notification-inbox'
-import { PUSH_CATEGORIES } from '@/lib/push'
+import { SWITCHABLE_CATEGORIES } from '@/lib/push'
 
 export interface NotificationStats {
   keepDays: number
@@ -36,16 +36,16 @@ export async function readNotificationStats(): Promise<NotificationStats> {
       devices: sql<number>`count(*)::int`,
       workingLast30Days: sql<number>`count(*) filter (where ${pushSubscriptions.lastSuccessAt} > now() - interval '30 days')::int`
     }).from(pushSubscriptions).groupBy(pushService),
-    db.select(Object.fromEntries(PUSH_CATEGORIES.map(category => [
+    db.select(Object.fromEntries(SWITCHABLE_CATEGORIES.map(category => [
       category,
       sql<number>`count(*) filter (where ${notificationPreferences[category]} = false)::int`
-    ])) as Record<typeof PUSH_CATEGORIES[number], ReturnType<typeof sql<number>>>).from(notificationPreferences)
+    ])) as Record<typeof SWITCHABLE_CATEGORIES[number], ReturnType<typeof sql<number>>>).from(notificationPreferences)
   ])
   const optOuts = preferenceRows[0] as Record<string, number> | undefined
   return {
     keepDays: KEEP_NOTIFICATIONS_DAYS,
     inbox: inbox.sort((a, b) => b.total - a.total),
     devices: devices.sort((a, b) => b.devices - a.devices),
-    optOuts: PUSH_CATEGORIES.map(category => ({ category, users: Number(optOuts?.[category] ?? 0) })).filter(row => row.users > 0)
+    optOuts: SWITCHABLE_CATEGORIES.map(category => ({ category, users: Number(optOuts?.[category] ?? 0) })).filter(row => row.users > 0)
   }
 }

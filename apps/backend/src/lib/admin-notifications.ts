@@ -2,7 +2,7 @@
 import { and, eq } from 'drizzle-orm'
 
 import type { MailBatch } from '@/lib/mail-batch'
-import type { AdminCategory, PushMessage } from '@/lib/push'
+import type { AdminNoticeCategory, PushMessage } from '@/lib/push'
 import type { PushBatch } from '@/lib/reminder-delivery'
 
 import db from '@/db'
@@ -27,13 +27,13 @@ export async function activeAdmins() {
     .where(and(eq(users.role, 'admin'), eq(adminProfiles.isActive, true)))
 }
 
-async function emailRecipients(admins: Array<{ id: string, email: string }>, category: AdminCategory) {
+async function emailRecipients(admins: Array<{ id: string, email: string }>, category: AdminNoticeCategory) {
   const wanted = new Set(await usersWanting(admins.map(admin => admin.id), emailPreference(category)))
   return admins.filter(admin => wanted.has(admin.id))
 }
 
 // For request handlers: never awaited and never throws, like the emails beside it.
-export function notifyAdmins(category: AdminCategory, build: () => Promise<AdminNotice | null>) {
+export function notifyAdmins(category: AdminNoticeCategory, build: () => Promise<AdminNotice | null>) {
   trackNotificationTask((async () => {
     const notice = await build()
     if (!notice) {
@@ -49,7 +49,7 @@ export function notifyAdmins(category: AdminCategory, build: () => Promise<Admin
 }
 
 // For jobs: claimed per admin and channel, so a rerun sends neither twice.
-export async function notifyAdminsOnce(batches: { mail: MailBatch, push: PushBatch }, key: string, category: AdminCategory, notice: AdminNotice) {
+export async function notifyAdminsOnce(batches: { mail: MailBatch, push: PushBatch }, key: string, category: AdminNoticeCategory, notice: AdminNotice) {
   const admins = await activeAdmins()
   for (const admin of await emailRecipients(admins, category)) {
     await sendReminderOnce(batches.mail, `${key}:${admin.id}`, { to: admin.email, ...notice.email })

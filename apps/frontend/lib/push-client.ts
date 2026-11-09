@@ -8,14 +8,15 @@ export type PushSupport =
   | 'ios-needs-install'
   | 'unsupported'
 
-export const USER_CATEGORIES = ['bookings', 'reminders', 'feedback', 'account', 'lessons'] as const
+// Only the kinds people can switch off: lesson changes, account and the empty week always arrive.
+export const USER_CATEGORIES = ['bookings', 'reminders', 'feedback', 'lessons'] as const
 export const ADMIN_CATEGORIES = [
   'adminLowFeedback',
   'adminLateCancellations',
   'adminAbsences',
-  'adminEmptyWeek',
   'adminPendingAdmins',
-  'adminSubjectRequests'
+  'adminSubjectRequests',
+  'adminMissingPresence'
 ] as const
 export type UserCategory = typeof USER_CATEGORIES[number]
 export type AdminCategory = typeof ADMIN_CATEGORIES[number]

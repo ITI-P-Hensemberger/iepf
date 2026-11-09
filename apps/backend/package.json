@@ -31,6 +31,7 @@
     "cleanup:data": "tsx src/scripts/cleanup-data.ts",
     "remind:feedback": "tsx src/scripts/remind-missing-feedback.ts",
     "remind:lessons": "tsx src/scripts/remind-upcoming-lessons.ts",
+    "remind:presence": "tsx src/scripts/remind-missing-presence.ts",
     "test:watch": "cross-env NODE_ENV=test vitest",
     "seed:dev": "tsx src/scripts/seed-dev.ts",
     "seed:lesson-scenarios": "tsx src/scripts/seed-lesson-scenarios.ts",

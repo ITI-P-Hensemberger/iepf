@@ -197,7 +197,7 @@ describe('logout', () => {
 describe('preferences', () => {
   it('starts with every kind enabled and changes one at a time', async () => {
     const initial = await call('/notifications/preferences', { token: tokens.student })
-    expect(await initial.json()).toMatchObject({ bookings: true, reminders: true, feedback: true, account: true, lessons: true, adminLowFeedback: true, emailAdminLowFeedback: true })
+    expect(await initial.json()).toMatchObject({ bookings: true, reminders: true, feedback: true, lessons: true, adminLowFeedback: true, emailAdminLowFeedback: true, adminMissingPresence: true })
 
     const updated = await call('/notifications/preferences', { token: tokens.student, method: 'PUT', body: { reminders: false } })
     expect(await updated.json()).toMatchObject({ reminders: false, bookings: true })

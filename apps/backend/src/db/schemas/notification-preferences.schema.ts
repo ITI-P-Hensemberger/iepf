@@ -9,6 +9,8 @@ export const notificationPreferences = pgTable('notification_preferences', {
   bookings: boolean().notNull().default(true),
   reminders: boolean().notNull().default(true),
   feedback: boolean().notNull().default(true),
+  // shortcut: account, adminEmptyWeek and emailAdminEmptyWeek are always on now and no longer
+  // read; kept so a rollback to the previous image still finds them, drop them in a later release.
   account: boolean().notNull().default(true),
   lessons: boolean().notNull().default(true),
   // Push, admins.
@@ -18,6 +20,7 @@ export const notificationPreferences = pgTable('notification_preferences', {
   adminEmptyWeek: boolean().notNull().default(true),
   adminPendingAdmins: boolean().notNull().default(true),
   adminSubjectRequests: boolean().notNull().default(true),
+  adminMissingPresence: boolean().notNull().default(true),
   // Email, admins: the same kinds, chosen apart from push.
   emailAdminLowFeedback: boolean().notNull().default(true),
   emailAdminLateCancellations: boolean().notNull().default(true),
@@ -25,6 +28,7 @@ export const notificationPreferences = pgTable('notification_preferences', {
   emailAdminEmptyWeek: boolean().notNull().default(true),
   emailAdminPendingAdmins: boolean().notNull().default(true),
   emailAdminSubjectRequests: boolean().notNull().default(true),
+  emailAdminMissingPresence: boolean().notNull().default(true),
   updatedAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()
     .notNull()

@@ -1,0 +1,11 @@
+[Unit]
+Description=IEPF remind-presence schedule
+
+[Timer]
+# Every 5 minutes through the school day: a lesson is flagged 20 to 25 minutes in.
+OnCalendar=Mon..Sat *-*-* 08..20:00/5:00 Europe/Rome
+Unit=iepf-job@remind-presence.service
+Persistent=false
+
+[Install]
+WantedBy=timers.target

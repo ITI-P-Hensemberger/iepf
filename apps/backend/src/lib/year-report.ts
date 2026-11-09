@@ -27,6 +27,7 @@ const ROLE_LABEL: Record<string, string> = { student: 'Studente', tutor: 'Tutor'
 
 const CATEGORY_LABEL: Record<string, string> = {
   bookings: 'Prenotazioni',
+  updates: 'Avvisi sulle lezioni',
   reminders: 'Promemoria',
   feedback: 'Feedback',
   account: 'Account',
@@ -37,6 +38,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   adminEmptyWeek: 'Settimana vuota',
   adminPendingAdmins: 'Admin in attesa',
   adminSubjectRequests: 'Richieste materie',
+  adminMissingPresence: 'Presenze non segnate',
   other: 'Altro'
 }
 

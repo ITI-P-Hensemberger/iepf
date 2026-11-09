@@ -85,7 +85,8 @@ Prima attivazione:
 4. Dopo il successo eseguire `bash /opt/iepf/current/install-timers.sh` sulla VPS: installa i timer e
    rimuove solo i vecchi cron IEPF. Gli orari sono in Europe/Rome: backup 02:00,
    pulizia dati 03:30, riepilogo admin 08:00, reminder lezioni oggi 12:00, domani 20:30,
-   feedback 17:00; generazione lezioni sabato 12:00. Non recupera automaticamente gli invii persi dopo un downtime.
+   feedback 17:00, presenze non segnate ogni 5 minuti dalle 08:00 alle 20:55 (lun-sab);
+   generazione lezioni sabato 12:00. Non recupera automaticamente gli invii persi dopo un downtime.
 5. Rilasciare backend e frontend: le build e i successivi deploy sono automatici.
 
 Le immagini di manutenzione sono costruite dallo stesso commit del backend e
@@ -216,6 +217,11 @@ giorni da lunedì a venerdì sono di chiusura; admin in attesa di attivazione e 
 materie delle ultime 24 ore arrivano dal riepilogo delle 08:00 (`iepf-job@notify-admins`).
 Un admin disattivato a mano non conta come in attesa. Dopo il deploy che introduce il
 riepilogo, rieseguire `install-timers.sh` per installare il nuovo timer.
+
+Presenze non segnate (`iepf-job@remind-presence`, ogni 5 minuti): 20 minuti dopo l'inizio
+di una lezione con studenti ancora né presenti né assenti, il tutor riceve un promemoria
+e gli admin un avviso, una volta sola per lezione. Dopo il deploy che lo introduce,
+rieseguire `install-timers.sh`.
 
 Ogni invio fallito con 404 o 410 elimina il dispositivo; gli altri errori finiscono nel
 log senza far fallire i job, perché l'email resta il canale di riferimento. La pulizia

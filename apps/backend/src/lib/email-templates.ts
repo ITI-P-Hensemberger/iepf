@@ -275,6 +275,32 @@ export function buildProfileUpdatedMessage() {
   })
 }
 
+// Sent to the old address: whoever still reads it learns where the account went.
+export function buildEmailChangedMessage(newEmail: string) {
+  return compose({
+    subject: 'Il tuo indirizzo email è stato cambiato',
+    title: 'Email cambiata',
+    blocks: [
+      para('Gli organizzatori hanno cambiato l\'indirizzo email del tuo account IEPF. Da ora le email arrivano al nuovo indirizzo.'),
+      card('Nuovo indirizzo', [line(newEmail)]),
+      contact('Se non ti aspettavi questa modifica,')
+    ]
+  })
+}
+
+export function buildLessonHoursChangedMessage(params: { delta: number, balance: number }) {
+  const amount = Math.abs(params.delta) === 1 ? '1 ora' : `${Math.abs(params.delta)} ore`
+  return compose({
+    subject: params.delta > 0 ? 'Ore di lezione aggiunte' : 'Ore di lezione tolte',
+    blocks: [
+      para(params.delta > 0 ? `Gli organizzatori ti hanno aggiunto ${amount} di lezione.` : `Gli organizzatori ti hanno tolto ${amount} di lezione.`),
+      card('Ore rimanenti', [line(String(params.balance))]),
+      contact('Per chiarimenti')
+    ],
+    action: { label: 'Prenota una lezione', url: siteUrl('/student/book') }
+  })
+}
+
 export function buildPasswordChangedMessage() {
   return compose({
     subject: 'Password aggiornata',
@@ -620,6 +646,37 @@ export function buildAbsenceAdminMessage(params: {
         field('Studente', buildStudentLabel(params.studentName, params.studentClass)),
         field('Tutor', params.tutorName)
       ])
+    ],
+    action: { label: 'Vedi la lezione', url: siteUrl(`/admin/lessons/${params.lessonId}`) }
+  })
+}
+
+export function buildMissingPresenceTutorMessage(params: {
+  lessonId: string
+  subjectName: string
+  lessonStartAt: Date
+}) {
+  return compose({
+    subject: 'Segna le presenze',
+    blocks: [
+      para('La lezione è iniziata da 20 minuti e le presenze non sono ancora segnate.'),
+      lessonCard(params.subjectName, params.lessonStartAt, [])
+    ],
+    action: { label: 'Segna le presenze', url: siteUrl(`/tutor/lessons/${params.lessonId}`) }
+  })
+}
+
+export function buildMissingPresenceAdminMessage(params: {
+  lessonId: string
+  subjectName: string
+  lessonStartAt: Date
+  tutorName: string
+}) {
+  return compose({
+    subject: 'Presenze non segnate',
+    blocks: [
+      para('La lezione è iniziata da 20 minuti e il tutor non ha ancora segnato le presenze.'),
+      lessonCard(params.subjectName, params.lessonStartAt, [field('Tutor', params.tutorName)])
     ],
     action: { label: 'Vedi la lezione', url: siteUrl(`/admin/lessons/${params.lessonId}`) }
   })

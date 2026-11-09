@@ -11,6 +11,7 @@ case "${1:-}" in
   generate-lessons) TASK=generate:lessons ;;
   notify-admins) TASK=notify:admins ;;
   remind-feedback) TASK=remind:feedback ;;
+  remind-presence) TASK=remind:presence ;;
   remind-lessons-today) TASK=remind:lessons; ARGS=(-- --today) ;;
   remind-lessons-tomorrow) TASK=remind:lessons; ARGS=(-- --tomorrow) ;;
   *) echo 'Unknown job' >&2; exit 1 ;;

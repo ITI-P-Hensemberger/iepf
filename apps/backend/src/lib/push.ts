@@ -12,27 +12,38 @@ import { countInBackground } from '@/lib/analytics'
 import { recordNotifications, unreadCounts } from '@/lib/notification-inbox'
 import { createWebPushTransport } from '@/lib/web-push'
 
-export const USER_CATEGORIES = ['bookings', 'reminders', 'feedback', 'account', 'lessons'] as const
+// Students and tutors switch these off by push; the panel keeps them anyway.
+export const USER_CATEGORIES = ['bookings', 'reminders', 'feedback', 'lessons'] as const
 // Admins only; each one goes out by push and by email, switched on and off separately.
 export const ADMIN_CATEGORIES = [
   'adminLowFeedback',
   'adminLateCancellations',
   'adminAbsences',
-  'adminEmptyWeek',
   'adminPendingAdmins',
-  'adminSubjectRequests'
+  'adminSubjectRequests',
+  'adminMissingPresence'
 ] as const
-export const PUSH_CATEGORIES = [...USER_CATEGORIES, ...ADMIN_CATEGORIES] as const
+// Always sent, on every channel: news that changes what someone has to do or where they have
+// to be, and that they did not decide themselves. No switch turns them off.
+export const ALWAYS_ON_CATEGORIES = ['updates', 'account', 'adminEmptyWeek'] as const
+export const PUSH_CATEGORIES = [...USER_CATEGORIES, ...ADMIN_CATEGORIES, ...ALWAYS_ON_CATEGORIES] as const
 export type PushCategory = typeof PUSH_CATEGORIES[number]
 export type AdminCategory = typeof ADMIN_CATEGORIES[number]
+// What an admin notice goes out as: a switchable kind, or the empty week that is always sent.
+export type AdminNoticeCategory = AdminCategory | 'adminEmptyWeek'
 export type EmailPreference = `email${Capitalize<AdminCategory>}`
 
-export function emailPreference(category: AdminCategory): EmailPreference {
-  return `email${category.charAt(0).toUpperCase()}${category.slice(1)}` as EmailPreference
+export function emailPreference<C extends AdminNoticeCategory>(category: C) {
+  return `email${category.charAt(0).toUpperCase()}${category.slice(1)}` as `email${Capitalize<C>}`
 }
 
-export const PREFERENCE_KEYS = [...PUSH_CATEGORIES, ...ADMIN_CATEGORIES.map(emailPreference)] as const
-export type PreferenceKey = PushCategory | EmailPreference
+export const SWITCHABLE_CATEGORIES = [...USER_CATEGORIES, ...ADMIN_CATEGORIES] as const
+export const PREFERENCE_KEYS = [...SWITCHABLE_CATEGORIES, ...ADMIN_CATEGORIES.map(emailPreference)] as const
+export type PreferenceKey = typeof SWITCHABLE_CATEGORIES[number] | EmailPreference
+
+export function isPreferenceKey(key: string): key is PreferenceKey {
+  return (PREFERENCE_KEYS as readonly string[]).includes(key)
+}
 
 export interface PushMessage {
   title: string
@@ -92,10 +103,10 @@ export async function getPreferences(userId: string) {
   return Object.fromEntries(PREFERENCE_KEYS.map(key => [key, row?.[key] ?? true])) as Record<PreferenceKey, boolean>
 }
 
-// Users without a row have every kind switched on.
-export async function usersWanting(userIds: string[], key: PreferenceKey) {
-  if (userIds.length === 0) {
-    return []
+// Users without a row have every kind switched on; an always-on kind reaches everyone.
+export async function usersWanting(userIds: string[], key: PushCategory | `email${Capitalize<AdminNoticeCategory>}`) {
+  if (userIds.length === 0 || !isPreferenceKey(key)) {
+    return userIds
   }
   const optedOut = await db.select({ userId: notificationPreferences.userId })
     .from(notificationPreferences)

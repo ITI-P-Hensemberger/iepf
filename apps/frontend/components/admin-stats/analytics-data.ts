@@ -29,6 +29,7 @@ export const ROLE_COLORS: Record<Role, string> = {
 
 export const CATEGORY_LABELS: Record<string, string> = {
   bookings: 'Prenotazioni',
+  updates: 'Avvisi sulle lezioni',
   reminders: 'Promemoria',
   feedback: 'Feedback',
   account: 'Account',
@@ -39,6 +40,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   adminEmptyWeek: 'Settimana vuota',
   adminPendingAdmins: 'Admin in attesa',
   adminSubjectRequests: 'Richieste materie',
+  adminMissingPresence: 'Presenze non segnate',
   other: 'Altro'
 }
 

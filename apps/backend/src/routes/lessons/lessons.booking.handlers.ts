@@ -23,7 +23,7 @@ import { getStudentTokenBalance, lockUsers } from '@/lib/lesson-tokens'
 import { sendMail } from '@/lib/mailer'
 import { containsProfanity } from '@/lib/profanity'
 import { notifyUsers } from '@/lib/push'
-import { bookingCanceledPush, bookingConfirmedPush } from '@/lib/push-messages'
+import { bookingCanceledPush, bookingConfirmedPush, lessonHoursExhaustedPush, presenceMarkedPush } from '@/lib/push-messages'
 import { bookingCutoff, isSameSchoolDay, schoolDayKey, schoolTime } from '@/lib/school-time'
 import { tutorCanTeachStudent } from '@/lib/school-years'
 
@@ -317,8 +317,13 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
   }
 
   const bookedLesson = { lessonId: lesson.id, subjectName: lessonDetails?.subjectName ?? 'Lezione', startAt: new Date(lesson.startAt) }
-  notifyUsers([studentUser.id], 'bookings', bookingConfirmedPush('student', bookedLesson))
+  // Booked by an admin, the student did not choose it: it is news they cannot switch off.
+  notifyUsers([studentUser.id], isAdmin ? 'updates' : 'bookings', bookingConfirmedPush('student', bookedLesson))
   notifyUsers([lesson.tutorId], 'bookings', bookingConfirmedPush('tutor', bookedLesson))
+  // This booking used the last hour: the student learns it now, not at the next booking.
+  if (await getStudentTokenBalance(studentUser.id) === 0) {
+    notifyUsers([studentUser.id], 'account', lessonHoursExhaustedPush())
+  }
 
   const updatedConfirmedCount = confirmedCount + 1
   const updatedDailyBookings = dailyBookings + 1
@@ -528,11 +533,13 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
   }
 
   const canceledBooking = { lessonId: lesson.id, subjectName: lessonDetails?.subjectName ?? 'Lezione', startAt: new Date(lesson.startAt) }
-  notifyUsers([booking.studentId], 'bookings', bookingCanceledPush('student', canceledBooking))
+  const byAdmin = currentUser.role === 'admin'
+  notifyUsers([booking.studentId], byAdmin ? 'updates' : 'bookings', bookingCanceledPush('student', canceledBooking))
   if (lateSameDayCancel) {
     notifyLateCancellation({ lessonId: lesson.id, studentId: booking.studentId })
   }
-  notifyUsers([lesson.tutorId], 'bookings', bookingCanceledPush('tutor', canceledBooking))
+  // The tutor cannot miss a cancellation on the lesson's own day, nor one an admin made.
+  notifyUsers([lesson.tutorId], byAdmin || lateSameDayCancel ? 'updates' : 'bookings', bookingCanceledPush('tutor', canceledBooking))
 
   const updated = await db.query.lessonBookings.findFirst({
     where(fields, operators) {
@@ -657,6 +664,14 @@ export const setBookingPresence: AppRouteHandler<SetBookingPresenceRoute> = asyn
         text: message.text,
         html: message.html
       }).catch(err => console.error('Failed to send presence update email:', err))
+    }
+    if (lessonDetails) {
+      notifyUsers([booking.studentId], 'updates', presenceMarkedPush({
+        lessonId: lesson.id,
+        subjectName: lessonDetails.subjectName,
+        startAt: new Date(lesson.startAt),
+        present: payload.present
+      }))
     }
   }
 

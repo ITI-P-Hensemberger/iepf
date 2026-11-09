@@ -32,25 +32,25 @@ export const unsubscribeSchema = z.object({
   endpoint: z.string().max(2048)
 })
 
-// The admin* keys matter only to admins; email* ones are their email switches.
+// The admin* keys matter only to admins; email* ones are their email switches. Kinds that are
+// always sent (lesson changes, account, empty week) have no switch.
 export const preferencesSchema = z.object({
   bookings: z.boolean(),
   reminders: z.boolean(),
   feedback: z.boolean(),
-  account: z.boolean(),
   lessons: z.boolean(),
   adminLowFeedback: z.boolean(),
   adminLateCancellations: z.boolean(),
   adminAbsences: z.boolean(),
-  adminEmptyWeek: z.boolean(),
   adminPendingAdmins: z.boolean(),
   adminSubjectRequests: z.boolean(),
+  adminMissingPresence: z.boolean(),
   emailAdminLowFeedback: z.boolean(),
   emailAdminLateCancellations: z.boolean(),
   emailAdminAbsences: z.boolean(),
-  emailAdminEmptyWeek: z.boolean(),
   emailAdminPendingAdmins: z.boolean(),
-  emailAdminSubjectRequests: z.boolean()
+  emailAdminSubjectRequests: z.boolean(),
+  emailAdminMissingPresence: z.boolean()
 })
 
 export const updatePreferencesSchema = preferencesSchema.partial()
