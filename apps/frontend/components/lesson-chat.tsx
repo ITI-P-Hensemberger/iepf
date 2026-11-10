@@ -94,6 +94,7 @@ function PushBanner({ role }: { role: ChatRole }) {
 // read-only, in the organizers' dialog.
 function ChatConversation({ target, role, className }: { target: Target, role: ChatRole | 'admin', className?: string }) {
   const readOnly = role === 'admin'
+  const phone = usePhone()
   const queryClient = useQueryClient()
   const [text, setText] = React.useState('')
   const listRef = React.useRef<HTMLDivElement>(null)
@@ -176,8 +177,9 @@ function ChatConversation({ target, role, className }: { target: Target, role: C
             rows={2}
             placeholder='Scrivi un messaggio'
             onChange={(event) => setText(capitalizeFirst(event.target.value))}
+            // Computers: Enter sends, Shift+Enter starts a new line. Phones: Enter is a new line, the button sends.
             onKeyDown={(event) => {
-              if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submit(event)
+              if (event.key === 'Enter' && !event.shiftKey && !phone && !event.nativeEvent.isComposing) submit(event)
             }}
             className='min-h-0 flex-1 resize-none'
           />
