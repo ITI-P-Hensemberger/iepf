@@ -26,6 +26,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { capitalizeFirst } from '@/lib/capitalize'
 import { FEEDBACK_LOCKED_NOTICE, FeedbackHistoryToggle } from '@/components/feedback-history'
+import { ChatButton } from '@/components/lesson-chat'
 
 export type StudentLesson = {
   id: string
@@ -115,7 +116,9 @@ export function StudentLessonCard({
   showDay = true,
   highlight = false,
   onCancel,
-  onFeedback
+  onFeedback,
+  onChat,
+  unread
 }: {
   lesson: StudentLesson
   feedback?: StudentFeedback
@@ -123,14 +126,18 @@ export function StudentLessonCard({
   highlight?: boolean
   onCancel: (lesson: StudentLesson) => void
   onFeedback: (lesson: StudentLesson) => void
+  // Given, the chat with the tutor takes the place of the email link.
+  onChat?: (lesson: StudentLesson) => void
+  unread?: number
 }) {
   const start = new Date(lesson.startAt)
   const end = new Date(start.getTime() + lesson.durationMinutes * 60_000)
   const { canceled, canCancel, canRate, running } = lessonActions(lesson)
   const tutorEmail = lesson.tutorEmail?.trim()
-  const showWrite = Boolean(tutorEmail) && !canceled
+  const showChat = Boolean(onChat)
+  const showWrite = !showChat && Boolean(tutorEmail) && !canceled
   const showFeedback = canRate || Boolean(feedback)
-  const actionCount = [showWrite, showFeedback, canCancel].filter(Boolean).length
+  const actionCount = [showChat, showWrite, showFeedback, canCancel].filter(Boolean).length
   const actionClass = actionCount > 1 ? 'h-auto min-h-8 flex-1 whitespace-normal sm:flex-none' : undefined
   return (
     <div className={cn('space-y-3 rounded-lg border bg-card p-4', highlight && 'border-primary', canceled && 'opacity-70')}>
@@ -155,6 +162,7 @@ export function StudentLessonCard({
         // On phones two actions share the row in halves, one alone keeps its size; on wider
         // screens they sit at the two ends.
         <div className='flex gap-2 sm:justify-between'>
+          {showChat && <ChatButton unread={unread} className={actionClass} onClick={() => onChat?.(lesson)} />}
           {showWrite && (
             <Button asChild size='sm' variant='outline' className={actionClass}>
               <a href={`mailto:${tutorEmail}`}><Mail className='h-4 w-4' /> Scrivi al tutor</a>

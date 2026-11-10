@@ -11,6 +11,7 @@ import classSections from '@/routes/class-sections/class-sections.index'
 import faqs from '@/routes/faqs/faqs.index'
 import feedback from '@/routes/feedback/feedback.index'
 import health from '@/routes/health.route'
+import lessonMessages from '@/routes/lesson-messages/lesson-messages.index'
 import lessons from '@/routes/lessons/lessons.index'
 import links from '@/routes/links/links.index'
 import notifications from '@/routes/notifications/notifications.index'
@@ -39,6 +40,7 @@ const routes = [
   faqs,
   feedback,
   health,
+  lessonMessages,
   lessons,
   links,
   notifications,

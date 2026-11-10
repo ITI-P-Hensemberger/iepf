@@ -340,3 +340,15 @@ export function subjectRequestsPush(requests: Array<{ subjectName: string, count
     tag: 'subject-requests'
   }
 }
+
+// A new chat message. Never its text: lock screens show it, often on minors' phones.
+// The link opens the chat itself (?chat=), on the student's list or the tutor's lesson page.
+export function chatMessagePush(role: Role, params: { lessonId: string, bookingId: string, subjectName: string, startAt: Date }): PushMessage {
+  const page = role === 'tutor' ? `/tutor/lessons/${params.lessonId}` : '/student/lessons'
+  return {
+    title: 'Nuovo messaggio',
+    body: lines(params.subjectName, when(params.startAt)),
+    url: `${page}?chat=${params.bookingId}`,
+    tag: `chat-${params.bookingId}`
+  }
+}

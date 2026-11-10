@@ -7319,6 +7319,574 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/lessons/{lessonId}/bookings/{bookingId}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    lessonId: string;
+                    bookingId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The chat, oldest message first */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            open: boolean;
+                            messages: {
+                                id: string;
+                                /** @enum {string} */
+                                senderRole: "student" | "tutor";
+                                mine: boolean;
+                                body: string;
+                                createdAt: string;
+                                readAt: string | null;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Invalid credentials */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Non autorizzato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Not part of this booking */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Accesso negato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Booking not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Non trovato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Validation error(s) */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Dati non validi",
+                             *       "name": "ZodError",
+                             *       "issues": [
+                             *         {
+                             *           "code": "invalid_type",
+                             *           "path": [
+                             *             "lessonId"
+                             *           ],
+                             *           "message": "Invalid input: expected string, received undefined"
+                             *         },
+                             *         {
+                             *           "code": "invalid_type",
+                             *           "path": [
+                             *             "bookingId"
+                             *           ],
+                             *           "message": "Invalid input: expected string, received undefined"
+                             *         }
+                             *       ]
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                issues: {
+                                    code: string;
+                                    path: (string | number)[];
+                                    message?: string;
+                                }[];
+                                name: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    lessonId: string;
+                    bookingId: string;
+                };
+                cookie?: never;
+            };
+            /** @description The message */
+            requestBody: {
+                content: {
+                    "application/json": {
+                        body: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Message sent */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            /** @enum {string} */
+                            senderRole: "student" | "tutor";
+                            mine: boolean;
+                            body: string;
+                            createdAt: string;
+                            readAt: string | null;
+                        };
+                    };
+                };
+                /** @description Inappropriate language */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Il messaggio contiene parole non consentite."
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid credentials */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Non autorizzato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Not part of this booking */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Accesso negato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Booking not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Non trovato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Lesson ended or canceled */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "La chat è chiusa."
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Validation error(s) */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Dati non validi",
+                             *       "name": "ZodError",
+                             *       "issues": [
+                             *         {
+                             *           "code": "invalid_type",
+                             *           "path": [
+                             *             "body"
+                             *           ],
+                             *           "message": "Invalid input: expected string, received undefined"
+                             *         }
+                             *       ]
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                issues: {
+                                    code: string;
+                                    path: (string | number)[];
+                                    message?: string;
+                                }[];
+                                name: string;
+                            };
+                        } | {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Dati non validi",
+                             *       "name": "ZodError",
+                             *       "issues": [
+                             *         {
+                             *           "code": "invalid_type",
+                             *           "path": [
+                             *             "lessonId"
+                             *           ],
+                             *           "message": "Invalid input: expected string, received undefined"
+                             *         },
+                             *         {
+                             *           "code": "invalid_type",
+                             *           "path": [
+                             *             "bookingId"
+                             *           ],
+                             *           "message": "Invalid input: expected string, received undefined"
+                             *         }
+                             *       ]
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                issues: {
+                                    code: string;
+                                    path: (string | number)[];
+                                    message?: string;
+                                }[];
+                                name: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lessons/{lessonId}/bookings/{bookingId}/messages/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    lessonId: string;
+                    bookingId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The other person's messages are read */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid credentials */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Non autorizzato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Not part of this booking */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Accesso negato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Booking not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Non trovato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Validation error(s) */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Dati non validi",
+                             *       "name": "ZodError",
+                             *       "issues": [
+                             *         {
+                             *           "code": "invalid_type",
+                             *           "path": [
+                             *             "lessonId"
+                             *           ],
+                             *           "message": "Invalid input: expected string, received undefined"
+                             *         },
+                             *         {
+                             *           "code": "invalid_type",
+                             *           "path": [
+                             *             "bookingId"
+                             *           ],
+                             *           "message": "Invalid input: expected string, received undefined"
+                             *         }
+                             *       ]
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                issues: {
+                                    code: string;
+                                    path: (string | number)[];
+                                    message?: string;
+                                }[];
+                                name: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lesson-messages/unread": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Unread messages per booking, for the current user */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            bookingId: string;
+                            count: number;
+                        }[];
+                    };
+                };
+                /** @description Invalid credentials */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Non autorizzato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/lessons": {
         parameters: {
             query?: never;

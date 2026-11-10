@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { jsonBody } from '@/lib/api-fetch'
 
-const DELETED = ['Studenti e tutor, con i loro account', 'Lezioni e prenotazioni', 'Feedback', 'Ore di lezione degli studenti', 'Richieste di materie', 'Inviti tutor', 'Tutte le statistiche: utilizzo, notifiche nel pannello e click sui link (restano nel report)']
+const DELETED = ['Studenti e tutor, con i loro account', 'Lezioni e prenotazioni', 'Chat delle lezioni', 'Feedback', 'Ore di lezione degli studenti', 'Richieste di materie', 'Inviti tutor', 'Tutte le statistiche: utilizzo, notifiche nel pannello e click sui link (restano nel report)']
 const KEPT = ['Admin e attivatori', 'Materie e sezioni', 'Impostazioni, messaggi e chiusure', 'FAQ e link']
 
 function Step({ number, title, done, active, children }: { number: number, title: string, done: boolean, active: boolean, children: React.ReactNode }) {
@@ -227,7 +227,7 @@ export function SchoolYearReset() {
           <AlertDialogHeader>
             <AlertDialogTitle>Ultima conferma</AlertDialogTitle>
             <AlertDialogDescription>
-              Stai per eliminare studenti, tutor, lezioni, prenotazioni e feedback di tutto l&apos;anno. Per confermare,
+              Stai per eliminare studenti, tutor, lezioni, prenotazioni, chat e feedback di tutto l&apos;anno. Per confermare,
               inserisci di nuovo la tua password.
             </AlertDialogDescription>
           </AlertDialogHeader>

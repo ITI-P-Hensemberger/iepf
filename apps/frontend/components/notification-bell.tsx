@@ -138,7 +138,11 @@ export function NotificationBell() {
     const follow = () => {
       if (document.visibilityState === 'visible') {
         stop ??= watchUnread({
-          onCount: (count) => queryClient.setQueryData(UNREAD_KEY, count)
+          onCount: (count) => {
+            queryClient.setQueryData(UNREAD_KEY, count)
+            // A new lesson chat message also wakes the stream: open chats and their counts reload.
+            void queryClient.invalidateQueries({ queryKey: ['lesson-chat'] })
+          }
         })
       } else {
         stop?.()

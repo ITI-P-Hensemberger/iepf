@@ -17,6 +17,7 @@ import { globalSettings } from './schemas/global-settings.schema'
 import { lessonBookings } from './schemas/lesson-bookings.schema'
 import { lessonChanges } from './schemas/lesson-changes.schema'
 import { lessonFeedback, lessonFeedbackVersions } from './schemas/lesson-feedback.schema'
+import { lessonMessages } from './schemas/lesson-messages.schema'
 import { lessons } from './schemas/lessons.schema'
 import { links } from './schemas/links.schema'
 import { notificationPreferences } from './schemas/notification-preferences.schema'
@@ -57,6 +58,7 @@ const schema = {
   links,
   lessonBookings,
   lessonChanges,
+  lessonMessages,
   lessonFeedback,
   lessonFeedbackVersions,
   tokenLedger,

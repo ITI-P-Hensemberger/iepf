@@ -26,6 +26,7 @@ import { formatItalianDate } from '@/lib/format-date'
 import { dayKeyOf } from '@/lib/school-week'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/page-header'
+import { LessonChatDialog } from '@/components/lesson-chat'
 import { capitalizeFirst } from '@/lib/capitalize'
 import { BookStudentDialog } from '@/components/admin-lesson-details/book-student-dialog'
 import { RescheduleLessonDialog } from '@/components/admin-lesson-details/reschedule-lesson-dialog'
@@ -91,6 +92,7 @@ export default function AdminLessonDetailsPage() {
   )
 
   const [topicTarget, setTopicTarget] = React.useState<Booking | null>(null)
+  const [chatTarget, setChatTarget] = React.useState<Booking | null>(null)
   const [topicValue, setTopicValue] = React.useState('')
 
   const [cancelTarget, setCancelTarget] = React.useState<Booking | null>(null)
@@ -413,6 +415,7 @@ export default function AdminLessonDetailsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align='end'>
+                            <DropdownMenuItem onSelect={() => setChatTarget(booking)}>Leggi chat</DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => handleOpenTopicDialog(booking)}>Modifica argomento</DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => handleOpenCountsDialog(booking)}>Modifica conteggio ora</DropdownMenuItem>
                             {!locked && (
@@ -682,6 +685,13 @@ export default function AdminLessonDetailsPage() {
       </AlertDialog>
 
       <RescheduleLessonDialog reschedule={reschedule} lesson={lesson} />
+      <LessonChatDialog
+        readOnly
+        target={chatTarget && { lessonId, bookingId: chatTarget.id }}
+        title={chatTarget ? `Chat di ${studentLabel(studentMap.get(chatTarget.studentId))}` : 'Chat'}
+        description='Tra lo studente e il tutor della lezione.'
+        onClose={() => setChatTarget(null)}
+      />
     </main>
   )
 }

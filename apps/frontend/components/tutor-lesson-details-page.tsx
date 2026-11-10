@@ -2,11 +2,13 @@
 
 import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
-import { useParams } from 'next/navigation'
-import { Mail, MessageSquare, XCircle } from 'lucide-react'
+import { useParams, useSearchParams } from 'next/navigation'
+import { MessageSquare, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/page-header'
+import { CHAT_PARAM, ChatButton, LessonChatDialog, useChatUnread } from '@/components/lesson-chat'
+import { useSetParam } from '@/lib/back-link'
 import { LessonSummary, lessonStateOf } from '@/components/lesson-summary'
 import { PresenceButtons } from '@/components/presence-buttons'
 import { usePresenceConfirm } from '@/components/presence-confirm'
@@ -148,6 +150,9 @@ export default function TutorLessonDetailsPage() {
   const params = useParams()
   const lessonId = String(params?.id ?? '')
   const queryClient = useQueryClient()
+  const searchParams = useSearchParams()
+  const setParam = useSetParam()
+  const unread = useChatUnread()
   // A lesson that is not theirs (or no longer, after a reschedule) is refused: the page says why.
   const { data: lesson = null, isPending: lessonLoading, error: lessonError } = useQuery({
     queryKey: ['lessons', lessonId],
@@ -292,6 +297,9 @@ export default function TutorLessonDetailsPage() {
   // Without ?from=, back leads to the week of this lesson.
   const backFallback = lesson ? `/tutor/lessons?week=${mondayOf(dayKeyOf(new Date(lesson.startAt)))}` : '/tutor/lessons'
 
+  // The open chat lives in the URL (?chat=<booking>), so a push notification opens it.
+  const chatBooking = bookings.find((booking) => booking.id === searchParams.get(CHAT_PARAM))
+
   return (
     <main className='flex-1'>
       <div className='container mx-auto px-4 py-10'>
@@ -341,7 +349,6 @@ export default function TutorLessonDetailsPage() {
             ) : (
               filteredBookings.map((booking) => {
                 const student = studentMap.get(booking.studentId)
-                const studentEmail = student?.email?.trim() ?? ''
                 const presenceOpen = lesson ? canMarkPresence(lesson) : false
                 const canGiveFeedback = hasLessonStarted(lesson?.startAt) && booking.studentPresence === true
                 const existing = feedbackByBooking.get(booking.id)
@@ -359,11 +366,7 @@ export default function TutorLessonDetailsPage() {
                             {booking.studentPresence === true ? 'Presente' : booking.studentPresence === false ? 'Assente' : 'Presenza non segnata'}
                           </Badge>
                         )}
-                        {studentEmail && (
-                          <Button asChild size='sm' variant='outline'>
-                            <a href={`mailto:${studentEmail}`}><Mail className='h-4 w-4' /> Scrivi</a>
-                          </Button>
-                        )}
+                        <ChatButton unread={unread.get(booking.id)} onClick={() => setParam(CHAT_PARAM, booking.id)} />
                       </div>
                     </div>
                     {/* The topic stretches down to the presence buttons, its text staying at the top.
@@ -423,6 +426,11 @@ export default function TutorLessonDetailsPage() {
       </div>
 
       {presence.dialog}
+      <LessonChatDialog
+        target={chatBooking ? { lessonId, bookingId: chatBooking.id } : null}
+        title={chatBooking ? `Chat con ${studentLabel(studentMap.get(chatBooking.studentId))}` : 'Chat'}
+        onClose={() => setParam(CHAT_PARAM, null)}
+      />
 
       <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
         <AlertDialogContent className='max-w-[calc(100%-2rem)] sm:max-w-md'>
