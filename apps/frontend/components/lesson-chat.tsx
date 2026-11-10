@@ -2,10 +2,11 @@
 
 // The chat between a booking's student and the lesson's tutor. Both write from the booking until
 // the lesson ends; afterwards (or once canceled) it stays readable. The organizers read it only.
-// Students and tutors find every chat behind the floating button at the bottom right: the "Chat"
-// buttons on the pages and the ?chat=<booking> links of the notifications open it there.
+// Students and tutors find every chat behind the floating button at the bottom right (full screen
+// on phones): the "Chat" buttons on the pages and the ?chat=<booking> links of the notifications open it there.
 // New messages arrive through the notification stream: the bell invalidates ['lesson-chat'].
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { BellRing, ChevronLeft, MessagesSquare, Send, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -262,10 +263,54 @@ function ChatLinkWatcher({ onLink }: { onLink: (bookingId: string) => void }) {
   return null
 }
 
+// Phones: the chat takes the whole screen; wider screens keep the panel above the button.
+const PHONE_QUERY = '(max-width: 639px)'
+
+function usePhone() {
+  return React.useSyncExternalStore(
+    (onChange) => {
+      const query = window.matchMedia(PHONE_QUERY)
+      query.addEventListener('change', onChange)
+      return () => query.removeEventListener('change', onChange)
+    },
+    () => window.matchMedia(PHONE_QUERY).matches,
+    () => false
+  )
+}
+
+// On phones, the open chat covers the page: Escape closes it, the page behind does not scroll.
+function FullScreenChat({ onClose, children }: { onClose: () => void, children: React.ReactNode }) {
+  React.useEffect(() => {
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (event: KeyboardEvent) => {
+      // The notifications setup opened from the banner closes first.
+      if (event.key === 'Escape' && !document.querySelector('[role="alertdialog"]')) onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = overflow
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [onClose])
+  return createPortal(
+    <div
+      role='dialog'
+      aria-modal='true'
+      aria-label='Chat'
+      className='fixed inset-0 z-50 flex flex-col gap-3 bg-background px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))]'
+    >
+      {children}
+    </div>,
+    document.body
+  )
+}
+
 // The floating chat button and its panel, for students and tutors, around their pages.
 export function LessonChatProvider({ role, children }: { role: ChatRole, children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false)
   const [active, setActive] = React.useState<string | null>(null)
+  const phone = usePhone()
   const { profile } = useSession()
   const pathname = usePathname()
   // Not while waiting for activation or during the tutor's first setup: no lessons yet.
@@ -278,70 +323,89 @@ export function LessonChatProvider({ role, children }: { role: ChatRole, childre
     setActive(bookingId)
     setOpen(true)
   }, [])
+  const close = React.useCallback(() => setOpen(false), [])
   const context = React.useMemo(() => ({ openChat }), [openChat])
+
+  const fab = (
+    <Button
+      type='button'
+      size='icon'
+      // The button always starts from the list.
+      onClick={() => {
+        setActive(null)
+        if (phone) setOpen(true)
+      }}
+      aria-label={unread > 0 ? `Chat, ${unread} ${unread === 1 ? 'messaggio non letto' : 'messaggi non letti'}` : 'Chat'}
+      className='fixed right-4 bottom-4 z-40 size-14 rounded-full shadow-lg'
+    >
+      <MessagesSquare className='size-6' />
+      {unread > 0 && (
+        <span aria-hidden className='absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-xs font-semibold text-white'>
+          {unread > 99 ? '99+' : unread}
+        </span>
+      )}
+    </Button>
+  )
+
+  const panel = (
+    <>
+      <div className='flex items-start gap-2'>
+        {current && (
+          <Button variant='ghost' size='icon' className='size-8 shrink-0' aria-label='Tutte le chat' onClick={() => setActive(null)}>
+            <ChevronLeft className='h-4 w-4' />
+          </Button>
+        )}
+        <div className='min-w-0 flex-1'>
+          <h2 className='truncate font-semibold'>{current ? current.otherName : 'Chat'}</h2>
+          <p className='truncate text-xs text-muted-foreground'>
+            {current ? lessonLine(current) : 'Gli organizzatori possono leggere le chat.'}
+          </p>
+        </div>
+        <Button variant='ghost' size='icon' className='size-8 shrink-0' aria-label='Chiudi' onClick={close}>
+          <X className='h-4 w-4' />
+        </Button>
+      </div>
+      {current ? (
+        <ChatConversation key={current.bookingId} target={current} role={role} className='flex-1' />
+      ) : (
+        <div className='min-h-0 flex-1 overflow-y-auto overscroll-contain'>
+          <ChatList chats={chats} loading={isPending} role={role} onPick={setActive} />
+        </div>
+      )}
+    </>
+  )
 
   return (
     <ChatContext.Provider value={context}>
       {children}
       {enabled && (
-      <>
-      <React.Suspense fallback={null}>
-        <ChatLinkWatcher onLink={openChat} />
-      </React.Suspense>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            type='button'
-            size='icon'
-            // The button always starts from the list.
-            onClick={() => setActive(null)}
-            aria-label={unread > 0 ? `Chat, ${unread} ${unread === 1 ? 'messaggio non letto' : 'messaggi non letti'}` : 'Chat'}
-            className='fixed right-4 bottom-4 z-40 size-14 rounded-full shadow-lg'
-          >
-            <MessagesSquare className='size-6' />
-            {unread > 0 && (
-              <span aria-hidden className='absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-xs font-semibold text-white'>
-                {unread > 99 ? '99+' : unread}
-              </span>
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent
-          side='top'
-          align='end'
-          sideOffset={12}
-          // Opening the notifications setup from the banner must not close the chat behind it.
-          onInteractOutside={(event) => {
-            if ((event.target as Element | null)?.closest?.('[role="alertdialog"]')) event.preventDefault()
-          }}
-          className='flex h-[min(34rem,calc(100dvh-7rem))] w-[min(24rem,calc(100vw-2rem))] flex-col gap-3 p-3'
-        >
-          <div className='flex items-start gap-2'>
-            {current && (
-              <Button variant='ghost' size='icon' className='size-8 shrink-0' aria-label='Tutte le chat' onClick={() => setActive(null)}>
-                <ChevronLeft className='h-4 w-4' />
-              </Button>
-            )}
-            <div className='min-w-0 flex-1'>
-              <h2 className='truncate font-semibold'>{current ? current.otherName : 'Chat'}</h2>
-              <p className='truncate text-xs text-muted-foreground'>
-                {current ? lessonLine(current) : 'Gli organizzatori possono leggere le chat.'}
-              </p>
-            </div>
-            <Button variant='ghost' size='icon' className='size-8 shrink-0' aria-label='Chiudi' onClick={() => setOpen(false)}>
-              <X className='h-4 w-4' />
-            </Button>
-          </div>
-          {current ? (
-            <ChatConversation key={current.bookingId} target={current} role={role} className='flex-1' />
+        <>
+          <React.Suspense fallback={null}>
+            <ChatLinkWatcher onLink={openChat} />
+          </React.Suspense>
+          {phone ? (
+            <>
+              {fab}
+              {open && <FullScreenChat onClose={close}>{panel}</FullScreenChat>}
+            </>
           ) : (
-            <div className='min-h-0 flex-1 overflow-y-auto overscroll-contain'>
-              <ChatList chats={chats} loading={isPending} role={role} onPick={setActive} />
-            </div>
+            <Popover open={open} onOpenChange={setOpen}>
+              <PopoverTrigger asChild>{fab}</PopoverTrigger>
+              <PopoverContent
+                side='top'
+                align='end'
+                sideOffset={12}
+                // Opening the notifications setup from the banner must not close the chat behind it.
+                onInteractOutside={(event) => {
+                  if ((event.target as Element | null)?.closest?.('[role="alertdialog"]')) event.preventDefault()
+                }}
+                className='flex h-[min(34rem,calc(100dvh-7rem))] w-[min(24rem,calc(100vw-2rem))] flex-col gap-3 p-3'
+              >
+                {panel}
+              </PopoverContent>
+            </Popover>
           )}
-        </PopoverContent>
-      </Popover>
-      </>
+        </>
       )}
     </ChatContext.Provider>
   )
