@@ -29,7 +29,6 @@ import { openPushSetup, usePushSetup } from '@/components/push-prompt'
 import type { ApiResponse } from '@/lib/api'
 import { apiFetch, jsonBody } from '@/lib/api-fetch'
 import { useSetParam } from '@/lib/back-link'
-import { capitalizeFirst } from '@/lib/capitalize'
 import { useSession } from '@/lib/use-session'
 import { cn } from '@/lib/utils'
 
@@ -176,7 +175,7 @@ function ChatConversation({ target, role, className }: { target: Target, role: C
             maxLength={MESSAGE_MAX}
             rows={2}
             placeholder='Scrivi un messaggio'
-            onChange={(event) => setText(capitalizeFirst(event.target.value))}
+            onChange={(event) => setText(event.target.value)}
             // Computers: Enter sends, Shift+Enter starts a new line. Phones: Enter is a new line, the button sends.
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey && !phone && !event.nativeEvent.isComposing) submit(event)
