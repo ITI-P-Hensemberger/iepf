@@ -9,7 +9,7 @@ export const links = pgTable('links', {
   // Always https.
   url: text().notNull(),
   active: boolean().notNull().default(true),
-  // Every redirect since the link was made; the daily counts live in analytics_daily.
+  // Redirects this school year: the year reset sets it back to 0. Daily counts live in analytics_daily.
   clicks: integer().notNull().default(0),
   createdAt: timestamp({ mode: 'date', withTimezone: true })
     .defaultNow()

@@ -13,6 +13,7 @@ import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
 import { lessonChanges } from '@/db/schemas/lesson-changes.schema'
 import { lessonFeedback } from '@/db/schemas/lesson-feedback.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
+import { links } from '@/db/schemas/links.schema'
 import { passwordResetTokens } from '@/db/schemas/password-reset-tokens.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { subjects } from '@/db/schemas/subjects.schema'
@@ -980,6 +981,7 @@ describe('school year reset', () => {
     (select count(*)::int from lessons) as lessons,
     (select count(*)::int from token_ledger) as ledger,
     (select count(*)::int from analytics_daily) as usage,
+    (select count(*)::int from notifications) as inbox,
     (select count(*)::int from users where role = 'admin') as admins`)).rows[0]
 
   it('refuses non-admins, a missing confirmation and a wrong password', async () => {
@@ -1037,9 +1039,12 @@ describe('school year reset', () => {
 
   it('deletes school-year data and keeps admins with the correct password', async () => {
     await db.execute(sql`insert into analytics_daily (day, event, detail, role, year, count) values ('2026-03-02', 'page_view', '/student', 'student', 2, 5)`)
+    await db.insert(links).values({ slug: 'form', url: 'https://example.test/form', clicks: 12 })
+    await db.execute(sql`insert into notifications (id, user_id, category, title, body, url) values (gen_random_uuid(), ${ids.admin}, 'admin', 'Nuovo studente', 'Testo', '/admin')`)
     const before = await counts()
     expect(before.people).toBeGreaterThan(0)
     expect(before.usage).toBeGreaterThan(0)
+    expect(before.inbox).toBeGreaterThan(0)
     const report = await request('/admin/stats/report', { method: 'GET', token: adminToken })
     expect(report.status).toBe(200)
     const response = await request(path, { token: adminToken, body: { confirmation: 'RESET', password: DEV_PASSWORD } })
@@ -1049,6 +1054,8 @@ describe('school year reset', () => {
     const body = await response.json()
     expect(body.deletedStudents + body.deletedTutors).toBe(before.people)
     const after = await counts()
-    expect(after).toEqual({ people: 0, lessons: 0, ledger: 0, usage: 0, admins: before.admins })
+    expect(after).toEqual({ people: 0, lessons: 0, ledger: 0, usage: 0, inbox: 0, admins: before.admins })
+    // The links stay, with their clicks back to zero.
+    expect(await db.select({ slug: links.slug, clicks: links.clicks }).from(links)).toEqual([{ slug: 'form', clicks: 0 }])
   })
 })

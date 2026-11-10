@@ -717,16 +717,15 @@ function addUsageSheet(sheet: Sheet, data: ReportData, now: Date) {
   addLinksBlock(sheet, data)
 }
 
-// The admins' short links: the all-time total from the link, the last 13 months from the daily counts.
+// The admins' short links and their clicks this school year (the reset sets them back to 0).
 function addLinksBlock(sheet: Sheet, data: ReportData) {
   if (data.links.length === 0)
     return
-  const recent = groupBy(data.analytics.filter(row => row.event === 'link_click'), row => row.detail)
   block(sheet, 'Click sui link brevi', {
     name: 'Link',
-    columns: [{ header: 'Link' }, { header: 'Porta a' }, { header: 'Attivo' }, { header: 'Click in totale' }, { header: 'Click negli ultimi 13 mesi' }],
+    columns: [{ header: 'Link' }, { header: 'Porta a' }, { header: 'Attivo' }, { header: 'Click nell\'anno' }],
     rows: data.links
-      .map(link => [`/link/${link.slug}`, link.url, yesNo(link.active), link.clicks, sumCounts(recent.get(link.id) ?? [])] as CellValue[])
+      .map(link => [`/link/${link.slug}`, link.url, yesNo(link.active), link.clicks] as CellValue[])
       .sort((a, b) => (b[3] as number) - (a[3] as number))
   }, ref => ({ type: 'bar', title: 'Click sui link brevi', categories: ref.column(0), series: [{ name: 'Click', values: ref.column(3) }] }))
 }

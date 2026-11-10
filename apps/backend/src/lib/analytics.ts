@@ -5,6 +5,7 @@ import { and, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm'
 
 import db from '@/db'
 import { analyticsDaily } from '@/db/schemas/analytics-daily.schema'
+import { globalSettings } from '@/db/schemas/global-settings.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { PUSH_CATEGORIES } from '@/lib/push'
@@ -195,9 +196,20 @@ export async function waitForPendingCounts() {
 const DAY_MS = 24 * 60 * 60 * 1000
 const ROLLUP_DAYS = 7
 
+// When the last school-year reset ran: the year's statistics start there.
+export const SCHOOL_YEAR_START_KEY = 'schoolYearStart'
+
+async function schoolYearStart() {
+  const row = await db.query.globalSettings.findFirst({ where: eq(globalSettings.key, SCHOOL_YEAR_START_KEY), columns: { value: true } })
+  const at = (row?.value as { at?: unknown } | undefined)?.at
+  const date = typeof at === 'string' ? new Date(at) : null
+  return date && !Number.isNaN(date.getTime()) ? date : null
+}
+
 // Distinct active users per day, role and school year, read from the audit log before it
 // expires. Requests made while impersonating are left out. Recomputed for the last week
-// each night (it is idempotent); the first run backfills everything the audit log still has.
+// each night (it is idempotent); the first run backfills everything the audit log still has,
+// but nothing from before the last school-year reset.
 export async function rollUpActiveUsers(now: Date, backfillDays: number) {
   const [existing] = await db.select({ day: analyticsDaily.day })
     .from(analyticsDaily)
@@ -207,7 +219,9 @@ export async function rollUpActiveUsers(now: Date, backfillDays: number) {
   const firstDay = romeDay(new Date(now.getTime() - days * DAY_MS))
   const lastDay = romeDay(new Date(now.getTime() - DAY_MS))
   // A day wider than needed, so the index on created_at still narrows the scan.
-  const since = new Date(now.getTime() - (days + 1) * DAY_MS)
+  const wide = new Date(now.getTime() - (days + 1) * DAY_MS)
+  const start = await schoolYearStart()
+  const since = start && start > wide ? start : wide
 
   const result = await db.execute(sql`
     insert into analytics_daily (day, event, detail, role, year, count)
