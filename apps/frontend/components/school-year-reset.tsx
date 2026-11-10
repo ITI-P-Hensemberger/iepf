@@ -23,8 +23,8 @@ import { cn } from '@/lib/utils'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { jsonBody } from '@/lib/api-fetch'
 
-const DELETED = ['Studenti e tutor, con i loro account', 'Lezioni e prenotazioni', 'Feedback', 'Ore di lezione degli studenti', 'Richieste di materie', 'Inviti tutor', 'Statistiche d\'uso (nel report restano i riepiloghi mensili)']
-const KEPT = ['Admin e attivatori', 'Materie e sezioni', 'Impostazioni, messaggi e chiusure']
+const DELETED = ['Studenti e tutor, con i loro account', 'Lezioni e prenotazioni', 'Feedback', 'Ore di lezione degli studenti', 'Richieste di materie', 'Inviti tutor', 'Tutte le statistiche: utilizzo, notifiche nel pannello e click sui link (restano nel report)']
+const KEPT = ['Admin e attivatori', 'Materie e sezioni', 'Impostazioni, messaggi e chiusure', 'FAQ e link']
 
 function Step({ number, title, done, active, children }: { number: number, title: string, done: boolean, active: boolean, children: React.ReactNode }) {
   return (

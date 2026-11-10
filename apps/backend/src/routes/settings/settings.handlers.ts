@@ -1,7 +1,7 @@
 // Purpose: Global settings handlers for admins and role-specific consumers.
 import type { Context } from 'hono'
 
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
@@ -9,8 +9,11 @@ import type { AppBindings, AppRouteHandler } from '@/lib/types'
 import db from '@/db'
 import { analyticsDaily } from '@/db/schemas/analytics-daily.schema'
 import { globalSettings } from '@/db/schemas/global-settings.schema'
+import { links } from '@/db/schemas/links.schema'
+import { notifications } from '@/db/schemas/notifications.schema'
 import { tutorInviteTokens } from '@/db/schemas/tutor-invite-tokens.schema'
 import { users } from '@/db/schemas/users.schema'
+import { SCHOOL_YEAR_START_KEY } from '@/lib/analytics'
 import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
@@ -164,8 +167,17 @@ export const resetSchoolYear: AppRouteHandler<ResetSchoolYearRoute> = async (c) 
     await tx.delete(tutorInviteTokens)
     const students = await tx.delete(users).where(eq(users.role, 'student')).returning({ id: users.id })
     const tutors = await tx.delete(users).where(eq(users.role, 'tutor')).returning({ id: users.id })
-    // The usage counts leave with the year; the report keeps their monthly summaries.
+    // Every statistic starts again with the new year; the report keeps the old one.
     await tx.delete(analyticsDaily)
+    // Admins' and activators' panel notifications too: they are about the year that is gone.
+    await tx.delete(notifications)
+    // The links stay for the new year; their clicks start again from zero.
+    await tx.update(links).set({ clicks: 0, updatedAt: sql`${links.updatedAt}` })
+    // Active users are counted again from the audit log each night: not from before this.
+    const start = { at: new Date().toISOString() }
+    await tx.insert(globalSettings)
+      .values({ key: SCHOOL_YEAR_START_KEY, value: start, updatedBy: admin.id })
+      .onConflictDoUpdate({ target: globalSettings.key, set: { value: start, updatedBy: admin.id } })
     await clearReportExport(tx)
     return { deletedStudents: students.length, deletedTutors: tutors.length }
   })

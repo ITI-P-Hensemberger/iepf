@@ -148,11 +148,11 @@ describe('buildYearReport', () => {
     }
   })
 
-  it('lists the short links with their total and recent clicks', () => {
+  it('lists the short links with their clicks of the year', () => {
     const sheet = [...files].find(([name, xml]) => name.startsWith('xl/worksheets/') && xml.includes('Click sui link brevi'))![1]
     expect(sheet).toContain('/link/iscrizioni')
     expect(sheet).toContain('https://example.test/form')
-    expect(sheet).toMatch(/<v>41<\/v>[\s\S]*<v>7<\/v>/)
+    expect(sheet).toContain('<v>41</v>')
   })
 
   it('gives each table headers that match its first row', () => {

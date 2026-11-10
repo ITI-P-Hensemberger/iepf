@@ -7,8 +7,9 @@ import app from '@/app'
 import db, { closeDb } from '@/db'
 import { analyticsDaily } from '@/db/schemas/analytics-daily.schema'
 import { auditLogs } from '@/db/schemas/audit-logs.schema'
+import { globalSettings } from '@/db/schemas/global-settings.schema'
 import env from '@/env'
-import { addCounts, analyticsCutoffDay, BOOKING_OUTCOMES, clearAnalyticsCache, deleteOldAnalytics, rollUpActiveUsers, romeDay, sanitizeDetail, waitForPendingCounts } from '@/lib/analytics'
+import { addCounts, analyticsCutoffDay, BOOKING_OUTCOMES, clearAnalyticsCache, deleteOldAnalytics, rollUpActiveUsers, romeDay, sanitizeDetail, SCHOOL_YEAR_START_KEY, waitForPendingCounts } from '@/lib/analytics'
 import { cleanDatabase } from '@/lib/db-cleanup'
 import { DEV_PASSWORD, seedDevelopmentData } from '@/lib/dev-seed'
 import { assertLocalDatabase } from '@/lib/local-database'
@@ -166,6 +167,22 @@ describe('rollUpActiveUsers', () => {
       { day: romeDay(yesterday), role: 'student', year: 2, count: 1 },
       { day: romeDay(yesterday), role: 'tutor', year: 4, count: 1 }
     ])
+  })
+
+  it('counts nothing from before the last school-year reset', async () => {
+    await db.delete(auditLogs)
+    await db.delete(analyticsDaily)
+    const audit = (createdAt: Date) => ({ actorId: ids.admin, action: 'GET /x', method: 'GET', path: '/x', status: 200, durationMs: 1, createdAt, metadata: '{}' })
+    const reset = new Date(now.getTime() - 3 * DAY)
+    await db.insert(globalSettings).values({ key: SCHOOL_YEAR_START_KEY, value: { at: reset.toISOString() } })
+    await db.insert(auditLogs).values([audit(new Date(reset.getTime() - 2 * DAY)), audit(new Date(reset.getTime() + DAY))])
+    try {
+      await rollUpActiveUsers(now, 90)
+      expect((await rows()).map(row => row.day)).toEqual([romeDay(new Date(reset.getTime() + DAY))])
+    }
+    finally {
+      await db.delete(globalSettings).where(eq(globalSettings.key, SCHOOL_YEAR_START_KEY))
+    }
   })
 })
 
