@@ -33,7 +33,10 @@ const listQuerySchema = z.object({
   emailVerified: queryBoolean().optional(),
   sectionId: z.uuid().optional(),
   year: z.coerce.number().int().optional(),
-  sortBy: z.enum(['firstName', 'lastName', 'email', 'createdAt', 'sectionId', 'year', 'lessonTokens']).default('lastName'),
+  // When the account was made: from the start of the first day to the end of the last one.
+  createdFrom: z.iso.datetime().optional(),
+  createdTo: z.iso.datetime().optional(),
+  sortBy: z.enum(['firstName', 'lastName', 'email', 'createdAt', 'activatedAt', 'sectionId', 'year', 'lessonTokens']).default('lastName'),
   sortDir: z.enum(['asc', 'desc']).default('asc'),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0)

@@ -1,5 +1,6 @@
 // Purpose: Pin how a deactivated student differs from one never activated, the optional reason
 // sent with it, the history of activations, and what activators may do: only first activations.
+import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import app from '@/app'
@@ -126,6 +127,21 @@ describe('student deactivation', () => {
     expect(history).toMatchObject([{ kind: 'activated', actorRole: 'activator' }])
   })
 
+  it('lists when an active student was last turned on, and nothing for one waiting', async () => {
+    const [pending] = await db.insert(users).values({ email: 'attesa@example.test', firstName: 'In', lastName: 'Attesa', passwordHash: 'x', role: 'student', emailVerifiedAt: new Date() }).returning({ id: users.id })
+    await db.insert(studentProfiles).values({ userId: pending.id, isActive: false })
+    const activatedAt = async (isActive: boolean) => {
+      const listed = await (await call(`/users?role=student&isActive=${isActive}&sortBy=activatedAt&sortDir=desc&limit=200`, { token: tokens.activator })).json()
+      return (listed.data as Array<{ id: string, activatedAt: string | null }>).find(user => user.id === pending.id)?.activatedAt
+    }
+    expect(await activatedAt(false)).toBeNull()
+    const before = Date.now()
+    await call(`/users/${pending.id}`, { token: tokens.activator, method: 'PATCH', body: { isActive: true } })
+    const listed = await (await call('/users?role=student&isActive=true&sortBy=activatedAt&sortDir=desc&limit=200', { token: tokens.activator })).json()
+    expect(listed.data[0].id).toBe(pending.id)
+    expect(new Date(listed.data[0].activatedAt).getTime()).toBeGreaterThanOrEqual(before - 1000)
+  })
+
   it('records a tutor as activated by whoever sent the invite', async () => {
     const email = `tutor-${crypto.randomUUID()}@hensemberger.it`
     const { token } = await issueTutorInviteToken(email, ids.admin)
@@ -138,5 +154,21 @@ describe('student deactivation', () => {
     expect(confirmed.status).toBe(201)
     const history = await (await call(`/users/${(await confirmed.json()).id}/activation-history`, { token: tokens.admin })).json()
     expect(history).toMatchObject([{ kind: 'activated', actorRole: 'admin' }])
+  })
+})
+
+describe('user list', () => {
+  it('filters by when the account was made, both ends included', async () => {
+    await db.update(users).set({ createdAt: new Date('2025-10-15T10:00:00Z') }).where(eq(users.id, ids.student))
+    const list = async (range: string) => {
+      const response = await call(`/users?role=student&limit=200&${range}`, { token: tokens.admin })
+      expect(response.status).toBe(200)
+      return ((await response.json()).data as Array<{ id: string }>).map(user => user.id)
+    }
+    expect(await list('createdFrom=2025-10-15T10:00:00.000Z&createdTo=2025-10-15T10:00:00.000Z')).toEqual([ids.student])
+    expect(await list('createdFrom=2025-10-01T00:00:00.000Z&createdTo=2025-10-31T23:59:59.999Z')).toEqual([ids.student])
+    expect(await list('createdFrom=2025-10-16T00:00:00.000Z')).not.toContain(ids.student)
+    expect(await list('createdTo=2025-10-14T23:59:59.999Z')).toEqual([])
+    expect((await call('/users?createdFrom=ieri', { token: tokens.admin })).status).toBe(422)
   })
 })

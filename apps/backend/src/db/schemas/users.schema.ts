@@ -93,7 +93,9 @@ export const selectUsersWithProfilesSchema = toZodV4SchemaTyped(
     isActive: z.boolean().nullable().optional(),
     deactivatedAt: z.date().nullable().optional(),
     deactivationReason: z.string().nullable().optional(),
-    lessonTokens: z.number().nullable().optional()
+    lessonTokens: z.number().nullable().optional(),
+    // Students: the last time the account was turned on; null while not active.
+    activatedAt: z.date().nullable().optional()
   }))
 )
 

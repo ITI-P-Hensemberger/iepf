@@ -1,11 +1,12 @@
 // Purpose: Users route handlers.
 import type { Context } from 'hono'
 
-import { and, eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNotNull, isNull, lte, max } from 'drizzle-orm'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
 import db from '@/db'
+import { activationEvents } from '@/db/schemas/activation-events.schema'
 import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
@@ -41,6 +42,7 @@ type UserWithProfile = UserPublicRecord & {
   year: number | null
   isActive: boolean
   lessonTokens: number | null
+  activatedAt?: Date | null
 }
 
 function buildDuplicateEmailError() {
@@ -179,6 +181,15 @@ async function attachProfiles(records: UserPublicRecord[]): Promise<UserWithProf
   const tutorProfileMap = new Map(tutorProfilesList.map(profile => [profile.userId, profile]))
   const adminProfileMap = new Map(adminProfilesList.map(profile => [profile.userId, profile]))
   const tokenBalances = await getStudentTokenBalances(studentIds)
+  // The last time each student was turned on, first activation or a later one.
+  const activatedAt = new Map<string, Date | null>()
+  if (studentIds.length > 0) {
+    const rows = await db.select({ userId: activationEvents.userId, at: max(activationEvents.createdAt) })
+      .from(activationEvents)
+      .where(and(inArray(activationEvents.userId, studentIds), inArray(activationEvents.kind, ['activated', 'reactivated'])))
+      .groupBy(activationEvents.userId)
+    rows.forEach(row => activatedAt.set(row.userId, row.at))
+  }
 
   const sectionIds = new Set<string>()
   for (const profile of studentProfilesList) {
@@ -226,7 +237,8 @@ async function attachProfiles(records: UserPublicRecord[]): Promise<UserWithProf
         isActive: profile?.isActive ?? false,
         deactivatedAt: profile?.isActive ? null : (profile?.deactivatedAt ?? null),
         deactivationReason: profile?.isActive ? null : (profile?.deactivationReason ?? null),
-        lessonTokens: tokenBalances.get(user.id) ?? 0
+        lessonTokens: tokenBalances.get(user.id) ?? 0,
+        activatedAt: profile?.isActive ? (activatedAt.get(user.id) ?? null) : null
       }
     }
 
@@ -279,6 +291,12 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
   }
   if (query.emailVerified !== undefined) {
     conditions.push(query.emailVerified ? isNotNull(users.emailVerifiedAt) : isNull(users.emailVerifiedAt))
+  }
+  if (query.createdFrom) {
+    conditions.push(gte(users.createdAt, new Date(query.createdFrom)))
+  }
+  if (query.createdTo) {
+    conditions.push(lte(users.createdAt, new Date(query.createdTo)))
   }
   if (query.isActive === false && (currentUser.role === 'admin' || currentUser.role === 'activator')) {
     conditions.push(isNotNull(users.emailVerifiedAt))
@@ -335,6 +353,8 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
           return a.email
         case 'createdAt':
           return a.createdAt
+        case 'activatedAt':
+          return a.activatedAt?.getTime() ?? null
         case 'sectionId':
           return a.sectionName ?? ''
         case 'year':
@@ -355,6 +375,8 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
           return b.email
         case 'createdAt':
           return b.createdAt
+        case 'activatedAt':
+          return b.activatedAt?.getTime() ?? null
         case 'sectionId':
           return b.sectionName ?? ''
         case 'year':
