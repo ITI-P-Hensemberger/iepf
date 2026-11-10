@@ -6,6 +6,8 @@ import { nextSort, SortableHead, type SortDir } from '@/components/sortable-head
 import { ListPagination } from '@/components/list-pagination'
 import { TableSkeletonRows, useFirstLoad } from '@/components/loading'
 import { FilterForm } from '@/components/filter-form'
+import { DateRangePicker } from '@/components/date-picker'
+import { Field, FieldLabel } from '@/components/ui/field'
 import * as React from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -15,6 +17,8 @@ import {
   useReactTable
 } from '@tanstack/react-table'
 import { toast } from 'sonner'
+import { format } from 'date-fns'
+import { type DateRange } from 'react-day-picker'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { apiFetch, jsonBody } from '@/lib/api-fetch'
@@ -48,7 +52,7 @@ import { useResetOnChange } from '@/lib/use-reset-on-change'
 
 const pageSize = 20
 
-const SORTABLE = ['lastName', 'firstName', 'year', 'email'] as const
+const SORTABLE = ['lastName', 'firstName', 'year', 'email', 'createdAt', 'activatedAt'] as const
 
 type User = {
   id: string
@@ -61,6 +65,8 @@ type User = {
   year?: number | null
   lessonTokens?: number | null
   isActive?: boolean | null
+  createdAt?: string | null
+  activatedAt?: string | null
 }
 
 type DataTableProps<TData> = {
@@ -288,18 +294,77 @@ type TableFilters = {
   search: string
   sortBy: string
   sortDir: 'asc' | 'desc'
+  // When the account was made, from the first day to the last, both whole. Only a complete range.
+  created?: DateRange
 }
 
 const defaultFilters: TableFilters = {
   search: '',
   sortBy: 'lastName',
-  sortDir: 'asc'
+  sortDir: 'asc',
+  created: undefined
+}
+
+// Keys of each list's state in the URL; the two tabs keep their own.
+type ListKeys = { searchKey: string, sortKey: string, pageKey: string, fromKey: string, toKey: string }
+const ACTIVE_KEYS: ListKeys = { searchKey: 'activeSearch', sortKey: 'activeSort', pageKey: 'activePage', fromKey: 'activeFrom', toKey: 'activeTo' }
+const INACTIVE_KEYS: ListKeys = { searchKey: 'inactiveSearch', sortKey: 'inactiveSort', pageKey: 'inactivePage', fromKey: 'inactiveFrom', toKey: 'inactiveTo' }
+
+// The sign-up range in the filters panel. The first day picked stays in the calendar only: the
+// list changes once the last day is picked too.
+function CreatedRangeField({ id, value, onChange }: { id: string, value: DateRange | undefined, onChange: (range: DateRange | undefined) => void }) {
+  const [start, setStart] = React.useState<DateRange | undefined>()
+  return (
+    <Field className='gap-2 sm:max-w-xs'>
+      <FieldLabel htmlFor={id}>Iscritto</FieldLabel>
+      <DateRangePicker
+        id={id}
+        value={start ?? value}
+        onChange={(range) => {
+          if (range?.from && !range.to) {
+            setStart(range)
+            return
+          }
+          setStart(undefined)
+          onChange(range)
+        }}
+      />
+    </Field>
+  )
+}
+
+const dayLabel = (value?: string | null) => value ? format(new Date(value), 'dd/MM/yyyy') : '-'
+
+// A day in the URL as 2026-11-08, read back as that day at midnight here.
+const toDayParam = (date: Date) => format(date, 'yyyy-MM-dd')
+
+function fromDayParam(value: string | null) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined
+  const [year, month, day] = value.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  return Number.isNaN(date.getTime()) ? undefined : date
+}
+
+function startOfDayIso(date: Date) {
+  const next = new Date(date)
+  next.setHours(0, 0, 0, 0)
+  return next.toISOString()
+}
+
+function endOfDayIso(date: Date) {
+  const next = new Date(date)
+  next.setHours(23, 59, 59, 999)
+  return next.toISOString()
 }
 
 // A list's request: active or waiting students, then the search, sort and page from the URL.
 function listQuery(filters: TableFilters & { page: number }, isActive: boolean) {
   const params = new URLSearchParams({ role: 'student', isActive: String(isActive) })
   if (filters.search.trim()) params.set('q', filters.search.trim())
+  if (filters.created?.from && filters.created.to) {
+    params.set('createdFrom', startOfDayIso(filters.created.from))
+    params.set('createdTo', endOfDayIso(filters.created.to))
+  }
   params.set('sortBy', filters.sortBy)
   params.set('sortDir', filters.sortDir)
   params.set('limit', String(pageSize))
@@ -350,24 +415,27 @@ export default function ActivatorStudentsPage() {
   }, [])
 
   const buildFilters = React.useCallback(
-    (searchKey: string, sortKey: string, pageKey: string) => {
-      const sortParam = parseSortParam(searchParams.get(sortKey))
+    (keys: ListKeys) => {
+      const sortParam = parseSortParam(searchParams.get(keys.sortKey))
+      const from = fromDayParam(searchParams.get(keys.fromKey))
+      const to = fromDayParam(searchParams.get(keys.toKey))
       return {
-        search: searchParams.get(searchKey) ?? '',
+        search: searchParams.get(keys.searchKey) ?? '',
         sortBy: sortParam?.sortBy ?? defaultFilters.sortBy,
         sortDir: sortParam?.sortDir ?? defaultFilters.sortDir,
-        page: parsePage(pageKey)
+        created: from && to ? { from, to } : undefined,
+        page: parsePage(keys.pageKey)
       }
     },
     [parsePage, parseSortParam, searchParams]
   )
 
   const currentActiveFilters = React.useMemo(
-    () => buildFilters('activeSearch', 'activeSort', 'activePage'),
+    () => buildFilters(ACTIVE_KEYS),
     [buildFilters]
   )
   const currentInactiveFilters = React.useMemo(
-    () => buildFilters('inactiveSearch', 'inactiveSort', 'inactivePage'),
+    () => buildFilters(INACTIVE_KEYS),
     [buildFilters]
   )
 
@@ -375,19 +443,21 @@ export default function ActivatorStudentsPage() {
   useResetOnChange({
     search: currentActiveFilters.search,
     sortBy: currentActiveFilters.sortBy,
-    sortDir: currentActiveFilters.sortDir
+    sortDir: currentActiveFilters.sortDir,
+    created: currentActiveFilters.created
   }, setActiveFilters)
 
   // Follows the URL when it changes from outside (back, a link, a reset).
   useResetOnChange({
     search: currentInactiveFilters.search,
     sortBy: currentInactiveFilters.sortBy,
-    sortDir: currentInactiveFilters.sortDir
+    sortDir: currentInactiveFilters.sortDir,
+    created: currentInactiveFilters.created
   }, setInactiveFilters)
 
   const updateParams = React.useCallback(
     (
-      keys: { searchKey: string; sortKey: string; pageKey: string },
+      keys: ListKeys,
       filters: TableFilters,
       page: number
     ) => {
@@ -401,6 +471,13 @@ export default function ActivatorStudentsPage() {
         params.set(keys.sortKey, `${filters.sortBy}:${filters.sortDir}`)
       } else {
         params.delete(keys.sortKey)
+      }
+      if (filters.created?.from && filters.created.to) {
+        params.set(keys.fromKey, toDayParam(filters.created.from))
+        params.set(keys.toKey, toDayParam(filters.created.to))
+      } else {
+        params.delete(keys.fromKey)
+        params.delete(keys.toKey)
       }
       if (page > 1) {
         params.set(keys.pageKey, String(page))
@@ -511,9 +588,21 @@ export default function ActivatorStudentsPage() {
         accessorKey: 'email',
         header: 'Email @hensemberger.it',
         cell: ({ row }) => <span>{row.original.email.split('@')[0]}</span>
+      },
+      {
+        accessorKey: 'createdAt',
+        header: 'Iscritto il',
+        cell: ({ row }) => <span className='tabular-nums'>{dayLabel(row.original.createdAt)}</span>
       }
     ]
-    if (!activatable) return columns
+    if (!activatable) {
+      const activated: ColumnDef<User> = {
+        accessorKey: 'activatedAt',
+        header: 'Attivato il',
+        cell: ({ row }) => <span className='tabular-nums'>{dayLabel(row.original.activatedAt)}</span>
+      }
+      return [...columns, activated]
+    }
 
     const activate: ColumnDef<User> = {
       id: 'actions',
@@ -559,7 +648,7 @@ export default function ActivatorStudentsPage() {
                   applied={currentActiveFilters}
                   onSubmit={(event) => {
                     event.preventDefault()
-                    updateParams({ searchKey: 'activeSearch', sortKey: 'activeSort', pageKey: 'activePage' }, activeFilters, 1)
+                    updateParams(ACTIVE_KEYS, activeFilters, 1)
                   }}
                   search={{
                     id: 'active-student-search',
@@ -567,7 +656,14 @@ export default function ActivatorStudentsPage() {
                     onChange: (value) => setActiveFilters((prev) => ({ ...prev, search: value })),
                     placeholder: 'Nome, cognome o email'
                   }}
-                />
+                  activeFilters={activeFilters.created?.from ? 1 : 0}
+                >
+                  <CreatedRangeField
+                    id='active-created-range'
+                    value={activeFilters.created}
+                    onChange={(range) => setActiveFilters((prev) => ({ ...prev, created: range }))}
+                  />
+                </FilterForm>
                 <div className='mt-6'>
                   <DataTable
                     sortable={SORTABLE}
@@ -575,7 +671,7 @@ export default function ActivatorStudentsPage() {
                     onSort={(key) => {
                       const next = { ...activeFilters, ...nextSort(currentActiveFilters, key) }
                       setActiveFilters(next)
-                      updateParams({ searchKey: 'activeSearch', sortKey: 'activeSort', pageKey: 'activePage' }, next, 1)
+                      updateParams(ACTIVE_KEYS, next, 1)
                     }}
                     data={activeStudents}
                     columns={activeColumns}
@@ -597,7 +693,7 @@ export default function ActivatorStudentsPage() {
                   applied={currentInactiveFilters}
                   onSubmit={(event) => {
                     event.preventDefault()
-                    updateParams({ searchKey: 'inactiveSearch', sortKey: 'inactiveSort', pageKey: 'inactivePage' }, inactiveFilters, 1)
+                    updateParams(INACTIVE_KEYS, inactiveFilters, 1)
                   }}
                   search={{
                     id: 'inactive-student-search',
@@ -605,7 +701,14 @@ export default function ActivatorStudentsPage() {
                     onChange: (value) => setInactiveFilters((prev) => ({ ...prev, search: value })),
                     placeholder: 'Nome, cognome o email'
                   }}
-                />
+                  activeFilters={inactiveFilters.created?.from ? 1 : 0}
+                >
+                  <CreatedRangeField
+                    id='inactive-created-range'
+                    value={inactiveFilters.created}
+                    onChange={(range) => setInactiveFilters((prev) => ({ ...prev, created: range }))}
+                  />
+                </FilterForm>
                 <div className='mt-6'>
                   <DataTable
                     sortable={SORTABLE}
@@ -613,7 +716,7 @@ export default function ActivatorStudentsPage() {
                     onSort={(key) => {
                       const next = { ...inactiveFilters, ...nextSort(currentInactiveFilters, key) }
                       setInactiveFilters(next)
-                      updateParams({ searchKey: 'inactiveSearch', sortKey: 'inactiveSort', pageKey: 'inactivePage' }, next, 1)
+                      updateParams(INACTIVE_KEYS, next, 1)
                     }}
                     data={inactiveStudents}
                     columns={inactiveColumns}

@@ -2910,6 +2910,8 @@ export interface paths {
                             deactivatedAt?: string | null;
                             deactivationReason?: string | null;
                             lessonTokens?: number | null;
+                            /** Format: date-time */
+                            activatedAt?: string | null;
                         };
                     };
                 };
@@ -3863,6 +3865,8 @@ export interface paths {
                             deactivatedAt?: string | null;
                             deactivationReason?: string | null;
                             lessonTokens?: number | null;
+                            /** Format: date-time */
+                            activatedAt?: string | null;
                         };
                     };
                 };
@@ -4471,6 +4475,8 @@ export interface paths {
                             deactivatedAt?: string | null;
                             deactivationReason?: string | null;
                             lessonTokens?: number | null;
+                            /** Format: date-time */
+                            activatedAt?: string | null;
                         };
                     };
                 };
@@ -14711,6 +14717,8 @@ export interface paths {
                                 deactivatedAt?: string | null;
                                 deactivationReason?: string | null;
                                 lessonTokens?: number | null;
+                                /** Format: date-time */
+                                activatedAt?: string | null;
                             })[];
                             total: number;
                             limit: number;
@@ -15240,7 +15248,9 @@ export interface paths {
                     emailVerified?: boolean;
                     sectionId?: string;
                     year?: number | null;
-                    sortBy?: "firstName" | "lastName" | "email" | "createdAt" | "sectionId" | "year" | "lessonTokens";
+                    createdFrom?: string;
+                    createdTo?: string;
+                    sortBy?: "firstName" | "lastName" | "email" | "createdAt" | "activatedAt" | "sectionId" | "year" | "lessonTokens";
                     sortDir?: "asc" | "desc";
                     limit?: number;
                     offset?: number | null;
@@ -15280,6 +15290,8 @@ export interface paths {
                                 deactivatedAt?: string | null;
                                 deactivationReason?: string | null;
                                 lessonTokens?: number | null;
+                                /** Format: date-time */
+                                activatedAt?: string | null;
                             })[];
                             total: number;
                             limit: number;
@@ -15400,6 +15412,8 @@ export interface paths {
                             deactivatedAt?: string | null;
                             deactivationReason?: string | null;
                             lessonTokens?: number | null;
+                            /** Format: date-time */
+                            activatedAt?: string | null;
                         }) | {
                             id: string;
                             firstName: string;
@@ -15701,6 +15715,8 @@ export interface paths {
                             deactivatedAt?: string | null;
                             deactivationReason?: string | null;
                             lessonTokens?: number | null;
+                            /** Format: date-time */
+                            activatedAt?: string | null;
                         };
                     };
                 };

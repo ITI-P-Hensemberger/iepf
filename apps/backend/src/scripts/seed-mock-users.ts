@@ -1,5 +1,6 @@
 // Purpose: Seed mock users for demos/testing.
 import db, { closeDb } from '@/db'
+import { activationEvents } from '@/db/schemas/activation-events.schema'
 import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { tokenLedger } from '@/db/schemas/token-ledger.schema'
@@ -148,7 +149,7 @@ async function ensureAdminProfile(userId: string, isActive = true) {
 }
 
 async function ensureStudentProfile(userId: string, sectionId: string, year: number, isActive: boolean) {
-  await db.insert(studentProfiles)
+  const created = await db.insert(studentProfiles)
     .values({
       userId,
       sectionId,
@@ -156,6 +157,12 @@ async function ensureStudentProfile(userId: string, sectionId: string, year: num
       isActive
     })
     .onConflictDoNothing({ target: studentProfiles.userId })
+    .returning({ userId: studentProfiles.userId })
+
+  // Active from the seed: their first activation, as the activator's list shows it.
+  if (isActive && created.length > 0) {
+    await db.insert(activationEvents).values({ userId, kind: 'activated', actorName: 'Dati di prova', actorRole: 'system' })
+  }
 
   const existingLedger = await db.query.tokenLedger.findFirst({
     where(fields, operators) {
