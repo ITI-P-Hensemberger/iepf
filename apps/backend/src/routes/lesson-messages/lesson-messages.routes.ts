@@ -87,13 +87,25 @@ export const markChatRead = createRoute({
   }
 })
 
-export const listUnread = createRoute({
-  path: '/lesson-messages/unread',
+export const CHATS_MAX = 100
+
+export const listChats = createRoute({
+  path: '/lesson-messages',
   method: 'get',
   tags,
   security,
   responses: {
-    [HttpStatusCodes.OK]: jsonContent(z.array(z.object({ bookingId: z.string(), count: z.number().int() })), 'Unread messages per booking, for the current user'),
+    [HttpStatusCodes.OK]: jsonContent(z.array(z.object({
+      lessonId: z.string(),
+      bookingId: z.string(),
+      subjectName: z.string(),
+      startAt: z.string(),
+      // The other person: the tutor for a student, the student for a tutor.
+      otherName: z.string(),
+      open: z.boolean(),
+      unread: z.number().int(),
+      lastMessageAt: z.string().nullable()
+    })), 'The current user\'s chats: open ones and closed ones with messages, latest conversation first'),
     [HttpStatusCodes.UNAUTHORIZED]: unauthorized
   }
 })
@@ -101,4 +113,4 @@ export const listUnread = createRoute({
 export type GetChatRoute = typeof getChat
 export type SendMessageRoute = typeof sendMessage
 export type MarkChatReadRoute = typeof markChatRead
-export type ListUnreadRoute = typeof listUnread
+export type ListChatsRoute = typeof listChats

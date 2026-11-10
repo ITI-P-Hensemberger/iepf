@@ -686,10 +686,8 @@ export default function AdminLessonDetailsPage() {
 
       <RescheduleLessonDialog reschedule={reschedule} lesson={lesson} />
       <LessonChatDialog
-        readOnly
         target={chatTarget && { lessonId, bookingId: chatTarget.id }}
         title={chatTarget ? `Chat di ${studentLabel(studentMap.get(chatTarget.studentId))}` : 'Chat'}
-        description='Tra lo studente e il tutor della lezione.'
         onClose={() => setChatTarget(null)}
       />
     </main>

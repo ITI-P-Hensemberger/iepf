@@ -7828,7 +7828,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/lesson-messages/unread": {
+    "/lesson-messages": {
         parameters: {
             query?: never;
             header?: never;
@@ -7844,15 +7844,21 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Unread messages per booking, for the current user */
+                /** @description The current user's chats: open ones and closed ones with messages, latest conversation first */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": {
+                            lessonId: string;
                             bookingId: string;
-                            count: number;
+                            subjectName: string;
+                            startAt: string;
+                            otherName: string;
+                            open: boolean;
+                            unread: number;
+                            lastMessageAt: string | null;
                         }[];
                     };
                 };

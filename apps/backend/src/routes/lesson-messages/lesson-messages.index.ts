@@ -10,11 +10,11 @@ const router = createRouter()
 // Routers are mounted at '/': a '*' middleware here would also guard later public routes.
 router.use('/lessons/:lessonId/bookings/:bookingId/messages', authenticate())
 router.use('/lessons/:lessonId/bookings/:bookingId/messages/*', authenticate())
-router.use('/lesson-messages/*', authenticate())
+router.use('/lesson-messages', authenticate())
 
 router.openapi(routes.getChat, handlers.getChat)
 router.openapi(routes.sendMessage, handlers.sendMessage)
 router.openapi(routes.markChatRead, handlers.markChatRead)
-router.openapi(routes.listUnread, handlers.listUnread)
+router.openapi(routes.listChats, handlers.listChats)
 
 export default router

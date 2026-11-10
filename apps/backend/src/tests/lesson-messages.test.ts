@@ -37,6 +37,14 @@ async function call(path: string, options: { token?: string, method?: string, bo
   })
 }
 
+async function chatsOf(role: string) {
+  return (await call('/lesson-messages', { token: tokens[role] })).json() as Promise<Array<{ bookingId: string, otherName: string, open: boolean, unread: number }>>
+}
+
+async function unreadOf(role: string) {
+  return (await chatsOf(role)).find(chat => chat.bookingId === BOOKING_ID)?.unread ?? 0
+}
+
 beforeAll(async () => {
   assertLocalDatabase(env.DATABASE_URL, env.NODE_ENV)
   await cleanDatabase()
@@ -115,19 +123,30 @@ describe('lesson chat', () => {
     // The lock screen never shows what was written.
     expect(bell[0]!.body).not.toContain('Uno')
 
-    expect(await (await call('/lesson-messages/unread', { token: tokens.tutor })).json()).toEqual([{ bookingId: BOOKING_ID, count: 3 }])
-    expect(await (await call('/lesson-messages/unread', { token: tokens.student })).json()).toEqual([])
+    expect(await unreadOf('tutor')).toBe(3)
+    expect(await unreadOf('student')).toBe(0)
 
     // An organizer reading leaves them unread; the tutor reading clears them.
     expect((await call(`${CHAT}/read`, { token: tokens.admin, method: 'POST' })).status).toBe(204)
-    expect(await (await call('/lesson-messages/unread', { token: tokens.tutor })).json()).toHaveLength(1)
+    expect(await unreadOf('tutor')).toBe(3)
     expect((await call(`${CHAT}/read`, { token: tokens.tutor, method: 'POST' })).status).toBe(204)
-    expect(await (await call('/lesson-messages/unread', { token: tokens.tutor })).json()).toEqual([])
+    expect(await unreadOf('tutor')).toBe(0)
 
     // Once read, the next message notifies again.
     await call(CHAT, { token: tokens.student, body: { body: 'Quattro' } })
     await waitForPendingPush()
     expect(await db.select().from(notifications).where(eq(notifications.userId, ids.tutor))).toHaveLength(2)
+  })
+
+  it('lists the open chats, and closed ones only with messages', async () => {
+    expect(await chatsOf('student')).toEqual([expect.objectContaining({ bookingId: BOOKING_ID, otherName: 'Demo tutor', open: true, unread: 0 })])
+    expect(await chatsOf('tutor')).toEqual([expect.objectContaining({ bookingId: BOOKING_ID, otherName: 'Demo student', open: true })])
+    expect(await chatsOf('admin')).toEqual([])
+
+    await db.update(lessons).set({ startAt: new Date(Date.now() - 2 * 60 * 60 * 1000) }).where(eq(lessons.id, LESSON_ID))
+    expect(await chatsOf('student')).toEqual([])
+    await db.insert(lessonMessages).values({ bookingId: BOOKING_ID, senderId: ids.tutor, body: 'Prima' })
+    expect(await chatsOf('student')).toEqual([expect.objectContaining({ open: false, unread: 1 })])
   })
 
   it('refuses empty, too long and rude messages', async () => {

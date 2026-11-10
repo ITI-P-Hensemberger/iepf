@@ -37,7 +37,7 @@ import { cn } from '@/lib/utils'
 import { useSession } from '@/lib/use-session'
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api-fetch'
-import { CHAT_PARAM, LessonChatDialog, useChatUnread } from '@/components/lesson-chat'
+import { useChatUnread, useOpenChat } from '@/components/lesson-chat'
 
 type Tab = 'upcoming' | 'past' | 'canceled'
 
@@ -86,6 +86,7 @@ export default function StudentLessonsPage() {
   const [feedbackTarget, setFeedbackTarget] = React.useState<StudentLesson | null>(null)
   const feedback = useStudentFeedback()
   const unread = useChatUnread()
+  const openChat = useOpenChat()
 
   // PAGE lessons at a time; "Mostra altre" asks for the next ones. A new tab or search keeps
   // the rows on screen until its own arrive.
@@ -124,8 +125,6 @@ export default function StudentLessonsPage() {
   const subjects = [...new Map(lessons.map((lesson) => [lesson.subjectId, lesson.subjectName])).entries()]
     .sort(([, a], [, b]) => a.localeCompare(b, 'it'))
   const shown = subjectId ? lessons.filter((lesson) => lesson.subjectId === subjectId) : lessons
-  // The open chat lives in the URL (?chat=<booking>), so a push notification opens it.
-  const chatLesson = lessons.find((lesson) => lesson.bookingId === searchParams.get(CHAT_PARAM)) ?? null
   const days = [...groupBy(shown, (lesson) => dayKeyOf(new Date(lesson.startAt))).values()]
 
   return (
@@ -201,7 +200,8 @@ export default function StudentLessonsPage() {
                       feedback={feedback.byBooking.get(lesson.bookingId)}
                       onCancel={setCancelTarget}
                       onFeedback={setFeedbackTarget}
-                      onChat={(target) => setParam(CHAT_PARAM, target.bookingId)}
+                      // Only chats that exist: open ones, or closed ones with messages.
+                      onChat={unread.has(lesson.bookingId) ? (target) => openChat(target.bookingId) : undefined}
                       unread={unread.get(lesson.bookingId)}
                     />
                   ))}
@@ -225,12 +225,6 @@ export default function StudentLessonsPage() {
           // The hours left change.
           void refresh()
         }}
-      />
-      <LessonChatDialog
-        target={chatLesson && { lessonId: chatLesson.id, bookingId: chatLesson.bookingId }}
-        title={chatLesson ? `Chat con ${chatLesson.tutorFirstName} ${chatLesson.tutorLastName}` : 'Chat'}
-        description={chatLesson ? `${chatLesson.subjectName}, ${lessonDayLabel(chatLesson.startAt).toLowerCase()}.` : undefined}
-        onClose={() => setParam(CHAT_PARAM, '')}
       />
       <FeedbackDialog
         lesson={feedbackTarget}

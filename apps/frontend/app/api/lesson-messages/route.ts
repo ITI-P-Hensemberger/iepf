@@ -1,5 +1,5 @@
 import { forwardToBackend } from '@/lib/backend-proxy'
 
 export async function GET() {
-  return forwardToBackend('/lesson-messages/unread')
+  return forwardToBackend('/lesson-messages')
 }

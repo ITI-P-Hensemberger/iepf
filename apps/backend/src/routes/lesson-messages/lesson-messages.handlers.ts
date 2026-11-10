@@ -3,7 +3,8 @@
 // Admins (the organizers) read every chat and never write. Every request lands in the audit log.
 import type { Context } from 'hono'
 
-import { and, asc, count, eq, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, asc, count, eq, isNull, ne, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
 
@@ -12,15 +13,18 @@ import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
 import { lessonMessages } from '@/db/schemas/lesson-messages.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
 import { subjects } from '@/db/schemas/subjects.schema'
+import { users } from '@/db/schemas/users.schema'
 import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
-import { lessonState } from '@/lib/lesson-state'
+import { LESSON_STATE_SQL, lessonState } from '@/lib/lesson-state'
 import { containsProfanity } from '@/lib/profanity'
 import { notifyUsers } from '@/lib/push'
 import { chatMessagePush } from '@/lib/push-messages'
 
-import type { GetChatRoute, ListUnreadRoute, MarkChatReadRoute, SendMessageRoute } from './lesson-messages.routes'
+import type { GetChatRoute, ListChatsRoute, MarkChatReadRoute, SendMessageRoute } from './lesson-messages.routes'
+
+import { CHATS_MAX } from './lesson-messages.routes'
 
 type ChatRole = 'student' | 'tutor' | 'admin'
 
@@ -170,20 +174,46 @@ export const markChatRead: AppRouteHandler<MarkChatReadRoute> = async (c) => {
   return c.body(null, HttpStatusCodes.NO_CONTENT)
 }
 
-export const listUnread: AppRouteHandler<ListUnreadRoute> = async (c) => {
+// Every chat of the current student or tutor: the open ones, and closed ones that have messages.
+// Most recent conversation first, then the chats nobody has written in, by lesson time.
+export const listChats: AppRouteHandler<ListChatsRoute> = async (c) => {
   const user = c.get('currentUser')
   if (!user || (user.role !== 'student' && user.role !== 'tutor')) {
     return c.json([], HttpStatusCodes.OK)
   }
-  const rows = await db.select({ bookingId: lessonMessages.bookingId, count: count() })
-    .from(lessonMessages)
-    .innerJoin(lessonBookings, eq(lessonBookings.id, lessonMessages.bookingId))
+  const other = alias(users, 'other')
+  const open = sql<boolean>`(${lessonBookings.status} = 'confirmed' and ${LESSON_STATE_SQL.upcoming})`
+  const lastMessageAt = sql<Date | null>`max(${lessonMessages.createdAt})`
+  const unread = sql<number>`count(*) filter (where ${lessonMessages.readAt} is null and ${lessonMessages.senderId} <> ${user.id})`.mapWith(Number)
+  const rows = await db.select({
+    lessonId: lessons.id,
+    bookingId: lessonBookings.id,
+    subjectName: subjects.name,
+    startAt: lessons.startAt,
+    otherFirstName: other.firstName,
+    otherLastName: other.lastName,
+    open,
+    unread,
+    lastMessageAt
+  })
+    .from(lessonBookings)
     .innerJoin(lessons, eq(lessons.id, lessonBookings.lessonId))
-    .where(and(
-      isNull(lessonMessages.readAt),
-      ne(lessonMessages.senderId, user.id),
-      or(eq(lessonBookings.studentId, user.id), eq(lessons.tutorId, user.id))
-    ))
-    .groupBy(lessonMessages.bookingId)
-  return c.json(rows, HttpStatusCodes.OK)
+    .innerJoin(subjects, eq(subjects.id, lessonBookings.subjectId))
+    .innerJoin(other, eq(other.id, user.role === 'student' ? lessons.tutorId : lessonBookings.studentId))
+    .leftJoin(lessonMessages, eq(lessonMessages.bookingId, lessonBookings.id))
+    .where(user.role === 'student' ? eq(lessonBookings.studentId, user.id) : eq(lessons.tutorId, user.id))
+    .groupBy(lessons.id, lessonBookings.id, subjects.name, other.firstName, other.lastName)
+    .having(sql`${open} or count(${lessonMessages.id}) > 0`)
+    .orderBy(sql`${lastMessageAt} desc nulls last`, asc(lessons.startAt))
+    .limit(CHATS_MAX)
+  return c.json(rows.map(row => ({
+    lessonId: row.lessonId,
+    bookingId: row.bookingId,
+    subjectName: row.subjectName,
+    startAt: row.startAt.toISOString(),
+    otherName: `${row.otherFirstName} ${row.otherLastName}`.trim(),
+    open: row.open,
+    unread: row.unread,
+    lastMessageAt: row.lastMessageAt ? new Date(row.lastMessageAt).toISOString() : null
+  })), HttpStatusCodes.OK)
 }
