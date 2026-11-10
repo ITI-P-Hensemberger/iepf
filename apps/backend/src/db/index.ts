@@ -18,6 +18,7 @@ import { lessonBookings } from './schemas/lesson-bookings.schema'
 import { lessonChanges } from './schemas/lesson-changes.schema'
 import { lessonFeedback, lessonFeedbackVersions } from './schemas/lesson-feedback.schema'
 import { lessons } from './schemas/lessons.schema'
+import { links } from './schemas/links.schema'
 import { notificationPreferences } from './schemas/notification-preferences.schema'
 import { notifications } from './schemas/notifications.schema'
 import { passwordResetTokens } from './schemas/password-reset-tokens.schema'
@@ -53,6 +54,7 @@ const schema = {
   tutorWeekdayAvailability,
   tutorInviteTokens,
   lessons,
+  links,
   lessonBookings,
   lessonChanges,
   lessonFeedback,

@@ -232,5 +232,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // Static files need no session check: each one would call the backend and add an audit row.
-  matcher: ['/((?!_next|favicon.ico|sw\\.js|api|.*\\.(?:png|jpe?g|gif|svg|webp|ico|txt|xml|webmanifest|woff2?)$).*)']
+  // Short links (/link/…) are public and must work in maintenance too.
+  matcher: ['/((?!_next|favicon.ico|sw\\.js|api|link/|.*\\.(?:png|jpe?g|gif|svg|webp|ico|txt|xml|webmanifest|woff2?)$).*)']
 }

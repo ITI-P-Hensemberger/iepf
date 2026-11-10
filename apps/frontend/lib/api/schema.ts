@@ -10175,6 +10175,657 @@ export interface paths {
         };
         trace?: never;
     };
+    "/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Every link, by slug */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            slug: string;
+                            url: string;
+                            active: boolean;
+                            clicks: number;
+                            createdAt: string;
+                            updatedAt: string;
+                        }[];
+                    };
+                };
+                /** @description Invalid credentials */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Non autorizzato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Admins only */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Accesso negato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description The link to add */
+            requestBody: {
+                content: {
+                    "application/json": {
+                        slug: string;
+                        url: string;
+                        /** @default true */
+                        active?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description The added link */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            slug: string;
+                            url: string;
+                            active: boolean;
+                            clicks: number;
+                            createdAt: string;
+                            updatedAt: string;
+                        };
+                    };
+                };
+                /** @description Invalid credentials */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Non autorizzato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Admins only */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Accesso negato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Another link has this slug */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Esiste già un link con questo nome."
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Validation error(s) */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Dati non validi",
+                             *       "name": "ZodError",
+                             *       "issues": [
+                             *         {
+                             *           "code": "invalid_type",
+                             *           "path": [
+                             *             "slug"
+                             *           ],
+                             *           "message": "Invalid input: expected string, received undefined"
+                             *         },
+                             *         {
+                             *           "code": "invalid_type",
+                             *           "path": [
+                             *             "url"
+                             *           ],
+                             *           "message": "Invalid input: expected string, received undefined"
+                             *         }
+                             *       ]
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                issues: {
+                                    code: string;
+                                    path: (string | number)[];
+                                    message?: string;
+                                }[];
+                                name: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/links/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description The link as it should become */
+            requestBody: {
+                content: {
+                    "application/json": {
+                        slug: string;
+                        url: string;
+                        /** @default true */
+                        active?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description The updated link */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            slug: string;
+                            url: string;
+                            active: boolean;
+                            clicks: number;
+                            createdAt: string;
+                            updatedAt: string;
+                        };
+                    };
+                };
+                /** @description Invalid credentials */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Non autorizzato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Admins only */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Accesso negato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Link not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Non trovato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Another link has this slug */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Esiste già un link con questo nome."
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Validation error(s) */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Dati non validi",
+                             *       "name": "ZodError",
+                             *       "issues": [
+                             *         {
+                             *           "code": "invalid_type",
+                             *           "path": [
+                             *             "slug"
+                             *           ],
+                             *           "message": "Invalid input: expected string, received undefined"
+                             *         },
+                             *         {
+                             *           "code": "invalid_type",
+                             *           "path": [
+                             *             "url"
+                             *           ],
+                             *           "message": "Invalid input: expected string, received undefined"
+                             *         }
+                             *       ]
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                issues: {
+                                    code: string;
+                                    path: (string | number)[];
+                                    message?: string;
+                                }[];
+                                name: string;
+                            };
+                        } | {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Dati non validi",
+                             *       "name": "ZodError",
+                             *       "issues": [
+                             *         {
+                             *           "code": "invalid_type",
+                             *           "path": [
+                             *             "id"
+                             *           ],
+                             *           "message": "Invalid input: expected string, received undefined"
+                             *         }
+                             *       ]
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                issues: {
+                                    code: string;
+                                    path: (string | number)[];
+                                    message?: string;
+                                }[];
+                                name: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Link deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid credentials */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Non autorizzato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Admins only */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Accesso negato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Link not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Non trovato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid id */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Dati non validi",
+                             *       "name": "ZodError",
+                             *       "issues": [
+                             *         {
+                             *           "code": "invalid_type",
+                             *           "path": [
+                             *             "id"
+                             *           ],
+                             *           "message": "Invalid input: expected string, received undefined"
+                             *         }
+                             *       ]
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                issues: {
+                                    code: string;
+                                    path: (string | number)[];
+                                    message?: string;
+                                }[];
+                                name: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/links/open/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Where the link leads; the click is counted. Public */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            url: string;
+                        };
+                    };
+                };
+                /** @description Link not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Non trovato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Not a slug */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Dati non validi",
+                             *       "name": "ZodError",
+                             *       "issues": [
+                             *         {
+                             *           "code": "invalid_type",
+                             *           "path": [
+                             *             "slug"
+                             *           ],
+                             *           "message": "Invalid input: expected string, received undefined"
+                             *         }
+                             *       ]
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                issues: {
+                                    code: string;
+                                    path: (string | number)[];
+                                    message?: string;
+                                }[];
+                                name: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notifications/push/config": {
         parameters: {
             query?: never;

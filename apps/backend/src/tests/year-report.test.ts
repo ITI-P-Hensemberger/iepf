@@ -79,8 +79,11 @@ function sampleData(): ReportData {
       { day: '2025-10-06', event: 'active_users', detail: '', role: 'student', year: 2, count: 12 },
       { day: '2025-10-06', event: 'push_sent', detail: 'reminders', role: '', year: 0, count: 10 },
       { day: '2025-10-06', event: 'push_open', detail: 'reminders', role: 'student', year: 2, count: 4 },
-      { day: '2025-10-06', event: 'bell_open', detail: '', role: 'student', year: 2, count: 3 }
+      { day: '2025-10-06', event: 'bell_open', detail: '', role: 'student', year: 2, count: 3 },
+      { day: '2025-10-06', event: 'link_click', detail: 'k1', role: '', year: 0, count: 4 },
+      { day: '2025-10-07', event: 'link_click', detail: 'k1', role: '', year: 0, count: 3 }
     ],
+    links: [{ id: 'k1', slug: 'iscrizioni', url: 'https://example.test/form', active: true, clicks: 41 }],
     notifications: {
       keepDays: 90,
       inbox: [{ category: 'bookings', total: 3, read: 1 }],
@@ -145,6 +148,13 @@ describe('buildYearReport', () => {
     }
   })
 
+  it('lists the short links with their total and recent clicks', () => {
+    const sheet = [...files].find(([name, xml]) => name.startsWith('xl/worksheets/') && xml.includes('Click sui link brevi'))![1]
+    expect(sheet).toContain('/link/iscrizioni')
+    expect(sheet).toContain('https://example.test/form')
+    expect(sheet).toMatch(/<v>41<\/v>[\s\S]*<v>7<\/v>/)
+  })
+
   it('gives each table headers that match its first row', () => {
     const tables = [...files.keys()].filter(name => name.startsWith('xl/tables/'))
     expect(tables.length).toBeGreaterThanOrEqual(9)
@@ -163,8 +173,8 @@ describe('buildYearReport', () => {
 
   it('draws native charts that point at existing sheets', () => {
     const charts = [...files.keys()].filter(name => name.startsWith('xl/charts/'))
-    // Twelve in a full report; the sample has no booking outcomes, so that chart is left out.
-    expect(charts).toHaveLength(11)
+    // Thirteen in a full report; the sample has no booking outcomes, so that chart is left out.
+    expect(charts).toHaveLength(12)
     for (const name of charts) {
       const refs = [...files.get(name)!.matchAll(/<c:f>'([^']+)'!/g)].map(match => match[1])
       expect(refs.length, name).toBeGreaterThan(0)

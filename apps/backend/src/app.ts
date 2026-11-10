@@ -12,6 +12,7 @@ import faqs from '@/routes/faqs/faqs.index'
 import feedback from '@/routes/feedback/feedback.index'
 import health from '@/routes/health.route'
 import lessons from '@/routes/lessons/lessons.index'
+import links from '@/routes/links/links.index'
 import notifications from '@/routes/notifications/notifications.index'
 import settings from '@/routes/settings/settings.index'
 import subjectRequests from '@/routes/subject-requests/subject-requests.index'
@@ -39,6 +40,7 @@ const routes = [
   feedback,
   health,
   lessons,
+  links,
   notifications,
   settings,
   subjectRequests,
