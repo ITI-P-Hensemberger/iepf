@@ -3,18 +3,21 @@
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
+import type { WebPushTransport } from '@/lib/web-push'
+
 import app from '@/app'
 import db, { closeDb } from '@/db'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
 import { lessonMessages } from '@/db/schemas/lesson-messages.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
 import { notifications } from '@/db/schemas/notifications.schema'
+import { pushSubscriptions } from '@/db/schemas/push-subscriptions.schema'
 import env from '@/env'
 import { cleanDatabase } from '@/lib/db-cleanup'
 import { DEV_PASSWORD, seedDevelopmentData } from '@/lib/dev-seed'
 import { assertLocalDatabase } from '@/lib/local-database'
 import { closeMailer } from '@/lib/mailer'
-import { waitForPendingPush } from '@/lib/push'
+import { setPushConfig, waitForPendingPush } from '@/lib/push'
 import { resetRateLimiters } from '@/middlewares/rate-limit'
 
 // From the dev seed: a confirmed lesson tomorrow and the demo student's booking on it.
@@ -23,6 +26,12 @@ const BOOKING_ID = '00000000-0000-4000-8000-000000000104'
 const CHAT = `/lessons/${LESSON_ID}/bookings/${BOOKING_ID}/messages`
 
 const tokens: Record<string, string> = {}
+// Pushes the fake push service received, as sent.
+let pushed: Array<Record<string, unknown>> = []
+const transport: WebPushTransport = async (_target, payload) => {
+  pushed.push(JSON.parse(payload.toString()))
+  return { status: 201 }
+}
 const ids: Record<string, string> = {}
 let startAt: Date
 
@@ -55,17 +64,21 @@ beforeAll(async () => {
     tokens[role] = (await login.json()).accessToken
     ids[role] = (await db.query.users.findFirst({ where: (fields, ops) => ops.eq(fields.email, `${role}@example.test`) }))!.id
   }
+  setPushConfig({ publicKey: 'test-public-key', transport })
+  await db.insert(pushSubscriptions).values({ userId: ids.tutor, endpoint: 'https://fcm.googleapis.com/fcm/send/tutor', p256dh: `BA${'A'.repeat(85)}`, auth: 'AAAAAAAAAAAAAAAAAAAAAA' })
   startAt = (await db.query.lessons.findFirst({ where: eq(lessons.id, LESSON_ID) }))!.startAt
 })
 
 beforeEach(async () => {
   await db.delete(lessonMessages)
   await db.delete(notifications)
+  pushed = []
   await db.update(lessons).set({ status: 'confirmed', startAt }).where(eq(lessons.id, LESSON_ID))
   await db.update(lessonBookings).set({ status: 'confirmed' }).where(eq(lessonBookings.id, BOOKING_ID))
 })
 
 afterAll(async () => {
+  setPushConfig(null)
   closeMailer()
   await closeDb()
 })
@@ -112,16 +125,16 @@ describe('lesson chat', () => {
     expect((await call(CHAT, { token: tokens.student, body: { body: 'Ciao' } })).status).toBe(409)
   })
 
-  it('counts unread messages and notifies only the first one', async () => {
+  it('counts unread messages and pushes only the first one, never into the bell', async () => {
     for (const body of ['Uno', 'Due', 'Tre']) {
       await call(CHAT, { token: tokens.student, body: { body } })
     }
     await waitForPendingPush()
-    const bell = await db.select().from(notifications).where(eq(notifications.userId, ids.tutor))
-    expect(bell).toHaveLength(1)
-    expect(bell[0]).toMatchObject({ title: 'Nuovo messaggio', url: `/tutor/lessons/${LESSON_ID}?chat=${BOOKING_ID}` })
+    expect(await db.select().from(notifications)).toEqual([])
+    expect(pushed).toHaveLength(1)
+    expect(pushed[0]).toMatchObject({ title: 'Nuovo messaggio', url: `/tutor/lessons/${LESSON_ID}?chat=${BOOKING_ID}` })
     // The lock screen never shows what was written.
-    expect(bell[0]!.body).not.toContain('Uno')
+    expect(pushed[0]!.body).not.toContain('Uno')
 
     expect(await unreadOf('tutor')).toBe(3)
     expect(await unreadOf('student')).toBe(0)
@@ -135,7 +148,7 @@ describe('lesson chat', () => {
     // Once read, the next message notifies again.
     await call(CHAT, { token: tokens.student, body: { body: 'Quattro' } })
     await waitForPendingPush()
-    expect(await db.select().from(notifications).where(eq(notifications.userId, ids.tutor))).toHaveLength(2)
+    expect(pushed).toHaveLength(2)
   })
 
   it('lists the open chats, and closed ones only with messages', async () => {

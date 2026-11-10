@@ -194,6 +194,14 @@ export function notifyUsers(userIds: string[], category: PushCategory, message: 
 }
 
 // Other fire-and-forget notification work that shutdown must wait for.
+// Push without a bell entry: for news that has its own counter on the site (lesson chat).
+export function pushOnly(userIds: string[], category: PushCategory, message: PushMessage) {
+  if (!config) {
+    return
+  }
+  trackNotificationTask(deliverPush(userIds, category, message))
+}
+
 export function trackNotificationTask(task: Promise<unknown>) {
   pendingPush.add(task)
   void task.finally(() => pendingPush.delete(task))

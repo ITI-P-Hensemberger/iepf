@@ -19,7 +19,7 @@ import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { LESSON_STATE_SQL, lessonState } from '@/lib/lesson-state'
 import { containsProfanity } from '@/lib/profanity'
-import { notifyUsers } from '@/lib/push'
+import { pushOnly } from '@/lib/push'
 import { chatMessagePush } from '@/lib/push-messages'
 
 import type { GetChatRoute, ListChatsRoute, MarkChatReadRoute, SendMessageRoute } from './lesson-messages.routes'
@@ -133,7 +133,7 @@ export const sendMessage: AppRouteHandler<SendMessageRoute> = async (c) => {
   }
 
   const recipientId = access.role === 'student' ? access.lesson.tutorId : access.booking.studentId
-  // Only the first unread message notifies: a conversation must not fill the bell.
+  // Only the first unread message sends a push: a conversation must not ring at every line.
   const [waiting] = await db.select({ n: count() })
     .from(lessonMessages)
     .where(and(eq(lessonMessages.bookingId, bookingId), eq(lessonMessages.senderId, access.userId), isNull(lessonMessages.readAt)))
@@ -147,8 +147,9 @@ export const sendMessage: AppRouteHandler<SendMessageRoute> = async (c) => {
       columns: { name: true }
     })
     const recipientRole = access.role === 'student' ? 'tutor' : 'student'
+    // Push only: the site counts unread chats on the chat button, not in the bell.
     // shortcut: chat news rides the 'bookings' switch; give it its own category if the organizers keep the chat.
-    notifyUsers([recipientId], 'bookings', chatMessagePush(recipientRole, {
+    pushOnly([recipientId], 'bookings', chatMessagePush(recipientRole, {
       lessonId,
       bookingId,
       subjectName: subject?.name ?? 'Lezione',

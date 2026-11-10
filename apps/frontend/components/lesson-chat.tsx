@@ -115,9 +115,29 @@ function ChatConversation({ target, role, className }: { target: Target, role: C
     if (!readOnly && unreadFromOther) markRead()
   }, [readOnly, unreadFromOther, markRead, messages])
 
-  React.useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight })
-  }, [messages?.length])
+  // The first message that was new when the chat opened: the "Nuovi messaggi" line stays above
+  // it while the chat is open, even once it is marked read. null: nothing new (or the organizers).
+  const [firstUnread, setFirstUnread] = React.useState<string | null | undefined>(undefined)
+  // Read from the server, not from the cache: a cached copy may still show as new what was read since.
+  if (firstUnread === undefined && messages && chat.isFetchedAfterMount) {
+    setFirstUnread(readOnly ? null : messages.find((message) => !message.mine && !message.readAt)?.id ?? null)
+  }
+  const separatorRef = React.useRef<HTMLDivElement>(null)
+  const positioned = React.useRef(false)
+
+  // Opening: the first new message at the top (the browser stops at the bottom when the new ones
+  // are fewer than a screen). Afterwards every new message scrolls to the bottom.
+  React.useLayoutEffect(() => {
+    const list = listRef.current
+    if (!list || !messages?.length || firstUnread === undefined) return
+    const separator = separatorRef.current
+    if (!positioned.current && separator) {
+      list.scrollTop += separator.getBoundingClientRect().top - list.getBoundingClientRect().top - 8
+    } else {
+      list.scrollTop = list.scrollHeight
+    }
+    positioned.current = true
+  }, [messages?.length, firstUnread])
 
   const send = useMutation({
     mutationFn: (body: string) => apiFetch(base, 'Impossibile inviare il messaggio.', jsonBody('POST', { body })),
@@ -149,7 +169,15 @@ function ChatConversation({ target, role, className }: { target: Target, role: C
             // For the organizers the student sits on the left, the tutor on the right.
             const right = readOnly ? message.senderRole === 'tutor' : message.mine
             return (
-              <div key={message.id} className={cn('flex flex-col', right ? 'items-end' : 'items-start')}>
+              <React.Fragment key={message.id}>
+              {message.id === firstUnread && (
+                <div ref={separatorRef} role='separator' className='flex items-center gap-2 py-1 text-xs font-medium text-[var(--primary-text)]'>
+                  <span className='h-px flex-1 bg-primary/40' />
+                  Nuovi messaggi
+                  <span className='h-px flex-1 bg-primary/40' />
+                </div>
+              )}
+              <div className={cn('flex flex-col', right ? 'items-end' : 'items-start')}>
                 <div className={cn(
                   'max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap break-words',
                   right && !readOnly ? 'bg-primary text-primary-foreground' : 'border bg-card'
@@ -162,6 +190,7 @@ function ChatConversation({ target, role, className }: { target: Target, role: C
                   {timeFormat.format(new Date(message.createdAt))}
                 </span>
               </div>
+              </React.Fragment>
             )
           })
         )}
