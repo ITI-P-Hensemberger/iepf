@@ -1,10 +1,10 @@
 'use client'
 
 import * as React from 'react'
-import qrcode from 'qrcode-generator'
 import { CheckCircle2, Copy, Mail, Share, Smartphone, SquarePlus } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { QrCode } from '@/components/qr-code'
 import { Button } from '@/components/ui/button'
 import {
   emailSetupLink,
@@ -156,35 +156,6 @@ function CopyLinkBox() {
   )
 }
 
-function QrCode({ value }: { value: string }) {
-  const { size, path } = React.useMemo(() => {
-    const qr = qrcode(0, 'M')
-    qr.addData(value)
-    qr.make()
-    const count = qr.getModuleCount()
-    let d = ''
-    for (let row = 0; row < count; row++) {
-      for (let col = 0; col < count; col++) {
-        if (qr.isDark(row, col)) d += `M${col} ${row}h1v1h-1z`
-      }
-    }
-    return { size: count, path: d }
-  }, [value])
-
-  // Always dark on white, in both themes: phone cameras read that best.
-  return (
-    <svg
-      viewBox={`-4 -4 ${size + 8} ${size + 8}`}
-      className='size-44 rounded-lg bg-white sm:size-48'
-      role='img'
-      aria-label='Codice QR per aprire IEPF sul telefono'
-      shapeRendering='crispEdges'
-    >
-      <path d={path} fill='#000' />
-    </svg>
-  )
-}
-
 const POLL_MS = 4_000
 const POLL_LIMIT_MS = 10 * 60 * 1000
 
@@ -228,7 +199,7 @@ function DesktopToPhone({ onDone }: { onDone: () => void }) {
         Inquadra il codice QR con la fotocamera del telefono: IEPF si apre e ti guida passo passo.
       </p>
       <div className='flex justify-center'>
-        <QrCode value={url} />
+        <QrCode value={url} label='Codice QR per aprire IEPF sul telefono' />
       </div>
       <p className='flex items-center justify-center gap-2 text-xs text-muted-foreground'>
         <span className='inline-block size-2 animate-pulse rounded-full bg-primary' aria-hidden />

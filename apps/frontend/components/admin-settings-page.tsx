@@ -5,6 +5,7 @@ import { SettingsSection } from '@/components/settings-section'
 import AdminAnnouncementsPage from '@/components/admin-announcements-page'
 import { AdminClosures } from '@/components/admin-closures'
 import { AdminFaqSettings } from '@/components/admin-faq-settings'
+import { AdminLinksSettings } from '@/components/admin-links-settings'
 import * as React from 'react'
 import { toast } from 'sonner'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -30,7 +31,7 @@ import { SchoolYearReset } from '@/components/school-year-reset'
 import { ServiceMessageCard } from '@/components/service-message-banner'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { formatItalianDate } from '@/lib/format-date'
-import { BookOpen, CalendarOff, Info, Megaphone, RotateCcw, Wrench, CircleHelp, MessageSquareText } from 'lucide-react'
+import { BookOpen, CalendarOff, Info, Link2, Megaphone, RotateCcw, Wrench, CircleHelp, MessageSquareText } from 'lucide-react'
 import { capitalizeFirst } from '@/lib/capitalize'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, jsonBody } from '@/lib/api-fetch'
@@ -350,7 +351,7 @@ export default function AdminSettingsPage() {
   )
 
   const availableTabs = React.useMemo(
-    () => ['info', 'maintenance', 'messages', 'popup', 'closures', 'subjects', 'faq', 'school-year'] as const,
+    () => ['info', 'maintenance', 'messages', 'popup', 'closures', 'subjects', 'faq', 'links', 'school-year'] as const,
     []
   )
   const sections: SectionItem[] = [
@@ -361,6 +362,7 @@ export default function AdminSettingsPage() {
     { value: 'closures', label: 'Chiusure', icon: CalendarOff },
     { value: 'subjects', label: 'Materie', icon: BookOpen },
     { value: 'faq', label: 'FAQ', icon: CircleHelp },
+    { value: 'links', label: 'Link', icon: Link2 },
     { value: 'school-year', label: 'Anno scolastico', icon: RotateCcw, separatorBefore: true }
   ]
 
@@ -630,6 +632,10 @@ export default function AdminSettingsPage() {
 
             <TabsContent value='faq' className='mt-0'>
               {activeTab === 'faq' && <AdminFaqSettings />}
+            </TabsContent>
+
+            <TabsContent value='links' className='mt-0'>
+              {activeTab === 'links' && <AdminLinksSettings />}
             </TabsContent>
 
             <TabsContent value='school-year' className='mt-0'>

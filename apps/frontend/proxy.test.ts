@@ -32,11 +32,11 @@ function location(response: Response) {
 }
 
 describe('proxy matcher', () => {
-  it.each(['/', '/student', '/admin/tutors', '/auth/login', '/auth/reset-password'])('runs on %s', (url) => {
+  it.each(['/', '/student', '/admin/tutors', '/link', '/linkedin', '/auth/login', '/auth/reset-password'])('runs on %s', (url) => {
     expect(unstable_doesMiddlewareMatch({ config, url })).toBe(true)
   })
 
-  it.each(['/logo.png', '/icon.png', '/apple-icon.png', '/favicon.ico', '/_next/static/chunk.js', '/api/lessons', '/sw.js', '/manifest.webmanifest', '/icons/icon-192.png'])('skips %s', (url) => {
+  it.each(['/logo.png', '/icon.png', '/apple-icon.png', '/favicon.ico', '/_next/static/chunk.js', '/api/lessons', '/sw.js', '/manifest.webmanifest', '/icons/icon-192.png', '/link/iscrizioni'])('skips %s', (url) => {
     expect(unstable_doesMiddlewareMatch({ config, url })).toBe(false)
   })
 })

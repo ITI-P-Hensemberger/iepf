@@ -10,6 +10,7 @@ import { classSections } from '@/db/schemas/class-sections.schema'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
 import { lessonFeedback, lessonFeedbackVersions } from '@/db/schemas/lesson-feedback.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
+import { links } from '@/db/schemas/links.schema'
 import { pushSubscriptions } from '@/db/schemas/push-subscriptions.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
 import { subjectRequests } from '@/db/schemas/subject-requests.schema'
@@ -49,12 +50,13 @@ export interface ReportData {
   tokenBalances: Map<string, number>
   subjectRequests: Array<{ studentId: string, subjectId: string, createdAt: Date }>
   analytics: Array<{ day: string, event: string, detail: string, role: string, year: number, count: number }>
+  links: Array<{ id: string, slug: string, url: string, active: boolean, clicks: number }>
   notifications: NotificationStats
 }
 
 export async function loadReportData(): Promise<ReportData> {
   const hasPush = sql<boolean>`exists (select 1 from ${pushSubscriptions} where ${pushSubscriptions.userId} = ${users.id})`
-  const [people, subjectRows, tutorSubjectRows, capacityRows, lessonRows, bookingRows, feedbackRows, versionRows, balanceRows, requestRows, analyticsRows, notificationStats] = await Promise.all([
+  const [people, subjectRows, tutorSubjectRows, capacityRows, lessonRows, bookingRows, feedbackRows, versionRows, balanceRows, requestRows, analyticsRows, linkRows, notificationStats] = await Promise.all([
     db.select({
       id: users.id,
       role: users.role,
@@ -133,6 +135,7 @@ export async function loadReportData(): Promise<ReportData> {
       .groupBy(tokenLedger.studentId),
     db.select({ studentId: subjectRequests.studentId, subjectId: subjectRequests.subjectId, createdAt: subjectRequests.createdAt }).from(subjectRequests),
     db.select().from(analyticsDaily).orderBy(analyticsDaily.day),
+    db.select({ id: links.id, slug: links.slug, url: links.url, active: links.active, clicks: links.clicks }).from(links).orderBy(links.slug),
     readNotificationStats()
   ])
 
@@ -160,6 +163,7 @@ export async function loadReportData(): Promise<ReportData> {
     tokenBalances: new Map(balanceRows.map(row => [row.studentId, Number(row.balance)])),
     subjectRequests: requestRows,
     analytics: analyticsRows,
+    links: linkRows,
     notifications: notificationStats
   }
 }

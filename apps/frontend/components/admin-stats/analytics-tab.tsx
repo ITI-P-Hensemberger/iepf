@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
 import type { AnalyticsPayload } from '@/components/admin-stats/analytics-data'
@@ -20,6 +21,7 @@ import {
 } from '@/components/admin-stats/analytics-data'
 import { axisProps, ChartCard, ChartTooltip, DataView, EmptyChart, formatNumber, gridProps, Legend, StatTile } from '@/components/admin-stats/charts'
 import { useJson } from '@/components/admin-stats/use-json'
+import { fetchLinks, LINKS_QUERY_KEY } from '@/components/admin-links-settings'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export const RANGES = [
@@ -196,6 +198,10 @@ export function AnalyticsTab() {
 
   const pages = payload ? detailCounts(payload, 'page_view').slice(0, 12).map(row => ({ name: pageLabel(row.detail), count: row.count })) : []
   const errors = payload ? detailCounts(payload, 'client_error').slice(0, 10) : []
+  const { data: links } = useQuery({ queryKey: LINKS_QUERY_KEY, queryFn: fetchLinks })
+  // Clicks are counted by the link's id; a deleted link has no name any more.
+  const slugs = new Map(links?.map(link => [link.id, `/link/${link.slug}`]))
+  const linkClicks = payload ? detailCounts(payload, 'link_click').map(row => ({ name: slugs.get(row.detail) ?? 'Link eliminato', count: row.count })) : []
   const funnel = payload ? bookingFunnel(payload) : null
   const bookedRate = funnel ? percent(funnel.booked, funnel.attempts) : null
 
@@ -242,6 +248,10 @@ export function AnalyticsTab() {
                   <HorizontalBars rows={pages} label='Visite' />
                 </ChartCard>
               </div>
+
+              <ChartCard title='Click sui link' description='Quante volte sono stati aperti i link brevi delle impostazioni.'>
+                <HorizontalBars rows={linkClicks} label='Click' empty='Nessun click sui link nel periodo.' />
+              </ChartCard>
 
               <ChartCard title='Errori nel browser' description='Tipo di errore e pagina; il messaggio non viene salvato.'>
                 {errors.length === 0

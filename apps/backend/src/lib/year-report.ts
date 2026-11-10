@@ -667,6 +667,8 @@ function addUsageSheet(sheet: Sheet, data: ReportData, now: Date) {
   sheet.addHeading('Utilizzo del sito', 'Conteggi giornalieri anonimi: nessun nome, email, IP o identificativo. Conservati 13 mesi.')
   if (data.analytics.length === 0) {
     sheet.addRow([{ value: 'Nessuna statistica d\'uso registrata.', style: 'note' }])
+    sheet.skip(1)
+    addLinksBlock(sheet, data)
     return
   }
   const rows = data.analytics
@@ -711,6 +713,22 @@ function addUsageSheet(sheet: Sheet, data: ReportData, now: Date) {
       return [name, page === 'other' ? 'Altre pagine' : page, sumCounts(list)] as CellValue[]
     }).sort((a, b) => (b[2] as number) - (a[2] as number))
   })
+
+  addLinksBlock(sheet, data)
+}
+
+// The admins' short links: the all-time total from the link, the last 13 months from the daily counts.
+function addLinksBlock(sheet: Sheet, data: ReportData) {
+  if (data.links.length === 0)
+    return
+  const recent = groupBy(data.analytics.filter(row => row.event === 'link_click'), row => row.detail)
+  block(sheet, 'Click sui link brevi', {
+    name: 'Link',
+    columns: [{ header: 'Link' }, { header: 'Porta a' }, { header: 'Attivo' }, { header: 'Click in totale' }, { header: 'Click negli ultimi 13 mesi' }],
+    rows: data.links
+      .map(link => [`/link/${link.slug}`, link.url, yesNo(link.active), link.clicks, sumCounts(recent.get(link.id) ?? [])] as CellValue[])
+      .sort((a, b) => (b[3] as number) - (a[3] as number))
+  }, ref => ({ type: 'bar', title: 'Click sui link brevi', categories: ref.column(0), series: [{ name: 'Click', values: ref.column(3) }] }))
 }
 
 const SERVICE_LABEL: Record<string, string> = {

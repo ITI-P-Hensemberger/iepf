@@ -21,7 +21,8 @@ export const CLIENT_EVENTS = [
 ] as const
 export type ClientEvent = typeof CLIENT_EVENTS[number]
 
-export const SERVER_EVENTS = ['booking', 'push_sent', 'active_users'] as const
+// link_click: detail is the link's id, so a renamed slug keeps its history.
+export const SERVER_EVENTS = ['booking', 'push_sent', 'active_users', 'link_click'] as const
 export type AnalyticsEvent = ClientEvent | typeof SERVER_EVENTS[number]
 
 // The site's pages, with ids replaced by [id]. Visitors are not counted, so only pages a
