@@ -87,3 +87,14 @@ export function isSameSchoolDay(a: Date, b: Date) {
 export function bookingCutoff(lessonStartAt: Date): Date {
   return schoolTime(addDays(schoolDayKey(lessonStartAt), -1), 20)
 }
+
+// Saturday 12:00 the instant falls after: when the next week's lessons are generated, the school
+// week turns (the frontend's currentLessonMonday uses the same line).
+export function lessonWeekStart(now: Date): Date {
+  const today = schoolDayKey(now)
+  const saturday = addDays(today, -((weekdayOf(today) + 1) % 7))
+  const start = schoolTime(saturday, 12)
+  return start > now
+    ? schoolTime(addDays(saturday, -7), 12)
+    : start
+}

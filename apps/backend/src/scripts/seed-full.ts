@@ -16,7 +16,8 @@ const steps: Array<[string, ...string[]]> = [
   ['seed-mock-tutor-subjects.ts'],
   ['seed-mock-tutor-weekday-availability.ts'],
   ['generate-weekly-lessons.ts', '--mock-only'],
-  ['seed-mock-lesson-bookings.ts']
+  ['seed-mock-lesson-bookings.ts'],
+  ['seed-mock-subject-requests.ts']
 ]
 
 try {

@@ -10,6 +10,7 @@ const router = createRouter()
 router.use('/subject-requests', authenticate())
 router.use('/subject-requests/*', authenticate())
 
+router.openapi(routes.week, handlers.week)
 router.openapi(routes.list, handlers.list)
 router.openapi(routes.create, handlers.create)
 

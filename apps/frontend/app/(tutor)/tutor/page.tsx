@@ -11,6 +11,7 @@ import { CalendarClock, CalendarDays, ChevronRight } from 'lucide-react'
 
 import { PushInviteCard, TUTOR_ONBOARDED_FLAG as ONBOARDED_FLAG } from '@/components/push-prompt'
 import { TutorLessonList } from '@/components/tutor-lesson-list'
+import { WeeklyRequestedSubjects } from '@/components/weekly-requested-subjects'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -89,6 +90,8 @@ export default function TutorPage() {
               <Link href={withFrom('/profile?tab=availability', '/tutor')}><CalendarClock className='h-5 w-5' /> Disponibilità</Link>
             </Button>
           </div>
+
+          <WeeklyRequestedSubjects />
 
           <section className='space-y-3'>
             <h2 className='flex items-center gap-2 text-lg font-semibold'>Oggi <Badge variant='secondary'>{capitalize(dayFormat.format(new Date()))}</Badge></h2>
