@@ -1,7 +1,7 @@
 // Purpose: Admin-only stats handlers.
 import type { Context } from 'hono'
 
-import { and, asc, desc, eq, ilike, isNull, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, exists, ilike, isNull, or, sql } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
@@ -126,7 +126,10 @@ export const listTutorLessonCounts: AppRouteHandler<ListTutorLessonCountsRoute> 
       ilike(users.firstName, `%${q}%`),
       ilike(users.lastName, `%${q}%`),
       ilike(users.email, `%${q}%`),
-      ilike(classSections.name, `%${q}%`)
+      ilike(classSections.name, `%${q}%`),
+      exists(db.select({ one: sql`1` }).from(tutorSubjects)
+        .innerJoin(subjects, eq(subjects.id, tutorSubjects.subjectId))
+        .where(and(eq(tutorSubjects.tutorId, users.id), ilike(subjects.name, `%${q}%`))))
     )
     if (searchCondition) {
       tutorConditions.push(searchCondition)
@@ -164,6 +167,7 @@ export const listTutorLessonCounts: AppRouteHandler<ListTutorLessonCountsRoute> 
       firstName: users.firstName,
       lastName: users.lastName,
       sectionName: classSections.name,
+      subjects: sql<string[]>`coalesce((select array_agg(${subjects.name} order by ${subjects.name}) from ${tutorSubjects} inner join ${subjects} on ${subjects.id} = ${tutorSubjects.subjectId} where ${tutorSubjects.tutorId} = ${users.id}), '{}')`,
       countedLessons: countedLessonsExpr,
       lessonsConfirmedCounted: lessonsConfirmedCountedExpr,
       lessonsConfirmedNotCounted: lessonsConfirmedNotCountedExpr,

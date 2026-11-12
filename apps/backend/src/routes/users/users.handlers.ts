@@ -9,7 +9,9 @@ import db from '@/db'
 import { activationEvents } from '@/db/schemas/activation-events.schema'
 import { adminProfiles } from '@/db/schemas/admin-profiles.schema'
 import { studentProfiles } from '@/db/schemas/student-profiles.schema'
+import { subjects } from '@/db/schemas/subjects.schema'
 import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
+import { tutorSubjects } from '@/db/schemas/tutor-subjects.schema'
 import { users } from '@/db/schemas/users.schema'
 import { listActivationHistory, recordActivationChange } from '@/lib/activation-history'
 import { ZOD_ERROR_CODES, ZOD_ERROR_MESSAGES } from '@/lib/constants'
@@ -43,6 +45,7 @@ type UserWithProfile = UserPublicRecord & {
   isActive: boolean
   lessonTokens: number | null
   activatedAt?: Date | null
+  subjects?: string[]
 }
 
 function buildDuplicateEmailError() {
@@ -191,6 +194,16 @@ async function attachProfiles(records: UserPublicRecord[]): Promise<UserWithProf
     rows.forEach(row => activatedAt.set(row.userId, row.at))
   }
 
+  const tutorSubjectNames = new Map<string, string[]>()
+  if (tutorIds.length > 0) {
+    const rows = await db.select({ tutorId: tutorSubjects.tutorId, name: subjects.name })
+      .from(tutorSubjects)
+      .innerJoin(subjects, eq(subjects.id, tutorSubjects.subjectId))
+      .where(inArray(tutorSubjects.tutorId, tutorIds))
+      .orderBy(subjects.name)
+    rows.forEach(row => tutorSubjectNames.set(row.tutorId, [...(tutorSubjectNames.get(row.tutorId) ?? []), row.name]))
+  }
+
   const sectionIds = new Set<string>()
   for (const profile of studentProfilesList) {
     if (profile.sectionId) {
@@ -250,7 +263,8 @@ async function attachProfiles(records: UserPublicRecord[]): Promise<UserWithProf
         sectionName: resolveSectionName(profile?.sectionId ?? null),
         year: profile?.year ?? null,
         isActive: profile?.isActive ?? true,
-        lessonTokens: null
+        lessonTokens: null,
+        subjects: tutorSubjectNames.get(user.id) ?? []
       }
     }
 
@@ -337,6 +351,7 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
         || user.role.toLowerCase().includes(needle)
         || sectionDisplay.includes(needle)
         || year.includes(needle)
+        || (user.subjects ?? []).some(name => name.toLowerCase().includes(needle))
     })
   }
 

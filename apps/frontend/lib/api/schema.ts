@@ -360,6 +360,7 @@ export interface paths {
                                 firstName: string;
                                 lastName: string;
                                 sectionName: string | null;
+                                subjects: string[];
                                 countedLessons: number;
                                 lessonsConfirmedCounted: number;
                                 lessonsConfirmedNotCounted: number;
@@ -2912,6 +2913,7 @@ export interface paths {
                             lessonTokens?: number | null;
                             /** Format: date-time */
                             activatedAt?: string | null;
+                            subjects?: string[];
                         };
                     };
                 };
@@ -3867,6 +3869,7 @@ export interface paths {
                             lessonTokens?: number | null;
                             /** Format: date-time */
                             activatedAt?: string | null;
+                            subjects?: string[];
                         };
                     };
                 };
@@ -4477,6 +4480,7 @@ export interface paths {
                             lessonTokens?: number | null;
                             /** Format: date-time */
                             activatedAt?: string | null;
+                            subjects?: string[];
                         };
                     };
                 };
@@ -14719,6 +14723,7 @@ export interface paths {
                                 lessonTokens?: number | null;
                                 /** Format: date-time */
                                 activatedAt?: string | null;
+                                subjects?: string[];
                             })[];
                             total: number;
                             limit: number;
@@ -15292,6 +15297,7 @@ export interface paths {
                                 lessonTokens?: number | null;
                                 /** Format: date-time */
                                 activatedAt?: string | null;
+                                subjects?: string[];
                             })[];
                             total: number;
                             limit: number;
@@ -15414,6 +15420,7 @@ export interface paths {
                             lessonTokens?: number | null;
                             /** Format: date-time */
                             activatedAt?: string | null;
+                            subjects?: string[];
                         }) | {
                             id: string;
                             firstName: string;
@@ -15717,6 +15724,7 @@ export interface paths {
                             lessonTokens?: number | null;
                             /** Format: date-time */
                             activatedAt?: string | null;
+                            subjects?: string[];
                         };
                     };
                 };

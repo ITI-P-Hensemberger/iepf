@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment } from 'react'
+import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Bell, BookOpen, ChartLine, Download, GraduationCap, LayoutDashboard, MessageSquarePlus, Star, Users } from 'lucide-react'
 
@@ -15,12 +16,14 @@ import { OverviewTab } from '@/components/admin-stats/overview-tab'
 import { StatsList } from '@/components/admin-stats/stats-list'
 import { Badge } from '@/components/ui/badge'
 import { SectionLayout } from '@/components/section-layout'
+import { useHere, withFrom } from '@/lib/back-link'
 
 type SubjectTutorCount = { subjectId: string, name: string, tutorCount: number }
 type SubjectRequestSummary = { subjectName: string, canonicalName: string, requestCount: number }
 type Person = { email: string, firstName: string, lastName: string, sectionName: string | null, countedLessons: number }
 type TutorRow = Person & {
   tutorId: string
+  subjects: string[]
   lessonsDone: number
   lessonsUpcoming: number
   lessonsCanceled: number
@@ -63,12 +66,13 @@ const TUTORS: StatsListConfig<TutorRow> = {
   title: 'Tutor',
   description: 'Lezioni prenotate per tutor. "Conteggiate" valgono per le ore del tutor; gli slot senza prenotazioni non sono contati.',
   endpoint: '/api/admin/stats/lessons-counts/tutors',
-  searchPlaceholder: 'Nome, cognome, email o sezione',
+  searchPlaceholder: 'Nome, cognome, email, sezione o materia',
   defaultSort: { sortBy: 'lastName', sortDir: 'asc' },
   descendingFirst: ['countedLessons'],
   columns: [
     nameColumn('Tutor'),
     sectionColumn(),
+    { key: 'subjects', header: 'Materie', cell: row => row.subjects.length ? row.subjects.join(', ') : '–' },
     numberColumn('counted', 'Conteggiate', row => n(row.countedLessons), 'countedLessons'),
     numberColumn('done', 'Svolte', row => n(row.lessonsDone)),
     numberColumn('upcoming', 'Confermate', row => n(row.lessonsUpcoming)),
@@ -100,6 +104,20 @@ const STUDENTS: StatsListConfig<StudentRow> = {
   errorMessage: 'Impossibile caricare le statistiche studenti.'
 }
 
+// Opens the tutor list searched by the subject's name.
+function TutorsLink({ subject, count }: { subject: string, count: number }) {
+  const here = useHere()
+  return (
+    <Link
+      href={withFrom(`/admin/tutors?activeTutorSearch=${encodeURIComponent(subject)}`, here)}
+      className='font-medium text-[var(--primary-text)] underline-offset-4 hover:underline'
+      aria-label={`Tutor di ${subject}: ${count}`}
+    >
+      {count}
+    </Link>
+  )
+}
+
 const SUBJECTS: StatsListConfig<SubjectTutorCount> = {
   key: 'subjects',
   title: 'Materie',
@@ -115,7 +133,7 @@ const SUBJECTS: StatsListConfig<SubjectTutorCount> = {
       header: 'Tutor',
       sortKey: 'tutorCount',
       numeric: true,
-      cell: row => n(row.tutorCount) > 0 ? n(row.tutorCount) : <Badge variant='outline'>Nessun tutor</Badge>
+      cell: row => n(row.tutorCount) > 0 ? <TutorsLink subject={row.name} count={n(row.tutorCount)} /> : <Badge variant='outline'>Nessun tutor</Badge>
     }
   ],
   rowKey: row => row.subjectId,
