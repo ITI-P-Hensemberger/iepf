@@ -1,7 +1,7 @@
 // Purpose: School days and times are read in Europe/Rome, whatever time zone the process runs in.
 import { describe, expect, it } from 'vitest'
 
-import { addDays, bookingCutoff, schoolDayKey, schoolDayRange, schoolTime, weekdayOf } from '@/lib/school-time'
+import { addDays, bookingCutoff, lessonWeekStart, schoolDayKey, schoolDayRange, schoolTime, weekdayOf } from '@/lib/school-time'
 
 describe('school time', () => {
   it('names the day in Rome, not in UTC', () => {
@@ -20,6 +20,18 @@ describe('school time', () => {
     const { start, end } = schoolDayRange(new Date('2026-03-29T12:00:00Z'))
     expect(start.toISOString()).toBe('2026-03-28T23:00:00.000Z')
     expect(end.toISOString()).toBe('2026-03-29T22:00:00.000Z')
+  })
+
+  it('turns the lesson week on Saturday at noon in Rome', () => {
+    // Saturday 14 Nov 2026, 11:59 and 12:00 in Rome (UTC+1).
+    expect(lessonWeekStart(new Date('2026-11-14T10:59:00Z')).toISOString()).toBe('2026-11-07T11:00:00.000Z')
+    expect(lessonWeekStart(new Date('2026-11-14T11:00:00Z')).toISOString()).toBe('2026-11-14T11:00:00.000Z')
+    // Sunday and Friday.
+    expect(lessonWeekStart(new Date('2026-11-15T09:00:00Z')).toISOString()).toBe('2026-11-14T11:00:00.000Z')
+    expect(lessonWeekStart(new Date('2026-11-20T22:00:00Z')).toISOString()).toBe('2026-11-14T11:00:00.000Z')
+    // Across the switch to summer time: Saturday 28 Mar is UTC+1, Saturday 4 Apr UTC+2.
+    expect(lessonWeekStart(new Date('2026-04-03T10:00:00Z')).toISOString()).toBe('2026-03-28T11:00:00.000Z')
+    expect(lessonWeekStart(new Date('2026-04-04T10:00:00Z')).toISOString()).toBe('2026-04-04T10:00:00.000Z')
   })
 
   it('counts days and weekdays on the calendar', () => {

@@ -12783,6 +12783,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/subject-requests/week": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Subjects requested since the last Saturday 12:00 (Europe/Rome), most requested first (counts are not exposed) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            subjectId: string;
+                            subjectName: string;
+                        }[];
+                    };
+                };
+                /** @description Invalid credentials */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Non autorizzato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Active tutor or admin access required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example false */
+                            success: boolean;
+                            /**
+                             * @example {
+                             *       "message": "Accesso negato"
+                             *     }
+                             */
+                            error: {
+                                message: string;
+                                name?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/subject-requests": {
         parameters: {
             query?: never;

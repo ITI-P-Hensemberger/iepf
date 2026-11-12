@@ -1,7 +1,7 @@
 // Purpose: Subject request handlers.
 import type { Context } from 'hono'
 
-import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, ilike, or, sql } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 
 import type { AppBindings, AppRouteHandler } from '@/lib/types'
@@ -14,8 +14,9 @@ import { buildErrorResponse } from '@/lib/error-response'
 import * as HttpStatusCodes from '@/lib/http-status-codes'
 import * as HttpStatusPhrases from '@/lib/http-status-phrases'
 import { buildPagedResponse } from '@/lib/pagination'
+import { lessonWeekStart } from '@/lib/school-time'
 
-import type { CreateRoute, ListRoute } from './subject-requests.routes'
+import type { CreateRoute, ListRoute, WeekRoute } from './subject-requests.routes'
 
 type HandlerContext = Context<AppBindings>
 
@@ -210,4 +211,20 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
   }))
 
   return c.json(buildPagedResponse(data, Number(total), query.limit, query.offset), HttpStatusCodes.OK)
+}
+
+export const week: AppRouteHandler<WeekRoute> = async (c) => {
+  const currentUser = c.get('currentUser')
+  if (!currentUser || !['tutor', 'admin'].includes(currentUser.role) || currentUser.isActive !== true) {
+    forbid()
+  }
+  const requestCount = sql`count(distinct ${subjectRequests.studentId})`
+  const rows = await db
+    .select({ subjectId: subjects.id, subjectName: subjects.name })
+    .from(subjectRequests)
+    .innerJoin(subjects, eq(subjectRequests.subjectId, subjects.id))
+    .where(gte(subjectRequests.createdAt, lessonWeekStart(new Date())))
+    .groupBy(subjects.id, subjects.name)
+    .orderBy(desc(requestCount), asc(subjects.name))
+  return c.json(rows, HttpStatusCodes.OK)
 }

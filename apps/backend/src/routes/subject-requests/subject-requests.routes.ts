@@ -121,5 +121,30 @@ export const create = createRoute({
   }
 })
 
+export const week = createRoute({
+  path: '/subject-requests/week',
+  method: 'get',
+  tags,
+  security: bearerAuth,
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      z.array(z.object({
+        subjectId: z.uuid(),
+        subjectName: z.string()
+      })),
+      'Subjects requested since the last Saturday 12:00 (Europe/Rome), most requested first (counts are not exposed)'
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
+      'Active tutor or admin access required'
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED),
+      'Invalid credentials'
+    )
+  }
+})
+
 export type ListRoute = typeof list
+export type WeekRoute = typeof week
 export type CreateRoute = typeof create
