@@ -76,7 +76,10 @@ export const adjustTokens: AppRouteHandler<AdjustTokensRoute> = async (c) => {
 
   if (appliedDelta !== 0) {
     const change = { delta: appliedDelta, balance: nextTokens }
-    sendMail({ to: student.email, ...buildLessonHoursChangedMessage(change) })
+    sendMail({
+      to: student.email,
+      ...buildLessonHoursChangedMessage(change)
+    })
       .catch(error => console.error('Failed to send lesson hours email:', error))
     notifyUsers([studentId], 'account', lessonHoursChangedPush(change))
   }
@@ -115,7 +118,9 @@ export const tokenHistory: AppRouteHandler<TokenHistoryRoute> = async (c) => {
       delta: row.delta,
       reason: row.reason,
       createdAt: row.createdAt.toISOString(),
-      adminName: row.adminFirstName ? `${row.adminFirstName} ${row.adminLastName ?? ''}`.trim() : null
+      adminName: row.adminFirstName
+        ? `${row.adminFirstName} ${row.adminLastName ?? ''}`.trim()
+        : null
     }))
   }, HttpStatusCodes.OK)
 }

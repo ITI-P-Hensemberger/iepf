@@ -7,11 +7,18 @@ import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
 import { createErrorMessageSchema, createErrorSchema } from '@/lib/openapi/schemas'
 
 const tags = ['Settings']
-const bearerAuth = [{
-  bearerAuth: [] as string[]
-}]
+const bearerAuth = [
+  {
+    bearerAuth: [] as string[]
+  }
+]
 
-const roleSchema = z.enum(['student', 'tutor', 'admin', 'activator'])
+const roleSchema = z.enum([
+  'student',
+  'tutor',
+  'admin',
+  'activator'
+])
 const closureDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
 export const maintenanceSchema = z.object({
@@ -153,7 +160,9 @@ export const resetSchoolYear = createRoute({
   method: 'post',
   tags,
   security: bearerAuth,
-  request: { body: jsonContentRequired(resetSchoolYearSchema, 'Reset confirmation') },
+  request: {
+    body: jsonContentRequired(resetSchoolYearSchema, 'Reset confirmation')
+  },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(resetSchoolYearResultSchema, 'School year reset'),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN), 'Wrong password or impersonated session'),
@@ -189,7 +198,9 @@ export const checkSchoolYearReset = createRoute({
   method: 'post',
   tags,
   security: bearerAuth,
-  request: { body: jsonContentRequired(resetSchoolYearSchema.pick({ password: true }), 'The admin password') },
+  request: {
+    body: jsonContentRequired(resetSchoolYearSchema.pick({ password: true }), 'The admin password')
+  },
   responses: {
     [HttpStatusCodes.NO_CONTENT]: { description: 'The reset would be accepted now; nothing is deleted' },
     [HttpStatusCodes.FORBIDDEN]: jsonContent(createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN), 'Wrong password or impersonated session'),

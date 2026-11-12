@@ -13,7 +13,12 @@ import { recordNotifications, unreadCounts } from '@/lib/notification-inbox'
 import { createWebPushTransport } from '@/lib/web-push'
 
 // Students and tutors switch these off by push; the panel keeps them anyway.
-export const USER_CATEGORIES = ['bookings', 'reminders', 'feedback', 'lessons'] as const
+export const USER_CATEGORIES = [
+  'bookings',
+  'reminders',
+  'feedback',
+  'lessons'
+] as const
 // Admins only; each one goes out by push and by email, switched on and off separately.
 export const ADMIN_CATEGORIES = [
   'adminLowFeedback',
@@ -26,7 +31,11 @@ export const ADMIN_CATEGORIES = [
 // Always sent, on every channel: news that changes what someone has to do or where they have
 // to be, and that they did not decide themselves. No switch turns them off.
 export const ALWAYS_ON_CATEGORIES = ['updates', 'account', 'adminEmptyWeek'] as const
-export const PUSH_CATEGORIES = [...USER_CATEGORIES, ...ADMIN_CATEGORIES, ...ALWAYS_ON_CATEGORIES] as const
+export const PUSH_CATEGORIES = [
+  ...USER_CATEGORIES,
+  ...ADMIN_CATEGORIES,
+  ...ALWAYS_ON_CATEGORIES
+] as const
 export type PushCategory = typeof PUSH_CATEGORIES[number]
 export type AdminCategory = typeof ADMIN_CATEGORIES[number]
 // What an admin notice goes out as: a switchable kind, or the empty week that is always sent.
@@ -37,8 +46,14 @@ export function emailPreference<C extends AdminNoticeCategory>(category: C) {
   return `email${category.charAt(0).toUpperCase()}${category.slice(1)}` as `email${Capitalize<C>}`
 }
 
-export const SWITCHABLE_CATEGORIES = [...USER_CATEGORIES, ...ADMIN_CATEGORIES] as const
-export const PREFERENCE_KEYS = [...SWITCHABLE_CATEGORIES, ...ADMIN_CATEGORIES.map(emailPreference)] as const
+export const SWITCHABLE_CATEGORIES = [
+  ...USER_CATEGORIES,
+  ...ADMIN_CATEGORIES
+] as const
+export const PREFERENCE_KEYS = [
+  ...SWITCHABLE_CATEGORIES,
+  ...ADMIN_CATEGORIES.map(emailPreference)
+] as const
 export type PreferenceKey = typeof SWITCHABLE_CATEGORIES[number] | EmailPreference
 
 export function isPreferenceKey(key: string): key is PreferenceKey {
@@ -147,7 +162,9 @@ export async function deliverPush(userIds: string[], category: PushCategory, mes
       try {
         const { status } = await current.transport(target, payloads.get(target.userId)!, {
           ttlSeconds: TTL_SECONDS,
-          urgency: category === 'reminders' ? 'high' : 'normal',
+          urgency: category === 'reminders'
+            ? 'high'
+            : 'normal',
           topic: message.tag
         })
         if (status === 404 || status === 410) {
@@ -158,12 +175,16 @@ export async function deliverPush(userIds: string[], category: PushCategory, mes
           throw new Error(`push service answered ${status}`)
         }
         result.delivered += 1
-        await db.update(pushSubscriptions).set({ lastSuccessAt: new Date() }).where(eq(pushSubscriptions.id, target.id))
+        await db.update(pushSubscriptions).set({
+          lastSuccessAt: new Date()
+        }).where(eq(pushSubscriptions.id, target.id))
       }
       catch (error) {
         result.failed += 1
         // The endpoint identifies the device: log only the service host.
-        console.error(`Push to ${new URL(target.endpoint).host} failed:`, error instanceof Error ? error.message : error)
+        console.error(`Push to ${new URL(target.endpoint).host} failed:`, error instanceof Error
+          ? error.message
+          : error)
       }
     }))
   }
@@ -213,7 +234,12 @@ export async function saveSubscription(userId: string, subscription: { endpoint:
       .values({ userId, ...subscription, updatedAt: now })
       .onConflictDoUpdate({
         target: pushSubscriptions.endpoint,
-        set: { userId, p256dh: subscription.p256dh, auth: subscription.auth, updatedAt: now }
+        set: {
+          userId,
+          p256dh: subscription.p256dh,
+          auth: subscription.auth,
+          updatedAt: now
+        }
       })
     // Keep the newest devices only, so a user cannot pile up endpoints without limit.
     const keep = tx.select({ id: pushSubscriptions.id })

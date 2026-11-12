@@ -73,15 +73,34 @@ beforeAll(async () => {
     startAt,
     durationMinutes: 60,
     seats: 3,
-    status: index === 0 ? 'canceled' : 'scheduled',
+    status: index === 0
+      ? 'canceled'
+      : 'scheduled',
     createdAt: new Date(firstStart.getTime() - index * HOUR)
   }))).returning({ id: lessons.id })
   const [first, second, third, ...sameStart] = created.map(({ id }) => id)
-  ordered = [first, second, third, ...sameStart.toSorted()]
+  ordered = [
+    first,
+    second,
+    third,
+    ...sameStart.toSorted()
+  ]
 
   await db.insert(lessonBookings).values([
-    { lessonId: second, studentId: ids.student, subjectId: subject.id, status: 'confirmed', topic: 'Ripasso' },
-    { lessonId: third, studentId: ids.student, subjectId: subject.id, status: 'canceled', topic: 'Ripasso' }
+    {
+      lessonId: second,
+      studentId: ids.student,
+      subjectId: subject.id,
+      status: 'confirmed',
+      topic: 'Ripasso'
+    },
+    {
+      lessonId: third,
+      studentId: ids.student,
+      subjectId: subject.id,
+      status: 'canceled',
+      topic: 'Ripasso'
+    }
   ])
 })
 
@@ -104,7 +123,12 @@ describe('listing lessons', () => {
   it('keeps the total on a page past the end', async () => {
     const page = await list({ limit: 2, offset: 50 })
 
-    expect(page).toEqual({ data: [], total: 5, limit: 2, offset: 50 })
+    expect(page).toEqual({
+      data: [],
+      total: 5,
+      limit: 2,
+      offset: 50
+    })
   })
 
   it('lists every lesson when no filter is given', async () => {
@@ -120,13 +144,24 @@ describe('listing lessons', () => {
   })
 
   it('reports no lessons when nothing matches', async () => {
-    expect(await list({ q: 'nessuna-corrispondenza' })).toEqual({ data: [], total: 0, limit: 50, offset: 0 })
+    expect(await list({ q: 'nessuna-corrispondenza' })).toEqual({
+      data: [],
+      total: 0,
+      limit: 50,
+      offset: 0
+    })
   })
 
   it('sorts by start and by creation in both directions', async () => {
     const ids = async (query: Record<string, string>) => (await list(query)).data.map(({ id }) => id)
 
-    expect(await ids({ sortDir: 'desc' })).toEqual([ordered[3], ordered[4], ordered[2], ordered[1], ordered[0]])
+    expect(await ids({ sortDir: 'desc' })).toEqual([
+      ordered[3],
+      ordered[4],
+      ordered[2],
+      ordered[1],
+      ordered[0]
+    ])
     expect((await ids({ sortBy: 'createdAt' }))[4]).toBe(ordered[0])
     expect((await ids({ sortBy: 'createdAt', sortDir: 'desc' }))[0]).toBe(ordered[0])
   })
@@ -140,7 +175,9 @@ describe('listing lessons', () => {
     expect(byName.total).toBe(5)
     expect(byName.data).toHaveLength(1)
 
-    const byDate = await list({ from: new Date(firstStart.getTime() + 2 * HOUR).toISOString() })
+    const byDate = await list({
+      from: new Date(firstStart.getTime() + 2 * HOUR).toISOString()
+    })
     expect(byDate.data.map(({ id }) => id)).toEqual(ordered.slice(2))
     expect(byDate.total).toBe(3)
   })
@@ -174,8 +211,13 @@ describe('listing a student\'s bookings', () => {
   }
 
   async function bookings(authToken: string, query: Record<string, string>) {
-    const params = new URLSearchParams({ ...window, ...query })
-    return app.request(`/lessons/me?${params}`, { headers: { Authorization: `Bearer ${authToken}` } })
+    const params = new URLSearchParams({
+      ...window,
+      ...query
+    })
+    return app.request(`/lessons/me?${params}`, {
+      headers: { Authorization: `Bearer ${authToken}` }
+    })
   }
 
   it('lets an admin list the bookings of the student they ask for', async () => {

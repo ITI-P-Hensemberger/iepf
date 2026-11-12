@@ -7,7 +7,9 @@ import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
 import { createErrorMessageSchema, createErrorSchema, IdUUIDParamsSchema } from '@/lib/openapi/schemas'
 
 const tags = ['Notifications']
-const security = [{ bearerAuth: [] as string[] }]
+const security = [
+  { bearerAuth: [] as string[] }
+]
 
 const unauthorized = jsonContent(createErrorMessageSchema(HttpStatusPhrases.UNAUTHORIZED), 'Invalid credentials')
 const forbidden = jsonContent(
@@ -227,7 +229,11 @@ export const streamInbox = createRoute({
   responses: {
     [HttpStatusCodes.OK]: {
       description: 'An event stream of the unread count',
-      content: { 'text/event-stream': { schema: z.string() } }
+      content: {
+        'text/event-stream': {
+          schema: z.string()
+        }
+      }
     },
     [HttpStatusCodes.FORBIDDEN]: forbidden,
     [HttpStatusCodes.UNAUTHORIZED]: unauthorized

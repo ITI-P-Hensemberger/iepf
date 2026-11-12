@@ -15,5 +15,13 @@ export const analyticsDaily = pgTable('analytics_daily', {
   year: integer().notNull().default(0),
   count: integer().notNull()
 }, table => [
-  primaryKey({ columns: [table.day, table.event, table.detail, table.role, table.year] })
+  primaryKey({
+    columns: [
+      table.day,
+      table.event,
+      table.detail,
+      table.role,
+      table.year
+    ]
+  })
 ])

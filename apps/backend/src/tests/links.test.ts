@@ -22,14 +22,21 @@ async function call(path: string, options: { token?: string, method?: string, bo
     method: options.method ?? (options.body ? 'POST' : 'GET'),
     headers: {
       'Content-Type': 'application/json',
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {})
+      ...(options.token
+        ? { Authorization: `Bearer ${options.token}` }
+        : {})
     },
-    body: options.body ? JSON.stringify(options.body) : undefined
+    body: options.body
+      ? JSON.stringify(options.body)
+      : undefined
   })
 }
 
 async function add(slug: string, url = 'https://example.test/form') {
-  const response = await call('/links', { token: tokens.admin, body: { slug, url } })
+  const response = await call('/links', {
+    token: tokens.admin,
+    body: { slug, url }
+  })
   expect(response.status).toBe(201)
   return (await response.json()) as { id: string, slug: string, active: boolean, clicks: number }
 }
@@ -40,7 +47,9 @@ beforeAll(async () => {
   await seedDevelopmentData()
   resetRateLimiters()
   for (const role of ['admin', 'student']) {
-    const login = await call('/auth/login', { body: { email: `${role}@example.test`, password: DEV_PASSWORD } })
+    const login = await call('/auth/login', {
+      body: { email: `${role}@example.test`, password: DEV_PASSWORD }
+    })
     tokens[role] = (await login.json()).accessToken
   }
 })
@@ -75,7 +84,11 @@ describe('links', () => {
     expect((await call(`/links/${id}`, { token: tokens.student, method: 'DELETE' })).status).toBe(403)
     expect((await call(`/links/${id}`, { method: 'DELETE' })).status).toBe(401)
 
-    const updated = await call(`/links/${id}`, { token: tokens.admin, method: 'PUT', body: { ...body, active: false } })
+    const updated = await call(`/links/${id}`, {
+      token: tokens.admin,
+      method: 'PUT',
+      body: { ...body, active: false }
+    })
     expect(updated.status).toBe(200)
     expect(await updated.json()).toMatchObject({ slug: 'altro', active: false })
     expect((await call(`/links/${id}`, { token: tokens.admin, method: 'DELETE' })).status).toBe(204)
@@ -84,14 +97,32 @@ describe('links', () => {
 
   it('formats the slug, refuses duplicates and anything but https', async () => {
     expect((await add('Iscrizioni 2026')).slug).toBe('iscrizioni-2026')
-    expect((await call('/links', { token: tokens.admin, body: { slug: 'ISCRIZIONI 2026', url: 'https://example.test' } })).status).toBe(409)
-    for (const url of ['http://example.test', 'javascript:alert(1)', 'ftp://example.test', 'example.test']) {
-      expect((await call('/links', { token: tokens.admin, body: { slug: 'x', url } })).status).toBe(422)
+    expect((await call('/links', {
+      token: tokens.admin,
+      body: { slug: 'ISCRIZIONI 2026', url: 'https://example.test' }
+    })).status).toBe(409)
+    for (const url of [
+      'http://example.test',
+      'javascript:alert(1)',
+      'ftp://example.test',
+      'example.test'
+    ]) {
+      expect((await call('/links', {
+        token: tokens.admin,
+        body: { slug: 'x', url }
+      })).status).toBe(422)
     }
-    expect((await call('/links', { token: tokens.admin, body: { slug: '???', url: 'https://example.test' } })).status).toBe(422)
+    expect((await call('/links', {
+      token: tokens.admin,
+      body: { slug: '???', url: 'https://example.test' }
+    })).status).toBe(422)
 
     const other = await add('altro')
-    const clash = await call(`/links/${other.id}`, { token: tokens.admin, method: 'PUT', body: { slug: 'iscrizioni-2026', url: 'https://example.test' } })
+    const clash = await call(`/links/${other.id}`, {
+      token: tokens.admin,
+      method: 'PUT',
+      body: { slug: 'iscrizioni-2026', url: 'https://example.test' }
+    })
     expect(clash.status).toBe(409)
   })
 
@@ -111,7 +142,11 @@ describe('links', () => {
 
   it('treats a disabled or unknown link as missing, without counting', async () => {
     const link = await add('form')
-    await call(`/links/${link.id}`, { token: tokens.admin, method: 'PUT', body: { slug: 'form', url: 'https://example.test', active: false } })
+    await call(`/links/${link.id}`, {
+      token: tokens.admin,
+      method: 'PUT',
+      body: { slug: 'form', url: 'https://example.test', active: false }
+    })
     expect((await call('/links/open/form', { method: 'POST' })).status).toBe(404)
     expect((await call('/links/open/nessuno', { method: 'POST' })).status).toBe(404)
     expect((await call('/links/open/Non%20Valido', { method: 'POST' })).status).toBe(422)

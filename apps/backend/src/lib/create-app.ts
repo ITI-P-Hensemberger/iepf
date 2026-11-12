@@ -24,7 +24,9 @@ export function createRouter() {
 
 export default function createApp() {
   const app = createRouter()
-  const corsOrigin = env.NODE_ENV === 'production' ? env.SITE_URL! : '*'
+  const corsOrigin = env.NODE_ENV === 'production'
+    ? env.SITE_URL!
+    : '*'
   app.use(requestId())
     .use(serveEmojiFavicon('📝'))
     // CORS policy is environment-specific to keep production locked down.

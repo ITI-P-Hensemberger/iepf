@@ -7,9 +7,11 @@ import { jsonContent } from '@/lib/openapi/helpers'
 import { createErrorMessageSchema, createErrorSchema, createPagedListSchema } from '@/lib/openapi/schemas'
 
 const tags = ['Audit']
-const bearerAuth = [{
-  bearerAuth: [] as string[]
-}]
+const bearerAuth = [
+  {
+    bearerAuth: [] as string[]
+  }
+]
 
 const AuditIdParamsSchema = z.object({
   id: z.uuid().openapi({

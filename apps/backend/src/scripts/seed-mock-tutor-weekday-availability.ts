@@ -22,12 +22,16 @@ async function getMockTutors() {
 }
 
 function buildWeekdays(tutorIndex: number) {
-  const primary = tutorIndex % 2 === 0 ? [1, 3, 5] : [2, 4]
+  const primary = tutorIndex % 2 === 0
+    ? [1, 3, 5]
+    : [2, 4]
   return Array.from({ length: 5 }, (_, i) => {
     const weekday = i + 1
     const isAvailable = primary.includes(weekday)
     const startTime = isAvailable
-      ? (weekday % 2 === 0 ? '14:00' : '15:00') as '14:00' | '15:00'
+      ? (weekday % 2 === 0
+          ? '14:00'
+          : '15:00') as '14:00' | '15:00'
       : null
     return {
       weekday,

@@ -12,7 +12,10 @@ import { assertLocalDatabase } from '@/lib/local-database'
 async function setMaintenance(value: unknown) {
   await db.insert(globalSettings)
     .values({ key: 'maintenance', value })
-    .onConflictDoUpdate({ target: globalSettings.key, set: { value } })
+    .onConflictDoUpdate({
+      target: globalSettings.key,
+      set: { value }
+    })
 }
 
 beforeAll(async () => {
@@ -30,18 +33,34 @@ describe('public maintenance state', () => {
     await db.delete(globalSettings).where(eq(globalSettings.key, 'maintenance'))
     const response = await app.request('/maintenance')
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ enabled: false, message: null, roles: ['student', 'tutor'] })
+    expect(await response.json()).toEqual({
+      enabled: false,
+      message: null,
+      roles: ['student', 'tutor']
+    })
   })
 
   it('reports the message and the roles it applies to', async () => {
-    await setMaintenance({ enabled: true, message: 'Torniamo alle 18', roles: ['tutor'] })
+    await setMaintenance({
+      enabled: true,
+      message: 'Torniamo alle 18',
+      roles: ['tutor']
+    })
     const response = await app.request('/maintenance')
-    expect(await response.json()).toEqual({ enabled: true, message: 'Torniamo alle 18', roles: ['tutor'] })
+    expect(await response.json()).toEqual({
+      enabled: true,
+      message: 'Torniamo alle 18',
+      roles: ['tutor']
+    })
   })
 
   it('falls back to off when the stored value is malformed', async () => {
     await setMaintenance({ enabled: 'yes' })
     const response = await app.request('/maintenance')
-    expect(await response.json()).toEqual({ enabled: false, message: null, roles: ['student', 'tutor'] })
+    expect(await response.json()).toEqual({
+      enabled: false,
+      message: null,
+      roles: ['student', 'tutor']
+    })
   })
 })

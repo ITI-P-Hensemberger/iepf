@@ -22,16 +22,24 @@ export default antfu(
 
       // avoid import sorter ping-pong
       'import/order': 'off',
-      'perfectionist/sort-imports': ['error', { tsconfigRootDir: '.' }],
+      'perfectionist/sort-imports': [
+        'error',
+        {
+          tsconfig: { rootDir: '.' }
+        }
+      ],
 
       'no-console': 'warn',
       'antfu/no-top-level-await': 'off',
       'node/prefer-global/process': 'off',
       'node/no-process-env': 'error',
-      'unicorn/filename-case': ['error', {
-        case: 'kebabCase',
-        ignore: ['README.md']
-      }]
+      'unicorn/filename-case': [
+        'error',
+        {
+          case: 'kebabCase',
+          ignore: ['README.md']
+        }
+      ]
     }
   },
   {

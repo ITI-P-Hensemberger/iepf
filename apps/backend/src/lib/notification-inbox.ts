@@ -81,7 +81,9 @@ export async function listNotifications(userId: string, cursor: NotificationCurs
   const last = page.at(-1)
   return {
     items: page,
-    nextCursor: rows.length > limit && last ? encodeCursor(last) : null
+    nextCursor: rows.length > limit && last
+      ? encodeCursor(last)
+      : null
   }
 }
 
@@ -93,7 +95,10 @@ export async function unreadCounts(userIds: string[]) {
   if (userIds.length === 0) {
     return new Map<string, number>()
   }
-  const rows = await db.select({ userId: notifications.userId, count: count() })
+  const rows = await db.select({
+    userId: notifications.userId,
+    count: count()
+  })
     .from(notifications)
     .where(and(inArray(notifications.userId, userIds), isNull(notifications.readAt), isNull(notifications.archivedAt)))
     .groupBy(notifications.userId)
@@ -103,13 +108,17 @@ export async function unreadCounts(userIds: string[]) {
 // Only the user's own notification: another id simply matches nothing.
 export async function markRead(userId: string, id: string) {
   await db.update(notifications)
-    .set({ readAt: new Date() })
+    .set({
+      readAt: new Date()
+    })
     .where(and(eq(notifications.id, id), eq(notifications.userId, userId), isNull(notifications.readAt)))
 }
 
 export async function markAllRead(userId: string) {
   await db.update(notifications)
-    .set({ readAt: new Date() })
+    .set({
+      readAt: new Date()
+    })
     .where(and(eq(notifications.userId, userId), isNull(notifications.readAt)))
 }
 

@@ -55,7 +55,9 @@ async function deleteExpiredPopupDismissals(now: Date) {
 // Bookings close at 20:00 the day before a lesson: the first day a student can still book.
 export function firstBookableDay(now: Date) {
   const today = schoolDayKey(now)
-  return schoolTime(addDays(today, now >= schoolTime(today, 20) ? 2 : 1))
+  return schoolTime(addDays(today, now >= schoolTime(today, 20)
+    ? 2
+    : 1))
 }
 
 // A lesson that never had a booking, not even one later canceled, has nothing worth keeping

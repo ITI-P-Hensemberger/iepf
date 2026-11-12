@@ -29,7 +29,9 @@ async function call(path: string, options: { token: string, method?: string, bod
   return app.request(path, {
     method: options.method ?? 'GET',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${options.token}` },
-    body: options.body ? JSON.stringify(options.body) : undefined
+    body: options.body
+      ? JSON.stringify(options.body)
+      : undefined
   })
 }
 
@@ -60,9 +62,17 @@ afterAll(async () => {
 
 describe('student deactivation', () => {
   it('is not open to activators, who can still activate', async () => {
-    const off = await call(`/users/${ids.student}`, { token: tokens.activator, method: 'PATCH', body: { isActive: false } })
+    const off = await call(`/users/${ids.student}`, {
+      token: tokens.activator,
+      method: 'PATCH',
+      body: { isActive: false }
+    })
     expect(off.status).toBe(403)
-    const on = await call(`/users/${ids.student}`, { token: tokens.activator, method: 'PATCH', body: { isActive: true } })
+    const on = await call(`/users/${ids.student}`, {
+      token: tokens.activator,
+      method: 'PATCH',
+      body: { isActive: true }
+    })
     expect(on.status).toBe(200)
   })
 
@@ -82,14 +92,22 @@ describe('student deactivation', () => {
   })
 
   it('clears both when the student is active again', async () => {
-    await call(`/users/${ids.student}`, { token: tokens.admin, method: 'PATCH', body: { isActive: true } })
+    await call(`/users/${ids.student}`, {
+      token: tokens.admin,
+      method: 'PATCH',
+      body: { isActive: true }
+    })
     const student = await studentState()
     expect(student.deactivatedAt).toBeNull()
     expect(student.deactivationReason).toBeNull()
   })
 
   it('works without a reason', async () => {
-    await call(`/users/${ids.student}`, { token: tokens.admin, method: 'PATCH', body: { isActive: false } })
+    await call(`/users/${ids.student}`, {
+      token: tokens.admin,
+      method: 'PATCH',
+      body: { isActive: false }
+    })
     const student = await studentState()
     expect(student.deactivatedAt).not.toBeNull()
     expect(student.deactivationReason).toBeNull()
@@ -107,28 +125,61 @@ describe('student deactivation', () => {
     const listed = await (await call('/users?role=student&isActive=false&limit=200', { token: tokens.activator })).json()
     expect((listed.data as Array<{ id: string }>).map(user => user.id)).not.toContain(ids.student)
     expect((await call(`/users/${ids.student}`, { token: tokens.activator })).status).toBe(403)
-    expect((await call(`/users/${ids.student}`, { token: tokens.activator, method: 'PATCH', body: { isActive: true } })).status).toBe(403)
+    expect((await call(`/users/${ids.student}`, {
+      token: tokens.activator,
+      method: 'PATCH',
+      body: { isActive: true }
+    })).status).toBe(403)
   })
 
   it('keeps a history of who turned the account on and off', async () => {
-    expect((await call(`/users/${ids.student}`, { token: tokens.admin, method: 'PATCH', body: { isActive: true } })).status).toBe(200)
+    expect((await call(`/users/${ids.student}`, {
+      token: tokens.admin,
+      method: 'PATCH',
+      body: { isActive: true }
+    })).status).toBe(200)
     const history = await (await call(`/users/${ids.student}/activation-history`, { token: tokens.admin })).json()
-    expect(history.map((event: { kind: string }) => event.kind)).toEqual(['deactivated', 'reactivated', 'deactivated', 'reactivated'])
+    expect(history.map((event: { kind: string }) => event.kind)).toEqual([
+      'deactivated',
+      'reactivated',
+      'deactivated',
+      'reactivated'
+    ])
     expect(history[0]).toMatchObject({ reason: 'Pagamento <non> ricevuto.', actorRole: 'admin' })
     expect(history[2].reason).toBeNull()
     expect((await call(`/users/${ids.student}/activation-history`, { token: tokens.activator })).status).toBe(403)
   })
 
   it('lets activators turn on a student never activated, recorded as the first activation', async () => {
-    const [pending] = await db.insert(users).values({ email: 'nuovo@example.test', firstName: 'Nuovo', lastName: 'Studente', passwordHash: 'x', role: 'student', emailVerifiedAt: new Date() }).returning({ id: users.id })
+    const [pending] = await db.insert(users).values({
+      email: 'nuovo@example.test',
+      firstName: 'Nuovo',
+      lastName: 'Studente',
+      passwordHash: 'x',
+      role: 'student',
+      emailVerifiedAt: new Date()
+    }).returning({ id: users.id })
     await db.insert(studentProfiles).values({ userId: pending.id, isActive: false })
-    expect((await call(`/users/${pending.id}`, { token: tokens.activator, method: 'PATCH', body: { isActive: true } })).status).toBe(200)
+    expect((await call(`/users/${pending.id}`, {
+      token: tokens.activator,
+      method: 'PATCH',
+      body: { isActive: true }
+    })).status).toBe(200)
     const history = await (await call(`/users/${pending.id}/activation-history`, { token: tokens.admin })).json()
-    expect(history).toMatchObject([{ kind: 'activated', actorRole: 'activator' }])
+    expect(history).toMatchObject([
+      { kind: 'activated', actorRole: 'activator' }
+    ])
   })
 
   it('lists when an active student was last turned on, and nothing for one waiting', async () => {
-    const [pending] = await db.insert(users).values({ email: 'attesa@example.test', firstName: 'In', lastName: 'Attesa', passwordHash: 'x', role: 'student', emailVerifiedAt: new Date() }).returning({ id: users.id })
+    const [pending] = await db.insert(users).values({
+      email: 'attesa@example.test',
+      firstName: 'In',
+      lastName: 'Attesa',
+      passwordHash: 'x',
+      role: 'student',
+      emailVerifiedAt: new Date()
+    }).returning({ id: users.id })
     await db.insert(studentProfiles).values({ userId: pending.id, isActive: false })
     const activatedAt = async (isActive: boolean) => {
       const listed = await (await call(`/users?role=student&isActive=${isActive}&sortBy=activatedAt&sortDir=desc&limit=200`, { token: tokens.activator })).json()
@@ -136,7 +187,11 @@ describe('student deactivation', () => {
     }
     expect(await activatedAt(false)).toBeNull()
     const before = Date.now()
-    await call(`/users/${pending.id}`, { token: tokens.activator, method: 'PATCH', body: { isActive: true } })
+    await call(`/users/${pending.id}`, {
+      token: tokens.activator,
+      method: 'PATCH',
+      body: { isActive: true }
+    })
     const listed = await (await call('/users?role=student&isActive=true&sortBy=activatedAt&sortDir=desc&limit=200', { token: tokens.activator })).json()
     expect(listed.data[0].id).toBe(pending.id)
     expect(new Date(listed.data[0].activatedAt).getTime()).toBeGreaterThanOrEqual(before - 1000)
@@ -149,17 +204,28 @@ describe('student deactivation', () => {
     const confirmed = await app.request('/auth/tutor-invite/confirm', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, firstName: 'Nuovo', lastName: 'Tutor', password: 'Integrity123!', year: 4, sectionId: section.id })
+      body: JSON.stringify({
+        token,
+        firstName: 'Nuovo',
+        lastName: 'Tutor',
+        password: 'Integrity123!',
+        year: 4,
+        sectionId: section.id
+      })
     })
     expect(confirmed.status).toBe(201)
     const history = await (await call(`/users/${(await confirmed.json()).id}/activation-history`, { token: tokens.admin })).json()
-    expect(history).toMatchObject([{ kind: 'activated', actorRole: 'admin' }])
+    expect(history).toMatchObject([
+      { kind: 'activated', actorRole: 'admin' }
+    ])
   })
 })
 
 describe('user list', () => {
   it('filters by when the account was made, both ends included', async () => {
-    await db.update(users).set({ createdAt: new Date('2025-10-15T10:00:00Z') }).where(eq(users.id, ids.student))
+    await db.update(users).set({
+      createdAt: new Date('2025-10-15T10:00:00Z')
+    }).where(eq(users.id, ids.student))
     const list = async (range: string) => {
       const response = await call(`/users?role=student&limit=200&${range}`, { token: tokens.admin })
       expect(response.status).toBe(200)

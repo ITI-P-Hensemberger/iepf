@@ -25,7 +25,11 @@ export async function pendingAdmins() {
 
 // Requests of the last 24 hours, with each subject's running total.
 export async function recentSubjectRequests() {
-  const recent = await db.select({ subjectId: subjectRequests.subjectId, subjectName: subjects.name, count: count() })
+  const recent = await db.select({
+    subjectId: subjectRequests.subjectId,
+    subjectName: subjects.name,
+    count: count()
+  })
     .from(subjectRequests)
     .innerJoin(subjects, eq(subjects.id, subjectRequests.subjectId))
     .where(sql`${subjectRequests.createdAt} >= now() - interval '24 hours' and ${subjectRequests.createdAt} < now()`)
@@ -33,7 +37,10 @@ export async function recentSubjectRequests() {
   if (recent.length === 0) {
     return []
   }
-  const totals = await db.select({ subjectId: subjectRequests.subjectId, total: count() })
+  const totals = await db.select({
+    subjectId: subjectRequests.subjectId,
+    total: count()
+  })
     .from(subjectRequests)
     .where(inArray(subjectRequests.subjectId, recent.map(row => row.subjectId)))
     .groupBy(subjectRequests.subjectId)
@@ -49,7 +56,10 @@ export async function sendAdminDigest(batches: { mail: MailBatch, push: PushBatc
   if (waiting.length > 0) {
     await notifyAdminsOnce(batches, `pending-admins:${day}`, 'adminPendingAdmins', {
       push: pendingAdminsPush(waiting.length),
-      email: buildPendingAdminsMessage(waiting.map(admin => ({ name: `${admin.firstName} ${admin.lastName}`.trim(), email: admin.email })))
+      email: buildPendingAdminsMessage(waiting.map(admin => ({
+        name: `${admin.firstName} ${admin.lastName}`.trim(),
+        email: admin.email
+      })))
     })
   }
   const requests = await recentSubjectRequests()

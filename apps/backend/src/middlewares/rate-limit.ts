@@ -50,8 +50,14 @@ export function rateLimit(options: RateLimitOptions): MiddlewareHandler<AppBindi
     }
 
     const now = Date.now()
-    const discriminator = options.discriminator ? await options.discriminator(c) : null
-    const key = [options.keyPrefix, getClientKey(c), discriminator].filter(Boolean).join(':')
+    const discriminator = options.discriminator
+      ? await options.discriminator(c)
+      : null
+    const key = [
+      options.keyPrefix,
+      getClientKey(c),
+      discriminator
+    ].filter(Boolean).join(':')
     if (store.size >= PRUNE_THRESHOLD) {
       store.forEach((value, storedKey) => {
         if (value.resetAt <= now) {
@@ -83,7 +89,9 @@ export function rateLimit(options: RateLimitOptions): MiddlewareHandler<AppBindi
 export async function loginEmailDiscriminator(c: Context<AppBindings>) {
   try {
     const body = await c.req.json()
-    return typeof body?.email === 'string' ? body.email.trim().toLowerCase().slice(0, 254) : null
+    return typeof body?.email === 'string'
+      ? body.email.trim().toLowerCase().slice(0, 254)
+      : null
   }
   catch {
     return null

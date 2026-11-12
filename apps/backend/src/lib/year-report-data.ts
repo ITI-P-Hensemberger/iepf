@@ -135,7 +135,13 @@ export async function loadReportData(): Promise<ReportData> {
       .groupBy(tokenLedger.studentId),
     db.select({ studentId: subjectRequests.studentId, subjectId: subjectRequests.subjectId, createdAt: subjectRequests.createdAt }).from(subjectRequests),
     db.select().from(analyticsDaily).orderBy(analyticsDaily.day),
-    db.select({ id: links.id, slug: links.slug, url: links.url, active: links.active, clicks: links.clicks }).from(links).orderBy(links.slug),
+    db.select({
+      id: links.id,
+      slug: links.slug,
+      url: links.url,
+      active: links.active,
+      clicks: links.clicks
+    }).from(links).orderBy(links.slug),
     readNotificationStats()
   ])
 
@@ -148,7 +154,11 @@ export async function loadReportData(): Promise<ReportData> {
       email: person.email,
       section: person.section,
       year: person.studentYear ?? person.tutorYear ?? null,
-      isActive: person.role === 'student' ? person.studentActive === true : person.role === 'tutor' ? person.tutorActive === true : true,
+      isActive: person.role === 'student'
+        ? person.studentActive === true
+        : person.role === 'tutor'
+          ? person.tutorActive === true
+          : true,
       emailVerified: person.emailVerifiedAt !== null,
       createdAt: person.createdAt,
       hasPush: Boolean(person.hasPush)
@@ -160,7 +170,10 @@ export async function loadReportData(): Promise<ReportData> {
     bookings: bookingRows,
     feedback: feedbackRows,
     feedbackVersions: versionRows,
-    tokenBalances: new Map(balanceRows.map(row => [row.studentId, Number(row.balance)])),
+    tokenBalances: new Map(balanceRows.map(row => [
+      row.studentId,
+      Number(row.balance)
+    ])),
     subjectRequests: requestRows,
     analytics: analyticsRows,
     links: linkRows,

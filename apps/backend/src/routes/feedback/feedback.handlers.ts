@@ -97,8 +97,12 @@ function toFeedbackResponse(row: FeedbackRow, summary: FeedbackSummary | undefin
     updatedAt: row.updatedAt.toISOString(),
     versionCount: summary?.versionCount ?? 1,
     lastEditorRole: summary?.lastEditorRole ?? row.authorRole,
-    editableUntil: editableUntil ? editableUntil.toISOString() : null,
-    deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null
+    editableUntil: editableUntil
+      ? editableUntil.toISOString()
+      : null,
+    deletedAt: row.deletedAt
+      ? row.deletedAt.toISOString()
+      : null
   }
 }
 
@@ -124,7 +128,13 @@ async function findActiveFeedback(bookingId: string, authorUserId: string, autho
 async function insertFeedback(values: typeof lessonFeedback.$inferInsert & { rating: number }, editor: { userId: string, role: FeedbackEditorRole }) {
   return db.transaction(async (tx) => {
     const [created] = await tx.insert(lessonFeedback).values(values).returning()
-    await recordFeedbackVersion(tx, { feedbackId: created.id, rating: created.rating, text: created.text ?? null, editorUserId: editor.userId, editorRole: editor.role })
+    await recordFeedbackVersion(tx, {
+      feedbackId: created.id,
+      rating: created.rating,
+      text: created.text ?? null,
+      editorUserId: editor.userId,
+      editorRole: editor.role
+    })
     return created
   })
 }
@@ -137,7 +147,9 @@ async function applyFeedbackEdit(
 ) {
   const next = {
     rating: payload.rating ?? feedback.rating,
-    text: payload.text !== undefined ? (payload.text ?? null) : (feedback.text ?? null)
+    text: payload.text !== undefined
+      ? (payload.text ?? null)
+      : (feedback.text ?? null)
   }
   if (!feedbackChanged({ rating: feedback.rating, text: feedback.text ?? null }, next)) {
     return feedback
@@ -147,7 +159,13 @@ async function applyFeedbackEdit(
       .set(next)
       .where(eq(lessonFeedback.id, feedback.id))
       .returning()
-    await recordFeedbackVersion(tx, { feedbackId: updated.id, rating: updated.rating, text: updated.text ?? null, editorUserId: editor.userId, editorRole: editor.role })
+    await recordFeedbackVersion(tx, {
+      feedbackId: updated.id,
+      rating: updated.rating,
+      text: updated.text ?? null,
+      editorUserId: editor.userId,
+      editorRole: editor.role
+    })
     return updated
   })
 }
@@ -226,7 +244,12 @@ export const createLessonFeedback: AppRouteHandler<CreateLessonFeedbackRoute> = 
     text: payload.text ?? null
   }, { userId: currentUser.id, role: authorRole })
 
-  notifyLowFeedback({ lessonId: lesson.id, studentId: booking.studentId, authorRole, rating: created.rating })
+  notifyLowFeedback({
+    lessonId: lesson.id,
+    studentId: booking.studentId,
+    authorRole,
+    rating: created.rating
+  })
 
   return c.json(toFeedbackResponse(created, undefined, feedbackEditableUntil(lesson.startAt)), HttpStatusCodes.OK)
 }
@@ -287,7 +310,9 @@ export const updateLessonFeedback: AppRouteHandler<UpdateLessonFeedbackRoute> = 
     return c.json(buildErrorResponse(HttpStatusPhrases.UNPROCESSABLE_ENTITY), HttpStatusCodes.UNPROCESSABLE_ENTITY)
   }
 
-  if (!ensureTutorTextRequired(feedback.authorRole, payload.text !== undefined ? payload.text : feedback.text)) {
+  if (!ensureTutorTextRequired(feedback.authorRole, payload.text !== undefined
+    ? payload.text
+    : feedback.text)) {
     return c.json(buildErrorResponse(HttpStatusPhrases.UNPROCESSABLE_ENTITY), HttpStatusCodes.UNPROCESSABLE_ENTITY)
   }
 
@@ -295,12 +320,23 @@ export const updateLessonFeedback: AppRouteHandler<UpdateLessonFeedbackRoute> = 
 
   // Only a rating that drops into the low range: editing the text of a low one is no news.
   if (updated.rating !== feedback.rating && feedback.rating > LOW_FEEDBACK_RATING) {
-    const authorRole = updated.authorRole === 'tutor' ? 'tutor' : 'student'
-    const studentId = authorRole === 'student' ? updated.authorUserId : updated.targetUserId
-    notifyLowFeedback({ lessonId: updated.lessonId, studentId, authorRole, rating: updated.rating })
+    const authorRole = updated.authorRole === 'tutor'
+      ? 'tutor'
+      : 'student'
+    const studentId = authorRole === 'student'
+      ? updated.authorUserId
+      : updated.targetUserId
+    notifyLowFeedback({
+      lessonId: updated.lessonId,
+      studentId,
+      authorRole,
+      rating: updated.rating
+    })
   }
 
-  const [response] = await withSummaries([updated], () => currentUser.role === 'admin' ? null : feedbackEditableUntil(lesson.startAt))
+  const [response] = await withSummaries([updated], () => currentUser.role === 'admin'
+    ? null
+    : feedbackEditableUntil(lesson.startAt))
   return c.json(response, HttpStatusCodes.OK)
 }
 
@@ -313,7 +349,10 @@ export const listMyFeedback: AppRouteHandler<ListMyFeedbackRoute> = async (c) =>
   }
 
   // Only what the user wrote: feedback about them is never shown to them.
-  const conditions = [eq(lessonFeedback.authorUserId, currentUser.id), isNull(lessonFeedback.deletedAt)]
+  const conditions = [
+    eq(lessonFeedback.authorUserId, currentUser.id),
+    isNull(lessonFeedback.deletedAt)
+  ]
 
   if (query.lessonId) {
     conditions.push(eq(lessonFeedback.lessonId, query.lessonId))
@@ -330,7 +369,9 @@ export const listMyFeedback: AppRouteHandler<ListMyFeedbackRoute> = async (c) =>
     .from(lessonFeedback)
     .innerJoin(lessons, eq(lessons.id, lessonFeedback.lessonId))
     .where(and(...conditions))
-    .orderBy(query.sortDir === 'desc' ? desc(lessonFeedback.createdAt) : asc(lessonFeedback.createdAt))
+    .orderBy(query.sortDir === 'desc'
+      ? desc(lessonFeedback.createdAt)
+      : asc(lessonFeedback.createdAt))
     .limit(query.limit)
     .offset(query.offset)
 
@@ -349,7 +390,11 @@ export const adminListFeedback: AppRouteHandler<AdminListFeedbackRoute> = async 
   ensureAdmin(c)
   const query = c.req.valid('query')
 
-  const conditions = query.includeDeleted ? [] : [isNull(lessonFeedback.deletedAt)]
+  const conditions = query.includeDeleted
+    ? []
+    : [
+        isNull(lessonFeedback.deletedAt)
+      ]
 
   if (query.lessonId) {
     conditions.push(eq(lessonFeedback.lessonId, query.lessonId))
@@ -401,7 +446,9 @@ export const adminListFeedback: AppRouteHandler<AdminListFeedbackRoute> = async 
       conditions.push(match)
   }
 
-  const whereClause = conditions.length ? and(...conditions) : undefined
+  const whereClause = conditions.length
+    ? and(...conditions)
+    : undefined
 
   const orderField = (() => {
     switch (query.sortBy) {
@@ -419,8 +466,12 @@ export const adminListFeedback: AppRouteHandler<AdminListFeedbackRoute> = async 
     .from(lessonFeedback)
     .innerJoin(lessons, eq(lessonFeedback.lessonId, lessons.id))
 
-  const rows = await (whereClause ? baseQuery.where(whereClause) : baseQuery)
-    .orderBy(query.sortDir === 'desc' ? desc(orderField) : asc(orderField))
+  const rows = await (whereClause
+    ? baseQuery.where(whereClause)
+    : baseQuery)
+    .orderBy(query.sortDir === 'desc'
+      ? desc(orderField)
+      : asc(orderField))
     .limit(query.limit)
     .offset(query.offset)
 
@@ -430,7 +481,9 @@ export const adminListFeedback: AppRouteHandler<AdminListFeedbackRoute> = async 
   const totalQuery = (query.lessonFrom || query.lessonTo)
     ? baseTotalQuery.innerJoin(lessons, eq(lessonFeedback.lessonId, lessons.id))
     : baseTotalQuery
-  const [{ total }] = await (whereClause ? totalQuery.where(whereClause) : totalQuery)
+  const [{ total }] = await (whereClause
+    ? totalQuery.where(whereClause)
+    : totalQuery)
 
   const data = await withSummaries(rows.map(row => row.feedback))
 
@@ -531,7 +584,9 @@ export const adminUpdateFeedback: AppRouteHandler<AdminUpdateFeedbackRoute> = as
     return c.json(buildErrorResponse(HttpStatusPhrases.UNPROCESSABLE_ENTITY), HttpStatusCodes.UNPROCESSABLE_ENTITY)
   }
 
-  if (!ensureTutorTextRequired(feedback.authorRole, payload.text !== undefined ? payload.text : feedback.text)) {
+  if (!ensureTutorTextRequired(feedback.authorRole, payload.text !== undefined
+    ? payload.text
+    : feedback.text)) {
     return c.json(buildErrorResponse(HttpStatusPhrases.UNPROCESSABLE_ENTITY), HttpStatusCodes.UNPROCESSABLE_ENTITY)
   }
 
@@ -546,7 +601,10 @@ export const adminDeleteFeedback: AppRouteHandler<AdminDeleteFeedbackRoute> = as
   const { feedbackId } = c.req.valid('param')
 
   const [deleted] = await db.update(lessonFeedback)
-    .set({ deletedAt: new Date(), deletedByUserId: admin.id })
+    .set({
+      deletedAt: new Date(),
+      deletedByUserId: admin.id
+    })
     .where(and(eq(lessonFeedback.id, feedbackId), isNull(lessonFeedback.deletedAt)))
     .returning({ id: lessonFeedback.id })
 
@@ -595,7 +653,9 @@ export const getFeedbackHistory: AppRouteHandler<GetFeedbackHistoryRoute> = asyn
 
   return c.json({
     feedbackId: feedback.id,
-    deletedAt: feedback.deletedAt ? feedback.deletedAt.toISOString() : null,
+    deletedAt: feedback.deletedAt
+      ? feedback.deletedAt.toISOString()
+      : null,
     deletedByName,
     versions: await listFeedbackVersions(feedback.id, feedback.authorUserId, isAdmin)
   }, HttpStatusCodes.OK)

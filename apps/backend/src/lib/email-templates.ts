@@ -18,7 +18,13 @@ function siteUrl(pathname: string, params: Record<string, string> = {}) {
 // Names, topics, classes, subjects and reasons are written by users: escape them before
 // they go into the HTML body. Plain-text bodies, subjects and URLs stay as they are.
 function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' })[char]!)
+  return value.replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    '\'': '&#39;'
+  })[char]!)
 }
 
 interface EmailTemplate {
@@ -43,7 +49,9 @@ function para(text: string, html = escapeHtml(text)): Block {
 
 // A smaller line under the rest: who did it, or what it costs.
 function note(text: string, tone: keyof typeof NOTE_COLORS = 'muted'): Block {
-  return { text, html: `<div style="margin-top:12px;font-size:13px;line-height:1.5;color:${NOTE_COLORS[tone]};${tone === 'muted' ? '' : 'font-weight:600;'}">${escapeHtml(text)}</div>` }
+  return { text, html: `<div style="margin-top:12px;font-size:13px;line-height:1.5;color:${NOTE_COLORS[tone]};${tone === 'muted'
+    ? ''
+    : 'font-weight:600;'}">${escapeHtml(text)}</div>` }
 }
 
 // "Tutor: Mario Rossi", the value in bold.
@@ -52,13 +60,19 @@ function field(label: string, value: string): Block {
 }
 
 function line(text: string): Block {
-  return { text, html: escapeHtml(text).replace(/\n/g, '<br>') }
+  return {
+    text,
+    html: escapeHtml(text).replace(/\n/g, '<br>')
+  }
 }
 
 // The facts of the email in a box: a lesson, a reason, a list.
 function card(title: string, lines: Block[]): Block {
   return {
-    text: [title, ...lines.map(item => item.text)].join('\n'),
+    text: [
+      title,
+      ...lines.map(item => item.text)
+    ].join('\n'),
     html: `
       <div style="margin-top:16px;padding:14px 16px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;text-align:left;">
         <div style="font-weight:700;color:#0f172a;font-size:15px;">${escapeHtml(title)}</div>
@@ -144,8 +158,16 @@ function compose(params: {
   // Sent because someone asked for it (a link to verify, reset, sign up): may reach the wrong inbox.
   requested?: boolean
 }): EmailTemplate {
-  const button = params.action ?? { label: 'Vai a IEPF', url: siteUrl('/') }
-  const text = [...params.blocks.map(block => block.text), params.action ? `${params.action.label}: ${params.action.url}` : null]
+  const button = params.action ?? {
+    label: 'Vai a IEPF',
+    url: siteUrl('/')
+  }
+  const text = [
+    ...params.blocks.map(block => block.text),
+    params.action
+      ? `${params.action.label}: ${params.action.url}`
+      : null
+  ]
     .filter(Boolean)
     .join('\n\n')
   return {
@@ -180,7 +202,9 @@ function buildStudentLabel(name: string, classLabel?: string | null) {
       .trim()
       .replace(/\s+/g, '')
     const compact = `${year}${section}`.trim()
-    return compact ? `${name} (${compact})` : name
+    return compact
+      ? `${name} (${compact})`
+      : name
   }
 
   const compact = normalized.replace(/\s+/g, '')
@@ -193,14 +217,23 @@ function studentList(students: Array<{ name: string, classLabel?: string | null 
 
 // A lesson's card: the subject on top (or just "Lezione" while it has none), then its facts.
 function lessonCard(subjectName: string | null, startAt: Date, facts: Array<Block | null | false | undefined>) {
-  return card(subjectName ?? 'Lezione', [line(formatLessonDate(startAt)), ...facts.filter((fact): fact is Block => Boolean(fact))])
+  return card(subjectName ?? 'Lezione', [
+    line(formatLessonDate(startAt)),
+    ...facts.filter((fact): fact is Block => Boolean(fact))
+  ])
 }
 
-const topicField = (topic?: string | null) => (topic ? field('Argomento', topic) : null)
+function topicField(topic?: string | null) {
+  return topic
+    ? field('Argomento', topic)
+    : null
+}
 
 function topicsField(topics?: string[]) {
   const list = (topics ?? []).map(topic => topic.trim()).filter(Boolean)
-  return list.length > 0 ? field('Argomenti', list.join(', ')) : null
+  return list.length > 0
+    ? field('Argomenti', list.join(', '))
+    : null
 }
 
 const BY: Record<'student' | 'tutor' | 'admin', string> = {
@@ -218,8 +251,13 @@ const MEET_TUTOR = 'Aspetta lo studente in atrio: quando arriva, spostatevi nell
 export function buildStudentRegistrationMessage(token: string) {
   return compose({
     subject: 'Verifica la tua email',
-    blocks: [para('Benvenuto in IEPF! Verifica la tua email per completare la registrazione.')],
-    action: { label: 'Verifica email', url: siteUrl('/auth/verify-email', { token }) },
+    blocks: [
+      para('Benvenuto in IEPF! Verifica la tua email per completare la registrazione.')
+    ],
+    action: {
+      label: 'Verifica email',
+      url: siteUrl('/auth/verify-email', { token })
+    },
     requested: true
   })
 }
@@ -227,8 +265,13 @@ export function buildStudentRegistrationMessage(token: string) {
 export function buildEmailVerificationMessage(token: string) {
   return compose({
     subject: 'Verifica la tua email',
-    blocks: [para('Per continuare, verifica la tua email.')],
-    action: { label: 'Verifica email', url: siteUrl('/auth/verify-email', { token }) },
+    blocks: [
+      para('Per continuare, verifica la tua email.')
+    ],
+    action: {
+      label: 'Verifica email',
+      url: siteUrl('/auth/verify-email', { token })
+    },
     requested: true
   })
 }
@@ -236,8 +279,13 @@ export function buildEmailVerificationMessage(token: string) {
 export function buildPasswordResetMessage(token: string) {
   return compose({
     subject: 'Reimposta la tua password',
-    blocks: [para('Usa il pulsante qui sotto per scegliere una nuova password. Il link scade dopo poco tempo.')],
-    action: { label: 'Reimposta password', url: siteUrl('/auth/reset-password', { token }) },
+    blocks: [
+      para('Usa il pulsante qui sotto per scegliere una nuova password. Il link scade dopo poco tempo.')
+    ],
+    action: {
+      label: 'Reimposta password',
+      url: siteUrl('/auth/reset-password', { token })
+    },
     requested: true
   })
 }
@@ -245,8 +293,13 @@ export function buildPasswordResetMessage(token: string) {
 export function buildTutorInviteMessage(token: string) {
   return compose({
     subject: 'Invito a registrarti come tutor',
-    blocks: [para('Sei stato invitato a registrarti come tutor su IEPF. Completa la registrazione con il pulsante qui sotto.')],
-    action: { label: 'Registrati come tutor', url: siteUrl('/auth/sign-up-tutor', { token }) },
+    blocks: [
+      para('Sei stato invitato a registrarti come tutor su IEPF. Completa la registrazione con il pulsante qui sotto.')
+    ],
+    action: {
+      label: 'Registrati come tutor',
+      url: siteUrl('/auth/sign-up-tutor', { token })
+    },
     requested: true
   })
 }
@@ -254,8 +307,13 @@ export function buildTutorInviteMessage(token: string) {
 export function buildAdminInviteMessage(token: string) {
   return compose({
     subject: 'Invito a registrarti come admin',
-    blocks: [para('Sei stato invitato a registrarti come admin su IEPF. Completa la registrazione con il pulsante qui sotto.')],
-    action: { label: 'Registrati come admin', url: siteUrl('/auth/sign-up-admin', { token }) },
+    blocks: [
+      para('Sei stato invitato a registrarti come admin su IEPF. Completa la registrazione con il pulsante qui sotto.')
+    ],
+    action: {
+      label: 'Registrati come admin',
+      url: siteUrl('/auth/sign-up-admin', { token })
+    },
     requested: true
   })
 }
@@ -263,7 +321,9 @@ export function buildAdminInviteMessage(token: string) {
 export function buildRegistrationConfirmedMessage() {
   return compose({
     subject: 'Registrazione completata',
-    blocks: [para('La tua email è stata verificata. Ora puoi accedere.')]
+    blocks: [
+      para('La tua email è stata verificata. Ora puoi accedere.')
+    ]
   })
 }
 
@@ -271,7 +331,10 @@ export function buildProfileUpdatedMessage() {
   return compose({
     subject: 'Il tuo profilo è stato aggiornato',
     title: 'Profilo aggiornato',
-    blocks: [para('I dati del tuo profilo sono stati aggiornati.'), contact('Se non ti aspettavi questa modifica,')]
+    blocks: [
+      para('I dati del tuo profilo sono stati aggiornati.'),
+      contact('Se non ti aspettavi questa modifica,')
+    ]
   })
 }
 
@@ -282,29 +345,45 @@ export function buildEmailChangedMessage(newEmail: string) {
     title: 'Email cambiata',
     blocks: [
       para('Gli organizzatori hanno cambiato l\'indirizzo email del tuo account IEPF. Da ora le email arrivano al nuovo indirizzo.'),
-      card('Nuovo indirizzo', [line(newEmail)]),
+      card('Nuovo indirizzo', [
+        line(newEmail)
+      ]),
       contact('Se non ti aspettavi questa modifica,')
     ]
   })
 }
 
 export function buildLessonHoursChangedMessage(params: { delta: number, balance: number }) {
-  const amount = Math.abs(params.delta) === 1 ? '1 ora' : `${Math.abs(params.delta)} ore`
+  const amount = Math.abs(params.delta) === 1
+    ? '1 ora'
+    : `${Math.abs(params.delta)} ore`
   return compose({
-    subject: params.delta > 0 ? 'Ore di lezione aggiunte' : 'Ore di lezione tolte',
+    subject: params.delta > 0
+      ? 'Ore di lezione aggiunte'
+      : 'Ore di lezione tolte',
     blocks: [
-      para(params.delta > 0 ? `Gli organizzatori ti hanno aggiunto ${amount} di lezione.` : `Gli organizzatori ti hanno tolto ${amount} di lezione.`),
-      card('Ore rimanenti', [line(String(params.balance))]),
+      para(params.delta > 0
+        ? `Gli organizzatori ti hanno aggiunto ${amount} di lezione.`
+        : `Gli organizzatori ti hanno tolto ${amount} di lezione.`),
+      card('Ore rimanenti', [
+        line(String(params.balance))
+      ]),
       contact('Per chiarimenti')
     ],
-    action: { label: 'Prenota una lezione', url: siteUrl('/student/book') }
+    action: {
+      label: 'Prenota una lezione',
+      url: siteUrl('/student/book')
+    }
   })
 }
 
 export function buildPasswordChangedMessage() {
   return compose({
     subject: 'Password aggiornata',
-    blocks: [para('La tua password è stata aggiornata.'), contact('Se non sei stato tu,')]
+    blocks: [
+      para('La tua password è stata aggiornata.'),
+      contact('Se non sei stato tu,')
+    ]
   })
 }
 
@@ -313,7 +392,9 @@ export function buildActivationChangedMessage(isActive: boolean, reason: string 
     return compose({
       subject: 'Il tuo account è ora attivo',
       title: 'Account attivo',
-      blocks: [para('Il tuo account è stato attivato. Ora puoi usare la piattaforma.')]
+      blocks: [
+        para('Il tuo account è stato attivato. Ora puoi usare la piattaforma.')
+      ]
     })
   }
   return compose({
@@ -321,7 +402,13 @@ export function buildActivationChangedMessage(isActive: boolean, reason: string 
     title: 'Account disattivato',
     blocks: [
       para('Il tuo account è stato disattivato: non puoi usare la piattaforma finché non viene riattivato.'),
-      ...(reason ? [card('Motivo', [line(reason)])] : []),
+      ...(reason
+        ? [
+            card('Motivo', [
+              line(reason)
+            ])
+          ]
+        : []),
       contact('Per chiarimenti')
     ]
   })
@@ -332,9 +419,14 @@ export function buildPushSetupLinkMessage() {
   return compose({
     subject: 'Attiva le notifiche di IEPF sul telefono',
     title: 'Attiva le notifiche sul telefono',
-    blocks: [para('Apri questa email dal telefono e tocca il pulsante: IEPF ti guiderà ad attivare le notifiche.')],
+    blocks: [
+      para('Apri questa email dal telefono e tocca il pulsante: IEPF ti guiderà ad attivare le notifiche.')
+    ],
     // The profile is behind login: a phone that is not signed in goes through login and back here.
-    action: { label: 'Apri IEPF sul telefono', url: siteUrl('/profile', { 'attiva-notifiche': '1' }) },
+    action: {
+      label: 'Apri IEPF sul telefono',
+      url: siteUrl('/profile', { 'attiva-notifiche': '1' })
+    },
     requested: true
   })
 }
@@ -351,16 +443,23 @@ export function buildLessonBookingConfirmedMessage(params: {
   studentClass?: string | null
   bookedByAdmin?: boolean
 }) {
-  const byAdmin = params.bookedByAdmin ? note('Prenotazione fatta da un amministratore.') : null
+  const byAdmin = params.bookedByAdmin
+    ? note('Prenotazione fatta da un amministratore.')
+    : null
   if (params.recipientRole === 'student') {
     return compose({
       subject: 'Prenotazione confermata',
       blocks: [
         para('La tua prenotazione è confermata.'),
-        lessonCard(params.subjectName, params.lessonStartAt, [field('Tutor', params.tutorName), topicField(params.topic)]),
+        lessonCard(params.subjectName, params.lessonStartAt, [
+          field('Tutor', params.tutorName),
+          topicField(params.topic)
+        ]),
         para(MEET_STUDENT),
         note(LATE_STUDENT, 'warning'),
-        ...(byAdmin ? [byAdmin] : [])
+        ...(byAdmin
+          ? [byAdmin]
+          : [])
       ]
     })
   }
@@ -373,7 +472,9 @@ export function buildLessonBookingConfirmedMessage(params: {
         topicField(params.topic)
       ]),
       para(MEET_TUTOR),
-      ...(byAdmin ? [byAdmin] : [])
+      ...(byAdmin
+        ? [byAdmin]
+        : [])
     ]
   })
 }
@@ -394,10 +495,17 @@ export function buildLessonBookingCanceledMessage(params: {
     return compose({
       subject: 'Prenotazione annullata',
       blocks: [
-        para(params.canceledBy === 'student' ? 'Hai annullato la tua prenotazione.' : `La tua prenotazione è stata annullata ${BY[params.canceledBy]}.`),
-        lessonCard(params.subjectName, params.lessonStartAt, [field('Tutor', params.tutorName), topicField(params.topic)]),
+        para(params.canceledBy === 'student'
+          ? 'Hai annullato la tua prenotazione.'
+          : `La tua prenotazione è stata annullata ${BY[params.canceledBy]}.`),
+        lessonCard(params.subjectName, params.lessonStartAt, [
+          field('Tutor', params.tutorName),
+          topicField(params.topic)
+        ]),
         ...(params.noRefundNotice && params.canceledBy !== 'admin'
-          ? [note('La lezione non verrà rimborsata: l\'annullamento è avvenuto dopo le 20 del giorno prima.', 'danger')]
+          ? [
+              note('La lezione non verrà rimborsata: l\'annullamento è avvenuto dopo le 20 del giorno prima.', 'danger')
+            ]
           : [])
       ]
     })
@@ -406,10 +514,17 @@ export function buildLessonBookingCanceledMessage(params: {
   return compose({
     subject: 'Prenotazione annullata',
     blocks: [
-      para(params.canceledBy === 'tutor' ? `Hai annullato la prenotazione di ${student}.` : `La prenotazione di ${student} è stata annullata ${BY[params.canceledBy]}.`),
-      lessonCard(params.subjectName, params.lessonStartAt, [field('Studente', student), topicField(params.topic)]),
+      para(params.canceledBy === 'tutor'
+        ? `Hai annullato la prenotazione di ${student}.`
+        : `La prenotazione di ${student} è stata annullata ${BY[params.canceledBy]}.`),
+      lessonCard(params.subjectName, params.lessonStartAt, [
+        field('Studente', student),
+        topicField(params.topic)
+      ]),
       ...(params.tutorPartialNotice && params.canceledBy !== 'admin'
-        ? [note('Lo studente ha annullato dopo le 8 del giorno della lezione: la lezione verrà conteggiata parzialmente.', 'warning')]
+        ? [
+            note('Lo studente ha annullato dopo le 8 del giorno della lezione: la lezione verrà conteggiata parzialmente.', 'warning')
+          ]
         : [])
     ]
   })
@@ -426,12 +541,20 @@ export function buildLessonCanceledMessage(params: {
   students: Array<{ name: string, classLabel?: string | null }>
 }) {
   const facts = params.recipientRole === 'student'
-    ? [field('Tutor', params.tutorName), topicField(params.topic)]
-    : [field('Studenti', studentList(params.students) || 'nessuno'), topicsField(params.topics)]
+    ? [
+        field('Tutor', params.tutorName),
+        topicField(params.topic)
+      ]
+    : [
+        field('Studenti', studentList(params.students) || 'nessuno'),
+        topicsField(params.topics)
+      ]
   return compose({
     subject: 'Lezione annullata',
     blocks: [
-      para(params.canceledBy === params.recipientRole ? 'Hai annullato la lezione.' : `La lezione è stata annullata ${BY[params.canceledBy]}.`),
+      para(params.canceledBy === params.recipientRole
+        ? 'Hai annullato la lezione.'
+        : `La lezione è stata annullata ${BY[params.canceledBy]}.`),
       lessonCard(params.subjectName, params.lessonStartAt, facts)
     ]
   })
@@ -478,7 +601,10 @@ export function buildLessonReminderStudentMessage(params: {
     subject: `Promemoria: lezione di ${when}`,
     blocks: [
       para(`Ti ricordiamo la lezione di ${when}.`),
-      lessonCard(params.subjectName, params.lessonStartAt, [field('Tutor', params.tutorName), topicField(params.topic)]),
+      lessonCard(params.subjectName, params.lessonStartAt, [
+        field('Tutor', params.tutorName),
+        topicField(params.topic)
+      ]),
       para(MEET_STUDENT),
       note(LATE_STUDENT, 'warning')
     ]
@@ -502,12 +628,17 @@ export function buildLessonReminderTutorMessage(params: {
       para(`Ecco le lezioni confermate di ${when}.`),
       ...params.lessons.map(lesson => lessonCard(lesson.subjectName, lesson.startAt, [
         topicsField(lesson.topics),
-        lesson.students.length > 0 ? field('Studenti', studentList(lesson.students)) : line('Nessuno studente prenotato.')
+        lesson.students.length > 0
+          ? field('Studenti', studentList(lesson.students))
+          : line('Nessuno studente prenotato.')
       ])),
       para(MEET_TUTOR),
       para('Segna la presenza dello studente appena arriva.')
     ],
-    action: { label: 'Vai alle lezioni', url: siteUrl('/tutor/lessons') }
+    action: {
+      label: 'Vai alle lezioni',
+      url: siteUrl('/tutor/lessons')
+    }
   })
 }
 
@@ -521,9 +652,14 @@ export function buildLessonCreatedMessage(params: {
     subject: 'Nuova lezione assegnata',
     blocks: [
       para('Ti è stata assegnata una nuova lezione.'),
-      lessonCard(params.subjectName, params.lessonStartAt, [field('Tutor', params.tutorName)])
+      lessonCard(params.subjectName, params.lessonStartAt, [
+        field('Tutor', params.tutorName)
+      ])
     ],
-    action: { label: 'Vedi dettagli lezione', url: siteUrl(`/tutor/lessons/${params.lessonId}`) }
+    action: {
+      label: 'Vedi dettagli lezione',
+      url: siteUrl(`/tutor/lessons/${params.lessonId}`)
+    }
   })
 }
 
@@ -552,8 +688,14 @@ export function buildLessonPresenceUpdatedMessage(params: {
     subject: params.present ? 'Presenza confermata' : 'Assenza registrata',
     blocks: [
       para(params.present ? 'Il tutor ha confermato la tua presenza alla lezione.' : 'Il tutor ti ha segnato assente alla lezione.'),
-      lessonCard(params.subjectName, params.lessonStartAt, [field('Tutor', params.tutorName)]),
-      ...(params.present ? [] : [note('L\'ora di lezione non verrà rimborsata.', 'danger')])
+      lessonCard(params.subjectName, params.lessonStartAt, [
+        field('Tutor', params.tutorName)
+      ]),
+      ...(params.present
+        ? []
+        : [
+            note('L\'ora di lezione non verrà rimborsata.', 'danger')
+          ])
     ]
   })
 }
@@ -561,10 +703,17 @@ export function buildLessonPresenceUpdatedMessage(params: {
 export function buildLessonFeedbackReminderMessage(role: 'student' | 'tutor', count: number) {
   return compose({
     subject: 'Ricorda di lasciare il feedback',
-    blocks: [para(count === 1
-      ? 'Una lezione di oggi aspetta il tuo feedback.'
-      : `${count} lezioni di oggi aspettano il tuo feedback.`)],
-    action: { label: 'Vai alle lezioni', url: siteUrl(role === 'student' ? '/student/lessons' : '/tutor/lessons') }
+    blocks: [
+      para(count === 1
+        ? 'Una lezione di oggi aspetta il tuo feedback.'
+        : `${count} lezioni di oggi aspettano il tuo feedback.`)
+    ],
+    action: {
+      label: 'Vai alle lezioni',
+      url: siteUrl(role === 'student'
+        ? '/student/lessons'
+        : '/tutor/lessons')
+    }
   })
 }
 
@@ -576,10 +725,15 @@ export function buildLessonsGeneratedMessage(params: {
   const week = params.weekStart.toLocaleDateString('it-IT', { year: 'numeric', month: 'long', day: '2-digit' })
   return compose({
     subject: 'Lezioni della settimana assegnate',
-    blocks: [para(params.count === 1
-      ? `Ti è stata assegnata 1 lezione per la settimana che inizia il ${week}.`
-      : `Ti sono state assegnate ${params.count} lezioni per la settimana che inizia il ${week}.`)],
-    action: { label: 'Vai alle lezioni', url: siteUrl('/tutor/lessons') }
+    blocks: [
+      para(params.count === 1
+        ? `Ti è stata assegnata 1 lezione per la settimana che inizia il ${week}.`
+        : `Ti sono state assegnate ${params.count} lezioni per la settimana che inizia il ${week}.`)
+    ],
+    action: {
+      label: 'Vai alle lezioni',
+      url: siteUrl('/tutor/lessons')
+    }
   })
 }
 
@@ -605,7 +759,10 @@ export function buildLowFeedbackAdminMessage(params: {
         field('Studente', buildStudentLabel(params.studentName, params.studentClass))
       ])
     ],
-    action: { label: 'Vedi i feedback', url: siteUrl('/admin/feedback') }
+    action: {
+      label: 'Vedi i feedback',
+      url: siteUrl('/admin/feedback')
+    }
   })
 }
 
@@ -626,7 +783,10 @@ export function buildLateCancellationAdminMessage(params: {
         field('Tutor', params.tutorName)
       ])
     ],
-    action: { label: 'Vedi la lezione', url: siteUrl(`/admin/lessons/${params.lessonId}`) }
+    action: {
+      label: 'Vedi la lezione',
+      url: siteUrl(`/admin/lessons/${params.lessonId}`)
+    }
   })
 }
 
@@ -647,7 +807,10 @@ export function buildAbsenceAdminMessage(params: {
         field('Tutor', params.tutorName)
       ])
     ],
-    action: { label: 'Vedi la lezione', url: siteUrl(`/admin/lessons/${params.lessonId}`) }
+    action: {
+      label: 'Vedi la lezione',
+      url: siteUrl(`/admin/lessons/${params.lessonId}`)
+    }
   })
 }
 
@@ -662,7 +825,10 @@ export function buildMissingPresenceTutorMessage(params: {
       para('La lezione è iniziata da 20 minuti e le presenze non sono ancora segnate.'),
       lessonCard(params.subjectName, params.lessonStartAt, [])
     ],
-    action: { label: 'Segna le presenze', url: siteUrl(`/tutor/lessons/${params.lessonId}`) }
+    action: {
+      label: 'Segna le presenze',
+      url: siteUrl(`/tutor/lessons/${params.lessonId}`)
+    }
   })
 }
 
@@ -676,9 +842,14 @@ export function buildMissingPresenceAdminMessage(params: {
     subject: 'Presenze non segnate',
     blocks: [
       para('La lezione è iniziata da 20 minuti e il tutor non ha ancora segnato le presenze.'),
-      lessonCard(params.subjectName, params.lessonStartAt, [field('Tutor', params.tutorName)])
+      lessonCard(params.subjectName, params.lessonStartAt, [
+        field('Tutor', params.tutorName)
+      ])
     ],
-    action: { label: 'Vedi la lezione', url: siteUrl(`/admin/lessons/${params.lessonId}`) }
+    action: {
+      label: 'Vedi la lezione',
+      url: siteUrl(`/admin/lessons/${params.lessonId}`)
+    }
   })
 }
 
@@ -690,7 +861,10 @@ export function buildEmptyWeekAdminMessage(weekStart: Date) {
       para(`La generazione automatica non ha creato lezioni per la settimana del ${week}, che ha giorni di scuola aperti.`),
       para('Controlla disponibilità, materie e stato dei tutor.')
     ],
-    action: { label: 'Vedi i tutor', url: siteUrl('/admin/tutors') }
+    action: {
+      label: 'Vedi i tutor',
+      url: siteUrl('/admin/tutors')
+    }
   })
 }
 
@@ -703,7 +877,10 @@ export function buildPendingAdminsMessage(admins: Array<{ name: string, email: s
         : `${admins.length} admin hanno accettato l'invito e aspettano l'attivazione.`),
       card('In attesa', admins.map(admin => line(`${admin.name} <${admin.email}>`)))
     ],
-    action: { label: 'Vedi gli admin', url: siteUrl('/admin/admins') }
+    action: {
+      label: 'Vedi gli admin',
+      url: siteUrl('/admin/admins')
+    }
   })
 }
 
@@ -714,6 +891,9 @@ export function buildSubjectRequestsAdminMessage(requests: Array<{ subjectName: 
       para('Nelle ultime 24 ore gli studenti hanno chiesto queste materie.'),
       card('Richieste', requests.map(request => field(request.subjectName, `${request.count} (${request.total} in totale)`)))
     ],
-    action: { label: 'Vedi le richieste', url: siteUrl('/admin/stats', { tab: 'subject-requests' }) }
+    action: {
+      label: 'Vedi le richieste',
+      url: siteUrl('/admin/stats', { tab: 'subject-requests' })
+    }
   })
 }

@@ -31,7 +31,9 @@ function convertIssues(issues: readonly ZodIssueLike[]) {
       code: issue.code,
       path: normalizeIssuePath(issue.path),
       message: issue.message,
-      ...(issueWithParams.params ? { params: issueWithParams.params } : {})
+      ...(issueWithParams.params
+        ? { params: issueWithParams.params }
+        : {})
     }
   })
 }

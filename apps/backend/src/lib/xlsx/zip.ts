@@ -19,7 +19,9 @@ export function zip(entries: ZipEntry[]) {
 
   for (const entry of entries) {
     const name = Buffer.from(entry.name, 'utf8')
-    const raw = typeof entry.data === 'string' ? Buffer.from(entry.data, 'utf8') : entry.data
+    const raw = typeof entry.data === 'string'
+      ? Buffer.from(entry.data, 'utf8')
+      : entry.data
     const compressed = deflateRawSync(raw)
     const checksum = crc32(raw)
 

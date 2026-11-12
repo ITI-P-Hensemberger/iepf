@@ -115,7 +115,9 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
 
   if (isSummary) {
     const requestCount = sql<number>`count(distinct ${subjectRequests.studentId})`
-    const sortDir = query.sortDir === 'asc' ? asc : desc
+    const sortDir = query.sortDir === 'asc'
+      ? asc
+      : desc
     const sortField = query.sortBy === 'requestCount'
       ? requestCount
       : query.sortBy === 'canonicalName'
@@ -130,7 +132,9 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
       })
       .from(subjectRequests)
       .innerJoin(subjects, eq(subjectRequests.subjectId, subjects.id))
-    const summaryQuery = (whereClause ? summaryBaseQuery.where(whereClause) : summaryBaseQuery)
+    const summaryQuery = (whereClause
+      ? summaryBaseQuery.where(whereClause)
+      : summaryBaseQuery)
       .groupBy(subjects.id, subjects.name, subjects.canonicalName)
       .orderBy(sortDir(sortField))
       .limit(query.limit)
@@ -141,7 +145,9 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
       .select({ subjectId: subjectRequests.subjectId })
       .from(subjectRequests)
       .innerJoin(subjects, eq(subjectRequests.subjectId, subjects.id))
-    const summaryBase = (whereClause ? summaryCountBase.where(whereClause) : summaryCountBase)
+    const summaryBase = (whereClause
+      ? summaryCountBase.where(whereClause)
+      : summaryCountBase)
       .groupBy(subjectRequests.subjectId)
       .as('summary')
 
@@ -152,7 +158,9 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
     return c.json(buildPagedResponse(rows, Number(total), query.limit, query.offset), HttpStatusCodes.OK)
   }
 
-  const sortDir = query.sortDir === 'asc' ? asc : desc
+  const sortDir = query.sortDir === 'asc'
+    ? asc
+    : desc
   const sortFieldMap = {
     createdAt: subjectRequests.createdAt,
     subjectName: subjects.name,
@@ -178,7 +186,9 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
     .from(subjectRequests)
     .innerJoin(subjects, eq(subjectRequests.subjectId, subjects.id))
     .innerJoin(users, eq(subjectRequests.studentId, users.id))
-  const listQuery = (whereClause ? listBaseQuery.where(whereClause) : listBaseQuery)
+  const listQuery = (whereClause
+    ? listBaseQuery.where(whereClause)
+    : listBaseQuery)
     .orderBy(sortDir(sortField))
     .limit(query.limit)
     .offset(query.offset)
@@ -190,7 +200,9 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
     .innerJoin(subjects, eq(subjectRequests.subjectId, subjects.id))
     .innerJoin(users, eq(subjectRequests.studentId, users.id))
 
-  const [{ total }] = await (whereClause ? totalBaseQuery.where(whereClause) : totalBaseQuery)
+  const [{ total }] = await (whereClause
+    ? totalBaseQuery.where(whereClause)
+    : totalBaseQuery)
 
   const data = rows.map(row => ({
     ...row,

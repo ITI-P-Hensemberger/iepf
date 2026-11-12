@@ -8,7 +8,9 @@ import { createErrorMessageSchema, createErrorSchema, IdUUIDParamsSchema } from 
 import { SLUG_MAX, SLUG_PATTERN, slugify } from '@/lib/slug'
 
 const tags = ['Links']
-const security = [{ bearerAuth: [] as string[] }]
+const security = [
+  { bearerAuth: [] as string[] }
+]
 
 export const URL_MAX = 2_000
 
@@ -44,7 +46,10 @@ export const linkInputSchema = z.object({
 })
 
 const SlugParamsSchema = z.object({
-  slug: z.string().regex(SLUG_PATTERN).max(SLUG_MAX).openapi({ param: { name: 'slug', in: 'path' }, example: 'iscrizioni' })
+  slug: z.string().regex(SLUG_PATTERN).max(SLUG_MAX).openapi({
+    param: { name: 'slug', in: 'path' },
+    example: 'iscrizioni'
+  })
 })
 
 export const list = createRoute({
@@ -64,7 +69,9 @@ export const create = createRoute({
   method: 'post',
   tags,
   security,
-  request: { body: jsonContentRequired(linkInputSchema, 'The link to add') },
+  request: {
+    body: jsonContentRequired(linkInputSchema, 'The link to add')
+  },
   responses: {
     [HttpStatusCodes.CREATED]: jsonContent(linkSchema, 'The added link'),
     [HttpStatusCodes.CONFLICT]: conflict,
@@ -114,7 +121,9 @@ export const open = createRoute({
   tags,
   request: { params: SlugParamsSchema },
   responses: {
-    [HttpStatusCodes.OK]: jsonContent(z.object({ url: z.string() }), 'Where the link leads; the click is counted. Public'),
+    [HttpStatusCodes.OK]: jsonContent(z.object({
+      url: z.string()
+    }), 'Where the link leads; the click is counted. Public'),
     [HttpStatusCodes.NOT_FOUND]: notFound,
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(createErrorSchema(SlugParamsSchema), 'Not a slug')
   }

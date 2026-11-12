@@ -23,7 +23,12 @@ const LESSON_STATE: Record<LessonState, string> = {
 
 const BOOKING_STATUS: Record<string, string> = { confirmed: 'Confermata', canceled: 'Annullata' }
 
-const ROLE_LABEL: Record<string, string> = { student: 'Studente', tutor: 'Tutor', admin: 'Admin', activator: 'Attivatore' }
+const ROLE_LABEL: Record<string, string> = {
+  student: 'Studente',
+  tutor: 'Tutor',
+  admin: 'Admin',
+  activator: 'Attivatore'
+}
 
 const CATEGORY_LABEL: Record<string, string> = {
   bookings: 'Prenotazioni',
@@ -61,7 +66,9 @@ const BOOKING_OUTCOME: Record<string, string> = {
 
 export function schoolYearLabel(now: Date) {
   const [year, month] = romeDay(now).split('-').map(Number)
-  const start = month >= 9 ? year : year - 1
+  const start = month >= 9
+    ? year
+    : year - 1
   return `${start}/${String(start + 1).slice(2)}`
 }
 
@@ -74,7 +81,9 @@ const dateTimeFormat = new Intl.DateTimeFormat('it-IT', { dateStyle: 'short', ti
 const dateFormat = new Intl.DateTimeFormat('it-IT', { dateStyle: 'short', timeZone: 'Europe/Rome' })
 
 function monthKey(date: Date | string) {
-  return (typeof date === 'string' ? date : romeDay(date)).slice(0, 7)
+  return (typeof date === 'string'
+    ? date
+    : romeDay(date)).slice(0, 7)
 }
 
 function monthLabel(key: string) {
@@ -84,26 +93,38 @@ function monthLabel(key: string) {
 
 // Every month from the first to the last key, at most the last 24.
 function monthRange(keys: string[], now: Date) {
-  const sorted = keys.length > 0 ? [...keys].sort() : [monthKey(now)]
+  const sorted = keys.length > 0
+    ? [...keys].sort()
+    : [
+        monthKey(now)
+      ]
   const [firstYear, firstMonth] = sorted[0].split('-').map(Number)
   const [lastYear, lastMonth] = sorted.at(-1)!.split('-').map(Number)
   const months: string[] = []
-  for (let y = firstYear, m = firstMonth; y < lastYear || (y === lastYear && m <= lastMonth); m === 12 ? (y += 1, m = 1) : (m += 1)) {
+  for (let y = firstYear, m = firstMonth; y < lastYear || (y === lastYear && m <= lastMonth); m === 12
+    ? (y += 1, m = 1)
+    : (m += 1)) {
     months.push(`${y}-${String(m).padStart(2, '0')}`)
   }
   return months.slice(-24)
 }
 
 function ratio(part: number, whole: number) {
-  return whole > 0 ? part / whole : null
+  return whole > 0
+    ? part / whole
+    : null
 }
 
 function average(values: number[]) {
-  return values.length > 0 ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 100) / 100 : null
+  return values.length > 0
+    ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 100) / 100
+    : null
 }
 
 function fullName(person: ReportPerson | undefined) {
-  return person ? `${person.lastName} ${person.firstName}` : ''
+  return person
+    ? `${person.lastName} ${person.firstName}`
+    : ''
 }
 
 function yesNo(value: boolean) {
@@ -117,7 +138,11 @@ function personStatus(person: ReportPerson) {
 }
 
 function presenceLabel(presence: boolean | null) {
-  return presence === true ? 'Presente' : presence === false ? 'Assente' : 'Non registrata'
+  return presence === true
+    ? 'Presente'
+    : presence === false
+      ? 'Assente'
+      : 'Non registrata'
 }
 
 function countBy<T>(items: T[], key: (item: T) => string) {
@@ -161,7 +186,10 @@ export function buildYearReport(data: ReportData, now = new Date()) {
   const done = data.lessons.filter(lesson => stateOf(lesson) === 'done')
   const ratingsOf = (role: string) => data.feedback.filter(item => item.authorRole === role).map(item => item.rating)
 
-  const months = monthRange([...data.lessons.map(lesson => monthKey(lesson.startAt)), ...data.bookings.map(booking => monthKey(booking.createdAt))], now)
+  const months = monthRange([
+    ...data.lessons.map(lesson => monthKey(lesson.startAt)),
+    ...data.bookings.map(booking => monthKey(booking.createdAt))
+  ], now)
   const firstLesson = data.lessons[0]?.startAt
   const lastLesson = data.lessons.at(-1)?.startAt
 
@@ -171,16 +199,28 @@ export function buildYearReport(data: ReportData, now = new Date()) {
   summary.widths = [44, 14, 3]
   summary.addHeading(
     `IEPF · Report dell'anno scolastico ${schoolYear}`,
-    `Generato il ${dateTimeFormat.format(now)}${firstLesson && lastLesson ? ` · lezioni dal ${dateFormat.format(firstLesson)} al ${dateFormat.format(lastLesson)}` : ''}`
+    `Generato il ${dateTimeFormat.format(now)}${firstLesson && lastLesson
+      ? ` · lezioni dal ${dateFormat.format(firstLesson)} al ${dateFormat.format(lastLesson)}`
+      : ''}`
   )
   const kpi = (label: string, value: CellValue, format?: 'percent' | 'decimal') => summary.addRow([
     { value: label, style: 'label' },
     value === null
       ? { value: '—', style: 'value' }
-      : { value, style: format === 'percent' ? 'valuePercent' : format === 'decimal' ? 'valueDecimal' : 'value' }
+      : {
+          value,
+          style: format === 'percent'
+            ? 'valuePercent'
+            : format === 'decimal'
+              ? 'valueDecimal'
+              : 'value'
+        }
   ])
   const section = (title: string) => {
-    summary.addRow([{ value: title, style: 'section' }, { value: '', style: 'section' }], 22)
+    summary.addRow([
+      { value: title, style: 'section' },
+      { value: '', style: 'section' }
+    ], 22)
   }
 
   const studentsWithBooking = students.filter(student => (bookingsByStudent.get(student.id) ?? []).some(booking => booking.status === 'confirmed')).length
@@ -231,7 +271,9 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     'Notifiche: chi le riceve, quante vengono aperte o lette, su quali dispositivi.',
     'Ogni elenco è una tabella di Excel: le frecce nell\'intestazione filtrano e ordinano.'
   ]) {
-    summary.addRow([{ value: line, style: 'note' }])
+    summary.addRow([
+      { value: line, style: 'note' }
+    ])
   }
 
   // ---- Andamento -------------------------------------------------------------------------
@@ -279,7 +321,16 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     type: 'column',
     title: 'Lezioni e prenotazioni per mese',
     categories: trendTable.column(0),
-    series: [{ name: 'Lezioni', values: trendTable.column(1) }, { name: 'Prenotazioni', values: trendTable.column(4) }],
+    series: [
+      {
+        name: 'Lezioni',
+        values: trendTable.column(1)
+      },
+      {
+        name: 'Prenotazioni',
+        values: trendTable.column(4)
+      }
+    ],
     at: { col: 0, row: chartRow },
     size: { cols: 6, rows: 18 }
   })
@@ -287,7 +338,12 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     type: 'line',
     title: 'Presenza per mese',
     categories: trendTable.column(0),
-    series: [{ name: 'Presenza', values: trendTable.column(7) }],
+    series: [
+      {
+        name: 'Presenza',
+        values: trendTable.column(7)
+      }
+    ],
     at: { col: 6, row: chartRow },
     size: { cols: 5, rows: 18 },
     percent: true
@@ -297,15 +353,39 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     type: 'column',
     title: 'Lezioni e prenotazioni per mese',
     categories: trendTable.column(0),
-    series: [{ name: 'Lezioni', values: trendTable.column(1) }, { name: 'Prenotazioni', values: trendTable.column(4) }],
+    series: [
+      {
+        name: 'Lezioni',
+        values: trendTable.column(1)
+      },
+      {
+        name: 'Prenotazioni',
+        values: trendTable.column(4)
+      }
+    ],
     at: { col: 3, row: 4 },
     size: { cols: 9, rows: 17 }
   })
   summary.addChart({
     type: 'bar',
     title: 'Lezioni per stato',
-    categories: { sheet: summary.name, col: 0, firstRow: statusRow, lastRow: statusLastRow },
-    series: [{ name: 'Lezioni', values: { sheet: summary.name, col: 1, firstRow: statusRow, lastRow: statusLastRow } }],
+    categories: {
+      sheet: summary.name,
+      col: 0,
+      firstRow: statusRow,
+      lastRow: statusLastRow
+    },
+    series: [
+      {
+        name: 'Lezioni',
+        values: {
+          sheet: summary.name,
+          col: 1,
+          firstRow: statusRow,
+          lastRow: statusLastRow
+        }
+      }
+    ],
     at: { col: 3, row: 22 },
     size: { cols: 9, rows: 14 }
   })
@@ -314,7 +394,9 @@ export function buildYearReport(data: ReportData, now = new Date()) {
   const classes = workbook.addSheet('Classi')
   classes.addHeading('Studenti per classe', 'Prenotazioni confermate e presenze degli studenti di ogni classe.')
   const byClass = groupBy(students, student => `${student.year ?? ''}|${student.section ?? ''}`)
-  const classRows = [...byClass.entries()]
+  const classRows = [
+    ...byClass.entries()
+  ]
     .sort(([a], [b]) => a.localeCompare(b, 'it', { numeric: true }))
     .map(([key, members]) => {
       const [year, sectionName] = key.split('|')
@@ -322,8 +404,12 @@ export function buildYearReport(data: ReportData, now = new Date()) {
       const classPresent = classBookings.filter(booking => booking.presence === true).length
       const classAbsent = classBookings.filter(booking => booking.presence === false).length
       return [
-        classLabel(year ? Number(year) : null, sectionName) ?? '-',
-        year ? Number(year) : null,
+        classLabel(year
+          ? Number(year)
+          : null, sectionName) ?? '-',
+        year
+          ? Number(year)
+          : null,
         sectionName || null,
         members.length,
         members.filter(member => member.isActive).length,
@@ -350,9 +436,17 @@ export function buildYearReport(data: ReportData, now = new Date()) {
       type: 'bar',
       title: 'Prenotazioni per classe',
       categories: classTable.column(0),
-      series: [{ name: 'Prenotazioni', values: classTable.column(5) }],
+      series: [
+        {
+          name: 'Prenotazioni',
+          values: classTable.column(5)
+        }
+      ],
       at: { col: 10, row: classTable.headerRow },
-      size: { cols: 7, rows: Math.max(12, Math.min(40, classRows.length * 2 + 4)) }
+      size: {
+        cols: 7,
+        rows: Math.max(12, Math.min(40, classRows.length * 2 + 4))
+      }
     })
   }
 
@@ -479,7 +573,9 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     const lessonBookings = bookingsByLesson.get(lesson.id) ?? []
     return [
       lesson.startAt,
-      lesson.subjectId ? subjectName.get(lesson.subjectId) ?? '' : '',
+      lesson.subjectId
+        ? subjectName.get(lesson.subjectId) ?? ''
+        : '',
       fullName(people.get(lesson.tutorId)),
       lesson.durationMinutes,
       LESSON_STATE[stateOf(lesson)],
@@ -517,13 +613,17 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     return [
       lesson?.startAt ?? null,
       subjectName.get(booking.subjectId) ?? '',
-      lesson ? fullName(people.get(lesson.tutorId)) : '',
+      lesson
+        ? fullName(people.get(lesson.tutorId))
+        : '',
       fullName(student),
       student?.year ?? null,
       student?.section ?? null,
       booking.topic,
       BOOKING_STATUS[booking.status] ?? booking.status,
-      booking.status === 'confirmed' ? presenceLabel(booking.presence) : '',
+      booking.status === 'confirmed'
+        ? presenceLabel(booking.presence)
+        : '',
       yesNo(booking.countsForStudent),
       booking.createdAt,
       booking.canceledAt
@@ -550,7 +650,9 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     return [
       item.createdAt,
       lesson?.startAt ?? null,
-      lesson?.subjectId ? subjectName.get(lesson.subjectId) ?? '' : '',
+      lesson?.subjectId
+        ? subjectName.get(lesson.subjectId) ?? ''
+        : '',
       fullName(people.get(item.authorUserId)),
       ROLE_LABEL[item.authorRole] ?? item.authorRole,
       fullName(people.get(item.targetUserId)),
@@ -581,18 +683,30 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     const number = (versionNumber.get(version.feedbackId) ?? 0) + 1
     versionNumber.set(version.feedbackId, number)
     const total = versionsOf.get(version.feedbackId)?.length ?? number
-    const deleter = version.deletedByUserId ? fullName(people.get(version.deletedByUserId)) : ''
+    const deleter = version.deletedByUserId
+      ? fullName(people.get(version.deletedByUserId))
+      : ''
     return [
       lessonById.get(version.lessonId)?.startAt ?? null,
       fullName(people.get(version.authorUserId)),
       fullName(people.get(version.targetUserId)),
       `${number} di ${total}`,
       version.createdAt,
-      version.editorUserId ? fullName(people.get(version.editorUserId)) : '',
-      version.editorRole === 'admin' ? 'Admin' : 'Autore',
+      version.editorUserId
+        ? fullName(people.get(version.editorUserId))
+        : '',
+      version.editorRole === 'admin'
+        ? 'Admin'
+        : 'Autore',
       version.rating,
       version.text,
-      version.deletedAt ? `Eliminato${deleter ? ` da ${deleter}` : ''}` : number === total ? 'Attuale' : 'Precedente'
+      version.deletedAt
+        ? `Eliminato${deleter
+          ? ` da ${deleter}`
+          : ''}`
+        : number === total
+          ? 'Attuale'
+          : 'Precedente'
     ]
   }))
 
@@ -635,8 +749,19 @@ export function buildYearReport(data: ReportData, now = new Date()) {
     subjectSheet.addChart({
       type: 'bar',
       title: 'Le materie più prenotate',
-      categories: { ...subjectTable.column(0), lastRow: subjectTable.firstRow + top - 1 },
-      series: [{ name: 'Prenotazioni', values: { ...subjectTable.column(4), lastRow: subjectTable.firstRow + top - 1 } }],
+      categories: {
+        ...subjectTable.column(0),
+        lastRow: subjectTable.firstRow + top - 1
+      },
+      series: [
+        {
+          name: 'Prenotazioni',
+          values: {
+            ...subjectTable.column(4),
+            lastRow: subjectTable.firstRow + top - 1
+          }
+        }
+      ],
       at: { col: 9, row: subjectTable.headerRow },
       size: { cols: 7, rows: 18 }
     })
@@ -650,14 +775,24 @@ export function buildYearReport(data: ReportData, now = new Date()) {
 
 // A titled table with its chart beside it; the next block starts below the taller of the two.
 function block(sheet: Sheet, title: string, table: { name: string, columns: Column[], rows: CellValue[][] }, chart?: (ref: TableRef) => Omit<ChartSpec, 'at' | 'size'> | null) {
-  sheet.addRow([{ value: title, style: 'section' }])
+  sheet.addRow([
+    { value: title, style: 'section' }
+  ])
   const ref = sheet.addTable(table.name, table.columns, table.rows)
-  const spec = table.rows.length > 0 && chart ? chart(ref) : null
+  const spec = table.rows.length > 0 && chart
+    ? chart(ref)
+    : null
   const chartRows = 15
   if (spec) {
-    sheet.addChart({ ...spec, at: { col: 6, row: ref.headerRow }, size: { cols: 8, rows: chartRows } })
+    sheet.addChart({
+      ...spec,
+      at: { col: 6, row: ref.headerRow },
+      size: { cols: 8, rows: chartRows }
+    })
   }
-  sheet.skip(spec ? Math.max(1, chartRows + 1 - (ref.lastRow - ref.headerRow)) : 1)
+  sheet.skip(spec
+    ? Math.max(1, chartRows + 1 - (ref.lastRow - ref.headerRow))
+    : 1)
   return ref
 }
 
@@ -666,7 +801,9 @@ const sumCounts = (rows: ReportData['analytics']) => rows.reduce((acc, row) => a
 function addUsageSheet(sheet: Sheet, data: ReportData, now: Date) {
   sheet.addHeading('Utilizzo del sito', 'Conteggi giornalieri anonimi: nessun nome, email, IP o identificativo. Conservati 13 mesi.')
   if (data.analytics.length === 0) {
-    sheet.addRow([{ value: 'Nessuna statistica d\'uso registrata.', style: 'note' }])
+    sheet.addRow([
+      { value: 'Nessuna statistica d\'uso registrata.', style: 'note' }
+    ])
     sheet.skip(1)
     addLinksBlock(sheet, data)
     return
@@ -675,42 +812,109 @@ function addUsageSheet(sheet: Sheet, data: ReportData, now: Date) {
   const byDetail = (event: string) => groupBy(rows.filter(row => row.event === event), row => row.detail)
 
   // Average daily active users in each month, per role.
-  const roles = ['student', 'tutor', 'admin', 'activator']
+  const roles = [
+    'student',
+    'tutor',
+    'admin',
+    'activator'
+  ]
   const activeRows = rows.filter(row => row.event === 'active_users')
-  const activeMonths = activeRows.length > 0 ? monthRange(activeRows.map(row => monthKey(row.day)), now) : []
+  const activeMonths = activeRows.length > 0
+    ? monthRange(activeRows.map(row => monthKey(row.day)), now)
+    : []
   block(sheet, 'Utenti attivi al giorno, media del mese', {
     name: 'Attivi',
-    columns: [{ header: 'Mese' }, { header: 'Studenti', ...DECIMAL }, { header: 'Tutor', ...DECIMAL }, { header: 'Admin', ...DECIMAL }, { header: 'Attivatori', ...DECIMAL }],
+    columns: [
+      { header: 'Mese' },
+      { header: 'Studenti', ...DECIMAL },
+      { header: 'Tutor', ...DECIMAL },
+      { header: 'Admin', ...DECIMAL },
+      { header: 'Attivatori', ...DECIMAL }
+    ],
     rows: activeMonths.map((month) => {
       const monthRows = activeRows.filter(row => monthKey(row.day) === month)
       const days = new Set(monthRows.map(row => row.day)).size
-      return [monthLabel(month), ...roles.map(role => days > 0 ? Math.round(sumCounts(monthRows.filter(row => row.role === role)) / days * 10) / 10 : null)]
+      return [
+        monthLabel(month),
+        ...roles.map(role => days > 0
+          ? Math.round(sumCounts(monthRows.filter(row => row.role === role)) / days * 10) / 10
+          : null)
+      ]
     })
   }, ref => ({
     type: 'line',
     title: 'Utenti attivi al giorno (media del mese)',
     categories: ref.column(0),
-    series: [{ name: 'Studenti', values: ref.column(1) }, { name: 'Tutor', values: ref.column(2) }]
+    series: [
+      {
+        name: 'Studenti',
+        values: ref.column(1)
+      },
+      {
+        name: 'Tutor',
+        values: ref.column(2)
+      }
+    ]
   }))
 
   block(sheet, 'Esito dei tentativi di prenotazione', {
     name: 'Esiti',
-    columns: [{ header: 'Esito' }, { header: 'Tentativi' }],
-    rows: [...byDetail('booking').entries()].map(([detail, list]) => [BOOKING_OUTCOME[detail] ?? detail, sumCounts(list)] as [string, number]).sort((a, b) => b[1] - a[1])
-  }, ref => ({ type: 'bar', title: 'Esito delle prenotazioni', categories: ref.column(0), series: [{ name: 'Tentativi', values: ref.column(1) }] }))
+    columns: [
+      { header: 'Esito' },
+      { header: 'Tentativi' }
+    ],
+    rows: [
+      ...byDetail('booking').entries()
+    ].map(([detail, list]) => [
+      BOOKING_OUTCOME[detail] ?? detail,
+      sumCounts(list)
+    ] as [string, number]).sort((a, b) => b[1] - a[1])
+  }, ref => ({
+    type: 'bar',
+    title: 'Esito delle prenotazioni',
+    categories: ref.column(0),
+    series: [
+      {
+        name: 'Tentativi',
+        values: ref.column(1)
+      }
+    ]
+  }))
 
   block(sheet, 'Pagine più viste', {
     name: 'Pagine',
-    columns: [{ header: 'Pagina' }, { header: 'Visite' }],
-    rows: [...byDetail('page_view').entries()].map(([detail, list]) => [detail === 'other' ? 'Altre pagine' : detail, sumCounts(list)] as [string, number]).sort((a, b) => b[1] - a[1])
+    columns: [
+      { header: 'Pagina' },
+      { header: 'Visite' }
+    ],
+    rows: [
+      ...byDetail('page_view').entries()
+    ].map(([detail, list]) => [
+      detail === 'other'
+        ? 'Altre pagine'
+        : detail,
+      sumCounts(list)
+    ] as [string, number]).sort((a, b) => b[1] - a[1])
   })
 
   block(sheet, 'Errori nel browser (tipo e pagina, mai il messaggio)', {
     name: 'Errori',
-    columns: [{ header: 'Errore' }, { header: 'Pagina' }, { header: 'Quante volte' }],
-    rows: [...byDetail('client_error').entries()].map(([detail, list]) => {
+    columns: [
+      { header: 'Errore' },
+      { header: 'Pagina' },
+      { header: 'Quante volte' }
+    ],
+    rows: [
+      ...byDetail('client_error').entries()
+    ].map(([detail, list]) => {
       const [name, page] = detail.split('@')
-      return [name, page === 'other' ? 'Altre pagine' : page, sumCounts(list)] as CellValue[]
+      return [
+        name,
+        page === 'other'
+          ? 'Altre pagine'
+          : page,
+        sumCounts(list)
+      ] as CellValue[]
     }).sort((a, b) => (b[2] as number) - (a[2] as number))
   })
 
@@ -723,11 +927,31 @@ function addLinksBlock(sheet: Sheet, data: ReportData) {
     return
   block(sheet, 'Click sui link brevi', {
     name: 'Link',
-    columns: [{ header: 'Link' }, { header: 'Porta a' }, { header: 'Attivo' }, { header: 'Click nell\'anno' }],
+    columns: [
+      { header: 'Link' },
+      { header: 'Porta a' },
+      { header: 'Attivo' },
+      { header: 'Click nell\'anno' }
+    ],
     rows: data.links
-      .map(link => [`/link/${link.slug}`, link.url, yesNo(link.active), link.clicks] as CellValue[])
+      .map(link => [
+        `/link/${link.slug}`,
+        link.url,
+        yesNo(link.active),
+        link.clicks
+      ] as CellValue[])
       .sort((a, b) => (b[3] as number) - (a[3] as number))
-  }, ref => ({ type: 'bar', title: 'Click sui link brevi', categories: ref.column(0), series: [{ name: 'Click', values: ref.column(3) }] }))
+  }, ref => ({
+    type: 'bar',
+    title: 'Click sui link brevi',
+    categories: ref.column(0),
+    series: [
+      {
+        name: 'Click',
+        values: ref.column(3)
+      }
+    ]
+  }))
 }
 
 const SERVICE_LABEL: Record<string, string> = {
@@ -748,13 +972,34 @@ function addNotificationsSheet(sheet: Sheet, data: ReportData) {
   const verified = data.people.filter(person => person.emailVerified)
   block(sheet, 'Chi riceve le notifiche push', {
     name: 'Copertura',
-    columns: [{ header: 'Ruolo' }, { header: 'Utenti verificati' }, { header: 'Con le push attive' }, { header: 'Copertura (%)', ...PERCENT }],
+    columns: [
+      { header: 'Ruolo' },
+      { header: 'Utenti verificati' },
+      { header: 'Con le push attive' },
+      { header: 'Copertura (%)', ...PERCENT }
+    ],
     rows: ['student', 'tutor', 'admin'].map((role) => {
       const people = verified.filter(person => person.role === role)
       const withPush = people.filter(person => person.hasPush).length
-      return [ROLES_PLURAL[role], people.length, withPush, ratio(withPush, people.length)]
+      return [
+        ROLES_PLURAL[role],
+        people.length,
+        withPush,
+        ratio(withPush, people.length)
+      ]
     })
-  }, ref => ({ type: 'column', title: 'Utenti con le push attive', categories: ref.column(0), series: [{ name: 'Copertura', values: ref.column(3) }], percent: true }))
+  }, ref => ({
+    type: 'column',
+    title: 'Utenti con le push attive',
+    categories: ref.column(0),
+    series: [
+      {
+        name: 'Copertura',
+        values: ref.column(3)
+      }
+    ],
+    percent: true
+  }))
 
   const analytics = data.analytics
   const byDetail = (event: string) => groupBy(analytics.filter(row => row.event === event), row => row.detail)
@@ -762,37 +1007,121 @@ function addNotificationsSheet(sheet: Sheet, data: ReportData) {
   const opened = byDetail('push_open')
   block(sheet, 'Push inviate e aperte per tipo (ultimi 13 mesi)', {
     name: 'Push',
-    columns: [{ header: 'Tipo' }, { header: 'Inviate' }, { header: 'Aperte' }, { header: 'Apertura (%)', ...PERCENT }],
-    rows: [...new Set([...sent.keys(), ...opened.keys()])]
-      .map(category => [categoryLabel(category), sumCounts(sent.get(category) ?? []), sumCounts(opened.get(category) ?? []), ratio(sumCounts(opened.get(category) ?? []), sumCounts(sent.get(category) ?? []))] as CellValue[])
+    columns: [
+      { header: 'Tipo' },
+      { header: 'Inviate' },
+      { header: 'Aperte' },
+      { header: 'Apertura (%)', ...PERCENT }
+    ],
+    rows: [
+      ...new Set([
+        ...sent.keys(),
+        ...opened.keys()
+      ])
+    ]
+      .map(category => [
+        categoryLabel(category),
+        sumCounts(sent.get(category) ?? []),
+        sumCounts(opened.get(category) ?? []),
+        ratio(sumCounts(opened.get(category) ?? []), sumCounts(sent.get(category) ?? []))
+      ] as CellValue[])
       .sort((a, b) => (b[1] as number) - (a[1] as number))
-  }, ref => ({ type: 'column', title: 'Push inviate e aperte', categories: ref.column(0), series: [{ name: 'Inviate', values: ref.column(1) }, { name: 'Aperte', values: ref.column(2) }] }))
+  }, ref => ({
+    type: 'column',
+    title: 'Push inviate e aperte',
+    categories: ref.column(0),
+    series: [
+      {
+        name: 'Inviate',
+        values: ref.column(1)
+      },
+      {
+        name: 'Aperte',
+        values: ref.column(2)
+      }
+    ]
+  }))
 
   block(sheet, `Notifiche nel pannello per tipo (ultimi ${stats.keepDays} giorni)`, {
     name: 'Pannello',
-    columns: [{ header: 'Tipo' }, { header: 'Lette' }, { header: 'Non lette' }, { header: 'Lette (%)', ...PERCENT }],
-    rows: stats.inbox.map(row => [categoryLabel(row.category), row.read, row.total - row.read, ratio(row.read, row.total)])
-  }, ref => ({ type: 'column', title: 'Notifiche lette e non lette', categories: ref.column(0), series: [{ name: 'Lette', values: ref.column(1) }, { name: 'Non lette', values: ref.column(2) }] }))
+    columns: [
+      { header: 'Tipo' },
+      { header: 'Lette' },
+      { header: 'Non lette' },
+      { header: 'Lette (%)', ...PERCENT }
+    ],
+    rows: stats.inbox.map(row => [
+      categoryLabel(row.category),
+      row.read,
+      row.total - row.read,
+      ratio(row.read, row.total)
+    ])
+  }, ref => ({
+    type: 'column',
+    title: 'Notifiche lette e non lette',
+    categories: ref.column(0),
+    series: [
+      {
+        name: 'Lette',
+        values: ref.column(1)
+      },
+      {
+        name: 'Non lette',
+        values: ref.column(2)
+      }
+    ]
+  }))
 
   const clicks = byDetail('inbox_click')
   block(sheet, 'Campanella (ultimi 13 mesi)', {
     name: 'Campanella',
-    columns: [{ header: 'Cosa' }, { header: 'Quante volte' }],
+    columns: [
+      { header: 'Cosa' },
+      { header: 'Quante volte' }
+    ],
     rows: [
-      ['Pannello aperto', sumCounts(analytics.filter(row => row.event === 'bell_open'))],
-      ...[...clicks.entries()].map(([category, list]) => [`Notifica toccata: ${categoryLabel(category)}`, sumCounts(list)] as [string, number]).sort((a, b) => b[1] - a[1])
+      [
+        'Pannello aperto',
+        sumCounts(analytics.filter(row => row.event === 'bell_open'))
+      ],
+      ...[
+        ...clicks.entries()
+      ].map(([category, list]) => [
+        `Notifica toccata: ${categoryLabel(category)}`,
+        sumCounts(list)
+      ] as [string, number]).sort((a, b) => b[1] - a[1])
     ]
   })
 
   block(sheet, 'Dispositivi iscritti per servizio push', {
     name: 'Dispositivi',
-    columns: [{ header: 'Servizio' }, { header: 'Dispositivi' }, { header: 'Raggiunti negli ultimi 30 giorni' }],
+    columns: [
+      { header: 'Servizio' },
+      { header: 'Dispositivi' },
+      { header: 'Raggiunti negli ultimi 30 giorni' }
+    ],
     rows: stats.devices.map(row => [SERVICE_LABEL[row.service] ?? row.service, row.devices, row.workingLast30Days])
-  }, ref => ({ type: 'bar', title: 'Dispositivi per servizio', categories: ref.column(0), series: [{ name: 'Dispositivi', values: ref.column(1) }] }))
+  }, ref => ({
+    type: 'bar',
+    title: 'Dispositivi per servizio',
+    categories: ref.column(0),
+    series: [
+      {
+        name: 'Dispositivi',
+        values: ref.column(1)
+      }
+    ]
+  }))
 
   block(sheet, 'Tipi di notifica disattivati nelle preferenze', {
     name: 'Disattivate',
-    columns: [{ header: 'Tipo' }, { header: 'Persone che lo hanno spento' }],
-    rows: stats.optOuts.map(row => [categoryLabel(row.category), row.users])
+    columns: [
+      { header: 'Tipo' },
+      { header: 'Persone che lo hanno spento' }
+    ],
+    rows: stats.optOuts.map(row => [
+      categoryLabel(row.category),
+      row.users
+    ])
   })
 }

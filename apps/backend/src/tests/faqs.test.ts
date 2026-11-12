@@ -18,9 +18,13 @@ async function call(path: string, options: { token?: string, method?: string, bo
     method: options.method ?? (options.body ? 'POST' : 'GET'),
     headers: {
       'Content-Type': 'application/json',
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {})
+      ...(options.token
+        ? { Authorization: `Bearer ${options.token}` }
+        : {})
     },
-    body: options.body ? JSON.stringify(options.body) : undefined
+    body: options.body
+      ? JSON.stringify(options.body)
+      : undefined
   })
 }
 
@@ -31,7 +35,10 @@ async function questions() {
 }
 
 async function add(question: string) {
-  const response = await call('/faqs', { token: tokens.admin, body: { question, answer: `Risposta a ${question}` } })
+  const response = await call('/faqs', {
+    token: tokens.admin,
+    body: { question, answer: `Risposta a ${question}` }
+  })
   expect(response.status).toBe(201)
   return (await response.json()) as { id: string, position: number }
 }
@@ -42,7 +49,9 @@ beforeAll(async () => {
   await seedDevelopmentData()
   resetRateLimiters()
   for (const role of ['admin', 'student']) {
-    const login = await call('/auth/login', { body: { email: `${role}@example.test`, password: DEV_PASSWORD } })
+    const login = await call('/auth/login', {
+      body: { email: `${role}@example.test`, password: DEV_PASSWORD }
+    })
     tokens[role] = (await login.json()).accessToken
   }
 })
@@ -71,27 +80,62 @@ describe('faq', () => {
     expect((await call('/faqs', { token: tokens.student, body })).status).toBe(403)
     expect((await call(`/faqs/${id}`, { token: tokens.student, method: 'PUT', body })).status).toBe(403)
     expect((await call(`/faqs/${id}`, { token: tokens.student, method: 'DELETE' })).status).toBe(403)
-    expect((await call('/faqs/order', { token: tokens.student, method: 'PUT', body: { ids: [id] } })).status).toBe(403)
+    expect((await call('/faqs/order', {
+      token: tokens.student,
+      method: 'PUT',
+      body: {
+        ids: [id]
+      }
+    })).status).toBe(403)
 
-    const updated = await call(`/faqs/${id}`, { token: tokens.admin, method: 'PUT', body: { question: 'Nuova', answer: '**Markdown**' } })
+    const updated = await call(`/faqs/${id}`, {
+      token: tokens.admin,
+      method: 'PUT',
+      body: { question: 'Nuova', answer: '**Markdown**' }
+    })
     expect(updated.status).toBe(200)
     expect(await updated.json()).toMatchObject({ question: 'Nuova', answer: '**Markdown**' })
   })
 
   it('reorders the whole list and refuses a stale one', async () => {
     const [a, b, c] = [await add('A'), await add('B'), await add('C')]
-    const response = await call('/faqs/order', { token: tokens.admin, method: 'PUT', body: { ids: [c.id, a.id, b.id] } })
+    const response = await call('/faqs/order', {
+      token: tokens.admin,
+      method: 'PUT',
+      body: {
+        ids: [c.id, a.id, b.id]
+      }
+    })
     expect(response.status).toBe(200)
-    expect((await questions()).map(item => [item.question, item.position])).toEqual([['C', 0], ['A', 1], ['B', 2]])
+    expect((await questions()).map(item => [item.question, item.position])).toEqual([
+      ['C', 0],
+      ['A', 1],
+      ['B', 2]
+    ])
 
-    expect((await call('/faqs/order', { token: tokens.admin, method: 'PUT', body: { ids: [a.id, b.id] } })).status).toBe(409)
-    expect((await call('/faqs/order', { token: tokens.admin, method: 'PUT', body: { ids: [a.id, a.id, b.id] } })).status).toBe(409)
+    expect((await call('/faqs/order', {
+      token: tokens.admin,
+      method: 'PUT',
+      body: {
+        ids: [a.id, b.id]
+      }
+    })).status).toBe(409)
+    expect((await call('/faqs/order', {
+      token: tokens.admin,
+      method: 'PUT',
+      body: {
+        ids: [a.id, a.id, b.id]
+      }
+    })).status).toBe(409)
   })
 
   it('closes the gap when a question is deleted', async () => {
     const [a, b, c] = [await add('A'), await add('B'), await add('C')]
     expect((await call(`/faqs/${b.id}`, { token: tokens.admin, method: 'DELETE' })).status).toBe(204)
-    expect((await questions()).map(item => [item.id, item.position])).toEqual([[a.id, 0], [c.id, 1]])
+    expect((await questions()).map(item => [item.id, item.position])).toEqual([
+      [a.id, 0],
+      [c.id, 1]
+    ])
     expect((await call(`/faqs/${b.id}`, { token: tokens.admin, method: 'DELETE' })).status).toBe(404)
   })
 })

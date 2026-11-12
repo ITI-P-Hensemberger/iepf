@@ -69,7 +69,9 @@ export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
     forbid()
   }
 
-  const countsForTutor = isAdmin ? (payload?.countsForTutor ?? false) : false
+  const countsForTutor = isAdmin
+    ? (payload?.countsForTutor ?? false)
+    : false
 
   // The tutor lock serializes this with new bookings, so none can slip in unrefunded.
   const confirmedBookings = await db.transaction(async (tx) => {
@@ -133,7 +135,9 @@ export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
           subjectName: lessonDetails.subjectName,
           topic: topicsByStudentId.get(studentId) ?? null,
           tutorName: lessonDetails.tutorName,
-          students: [{ name: studentDetails.name, classLabel: studentDetails.classLabel }]
+          students: [
+            { name: studentDetails.name, classLabel: studentDetails.classLabel }
+          ]
         })
         sendMail({
           to: studentDetails.email,
@@ -147,7 +151,9 @@ export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
         const studentList = confirmedStudentIds
           .map((id) => {
             const student = studentsMap.get(id)
-            return student ? { name: student.name, classLabel: student.classLabel } : null
+            return student
+              ? { name: student.name, classLabel: student.classLabel }
+              : null
           })
           .filter((student): student is { name: string, classLabel: string | null } => Boolean(student))
         const tutorMessage = buildLessonCanceledMessage({
@@ -167,7 +173,11 @@ export const cancelLesson: AppRouteHandler<CancelLessonRoute> = async (c) => {
         }).catch(err => console.error('Failed to send tutor lesson canceled email:', err))
       }
 
-      const canceledLesson = { lessonId: lesson.id, subjectName: lessonDetails.subjectName, startAt: new Date(lesson.startAt) }
+      const canceledLesson = {
+        lessonId: lesson.id,
+        subjectName: lessonDetails.subjectName,
+        startAt: new Date(lesson.startAt)
+      }
       notifyUsers(confirmedStudentIds, 'updates', lessonCanceledPush('student', canceledLesson))
       notifyUsers([lesson.tutorId], 'updates', lessonCanceledPush('tutor', canceledLesson))
     }
@@ -349,7 +359,14 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
       })
     }
 
-    return { previous, bookings, tutorChanged, changed, oldDetails, newDetails }
+    return {
+      previous,
+      bookings,
+      tutorChanged,
+      changed,
+      oldDetails,
+      newDetails
+    }
   })
 
   if (!outcome) {
@@ -367,7 +384,9 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
       const studentList = studentIds
         .map((id) => {
           const student = studentsMap.get(id)
-          return student ? { name: student.name, classLabel: student.classLabel } : null
+          return student
+            ? { name: student.name, classLabel: student.classLabel }
+            : null
         })
         .filter((student): student is { name: string, classLabel: string | null } => Boolean(student))
 
@@ -384,7 +403,9 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
           newSubjectName: newDetails.subjectName,
           oldTutorName: oldDetails.tutorName,
           newTutorName: newDetails.tutorName,
-          students: [{ name: student.name, classLabel: student.classLabel }],
+          students: [
+            { name: student.name, classLabel: student.classLabel }
+          ],
           rescheduledByAdmin: true
         })
         sendMail({
@@ -429,8 +450,18 @@ export const rescheduleLesson: AppRouteHandler<RescheduleLessonRoute> = async (c
         }).catch(err => console.error('Failed to send lesson reassigned email:', err))
       }
 
-      const before = { lessonId: lesson.id, subjectName: oldDetails.subjectName, startAt: previous.startAt, durationMinutes: previous.durationMinutes }
-      const after = { lessonId: lesson.id, subjectName: newDetails.subjectName, startAt: newStartAt, durationMinutes: payload.durationMinutes }
+      const before = {
+        lessonId: lesson.id,
+        subjectName: oldDetails.subjectName,
+        startAt: previous.startAt,
+        durationMinutes: previous.durationMinutes
+      }
+      const after = {
+        lessonId: lesson.id,
+        subjectName: newDetails.subjectName,
+        startAt: newStartAt,
+        durationMinutes: payload.durationMinutes
+      }
       const studentPush = lessonChangedPush('student', before, after, tutorChanged)
       if (studentPush) {
         notifyUsers(studentIds, 'updates', studentPush)

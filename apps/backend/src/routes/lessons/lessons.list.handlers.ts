@@ -66,12 +66,18 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
     clauses.push(lte(lessons.startAt, new Date(query.to)))
   }
 
-  const orderBy = query.sortBy === 'createdAt' ? lessons.createdAt : lessons.startAt
-  const direction = query.sortDir === 'desc' ? desc(orderBy) : asc(orderBy)
+  const orderBy = query.sortBy === 'createdAt'
+    ? lessons.createdAt
+    : lessons.startAt
+  const direction = query.sortDir === 'desc'
+    ? desc(orderBy)
+    : asc(orderBy)
 
   // Free text: the day ("13/11"), the tutor, the subject, or a booking's student (name, email,
   // class), topic or subject.
-  const pattern = query.q ? likePattern(query.q) : null
+  const pattern = query.q
+    ? likePattern(query.q)
+    : null
   const listWhere = pattern
     ? and(
         ...clauses,
@@ -82,7 +88,9 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
           bookingMatches(lessons.id, pattern)
         )
       )
-    : clauses.length ? and(...clauses) : undefined
+    : clauses.length
+      ? and(...clauses)
+      : undefined
 
   const [{ total }] = await db
     .select({ total: sql<number>`count(*)::int` })
@@ -125,7 +133,9 @@ export const listLessons: AppRouteHandler<ListLessonsRoute> = async (c) => {
   }
 
   // Get tutor capacities
-  const tutorIds = [...new Set(pageLessons.map(l => l.tutorId))]
+  const tutorIds = [
+    ...new Set(pageLessons.map(l => l.tutorId))
+  ]
   const tutorCapacities = new Map<string, number>()
   for (const tutorId of tutorIds) {
     tutorCapacities.set(tutorId, await getTutorDailyCapacity(tutorId))
@@ -194,7 +204,9 @@ export const listMyLessons: AppRouteHandler<ListMyLessonsRoute> = async (c) => {
     forbid()
   }
 
-  const conditions = [eq(lessonBookings.studentId, studentId)]
+  const conditions = [
+    eq(lessonBookings.studentId, studentId)
+  ]
   if (query.q) {
     // Free text: the day ("13/11"), the tutor (name or email), the subject or the topic.
     const pattern = likePattern(query.q)
@@ -218,8 +230,12 @@ export const listMyLessons: AppRouteHandler<ListMyLessonsRoute> = async (c) => {
     conditions.push(lte(lessons.startAt, new Date(query.to)))
   }
 
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined
-  const direction = query.sortDir === 'desc' ? desc(lessons.startAt) : asc(lessons.startAt)
+  const whereClause = conditions.length > 0
+    ? and(...conditions)
+    : undefined
+  const direction = query.sortDir === 'desc'
+    ? desc(lessons.startAt)
+    : asc(lessons.startAt)
 
   const [{ total }] = await db
     .select({ total: sql<number>`count(*)` })
@@ -272,7 +288,9 @@ export const listMyLessons: AppRouteHandler<ListMyLessonsRoute> = async (c) => {
     topic: row.topic,
     countsForStudent: row.countsForStudent,
     studentPresence: row.studentPresence,
-    studentPresenceAt: row.studentPresenceAt ? row.studentPresenceAt.toISOString() : null
+    studentPresenceAt: row.studentPresenceAt
+      ? row.studentPresenceAt.toISOString()
+      : null
   }))
 
   return c.json(
@@ -325,7 +343,9 @@ async function loadAvailableLessons(studentId: string, filters: AvailableFilters
   }
 
   const listWhere = and(...conditions)
-  const direction = filters.sortDir === 'desc' ? desc(lessons.startAt) : asc(lessons.startAt)
+  const direction = filters.sortDir === 'desc'
+    ? desc(lessons.startAt)
+    : asc(lessons.startAt)
 
   const [{ total }] = await db
     .select({ total: sql<number>`count(*)` })
@@ -359,7 +379,11 @@ async function loadAvailableLessons(studentId: string, filters: AvailableFilters
     : await lessonRowsQuery
 
   if (lessonRows.length === 0) {
-    return { total: Number(total ?? 0), items: [], bookedDays: new Set<string>() }
+    return {
+      total: Number(total ?? 0),
+      items: [],
+      bookedDays: new Set<string>()
+    }
   }
 
   const lessonIds = lessonRows.map(row => row.id)
@@ -412,7 +436,9 @@ async function loadAvailableLessons(studentId: string, filters: AvailableFilters
     lessonBookingCounts.set(booking.lessonId, (lessonBookingCounts.get(booking.lessonId) ?? 0) + 1)
   }
 
-  const tutorIds = [...new Set(lessonRows.map(row => row.tutorId))]
+  const tutorIds = [
+    ...new Set(lessonRows.map(row => row.tutorId))
+  ]
   const tutorCapacities = new Map<string, number>()
   for (const tutorId of tutorIds) {
     tutorCapacities.set(tutorId, await getTutorDailyCapacity(tutorId))
@@ -474,7 +500,11 @@ async function loadAvailableLessons(studentId: string, filters: AvailableFilters
     }
   })
 
-  return { total: Number(total ?? 0), items, bookedDays: bookedDateKeys }
+  return {
+    total: Number(total ?? 0),
+    items,
+    bookedDays: bookedDateKeys
+  }
 }
 
 export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = async (c) => {
@@ -489,7 +519,9 @@ export const listAvailableLessons: AppRouteHandler<ListAvailableLessonsRoute> = 
   const { total, items } = await loadAvailableLessons(
     currentUser.id,
     query,
-    prioritizeCanBook ? undefined : { limit: query.limit, offset: query.offset }
+    prioritizeCanBook
+      ? undefined
+      : { limit: query.limit, offset: query.offset }
   )
 
   const pagedItems = prioritizeCanBook
@@ -550,8 +582,15 @@ export const getAvailableSummary: AppRouteHandler<GetAvailableSummaryRoute> = as
   }
 
   return c.json({
-    subjects: [...subjectCounts.values()].sort((a, b) => a.name.localeCompare(b.name, 'it')),
-    days: [...new Set([...dayCounts.keys(), ...bookedDays])].sort().map(day => ({
+    subjects: [
+      ...subjectCounts.values()
+    ].sort((a, b) => a.name.localeCompare(b.name, 'it')),
+    days: [
+      ...new Set([
+        ...dayCounts.keys(),
+        ...bookedDays
+      ])
+    ].sort().map(day => ({
       day,
       count: dayCounts.get(day) ?? 0,
       booked: bookedDays.has(day)
@@ -598,8 +637,16 @@ export const listSchedule: AppRouteHandler<ListScheduleRoute> = async (c) => {
     .where(and(
       gte(lessons.startAt, from),
       lte(lessons.startAt, to),
-      ...(tutorId ? [eq(lessons.tutorId, tutorId)] : []),
-      ...(query.subjectId ? [lessonOffersSubject(query.subjectId)] : [])
+      ...(tutorId
+        ? [
+            eq(lessons.tutorId, tutorId)
+          ]
+        : []),
+      ...(query.subjectId
+        ? [
+            lessonOffersSubject(query.subjectId)
+          ]
+        : [])
     ))
     .orderBy(asc(lessons.startAt), asc(users.lastName), asc(lessons.id))
 
@@ -629,7 +676,9 @@ export const listSchedule: AppRouteHandler<ListScheduleRoute> = async (c) => {
     bookingsByLesson.set(row.lessonId, list)
   }
 
-  const tutorIds = [...new Set(rows.map(row => row.tutorId))]
+  const tutorIds = [
+    ...new Set(rows.map(row => row.tutorId))
+  ]
   const tutorOptions = await getTutorSubjectOptions(tutorIds)
   const capacities = new Map<string, number>()
   for (const id of tutorIds) {
@@ -648,7 +697,9 @@ export const listSchedule: AppRouteHandler<ListScheduleRoute> = async (c) => {
       subjectId: row.subjectId,
       subjectName: row.subjectName,
       subjectFromBooking: row.subjectFromBooking,
-      subjectOptions: row.subjectId ? [] : (tutorOptions.get(row.tutorId) ?? []),
+      subjectOptions: row.subjectId
+        ? []
+        : (tutorOptions.get(row.tutorId) ?? []),
       startAt: row.startAt.toISOString(),
       durationMinutes: row.durationMinutes,
       seats: row.seats,
@@ -768,7 +819,9 @@ export const listLessonBookings: AppRouteHandler<ListLessonBookingsRoute> = asyn
     forbid()
   }
 
-  const conditions = [eq(lessonBookings.lessonId, lessonId)]
+  const conditions = [
+    eq(lessonBookings.lessonId, lessonId)
+  ]
   if (isStudent) {
     conditions.push(eq(lessonBookings.studentId, currentUser.id))
   }
@@ -792,7 +845,9 @@ export const listLessonBookings: AppRouteHandler<ListLessonBookingsRoute> = asyn
 
   const data = rows.map(row => ({
     ...row,
-    studentPresenceAt: row.studentPresenceAt ? row.studentPresenceAt.toISOString() : null
+    studentPresenceAt: row.studentPresenceAt
+      ? row.studentPresenceAt.toISOString()
+      : null
   }))
 
   return c.json(buildPagedResponse(data, data.length, data.length, 0), HttpStatusCodes.OK)

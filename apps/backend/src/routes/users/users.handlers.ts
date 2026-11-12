@@ -187,7 +187,10 @@ async function attachProfiles(records: UserPublicRecord[]): Promise<UserWithProf
   // The last time each student was turned on, first activation or a later one.
   const activatedAt = new Map<string, Date | null>()
   if (studentIds.length > 0) {
-    const rows = await db.select({ userId: activationEvents.userId, at: max(activationEvents.createdAt) })
+    const rows = await db.select({
+      userId: activationEvents.userId,
+      at: max(activationEvents.createdAt)
+    })
       .from(activationEvents)
       .where(and(inArray(activationEvents.userId, studentIds), inArray(activationEvents.kind, ['activated', 'reactivated'])))
       .groupBy(activationEvents.userId)
@@ -201,7 +204,10 @@ async function attachProfiles(records: UserPublicRecord[]): Promise<UserWithProf
       .innerJoin(subjects, eq(subjects.id, tutorSubjects.subjectId))
       .where(inArray(tutorSubjects.tutorId, tutorIds))
       .orderBy(subjects.name)
-    rows.forEach(row => tutorSubjectNames.set(row.tutorId, [...(tutorSubjectNames.get(row.tutorId) ?? []), row.name]))
+    rows.forEach(row => tutorSubjectNames.set(row.tutorId, [
+      ...(tutorSubjectNames.get(row.tutorId) ?? []),
+      row.name
+    ]))
   }
 
   const sectionIds = new Set<string>()
@@ -248,10 +254,16 @@ async function attachProfiles(records: UserPublicRecord[]): Promise<UserWithProf
         sectionName: resolveSectionName(profile?.sectionId ?? null),
         year: profile?.year ?? null,
         isActive: profile?.isActive ?? false,
-        deactivatedAt: profile?.isActive ? null : (profile?.deactivatedAt ?? null),
-        deactivationReason: profile?.isActive ? null : (profile?.deactivationReason ?? null),
+        deactivatedAt: profile?.isActive
+          ? null
+          : (profile?.deactivatedAt ?? null),
+        deactivationReason: profile?.isActive
+          ? null
+          : (profile?.deactivationReason ?? null),
         lessonTokens: tokenBalances.get(user.id) ?? 0,
-        activatedAt: profile?.isActive ? (activatedAt.get(user.id) ?? null) : null
+        activatedAt: profile?.isActive
+          ? (activatedAt.get(user.id) ?? null)
+          : null
       }
     }
 
@@ -299,12 +311,16 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
   }
 
   const conditions = []
-  const roleFilter = currentUser.role === 'activator' ? 'student' : query.role
+  const roleFilter = currentUser.role === 'activator'
+    ? 'student'
+    : query.role
   if (roleFilter) {
     conditions.push(eq(users.role, roleFilter))
   }
   if (query.emailVerified !== undefined) {
-    conditions.push(query.emailVerified ? isNotNull(users.emailVerifiedAt) : isNull(users.emailVerifiedAt))
+    conditions.push(query.emailVerified
+      ? isNotNull(users.emailVerifiedAt)
+      : isNull(users.emailVerifiedAt))
   }
   if (query.createdFrom) {
     conditions.push(gte(users.createdAt, new Date(query.createdFrom)))
@@ -316,7 +332,9 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
     conditions.push(isNotNull(users.emailVerifiedAt))
   }
   const records = await db.query.users.findMany({
-    where: conditions.length > 0 ? and(...conditions) : undefined,
+    where: conditions.length > 0
+      ? and(...conditions)
+      : undefined,
     columns: {
       passwordHash: false
     }
@@ -343,7 +361,9 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
   if (query.q) {
     const needle = query.q.toLowerCase()
     withProfiles = withProfiles.filter((user) => {
-      const year = user.year != null ? String(user.year) : ''
+      const year = user.year != null
+        ? String(user.year)
+        : ''
       const sectionDisplay = (user.sectionName ?? user.sectionId ?? '').toLowerCase()
       return user.email.toLowerCase().includes(needle)
         || user.firstName.toLowerCase().includes(needle)
@@ -355,7 +375,9 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
     })
   }
 
-  const direction = query.sortDir === 'desc' ? -1 : 1
+  const direction = query.sortDir === 'desc'
+    ? -1
+    : 1
   const sortBy = query.sortBy
   withProfiles.sort((a, b) => {
     const aValue = (() => {
@@ -894,7 +916,14 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       // Turning an admin off by hand is not the same as one still waiting to be activated.
       const deactivated = profileUpdates.isActive === false && previousIsActive === true
       const result = await db.update(adminProfiles)
-        .set({ isActive: profileUpdates.isActive, ...(deactivated ? { deactivatedAt: new Date() } : {}) })
+        .set({
+          isActive: profileUpdates.isActive,
+          ...(deactivated
+            ? {
+                deactivatedAt: new Date()
+              }
+            : {})
+        })
         .where(eq(adminProfiles.userId, id))
       if (result.rowCount === 0) {
         await db.insert(adminProfiles).values({
@@ -908,7 +937,12 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
       && profileUpdates.isActive !== undefined
       && previousIsActive !== profileUpdates.isActive
     if (user && activationChanged) {
-      await recordActivationChange({ userId: id, isActive: Boolean(profileUpdates.isActive), reason: deactivationReason, actorId: currentUser!.id })
+      await recordActivationChange({
+        userId: id,
+        isActive: Boolean(profileUpdates.isActive),
+        reason: deactivationReason,
+        actorId: currentUser!.id
+      })
     }
 
     if (user?.email) {
@@ -931,7 +965,10 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
         }
       }
       if (existing.email !== user.email) {
-        sendMail({ to: existing.email, ...buildEmailChangedMessage(user.email) })
+        sendMail({
+          to: existing.email,
+          ...buildEmailChangedMessage(user.email)
+        })
           .catch(err => console.error('Failed to send email changed email:', err))
       }
     }

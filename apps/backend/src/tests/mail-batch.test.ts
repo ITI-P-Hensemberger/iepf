@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { createMailBatch } from '@/lib/mail-batch'
 
-const payload = { to: 'a@example.test', subject: 's', text: 't', html: 'h' }
+const payload = {
+  to: 'a@example.test',
+  subject: 's',
+  text: 't',
+  html: 'h'
+}
 
 describe('createMailBatch', () => {
   it('finishes when every email is sent', async () => {

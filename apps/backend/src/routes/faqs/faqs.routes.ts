@@ -7,7 +7,9 @@ import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
 import { createErrorMessageSchema, createErrorSchema, IdUUIDParamsSchema } from '@/lib/openapi/schemas'
 
 const tags = ['FAQ']
-const security = [{ bearerAuth: [] as string[] }]
+const security = [
+  { bearerAuth: [] as string[] }
+]
 
 export const QUESTION_MAX = 300
 export const ANSWER_MAX = 5_000
@@ -48,7 +50,9 @@ export const create = createRoute({
   method: 'post',
   tags,
   security,
-  request: { body: jsonContentRequired(faqInputSchema, 'The question to add, at the end') },
+  request: {
+    body: jsonContentRequired(faqInputSchema, 'The question to add, at the end')
+  },
   responses: {
     [HttpStatusCodes.CREATED]: jsonContent(faqSchema, 'The added question'),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(createErrorSchema(faqInputSchema), 'Validation error(s)'),
@@ -95,7 +99,9 @@ export const reorder = createRoute({
   method: 'put',
   tags,
   security,
-  request: { body: jsonContentRequired(faqOrderSchema, 'Every question\'s id, in the new order') },
+  request: {
+    body: jsonContentRequired(faqOrderSchema, 'Every question\'s id, in the new order')
+  },
   responses: {
     [HttpStatusCodes.OK]: jsonContent(z.array(faqSchema), 'Every question, in the new order'),
     [HttpStatusCodes.CONFLICT]: jsonContent(createErrorMessageSchema(HttpStatusPhrases.CONFLICT), 'The ids are not exactly the current questions'),

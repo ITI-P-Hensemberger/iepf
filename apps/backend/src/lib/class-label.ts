@@ -6,5 +6,7 @@ export function classLabel(year: number | null | undefined, sectionName: string 
     return `${year}${section}`
   if (section)
     return section
-  return year ? `${year}ª` : null
+  return year
+    ? `${year}ª`
+    : null
 }

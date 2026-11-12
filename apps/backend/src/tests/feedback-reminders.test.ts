@@ -23,9 +23,22 @@ beforeAll(async () => {
   await cleanDatabase()
   ids = await seedDevelopmentData()
   const subjectId = (await db.query.subjects.findFirst())!.id
-  const [lesson] = await db.insert(lessons).values({ tutorId: ids.tutor, subjectId, startAt: new Date('2026-03-11T14:00:00Z'), durationMinutes: 60, seats: 2, status: 'confirmed' }).returning({ id: lessons.id })
+  const [lesson] = await db.insert(lessons).values({
+    tutorId: ids.tutor,
+    subjectId,
+    startAt: new Date('2026-03-11T14:00:00Z'),
+    durationMinutes: 60,
+    seats: 2,
+    status: 'confirmed'
+  }).returning({ id: lessons.id })
   lessonId = lesson.id
-  const [booking] = await db.insert(lessonBookings).values({ lessonId, studentId: ids.student, subjectId, topic: 'Equazioni', status: 'confirmed' }).returning({ id: lessonBookings.id })
+  const [booking] = await db.insert(lessonBookings).values({
+    lessonId,
+    studentId: ids.student,
+    subjectId,
+    topic: 'Equazioni',
+    status: 'confirmed'
+  }).returning({ id: lessonBookings.id })
   bookingId = booking.id
 })
 
@@ -36,12 +49,30 @@ afterAll(async () => {
 describe('pendingFeedback', () => {
   it('asks the student and the tutor until each writes one, and again after an admin deletes it', async () => {
     expect(await pendingFeedback(NOW)).toEqual(new Map([
-      [ids.student, { role: 'student', count: 1 }],
-      [ids.tutor, { role: 'tutor', count: 1 }]
+      [
+        ids.student,
+        { role: 'student', count: 1 }
+      ],
+      [
+        ids.tutor,
+        { role: 'tutor', count: 1 }
+      ]
     ]))
 
-    const [tutorFeedback] = await db.insert(lessonFeedback).values({ lessonId, bookingId, authorUserId: ids.tutor, targetUserId: ids.student, authorRole: 'tutor', rating: 4 }).returning({ id: lessonFeedback.id })
-    expect(await pendingFeedback(NOW)).toEqual(new Map([[ids.student, { role: 'student', count: 1 }]]))
+    const [tutorFeedback] = await db.insert(lessonFeedback).values({
+      lessonId,
+      bookingId,
+      authorUserId: ids.tutor,
+      targetUserId: ids.student,
+      authorRole: 'tutor',
+      rating: 4
+    }).returning({ id: lessonFeedback.id })
+    expect(await pendingFeedback(NOW)).toEqual(new Map([
+      [
+        ids.student,
+        { role: 'student', count: 1 }
+      ]
+    ]))
 
     await db.update(lessonFeedback).set({ deletedAt: NOW, deletedByUserId: ids.admin }).where(eq(lessonFeedback.id, tutorFeedback.id))
     expect((await pendingFeedback(NOW)).get(ids.tutor)).toEqual({ role: 'tutor', count: 1 })

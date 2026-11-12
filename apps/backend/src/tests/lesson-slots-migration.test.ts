@@ -39,16 +39,39 @@ async function lesson(startAt: Date, subjectId: string, values: Partial<typeof l
 }
 
 async function booking(lessonId: string, subjectId: string, status: string) {
-  await db.insert(lessonBookings).values({ lessonId, studentId, subjectId, topic: 'Ripasso', status })
-  await db.insert(tokenLedger).values({ studentId, lessonId, delta: -1, reason: 'lesson_booking' })
+  await db.insert(lessonBookings).values({
+    lessonId,
+    studentId,
+    subjectId,
+    topic: 'Ripasso',
+    status
+  })
+  await db.insert(tokenLedger).values({
+    studentId,
+    lessonId,
+    delta: -1,
+    reason: 'lesson_booking'
+  })
 }
 
 beforeAll(async () => {
   assertLocalDatabase(env.DATABASE_URL, env.NODE_ENV)
   await cleanDatabase()
   const people = await db.insert(users).values([
-    { email: 'slots-tutor@example.test', firstName: 'Slot', lastName: 'Tutor', passwordHash: 'x', role: 'tutor' },
-    { email: 'slots-student@example.test', firstName: 'Slot', lastName: 'Student', passwordHash: 'x', role: 'student' }
+    {
+      email: 'slots-tutor@example.test',
+      firstName: 'Slot',
+      lastName: 'Tutor',
+      passwordHash: 'x',
+      role: 'tutor'
+    },
+    {
+      email: 'slots-student@example.test',
+      firstName: 'Slot',
+      lastName: 'Student',
+      passwordHash: 'x',
+      role: 'student'
+    }
   ]).returning({ id: users.id })
   tutorId = people[0].id
   studentId = people[1].id

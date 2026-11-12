@@ -49,7 +49,9 @@ export function createPagedListSchema(itemSchema: z.ZodType) {
 }
 
 export function createErrorSchema(schema: z.ZodType) {
-  const invalidSample = schema instanceof z.ZodArray ? [{}] : {}
+  const invalidSample = schema instanceof z.ZodArray
+    ? [{}]
+    : {}
   let exampleError: z.ZodError | undefined
 
   try {
@@ -92,7 +94,10 @@ export function createErrorSchema(schema: z.ZodType) {
       issues: z.array(
         z.object({
           code: z.string(),
-          path: z.array(z.union([z.string(), z.number()])),
+          path: z.array(z.union([
+            z.string(),
+            z.number()
+          ])),
           message: z.string().optional()
         })
       ),

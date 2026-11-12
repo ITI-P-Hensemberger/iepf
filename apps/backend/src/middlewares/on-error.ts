@@ -12,7 +12,9 @@ const onError: ErrorHandler = (err, c) => {
   const candidate = typeof (err as { status?: number }).status === 'number'
     ? (err as { status?: number }).status as number
     : c.newResponse(null).status
-  const nextStatus = candidate !== OK ? candidate : INTERNAL_SERVER_ERROR
+  const nextStatus = candidate !== OK
+    ? candidate
+    : INTERNAL_SERVER_ERROR
   const statusCode = (CONTENTLESS_CODES.includes(nextStatus as ContentlessStatusCode)
     ? INTERNAL_SERVER_ERROR
     : nextStatus) as ContentfulStatusCode

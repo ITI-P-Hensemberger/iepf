@@ -24,7 +24,10 @@ const matcher = new RegExpMatcher({
 })
 
 const extraWords = parseExtraWords(env.PROFANITY_EXTRA_WORDS)
-const italianWords = [...profanitiesIt, ...extraWords]
+const italianWords = [
+  ...profanitiesIt,
+  ...extraWords
+]
 const italianPattern = italianWords.length > 0
   ? new RegExp(`\\b(?:${italianWords.map(escapeRegex).join('|')})\\b`, 'i')
   : null

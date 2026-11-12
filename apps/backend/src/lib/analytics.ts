@@ -23,7 +23,12 @@ export const CLIENT_EVENTS = [
 export type ClientEvent = typeof CLIENT_EVENTS[number]
 
 // link_click: detail is the link's id, so a renamed slug keeps its history.
-export const SERVER_EVENTS = ['booking', 'push_sent', 'active_users', 'link_click'] as const
+export const SERVER_EVENTS = [
+  'booking',
+  'push_sent',
+  'active_users',
+  'link_click'
+] as const
 export type AnalyticsEvent = ClientEvent | typeof SERVER_EVENTS[number]
 
 // The site's pages, with ids replaced by [id]. Visitors are not counted, so only pages a
@@ -90,7 +95,9 @@ export function romeDay(date: Date) {
 }
 
 function page(detail: string) {
-  return PAGES.has(detail) ? detail : 'other'
+  return PAGES.has(detail)
+    ? detail
+    : 'other'
 }
 
 // Reduces what the client sent to a value from a closed set.
@@ -101,11 +108,15 @@ export function sanitizeDetail(event: ClientEvent, detail: string) {
     case 'inbox_click':
     case 'push_open':
       // Read at call time: push.ts imports this module too.
-      return (PUSH_CATEGORIES as readonly string[]).includes(detail) ? detail : 'other'
+      return (PUSH_CATEGORIES as readonly string[]).includes(detail)
+        ? detail
+        : 'other'
     case 'client_error': {
       // "TypeError@/student/book": the error's name and the page, never its message.
       const [name = '', path = ''] = detail.split('@', 2)
-      return `${ERROR_NAME.test(name) ? name : 'Error'}@${page(path)}`
+      return `${ERROR_NAME.test(name)
+        ? name
+        : 'Error'}@${page(path)}`
     }
     default:
       return ''
@@ -136,7 +147,9 @@ export async function whoIs(user: { id: string, role: string }): Promise<Who> {
   if (cached && cached.expiresAt > now) {
     return { role: user.role, year: cached.year }
   }
-  const table = user.role === 'student' ? studentProfiles : tutorProfiles
+  const table = user.role === 'student'
+    ? studentProfiles
+    : tutorProfiles
   const [row] = await db.select({ year: table.year }).from(table).where(eq(table.userId, user.id)).limit(1)
   const year = row?.year ?? 0
   if (yearCache.size >= YEAR_CACHE_MAX) {
@@ -168,9 +181,22 @@ export async function addCounts(who: Who, rows: CountRow[], now = new Date()) {
     return
   const day = romeDay(now)
   await db.insert(analyticsDaily)
-    .values([...merged.values()].map(row => ({ day, ...row, role: who.role, year: who.year })))
+    .values([
+      ...merged.values()
+    ].map(row => ({
+      day,
+      ...row,
+      role: who.role,
+      year: who.year
+    })))
     .onConflictDoUpdate({
-      target: [analyticsDaily.day, analyticsDaily.event, analyticsDaily.detail, analyticsDaily.role, analyticsDaily.year],
+      target: [
+        analyticsDaily.day,
+        analyticsDaily.event,
+        analyticsDaily.detail,
+        analyticsDaily.role,
+        analyticsDaily.year
+      ],
       set: { count: sql`${analyticsDaily.count} + excluded.count` }
     })
 }
@@ -180,10 +206,16 @@ const pendingCounts = new Set<Promise<unknown>>()
 
 export function countInBackground(user: { id: string, role: string } | null, event: AnalyticsEvent, detail: string, count = 1) {
   const task = (async () => {
-    const who = user ? await whoIs(user) : { role: '', year: 0 }
-    await addCounts(who, [{ event, detail, count }])
+    const who = user
+      ? await whoIs(user)
+      : { role: '', year: 0 }
+    await addCounts(who, [
+      { event, detail, count }
+    ])
   })().catch((error) => {
-    console.error('Analytics count failed:', error instanceof Error ? error.message : error)
+    console.error('Analytics count failed:', error instanceof Error
+      ? error.message
+      : error)
   })
   pendingCounts.add(task)
   void task.finally(() => pendingCounts.delete(task))
@@ -200,10 +232,17 @@ const ROLLUP_DAYS = 7
 export const SCHOOL_YEAR_START_KEY = 'schoolYearStart'
 
 async function schoolYearStart() {
-  const row = await db.query.globalSettings.findFirst({ where: eq(globalSettings.key, SCHOOL_YEAR_START_KEY), columns: { value: true } })
+  const row = await db.query.globalSettings.findFirst({
+    where: eq(globalSettings.key, SCHOOL_YEAR_START_KEY),
+    columns: { value: true }
+  })
   const at = (row?.value as { at?: unknown } | undefined)?.at
-  const date = typeof at === 'string' ? new Date(at) : null
-  return date && !Number.isNaN(date.getTime()) ? date : null
+  const date = typeof at === 'string'
+    ? new Date(at)
+    : null
+  return date && !Number.isNaN(date.getTime())
+    ? date
+    : null
 }
 
 // Distinct active users per day, role and school year, read from the audit log before it
@@ -221,7 +260,9 @@ export async function rollUpActiveUsers(now: Date, backfillDays: number) {
   // A day wider than needed, so the index on created_at still narrows the scan.
   const wide = new Date(now.getTime() - (days + 1) * DAY_MS)
   const start = await schoolYearStart()
-  const since = start && start > wide ? start : wide
+  const since = start && start > wide
+    ? start
+    : wide
 
   const result = await db.execute(sql`
     insert into analytics_daily (day, event, detail, role, year, count)
@@ -257,7 +298,14 @@ export async function deleteOldAnalytics(now = new Date()) {
 }
 
 // Events drawn as daily lines on the admin page.
-const DAILY_EVENTS = ['page_view', 'active_users', 'booking', 'push_sent', 'push_open', 'client_error'] as const
+const DAILY_EVENTS = [
+  'page_view',
+  'active_users',
+  'booking',
+  'push_sent',
+  'push_open',
+  'client_error'
+] as const
 
 export async function readAnalytics(days: number, now = new Date()) {
   const from = romeDay(new Date(now.getTime() - (days - 1) * DAY_MS))
@@ -266,7 +314,12 @@ export async function readAnalytics(days: number, now = new Date()) {
   const total = sql<number>`sum(${analyticsDaily.count})::int`
 
   const daily = await db
-    .select({ day: analyticsDaily.day, event: analyticsDaily.event, role: analyticsDaily.role, count: total })
+    .select({
+      day: analyticsDaily.day,
+      event: analyticsDaily.event,
+      role: analyticsDaily.role,
+      count: total
+    })
     .from(analyticsDaily)
     .where(and(inRange, inArray(analyticsDaily.event, [...DAILY_EVENTS])))
     .groupBy(analyticsDaily.day, analyticsDaily.event, analyticsDaily.role)
@@ -279,10 +332,22 @@ export async function readAnalytics(days: number, now = new Date()) {
     .groupBy(analyticsDaily.event, analyticsDaily.detail)
 
   const byGroup = await db
-    .select({ event: analyticsDaily.event, role: analyticsDaily.role, year: analyticsDaily.year, count: total })
+    .select({
+      event: analyticsDaily.event,
+      role: analyticsDaily.role,
+      year: analyticsDaily.year,
+      count: total
+    })
     .from(analyticsDaily)
     .where(inRange)
     .groupBy(analyticsDaily.event, analyticsDaily.role, analyticsDaily.year)
 
-  return { from, to, days, daily, byDetail, byGroup }
+  return {
+    from,
+    to,
+    days,
+    daily,
+    byDetail,
+    byGroup
+  }
 }

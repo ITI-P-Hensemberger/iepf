@@ -71,7 +71,12 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
         operators.eq(fields.role, 'student')
       )
     },
-    columns: { id: true, email: true, firstName: true, lastName: true }
+    columns: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true
+    }
   })
 
   if (!studentUser) {
@@ -256,11 +261,23 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
 
     if (lesson.status === 'scheduled' || lesson.subjectId !== subjectId) {
       await tx.update(lessons)
-        .set({ status: lesson.status === 'scheduled' ? 'confirmed' : lesson.status, subjectId })
+        .set({
+          status: lesson.status === 'scheduled'
+            ? 'confirmed'
+            : lesson.status,
+          subjectId
+        })
         .where(eq(lessons.id, lesson.id))
     }
 
-    return { rejected: false as const, lesson: { ...lesson, subjectId }, booking, dailyCapacity, dailyBookings, confirmedCount: bookingCount.length }
+    return {
+      rejected: false as const,
+      lesson: { ...lesson, subjectId },
+      booking,
+      dailyCapacity,
+      dailyBookings,
+      confirmedCount: bookingCount.length
+    }
   })
 
   if (outcome.rejected) {
@@ -316,7 +333,11 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
     }
   }
 
-  const bookedLesson = { lessonId: lesson.id, subjectName: lessonDetails?.subjectName ?? 'Lezione', startAt: new Date(lesson.startAt) }
+  const bookedLesson = {
+    lessonId: lesson.id,
+    subjectName: lessonDetails?.subjectName ?? 'Lezione',
+    startAt: new Date(lesson.startAt)
+  }
   // Booked by an admin, the student did not choose it: it is news they cannot switch off.
   notifyUsers([studentUser.id], isAdmin ? 'updates' : 'bookings', bookingConfirmedPush('student', bookedLesson))
   notifyUsers([lesson.tutorId], 'bookings', bookingConfirmedPush('tutor', bookedLesson))
@@ -345,12 +366,16 @@ export const bookGeneratedLesson: AppRouteHandler<BookGeneratedLessonRoute> = as
         dailyOccupancy: updatedDailyBookings,
         availableSeats,
         countsForTutor: lesson.countsForTutor ?? false,
-        status: lesson.status === 'scheduled' ? 'confirmed' : lesson.status,
+        status: lesson.status === 'scheduled'
+          ? 'confirmed'
+          : lesson.status,
         subjectFromBooking: lesson.subjectFromBooking
       },
       booking: {
         ...booking,
-        studentPresenceAt: booking.studentPresenceAt ? booking.studentPresenceAt.toISOString() : null
+        studentPresenceAt: booking.studentPresenceAt
+          ? booking.studentPresenceAt.toISOString()
+          : null
       }
     },
     HttpStatusCodes.CREATED
@@ -490,7 +515,9 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
   const studentsMap = await fetchStudentsDetails([booking.studentId])
   const studentDetails = studentsMap.get(booking.studentId)
   if (lessonDetails && studentDetails) {
-    const canceledBy = currentUser.role === 'admin' ? 'admin' : 'student'
+    const canceledBy = currentUser.role === 'admin'
+      ? 'admin'
+      : 'student'
     if (studentDetails.email) {
       const studentMessage = buildLessonBookingCanceledMessage({
         recipientRole: 'student',
@@ -532,14 +559,20 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
     }
   }
 
-  const canceledBooking = { lessonId: lesson.id, subjectName: lessonDetails?.subjectName ?? 'Lezione', startAt: new Date(lesson.startAt) }
+  const canceledBooking = {
+    lessonId: lesson.id,
+    subjectName: lessonDetails?.subjectName ?? 'Lezione',
+    startAt: new Date(lesson.startAt)
+  }
   const byAdmin = currentUser.role === 'admin'
   notifyUsers([booking.studentId], byAdmin ? 'updates' : 'bookings', bookingCanceledPush('student', canceledBooking))
   if (lateSameDayCancel) {
     notifyLateCancellation({ lessonId: lesson.id, studentId: booking.studentId })
   }
   // The tutor cannot miss a cancellation on the lesson's own day, nor one an admin made.
-  notifyUsers([lesson.tutorId], byAdmin || lateSameDayCancel ? 'updates' : 'bookings', bookingCanceledPush('tutor', canceledBooking))
+  notifyUsers([lesson.tutorId], byAdmin || lateSameDayCancel
+    ? 'updates'
+    : 'bookings', bookingCanceledPush('tutor', canceledBooking))
 
   const updated = await db.query.lessonBookings.findFirst({
     where(fields, operators) {
@@ -561,7 +594,9 @@ export const cancelBooking: AppRouteHandler<CancelBookingRoute> = async (c) => {
   return c.json(
     {
       ...updated!,
-      studentPresenceAt: updated?.studentPresenceAt ? updated.studentPresenceAt.toISOString() : null
+      studentPresenceAt: updated?.studentPresenceAt
+        ? updated.studentPresenceAt.toISOString()
+        : null
     },
     HttpStatusCodes.OK
   )
@@ -626,8 +661,12 @@ export const setBookingPresence: AppRouteHandler<SetBookingPresenceRoute> = asyn
     return c.json(buildErrorResponse(HttpStatusPhrases.FORBIDDEN), HttpStatusCodes.FORBIDDEN)
   }
 
-  const presenceAt = payload.present === null ? null : new Date()
-  const countsForStudent = payload.present === null ? booking.countsForStudent : true
+  const presenceAt = payload.present === null
+    ? null
+    : new Date()
+  const countsForStudent = payload.present === null
+    ? booking.countsForStudent
+    : true
   await db.update(lessonBookings)
     .set({
       studentPresence: payload.present ?? null,
@@ -679,7 +718,9 @@ export const setBookingPresence: AppRouteHandler<SetBookingPresenceRoute> = asyn
     {
       status: booking.status,
       studentPresence: payload.present ?? null,
-      studentPresenceAt: presenceAt ? presenceAt.toISOString() : null
+      studentPresenceAt: presenceAt
+        ? presenceAt.toISOString()
+        : null
     },
     HttpStatusCodes.OK
   )
@@ -720,7 +761,9 @@ export const updateBookingTopic: AppRouteHandler<UpdateBookingTopicRoute> = asyn
 
   return c.json({
     ...updated,
-    studentPresenceAt: updated.studentPresenceAt ? updated.studentPresenceAt.toISOString() : null
+    studentPresenceAt: updated.studentPresenceAt
+      ? updated.studentPresenceAt.toISOString()
+      : null
   }, HttpStatusCodes.OK)
 }
 
@@ -758,7 +801,9 @@ export const updateBookingCounts: AppRouteHandler<UpdateBookingCountsRoute> = as
       await tx.insert(tokenLedger).values({
         studentId: booking.studentId,
         lessonId: booking.lessonId,
-        delta: payload.countsForStudent ? -1 : 1,
+        delta: payload.countsForStudent
+          ? -1
+          : 1,
         reason: 'lesson_counts_adjusted'
       })
     }
@@ -772,6 +817,8 @@ export const updateBookingCounts: AppRouteHandler<UpdateBookingCountsRoute> = as
 
   return c.json({
     ...outcome,
-    studentPresenceAt: outcome.studentPresenceAt ? outcome.studentPresenceAt.toISOString() : null
+    studentPresenceAt: outcome.studentPresenceAt
+      ? outcome.studentPresenceAt.toISOString()
+      : null
   }, HttpStatusCodes.OK)
 }

@@ -77,7 +77,9 @@ export const update: AppRouteHandler<UpdateRoute> = async (c) => {
   const { id } = c.req.valid('param')
   try {
     const [row] = await db.update(links).set(c.req.valid('json')).where(eq(links.id, id)).returning()
-    return row ? c.json(toPayload(row), HttpStatusCodes.OK) : notFound(c)
+    return row
+      ? c.json(toPayload(row), HttpStatusCodes.OK)
+      : notFound(c)
   }
   catch (error) {
     if (isUniqueConstraintError(error)) {
@@ -93,7 +95,9 @@ export const remove: AppRouteHandler<RemoveRoute> = async (c) => {
   }
   const { id } = c.req.valid('param')
   const [row] = await db.delete(links).where(eq(links.id, id)).returning({ id: links.id })
-  return row ? c.body(null, HttpStatusCodes.NO_CONTENT) : notFound(c)
+  return row
+    ? c.body(null, HttpStatusCodes.NO_CONTENT)
+    : notFound(c)
 }
 
 // Finds the link and counts the click in one statement; a disabled link is as good as missing.

@@ -17,7 +17,9 @@ async function call(path: string, method: string, body?: unknown) {
   return app.request(path, {
     method,
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-    body: body ? JSON.stringify(body) : undefined
+    body: body
+      ? JSON.stringify(body)
+      : undefined
   })
 }
 
@@ -77,7 +79,12 @@ describe('tutors searched by subject', () => {
   it('finds a tutor by a subject they teach and lists their subjects', async () => {
     for (const path of ['/users?role=tutor&limit=200&q=', '/admin/stats/lessons-counts/tutors?limit=200&q=']) {
       const found = (await (await call(`${path}matematica`, 'GET')).json()).data as Array<{ email: string, subjects: string[] }>
-      expect(found.map(row => [row.email, row.subjects])).toEqual([['tutor@example.test', ['Matematica demo']]])
+      expect(found.map(row => [row.email, row.subjects])).toEqual([
+        [
+          'tutor@example.test',
+          ['Matematica demo']
+        ]
+      ])
       expect((await (await call(`${path}paleografia`, 'GET')).json()).data).toEqual([])
     }
   })

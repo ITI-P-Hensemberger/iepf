@@ -71,7 +71,12 @@ export async function fetchStudentsDetails(studentIds: string[]) {
       where(fields, operators) {
         return operators.inArray(fields.id, uniqueIds)
       },
-      columns: { id: true, firstName: true, lastName: true, email: true }
+      columns: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true
+      }
     }),
     db.query.studentProfiles.findMany({
       where(fields, operators) {
@@ -96,7 +101,9 @@ export async function fetchStudentsDetails(studentIds: string[]) {
 
   return new Map(students.map((student) => {
     const profile = profileMap.get(student.id)
-    const sectionName = profile?.sectionId ? sectionNameMap.get(profile.sectionId) ?? null : null
+    const sectionName = profile?.sectionId
+      ? sectionNameMap.get(profile.sectionId) ?? null
+      : null
     const classLabel = schoolClassLabel(profile?.year ?? null, sectionName)
     return [
       student.id,
@@ -115,7 +122,12 @@ export function sameDayOrAfter(now: Date, lessonStart: Date) {
 }
 
 export function rejection<S extends number>(message: string, status: S, reason?: BookingOutcome) {
-  return { rejected: true as const, message, status, reason }
+  return {
+    rejected: true as const,
+    message,
+    status,
+    reason
+  }
 }
 
 export async function getTutorDailyCapacity(tutorId: string, executor: DbExecutor = db): Promise<number> {
@@ -220,7 +232,9 @@ export async function getTutorSubjectOptions(tutorIds: string[]): Promise<Map<st
     .select({ tutorId: tutorSubjects.tutorId, id: subjects.id, name: subjects.name })
     .from(tutorSubjects)
     .innerJoin(subjects, eq(tutorSubjects.subjectId, subjects.id))
-    .where(inArray(tutorSubjects.tutorId, [...new Set(tutorIds)]))
+    .where(inArray(tutorSubjects.tutorId, [
+      ...new Set(tutorIds)
+    ]))
     .orderBy(asc(subjects.name))
   for (const row of rows) {
     const list = options.get(row.tutorId) ?? []
@@ -248,7 +262,11 @@ export function lessonOffersSubject(subjectId: string) {
 export function subjectOptionsFor(lesson: { tutorId: string, subjectId: string | null, subjectName?: string | null }, tutorOptions: Map<string, SubjectOption[]>): SubjectOption[] {
   if (lesson.subjectId) {
     const name = lesson.subjectName ?? tutorOptions.get(lesson.tutorId)?.find(option => option.id === lesson.subjectId)?.name
-    return name ? [{ id: lesson.subjectId, name }] : []
+    return name
+      ? [
+          { id: lesson.subjectId, name }
+        ]
+      : []
   }
   return tutorOptions.get(lesson.tutorId) ?? []
 }

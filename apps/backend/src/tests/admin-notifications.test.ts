@@ -53,9 +53,13 @@ async function call(path: string, options: { token?: string, method?: string, bo
     method: options.method ?? (options.body ? 'POST' : 'GET'),
     headers: {
       'Content-Type': 'application/json',
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {})
+      ...(options.token
+        ? { Authorization: `Bearer ${options.token}` }
+        : {})
     },
-    body: options.body ? JSON.stringify(options.body) : undefined
+    body: options.body
+      ? JSON.stringify(options.body)
+      : undefined
   })
 }
 
@@ -74,8 +78,21 @@ async function settle() {
 async function pastLessonWithBooking(present: boolean | null = true) {
   // Started half an hour ago: tutors may mark presence only within two hours of the start.
   const startAt = new Date(Date.now() - 30 * 60 * 1000)
-  const [lesson] = await db.insert(lessons).values({ tutorId: ids.tutor, subjectId, startAt, durationMinutes: 60, seats: 2, status: 'confirmed' }).returning({ id: lessons.id })
-  const [booking] = await db.insert(lessonBookings).values({ lessonId: lesson.id, studentId: ids.student, subjectId, topic: 'Argomento', studentPresence: present }).returning({ id: lessonBookings.id })
+  const [lesson] = await db.insert(lessons).values({
+    tutorId: ids.tutor,
+    subjectId,
+    startAt,
+    durationMinutes: 60,
+    seats: 2,
+    status: 'confirmed'
+  }).returning({ id: lessons.id })
+  const [booking] = await db.insert(lessonBookings).values({
+    lessonId: lesson.id,
+    studentId: ids.student,
+    subjectId,
+    topic: 'Argomento',
+    studentPresence: present
+  }).returning({ id: lessonBookings.id })
   return { lessonId: lesson.id, bookingId: booking.id }
 }
 
@@ -84,8 +101,15 @@ beforeAll(async () => {
   await cleanDatabase()
   ids = await seedDevelopmentData()
   resetRateLimiters()
-  for (const role of ['admin', 'tutor', 'student', 'activator']) {
-    const login = await call('/auth/login', { body: { email: `${role}@example.test`, password: DEV_PASSWORD } })
+  for (const role of [
+    'admin',
+    'tutor',
+    'student',
+    'activator'
+  ]) {
+    const login = await call('/auth/login', {
+      body: { email: `${role}@example.test`, password: DEV_PASSWORD }
+    })
     tokens[role] = (await login.json()).accessToken
   }
   subjectId = (await db.query.subjects.findFirst())!.id
@@ -99,7 +123,10 @@ beforeEach(async () => {
   setPushConfig({
     publicKey: 'test-public-key',
     transport: async (target: WebPushTarget, payload: Buffer) => {
-      pushes.push({ endpoint: target.endpoint, payload: JSON.parse(payload.toString()) })
+      pushes.push({
+        endpoint: target.endpoint,
+        payload: JSON.parse(payload.toString())
+      })
       return { status: 201 }
     }
   })
@@ -116,7 +143,10 @@ afterAll(async () => {
 
 describe('who may subscribe', () => {
   it('lets admins in and keeps activators out', async () => {
-    const body = { endpoint: 'https://fcm.googleapis.com/fcm/send/x', keys: { p256dh: P256DH, auth: AUTH } }
+    const body = {
+      endpoint: 'https://fcm.googleapis.com/fcm/send/x',
+      keys: { p256dh: P256DH, auth: AUTH }
+    }
     expect((await call('/notifications/push/subscriptions', { token: tokens.admin, body })).status).toBe(204)
     expect((await call('/notifications/push/subscriptions', { token: tokens.activator, body })).status).toBe(403)
   })
@@ -125,7 +155,10 @@ describe('who may subscribe', () => {
 describe('low feedback', () => {
   it('tells admins about a low rating from a student, by push and by email', async () => {
     const { lessonId, bookingId } = await pastLessonWithBooking()
-    const response = await call(`/lessons/${lessonId}/feedback`, { token: tokens.student, body: { bookingId, rating: 2 } })
+    const response = await call(`/lessons/${lessonId}/feedback`, {
+      token: tokens.student,
+      body: { bookingId, rating: 2 }
+    })
     expect(response.status).toBe(200)
     await settle()
 
@@ -138,7 +171,10 @@ describe('low feedback', () => {
 
   it('names the other direction when the tutor rates the student', async () => {
     const { lessonId, bookingId } = await pastLessonWithBooking()
-    await call(`/lessons/${lessonId}/feedback`, { token: tokens.tutor, body: { bookingId, rating: 1, text: 'Non si è presentato preparato' } })
+    await call(`/lessons/${lessonId}/feedback`, {
+      token: tokens.tutor,
+      body: { bookingId, rating: 1, text: 'Non si è presentato preparato' }
+    })
     await settle()
 
     expect(adminPushes().map(push => push.payload.title)).toEqual(['Feedback basso da un tutor'])
@@ -148,32 +184,57 @@ describe('low feedback', () => {
 
   it('stays quiet above 2, and speaks when an edit drops the rating', async () => {
     const { lessonId, bookingId } = await pastLessonWithBooking()
-    const created = await call(`/lessons/${lessonId}/feedback`, { token: tokens.tutor, body: { bookingId, rating: 4, text: 'Bene' } })
+    const created = await call(`/lessons/${lessonId}/feedback`, {
+      token: tokens.tutor,
+      body: { bookingId, rating: 4, text: 'Bene' }
+    })
     await settle()
     expect(adminPushes()).toHaveLength(0)
 
     const { id } = await created.json()
-    expect((await call(`/lessons/${lessonId}/feedback/${id}`, { token: tokens.tutor, method: 'PATCH', body: { rating: 1 } })).status).toBe(200)
+    expect((await call(`/lessons/${lessonId}/feedback/${id}`, {
+      token: tokens.tutor,
+      method: 'PATCH',
+      body: { rating: 1 }
+    })).status).toBe(200)
     await settle()
     expect(adminPushes()).toHaveLength(1)
 
-    await call(`/lessons/${lessonId}/feedback/${id}`, { token: tokens.tutor, method: 'PATCH', body: { rating: 2 } })
+    await call(`/lessons/${lessonId}/feedback/${id}`, {
+      token: tokens.tutor,
+      method: 'PATCH',
+      body: { rating: 2 }
+    })
     await settle()
     expect(adminPushes()).toHaveLength(1)
     await db.delete(lessonFeedback).where(eq(lessonFeedback.lessonId, lessonId))
   })
 
   it('follows each admin\'s channels', async () => {
-    await call('/notifications/preferences', { token: tokens.admin, method: 'PUT', body: { emailAdminLowFeedback: false } })
+    await call('/notifications/preferences', {
+      token: tokens.admin,
+      method: 'PUT',
+      body: { emailAdminLowFeedback: false }
+    })
     const { lessonId, bookingId } = await pastLessonWithBooking()
-    await call(`/lessons/${lessonId}/feedback`, { token: tokens.student, body: { bookingId, rating: 1 } })
+    await call(`/lessons/${lessonId}/feedback`, {
+      token: tokens.student,
+      body: { bookingId, rating: 1 }
+    })
     await settle()
     expect(adminPushes()).toHaveLength(1)
     expect(adminMails()).toHaveLength(0)
 
-    await call('/notifications/preferences', { token: tokens.admin, method: 'PUT', body: { adminLowFeedback: false, emailAdminLowFeedback: true } })
+    await call('/notifications/preferences', {
+      token: tokens.admin,
+      method: 'PUT',
+      body: { adminLowFeedback: false, emailAdminLowFeedback: true }
+    })
     const other = await pastLessonWithBooking()
-    await call(`/lessons/${other.lessonId}/feedback`, { token: tokens.student, body: { bookingId: other.bookingId, rating: 1 } })
+    await call(`/lessons/${other.lessonId}/feedback`, {
+      token: tokens.student,
+      body: { bookingId: other.bookingId, rating: 1 }
+    })
     await settle()
     expect(adminPushes()).toHaveLength(1)
     expect(adminMails()).toHaveLength(1)
@@ -183,7 +244,11 @@ describe('low feedback', () => {
 describe('absences', () => {
   it('report every absence once', async () => {
     const { lessonId, bookingId } = await pastLessonWithBooking(null)
-    const presence = (present: boolean) => call(`/lessons/${lessonId}/bookings/${bookingId}/presence`, { token: tokens.tutor, method: 'PATCH', body: { present } })
+    const presence = (present: boolean) => call(`/lessons/${lessonId}/bookings/${bookingId}/presence`, {
+      token: tokens.tutor,
+      method: 'PATCH',
+      body: { present }
+    })
 
     expect((await presence(false)).status).toBe(200)
     await settle()
@@ -203,13 +268,30 @@ describe('absences', () => {
 
 describe('late cancellations', () => {
   it('report a student canceling on the day of the lesson', async () => {
-    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2031-09-10T09:00:00') })
+    vi.useFakeTimers({
+      toFake: ['Date'],
+      now: new Date('2031-09-10T09:00:00')
+    })
     try {
-      const [lesson] = await db.insert(lessons).values({ tutorId: ids.tutor, subjectId, startAt: new Date('2031-09-10T15:00:00'), durationMinutes: 60, seats: 2, status: 'confirmed' }).returning({ id: lessons.id })
-      const [booking] = await db.insert(lessonBookings).values({ lessonId: lesson.id, studentId: ids.student, subjectId, topic: 'Argomento' }).returning({ id: lessonBookings.id })
+      const [lesson] = await db.insert(lessons).values({
+        tutorId: ids.tutor,
+        subjectId,
+        startAt: new Date('2031-09-10T15:00:00'),
+        durationMinutes: 60,
+        seats: 2,
+        status: 'confirmed'
+      }).returning({ id: lessons.id })
+      const [booking] = await db.insert(lessonBookings).values({
+        lessonId: lesson.id,
+        studentId: ids.student,
+        subjectId,
+        topic: 'Argomento'
+      }).returning({ id: lessonBookings.id })
       // A token issued now would already be expired at the faked date.
       resetRateLimiters()
-      const login = await call('/auth/login', { body: { email: 'student@example.test', password: DEV_PASSWORD } })
+      const login = await call('/auth/login', {
+        body: { email: 'student@example.test', password: DEV_PASSWORD }
+      })
       const { accessToken } = await login.json()
       const response = await call(`/lessons/${lesson.id}/bookings/${booking.id}/cancel`, { token: accessToken, method: 'PATCH', body: {} })
       expect(response.status).toBe(200)
@@ -223,8 +305,20 @@ describe('late cancellations', () => {
   })
 
   it('say nothing about a cancellation days ahead', async () => {
-    const [lesson] = await db.insert(lessons).values({ tutorId: ids.tutor, subjectId, startAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), durationMinutes: 60, seats: 2, status: 'confirmed' }).returning({ id: lessons.id })
-    const [booking] = await db.insert(lessonBookings).values({ lessonId: lesson.id, studentId: ids.student, subjectId, topic: 'Argomento' }).returning({ id: lessonBookings.id })
+    const [lesson] = await db.insert(lessons).values({
+      tutorId: ids.tutor,
+      subjectId,
+      startAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+      durationMinutes: 60,
+      seats: 2,
+      status: 'confirmed'
+    }).returning({ id: lessons.id })
+    const [booking] = await db.insert(lessonBookings).values({
+      lessonId: lesson.id,
+      studentId: ids.student,
+      subjectId,
+      topic: 'Argomento'
+    }).returning({ id: lessonBookings.id })
     await call(`/lessons/${lesson.id}/bookings/${booking.id}/cancel`, { token: tokens.student, method: 'PATCH', body: {} })
     await settle()
     expect(adminPushes()).toHaveLength(0)
@@ -233,7 +327,10 @@ describe('late cancellations', () => {
 
 describe('empty week', () => {
   const monday = new Date('2032-03-01T00:00:00')
-  const batches = () => ({ mail: createMailBatch(), push: createPushBatch() })
+  const batches = () => ({
+    mail: createMailBatch(),
+    push: createPushBatch()
+  })
 
   function weekDays(count: number) {
     return new Set(Array.from({ length: count }, (_, offset) => {
@@ -267,7 +364,13 @@ describe('empty week', () => {
 
   it('says nothing for a closed week or one that has lessons', async () => {
     expect(await notifyIfWeekEmpty(batches(), monday, weekDays(5))).toBe(false)
-    await db.insert(lessons).values({ tutorId: ids.tutor, subjectId, startAt: new Date('2032-03-03T14:00:00'), durationMinutes: 60, seats: 2 })
+    await db.insert(lessons).values({
+      tutorId: ids.tutor,
+      subjectId,
+      startAt: new Date('2032-03-03T14:00:00'),
+      durationMinutes: 60,
+      seats: 2
+    })
     expect(await notifyIfWeekEmpty(batches(), monday, new Set())).toBe(false)
     expect(adminPushes()).toHaveLength(0)
   })
@@ -275,13 +378,22 @@ describe('empty week', () => {
 
 describe('daily digest', () => {
   async function addAdmin(email: string, isActive: boolean, deactivatedAt: Date | null = null) {
-    const [admin] = await db.insert(users).values({ email, firstName: 'Nuovo', lastName: 'Admin', passwordHash: 'unused', role: 'admin' }).returning({ id: users.id })
+    const [admin] = await db.insert(users).values({
+      email,
+      firstName: 'Nuovo',
+      lastName: 'Admin',
+      passwordHash: 'unused',
+      role: 'admin'
+    }).returning({ id: users.id })
     await db.insert(adminProfiles).values({ userId: admin.id, isActive, deactivatedAt })
     return admin.id
   }
 
   async function runDigest(now = new Date()) {
-    const run = { mail: createMailBatch(), push: createPushBatch() }
+    const run = {
+      mail: createMailBatch(),
+      push: createPushBatch()
+    }
     const found = await sendAdminDigest(run, now)
     await run.push.finish()
     await run.mail.finish()
@@ -304,7 +416,11 @@ describe('daily digest', () => {
 
   it('marks an admin switched off through the API as no longer waiting', async () => {
     const otherId = await addAdmin('colleague@example.test', true)
-    const response = await call(`/users/${otherId}`, { token: tokens.admin, method: 'PATCH', body: { isActive: false } })
+    const response = await call(`/users/${otherId}`, {
+      token: tokens.admin,
+      method: 'PATCH',
+      body: { isActive: false }
+    })
     expect(response.status).toBe(200)
     const [profile] = await db.select().from(adminProfiles).where(eq(adminProfiles.userId, otherId))
     expect(profile.deactivatedAt).not.toBeNull()
@@ -314,9 +430,21 @@ describe('daily digest', () => {
     const now = new Date()
     const hoursAgo = (hours: number) => new Date(now.getTime() - hours * 60 * 60 * 1000)
     await db.insert(subjectRequests).values([
-      { studentId: ids.student, subjectId, createdAt: hoursAgo(2) },
-      { studentId: ids.student, subjectId, createdAt: hoursAgo(3) },
-      { studentId: ids.student, subjectId, createdAt: hoursAgo(50) },
+      {
+        studentId: ids.student,
+        subjectId,
+        createdAt: hoursAgo(2)
+      },
+      {
+        studentId: ids.student,
+        subjectId,
+        createdAt: hoursAgo(3)
+      },
+      {
+        studentId: ids.student,
+        subjectId,
+        createdAt: hoursAgo(50)
+      },
       // Left to the database default: a request of a moment ago counts too.
       { studentId: ids.student, subjectId }
     ])

@@ -11,18 +11,35 @@ export function likePattern(q: string) {
   return `%${q.trim().replace(/[\\%_]/g, match => `\\${match}`)}%`
 }
 
-const MONTHS = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
+const MONTHS = [
+  'gennaio',
+  'febbraio',
+  'marzo',
+  'aprile',
+  'maggio',
+  'giugno',
+  'luglio',
+  'agosto',
+  'settembre',
+  'ottobre',
+  'novembre',
+  'dicembre'
+]
 
 function monthOf(word: string) {
   const name = word.toLowerCase().replace(/\.$/, '')
   if (name.length < 3)
     return null
   const index = MONTHS.findIndex(month => month.startsWith(name))
-  return index < 0 ? null : index + 1
+  return index < 0
+    ? null
+    : index + 1
 }
 
 function fullYear(value: string) {
-  return value.length === 2 ? `20${value}` : value
+  return value.length === 2
+    ? `20${value}`
+    : value
 }
 
 const pad = (value: number | string) => String(value).padStart(2, '0')
@@ -37,14 +54,18 @@ export function normalizeDateQuery(q: string): string | null {
     const [, day, month, year] = numeric
     if (Number(day) < 1 || Number(day) > 31 || Number(month) < 1 || Number(month) > 12)
       return null
-    return `${pad(day)}/${pad(month)}${year ? `/${fullYear(year)}` : '/'}`
+    return `${pad(day)}/${pad(month)}${year
+      ? `/${fullYear(year)}`
+      : '/'}`
   }
   const named = text.match(/^(\d{1,2}) ([a-zàèéìòù.]+)(?: (\d{2}|\d{4}))?$/)
   if (named) {
     const month = monthOf(named[2])
     if (!month || Number(named[1]) < 1 || Number(named[1]) > 31)
       return null
-    return `${pad(named[1])}/${pad(month)}${named[3] ? `/${fullYear(named[3])}` : '/'}`
+    return `${pad(named[1])}/${pad(month)}${named[3]
+      ? `/${fullYear(named[3])}`
+      : '/'}`
   }
   const monthOnly = text.match(/^([a-zàèéìòù.]+)(?: (\d{4}))?$/)
   if (monthOnly) {
@@ -65,7 +86,9 @@ export function dateMatches(column: AnyColumn | SQL, q: string, pattern = likePa
     to_char(${local}, 'DD/MM/YYYY') ilike ${pattern}
     or to_char(${local}, 'DD/MM/YY') ilike ${pattern}
     or to_char(${local}, 'FMDD/FMMM/YYYY') ilike ${pattern}
-    ${normalized ? sql`or (to_char(${local}, 'DD/MM/YYYY') || '/') like ${`%${normalized}%`}` : sql``}
+    ${normalized
+      ? sql`or (to_char(${local}, 'DD/MM/YYYY') || '/') like ${`%${normalized}%`}`
+      : sql``}
   )`
 }
 

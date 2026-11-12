@@ -12,7 +12,9 @@ export interface PendingFeedback { role: 'student' | 'tutor', count: number }
 // For each user, how many of today's confirmed bookings still lack their feedback.
 export async function pendingFeedback(now: Date) {
   const { start, end } = schoolDayRange(now)
-  const upperBound = now < end ? now : end
+  const upperBound = now < end
+    ? now
+    : end
 
   const todayLessons = await db
     .select({

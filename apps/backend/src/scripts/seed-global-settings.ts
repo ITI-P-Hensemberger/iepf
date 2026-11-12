@@ -5,7 +5,12 @@ import { globalSettings } from '@/db/schemas/global-settings.schema'
 const maintenanceDefault = {
   enabled: false,
   message: null,
-  roles: ['student', 'tutor', 'admin', 'activator']
+  roles: [
+    'student',
+    'tutor',
+    'admin',
+    'activator'
+  ]
 }
 
 const serviceMessagesDefault = {}

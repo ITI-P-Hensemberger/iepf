@@ -37,7 +37,9 @@ async function sameSubject(canonicalName: string, name: string, exceptId?: strin
     .from(subjects)
     .where(and(
       or(eq(subjects.canonicalName, canonicalName), sql`lower(${subjects.name}) = lower(${name.trim()})`),
-      exceptId ? ne(subjects.id, exceptId) : undefined
+      exceptId
+        ? ne(subjects.id, exceptId)
+        : undefined
     ))
     .limit(1)
   return row ?? null
@@ -56,7 +58,9 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
     ))
   }
 
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+  const whereClause = conditions.length > 0
+    ? and(...conditions)
+    : undefined
 
   const subjectsList = await db.query.subjects.findMany({
     where: whereClause,
@@ -87,7 +91,10 @@ export const create: AppRouteHandler<CreateRoute> = async (c) => {
   ensureAdmin(c)
 
   const { name } = c.req.valid('json')
-  const payload = { name, canonicalName: canonicalSubjectName(name) }
+  const payload = {
+    name,
+    canonicalName: canonicalSubjectName(name)
+  }
 
   const existing = await sameSubject(payload.canonicalName, name)
 
@@ -142,7 +149,12 @@ export const patch: AppRouteHandler<PatchRoute> = async (c) => {
   const { id } = c.req.valid('param')
   const { name } = c.req.valid('json')
   // Renaming makes the canonical name again from the new name.
-  const updates = name ? { name, canonicalName: canonicalSubjectName(name) } : {}
+  const updates = name
+    ? {
+        name,
+        canonicalName: canonicalSubjectName(name)
+      }
+    : {}
 
   if (updates.canonicalName) {
     const existing = await sameSubject(updates.canonicalName, updates.name, id)

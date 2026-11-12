@@ -133,7 +133,9 @@ async function getOrCreateUser(email: string, role: 'student' | 'tutor' | 'admin
     lastName,
     passwordHash,
     role,
-    emailVerifiedAt: verified ? new Date() : null
+    emailVerifiedAt: verified
+      ? new Date()
+      : null
   }).returning({
     id: users.id,
     role: users.role
@@ -161,7 +163,12 @@ async function ensureStudentProfile(userId: string, sectionId: string, year: num
 
   // Active from the seed: their first activation, as the activator's list shows it.
   if (isActive && created.length > 0) {
-    await db.insert(activationEvents).values({ userId, kind: 'activated', actorName: 'Dati di prova', actorRole: 'system' })
+    await db.insert(activationEvents).values({
+      userId,
+      kind: 'activated',
+      actorName: 'Dati di prova',
+      actorRole: 'system'
+    })
   }
 
   const existingLedger = await db.query.tokenLedger.findFirst({

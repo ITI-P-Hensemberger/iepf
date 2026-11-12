@@ -40,6 +40,8 @@ export const announcementDismissals = pgTable('announcement_dismissals', {
     .defaultNow()
     .notNull()
 }, table => [
-  primaryKey({ columns: [table.announcementId, table.userId] }),
+  primaryKey({
+    columns: [table.announcementId, table.userId]
+  }),
   index('announcement_dismissals_user_idx').on(table.userId)
 ])

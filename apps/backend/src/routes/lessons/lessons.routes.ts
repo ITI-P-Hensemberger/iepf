@@ -7,9 +7,11 @@ import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
 import { createErrorMessageSchema, createErrorSchema, createMessageObjectSchema, createPagedListSchema } from '@/lib/openapi/schemas'
 
 const tags = ['Lessons']
-const bearerAuth = [{
-  bearerAuth: [] as string[]
-}]
+const bearerAuth = [
+  {
+    bearerAuth: [] as string[]
+  }
+]
 
 const LessonIdParamsSchema = z.object({
   lessonId: z.uuid().openapi({
@@ -301,9 +303,17 @@ const availableSummaryQuerySchema = z.object({
 
 const availableSummarySchema = z.object({
   // Bookable lessons per subject: an open lesson counts once for each subject its tutor teaches.
-  subjects: z.array(z.object({ id: z.string(), name: z.string(), count: z.number().int() })),
+  subjects: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    count: z.number().int()
+  })),
   // Per school day (YYYY-MM-DD): bookable lessons for the subject, and whether the student already has one.
-  days: z.array(z.object({ day: z.string(), count: z.number().int(), booked: z.boolean() }))
+  days: z.array(z.object({
+    day: z.string(),
+    count: z.number().int(),
+    booked: z.boolean()
+  }))
 })
 
 export const getAvailableSummary = createRoute({
@@ -374,7 +384,9 @@ export const listSchedule = createRoute({
     query: scheduleQuerySchema
   },
   responses: {
-    [HttpStatusCodes.OK]: jsonContent(z.object({ data: z.array(scheduleItemSchema) }), 'Lessons with their confirmed bookings, for up to 15 days'),
+    [HttpStatusCodes.OK]: jsonContent(z.object({
+      data: z.array(scheduleItemSchema)
+    }), 'Lessons with their confirmed bookings, for up to 15 days'),
     [HttpStatusCodes.BAD_REQUEST]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.BAD_REQUEST),
       'Range longer than 15 days'
