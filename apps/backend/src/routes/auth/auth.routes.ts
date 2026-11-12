@@ -335,7 +335,9 @@ export const listAdminInvites = createRoute({
   path: '/auth/admin-invite',
   method: 'get',
   tags,
-  security: [{ bearerAuth: [] as string[] }],
+  security: [
+    { bearerAuth: [] as string[] }
+  ],
   request: {
     query: inviteListQuerySchema
   },
@@ -363,7 +365,9 @@ export const deleteAdminInvite = createRoute({
   path: '/auth/admin-invite/{id}',
   method: 'delete',
   tags,
-  security: [{ bearerAuth: [] as string[] }],
+  security: [
+    { bearerAuth: [] as string[] }
+  ],
   request: {
     params: IdUUIDParamsSchema
   },
@@ -394,7 +398,9 @@ export const inviteAdmin = createRoute({
   path: '/auth/admin-invite',
   method: 'post',
   tags,
-  security: [{ bearerAuth: [] as string[] }],
+  security: [
+    { bearerAuth: [] as string[] }
+  ],
   request: {
     body: jsonContentRequired(
       adminInviteRequestSchema,
@@ -463,7 +469,9 @@ export const listTutorInvites = createRoute({
   path: '/auth/tutor-invite',
   method: 'get',
   tags,
-  security: [{ bearerAuth: [] as string[] }],
+  security: [
+    { bearerAuth: [] as string[] }
+  ],
   request: {
     query: inviteListQuerySchema
   },
@@ -491,7 +499,9 @@ export const deleteTutorInvite = createRoute({
   path: '/auth/tutor-invite/{id}',
   method: 'delete',
   tags,
-  security: [{ bearerAuth: [] as string[] }],
+  security: [
+    { bearerAuth: [] as string[] }
+  ],
   request: {
     params: IdUUIDParamsSchema
   },
@@ -522,7 +532,9 @@ export const inviteTutor = createRoute({
   path: '/auth/tutor-invite',
   method: 'post',
   tags,
-  security: [{ bearerAuth: [] as string[] }],
+  security: [
+    { bearerAuth: [] as string[] }
+  ],
   request: {
     body: jsonContentRequired(
       tutorInviteRequestSchema,

@@ -7,9 +7,11 @@ import { jsonContent } from '@/lib/openapi/helpers'
 import { createErrorMessageSchema, createPagedListSchema } from '@/lib/openapi/schemas'
 
 const tags = ['AdminStats']
-const bearerAuth = [{
-  bearerAuth: [] as string[]
-}]
+const bearerAuth = [
+  {
+    bearerAuth: [] as string[]
+  }
+]
 
 const subjectTutorCountSchema = z.object({
   subjectId: z.string(),
@@ -62,7 +64,13 @@ const subjectCountsQuerySchema = z.object({
 
 const lessonCountsQuerySchema = z.object({
   q: z.string().min(1).optional(),
-  sortBy: z.enum(['lastName', 'firstName', 'email', 'countedLessons', 'sectionName']).default('lastName'),
+  sortBy: z.enum([
+    'lastName',
+    'firstName',
+    'email',
+    'countedLessons',
+    'sectionName'
+  ]).default('lastName'),
   sortDir: z.enum(['asc', 'desc']).default('asc'),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0)
@@ -332,9 +340,23 @@ const analyticsSchema = z.object({
   from: z.string(),
   to: z.string(),
   days: z.number().int(),
-  daily: z.array(z.object({ day: z.string(), event: z.string(), role: z.string(), count: z.number().int() })),
-  byDetail: z.array(z.object({ event: z.string(), detail: z.string(), count: z.number().int() })),
-  byGroup: z.array(z.object({ event: z.string(), role: z.string(), year: z.number().int(), count: z.number().int() }))
+  daily: z.array(z.object({
+    day: z.string(),
+    event: z.string(),
+    role: z.string(),
+    count: z.number().int()
+  })),
+  byDetail: z.array(z.object({
+    event: z.string(),
+    detail: z.string(),
+    count: z.number().int()
+  })),
+  byGroup: z.array(z.object({
+    event: z.string(),
+    role: z.string(),
+    year: z.number().int(),
+    count: z.number().int()
+  }))
 })
 
 export const getAnalytics = createRoute({
@@ -371,7 +393,11 @@ export const getYearReport = createRoute({
   responses: {
     [HttpStatusCodes.OK]: {
       description: 'The year report as an Excel workbook; downloading it allows the school-year reset for 15 minutes',
-      content: { [XLSX_TYPE]: { schema: z.string().openapi({ format: 'binary' }) } }
+      content: {
+        [XLSX_TYPE]: {
+          schema: z.string().openapi({ format: 'binary' })
+        }
+      }
     },
     [HttpStatusCodes.FORBIDDEN]: jsonContent(
       createErrorMessageSchema(HttpStatusPhrases.FORBIDDEN),
@@ -393,7 +419,11 @@ const overviewSchema = z.object({
     upcoming: z.number().int(),
     canceled: z.number().int()
   }),
-  attendance: z.object({ present: z.number().int(), absent: z.number().int(), unrecorded: z.number().int() }),
+  attendance: z.object({
+    present: z.number().int(),
+    absent: z.number().int(),
+    unrecorded: z.number().int()
+  }),
   months: z.array(z.object({
     month: z.string(),
     lessons: z.number().int(),
@@ -420,9 +450,20 @@ export type GetOverviewRoute = typeof getOverview
 
 const notificationStatsSchema = z.object({
   keepDays: z.number().int(),
-  inbox: z.array(z.object({ category: z.string(), total: z.number().int(), read: z.number().int() })),
-  devices: z.array(z.object({ service: z.string(), devices: z.number().int(), workingLast30Days: z.number().int() })),
-  optOuts: z.array(z.object({ category: z.string(), users: z.number().int() }))
+  inbox: z.array(z.object({
+    category: z.string(),
+    total: z.number().int(),
+    read: z.number().int()
+  })),
+  devices: z.array(z.object({
+    service: z.string(),
+    devices: z.number().int(),
+    workingLast30Days: z.number().int()
+  })),
+  optOuts: z.array(z.object({
+    category: z.string(),
+    users: z.number().int()
+  }))
 })
 
 export const getNotificationStats = createRoute({

@@ -13,9 +13,11 @@ import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
 import { createErrorMessageSchema, createErrorSchema, createPagedListSchema, IdUUIDParamsSchema } from '@/lib/openapi/schemas'
 
 const tags = ['ClassSections']
-const bearerAuth = [{
-  bearerAuth: [] as string[]
-}]
+const bearerAuth = [
+  {
+    bearerAuth: [] as string[]
+  }
+]
 
 const listQuerySchema = z.object({
   q: z.string().min(1).optional(),

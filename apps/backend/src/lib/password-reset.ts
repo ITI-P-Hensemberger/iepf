@@ -39,7 +39,9 @@ export async function passwordResetTokenOwner(token: string) {
     },
     columns: { userId: true, expiresAt: true }
   })
-  return found && found.expiresAt > new Date() ? found.userId : null
+  return found && found.expiresAt > new Date()
+    ? found.userId
+    : null
 }
 
 export async function consumePasswordResetToken(token: string) {

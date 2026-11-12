@@ -7,9 +7,11 @@ import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
 import { createErrorMessageSchema, createErrorSchema } from '@/lib/openapi/schemas'
 
 const tags = ['AdminImpersonation']
-const bearerAuth = [{
-  bearerAuth: [] as string[]
-}]
+const bearerAuth = [
+  {
+    bearerAuth: [] as string[]
+  }
+]
 
 const impersonateRequestSchema = z.object({
   userId: z.uuid()

@@ -42,7 +42,10 @@ export async function getStudentTokenBalances(studentIds: string[]): Promise<Map
     .where(inArray(tokenLedger.studentId, studentIds))
     .groupBy(tokenLedger.studentId)
 
-  return new Map(rows.map(row => [row.studentId, Number(row.balance)]))
+  return new Map(rows.map(row => [
+    row.studentId,
+    Number(row.balance)
+  ]))
 }
 
 // Balances and daily limits span many rows, so writers serialize on the users involved.
@@ -50,7 +53,9 @@ export async function getStudentTokenBalances(studentIds: string[]): Promise<Map
 export async function lockUsers(tx: DbTransaction, userIds: string[]) {
   await tx.select({ id: users.id })
     .from(users)
-    .where(inArray(users.id, [...new Set(userIds)]))
+    .where(inArray(users.id, [
+      ...new Set(userIds)
+    ]))
     .orderBy(asc(users.id))
     .for('no key update')
 }

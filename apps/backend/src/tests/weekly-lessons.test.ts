@@ -34,7 +34,10 @@ let noSubjectsTutorId: string
 
 function runJob() {
   const require = createRequire(import.meta.url)
-  const result = spawnSync(process.execPath, [require.resolve('tsx/cli'), 'src/scripts/generate-weekly-lessons.ts'], {
+  const result = spawnSync(process.execPath, [
+    require.resolve('tsx/cli'),
+    'src/scripts/generate-weekly-lessons.ts'
+  ], {
     env: process.env,
     encoding: 'utf8',
     timeout: 60_000
@@ -53,17 +56,42 @@ async function tutor(email: string, withSubjects: string[]) {
     role: 'tutor',
     emailVerifiedAt: new Date()
   }).returning({ id: users.id })
-  await db.insert(tutorProfiles).values({ userId: user.id, sectionId: section.id, year: 5, isActive: true })
+  await db.insert(tutorProfiles).values({
+    userId: user.id,
+    sectionId: section.id,
+    year: 5,
+    isActive: true
+  })
   await db.insert(tutorSettings).values({ tutorId: user.id, dailyCapacity: 2 })
   if (withSubjects.length > 0) {
     await db.insert(tutorSubjects).values(withSubjects.map(subjectId => ({ tutorId: user.id, subjectId })))
   }
   // Monday at 14, Wednesday 14–16 (two slots), Friday at 15; Tuesday off.
   await db.insert(tutorWeekdayAvailability).values([
-    { tutorId: user.id, weekday: 1, isAvailable: true, startTime: '14:00' as const },
-    { tutorId: user.id, weekday: 2, isAvailable: false, startTime: null },
-    { tutorId: user.id, weekday: 3, isAvailable: true, startTime: '14:00-16:00' as const },
-    { tutorId: user.id, weekday: 5, isAvailable: true, startTime: '15:00' as const }
+    {
+      tutorId: user.id,
+      weekday: 1,
+      isAvailable: true,
+      startTime: '14:00' as const
+    },
+    {
+      tutorId: user.id,
+      weekday: 2,
+      isAvailable: false,
+      startTime: null
+    },
+    {
+      tutorId: user.id,
+      weekday: 3,
+      isAvailable: true,
+      startTime: '14:00-16:00' as const
+    },
+    {
+      tutorId: user.id,
+      weekday: 5,
+      isAvailable: true,
+      startTime: '15:00' as const
+    }
   ])
   return user.id
 }
@@ -79,7 +107,10 @@ beforeAll(async () => {
   tutorId = await tutor('weekly-tutor@example.test', created.map(subject => subject.id))
   noSubjectsTutorId = await tutor('weekly-nosubjects@example.test', [])
   // Next Friday the school is closed.
-  await db.insert(globalSettings).values({ key: 'closureDates', value: [friday] })
+  await db.insert(globalSettings).values({
+    key: 'closureDates',
+    value: [friday]
+  })
 })
 
 afterAll(async () => {

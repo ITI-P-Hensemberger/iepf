@@ -16,7 +16,12 @@ import type { CreateRoute, ListRoute, RemoveRoute, ReorderRoute, UpdateRoute } f
 type FaqRow = typeof faqs.$inferSelect
 
 function toPayload(row: FaqRow) {
-  return { id: row.id, question: row.question, answer: row.answer, position: row.position }
+  return {
+    id: row.id,
+    question: row.question,
+    answer: row.answer,
+    position: row.position
+  }
 }
 
 function isAdmin(c: Context<AppBindings>) {
@@ -57,7 +62,9 @@ export const update: AppRouteHandler<UpdateRoute> = async (c) => {
   }
   const { id } = c.req.valid('param')
   const [row] = await db.update(faqs).set(c.req.valid('json')).where(eq(faqs.id, id)).returning()
-  return row ? c.json(toPayload(row), HttpStatusCodes.OK) : notFound(c)
+  return row
+    ? c.json(toPayload(row), HttpStatusCodes.OK)
+    : notFound(c)
 }
 
 export const remove: AppRouteHandler<RemoveRoute> = async (c) => {
@@ -72,7 +79,9 @@ export const remove: AppRouteHandler<RemoveRoute> = async (c) => {
     }
     return Boolean(row)
   })
-  return deleted ? c.body(null, HttpStatusCodes.NO_CONTENT) : notFound(c)
+  return deleted
+    ? c.body(null, HttpStatusCodes.NO_CONTENT)
+    : notFound(c)
 }
 
 export const reorder: AppRouteHandler<ReorderRoute> = async (c) => {

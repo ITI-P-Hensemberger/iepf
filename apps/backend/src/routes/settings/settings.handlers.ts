@@ -174,10 +174,15 @@ export const resetSchoolYear: AppRouteHandler<ResetSchoolYearRoute> = async (c) 
     // The links stay for the new year; their clicks start again from zero.
     await tx.update(links).set({ clicks: 0, updatedAt: sql`${links.updatedAt}` })
     // Active users are counted again from the audit log each night: not from before this.
-    const start = { at: new Date().toISOString() }
+    const start = {
+      at: new Date().toISOString()
+    }
     await tx.insert(globalSettings)
       .values({ key: SCHOOL_YEAR_START_KEY, value: start, updatedBy: admin.id })
-      .onConflictDoUpdate({ target: globalSettings.key, set: { value: start, updatedBy: admin.id } })
+      .onConflictDoUpdate({
+        target: globalSettings.key,
+        set: { value: start, updatedBy: admin.id }
+      })
     await clearReportExport(tx)
     return { deletedStudents: students.length, deletedTutors: tutors.length }
   })

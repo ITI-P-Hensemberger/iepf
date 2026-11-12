@@ -41,11 +41,15 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
   }
 
   const sortBy = query.sortBy
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+  const whereClause = conditions.length > 0
+    ? and(...conditions)
+    : undefined
   const sections = await db.query.classSections.findMany({
     where: whereClause,
     orderBy(fields, operators) {
-      const direction = query.sortDir === 'desc' ? operators.desc : operators.asc
+      const direction = query.sortDir === 'desc'
+        ? operators.desc
+        : operators.asc
       switch (sortBy) {
         case 'createdAt':
           return direction(fields.createdAt)

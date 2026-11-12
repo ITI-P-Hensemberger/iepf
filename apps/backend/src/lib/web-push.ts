@@ -116,13 +116,18 @@ export function createWebPushTransport(keys: VapidKeys): WebPushTransport {
     }
     try {
       const response = await webpush.sendNotification(
-        { endpoint: target.endpoint, keys: { p256dh: target.p256dh, auth: target.auth } },
+        {
+          endpoint: target.endpoint,
+          keys: { p256dh: target.p256dh, auth: target.auth }
+        },
         payload,
         {
           vapidDetails: keys,
           TTL: options.ttlSeconds,
           urgency: options.urgency ?? 'normal',
-          topic: options.topic ? topicHeader(options.topic) : undefined,
+          topic: options.topic
+            ? topicHeader(options.topic)
+            : undefined,
           contentEncoding: 'aes128gcm',
           timeout: 10_000
         }

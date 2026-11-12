@@ -9,17 +9,29 @@ import { globalSettings } from '@/db/schemas/global-settings.schema'
 const KEY = 'yearReportExport'
 export const REPORT_VALID_MINUTES = 15
 
-const exportSchema = z.object({ adminId: z.string(), at: z.iso.datetime() })
+const exportSchema = z.object({
+  adminId: z.string(),
+  at: z.iso.datetime()
+})
 
 export async function recordReportExport(adminId: string, now = new Date()) {
-  const value = { adminId, at: now.toISOString() }
+  const value = {
+    adminId,
+    at: now.toISOString()
+  }
   await db.insert(globalSettings)
     .values({ key: KEY, value, updatedBy: adminId })
-    .onConflictDoUpdate({ target: globalSettings.key, set: { value, updatedBy: adminId } })
+    .onConflictDoUpdate({
+      target: globalSettings.key,
+      set: { value, updatedBy: adminId }
+    })
 }
 
 export async function hasRecentReportExport(adminId: string, now = new Date()) {
-  const row = await db.query.globalSettings.findFirst({ where: eq(globalSettings.key, KEY), columns: { value: true } })
+  const row = await db.query.globalSettings.findFirst({
+    where: eq(globalSettings.key, KEY),
+    columns: { value: true }
+  })
   const parsed = exportSchema.safeParse(row?.value)
   if (!parsed.success || parsed.data.adminId !== adminId)
     return false

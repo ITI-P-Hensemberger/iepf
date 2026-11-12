@@ -95,7 +95,9 @@ export const listSubjectTutorCounts: AppRouteHandler<ListSubjectTutorCountsRoute
     .where(subjectFilter)
     .groupBy(subjects.id)
     .orderBy(
-      (sortDir === 'desc' ? desc : asc)(sortColumn)
+      (sortDir === 'desc'
+        ? desc
+        : asc)(sortColumn)
     )
     .limit(limit)
     .offset(offset)
@@ -120,7 +122,9 @@ export const listTutorLessonCounts: AppRouteHandler<ListTutorLessonCountsRoute> 
   const lessonsConfirmedNotCountedExpr = sql<number>`count(case when ${lessons.status} = 'confirmed' and ${lessons.countsForTutor} = false then 1 end)`
   const lessonsCancelledCountedExpr = sql<number>`count(case when ${lessons.status} = 'canceled' and ${lessons.countsForTutor} = true then 1 end)`
   const lessonsCancelledNotCountedExpr = sql<number>`count(case when ${lessons.status} = 'canceled' and ${lessons.countsForTutor} = false then 1 end)`
-  const tutorConditions = [eq(users.role, 'tutor')]
+  const tutorConditions = [
+    eq(users.role, 'tutor')
+  ]
   if (q) {
     const searchCondition = or(
       ilike(users.firstName, `%${q}%`),
@@ -136,7 +140,9 @@ export const listTutorLessonCounts: AppRouteHandler<ListTutorLessonCountsRoute> 
     }
   }
   const tutorFilter = and(...tutorConditions)
-  const sortOrder = sortDir === 'desc' ? desc : asc
+  const sortOrder = sortDir === 'desc'
+    ? desc
+    : asc
   const orderByExpr = (() => {
     switch (sortBy) {
       case 'countedLessons':
@@ -209,7 +215,9 @@ export const listStudentLessonCounts: AppRouteHandler<ListStudentLessonCountsRou
   const lessonsAbsentNotCountedExpr = sql<number>`count(case when ${lessonBookings.studentPresence} = false and ${lessonBookings.countsForStudent} = false then 1 end)`
   const lessonsWithoutPresenceCountedExpr = sql<number>`count(case when ${lessonBookings.studentPresence} is null and ${lessonBookings.countsForStudent} = true then 1 end)`
   const lessonsWithoutPresenceNotCountedExpr = sql<number>`count(case when ${lessonBookings.studentPresence} is null and ${lessonBookings.countsForStudent} = false then 1 end)`
-  const studentConditions = [eq(users.role, 'student')]
+  const studentConditions = [
+    eq(users.role, 'student')
+  ]
   if (q) {
     const searchCondition = or(
       ilike(users.firstName, `%${q}%`),
@@ -222,7 +230,9 @@ export const listStudentLessonCounts: AppRouteHandler<ListStudentLessonCountsRou
     }
   }
   const studentFilter = and(...studentConditions)
-  const sortOrder = sortDir === 'desc' ? desc : asc
+  const sortOrder = sortDir === 'desc'
+    ? desc
+    : asc
   const orderByExpr = (() => {
     switch (sortBy) {
       case 'countedLessons':
@@ -295,7 +305,9 @@ export const getConfirmedLessonsCount: AppRouteHandler<GetConfirmedLessonsCountR
     .from(lessons)
     .where(eq(lessons.status, 'confirmed'))
 
-  return c.json({ total: Number(row?.total ?? 0) }, HttpStatusCodes.OK)
+  return c.json({
+    total: Number(row?.total ?? 0)
+  }, HttpStatusCodes.OK)
 }
 
 export const getConfirmedBookingsCount: AppRouteHandler<GetConfirmedBookingsCountRoute> = async (c) => {
@@ -308,7 +320,9 @@ export const getConfirmedBookingsCount: AppRouteHandler<GetConfirmedBookingsCoun
     .from(lessonBookings)
     .where(eq(lessonBookings.status, 'confirmed'))
 
-  return c.json({ total: Number(row?.total ?? 0) }, HttpStatusCodes.OK)
+  return c.json({
+    total: Number(row?.total ?? 0)
+  }, HttpStatusCodes.OK)
 }
 
 export const getStudentStatusCounts: AppRouteHandler<GetStudentStatusCountsRoute> = async (c) => {
@@ -451,7 +465,11 @@ export const getPushCoverage: AppRouteHandler<GetPushCoverageRoute> = async (c) 
   return c.json(
     PUSH_ROLES.map((role) => {
       const row = rows.find(item => item.role === role)
-      return { role, users: Number(row?.users ?? 0), withPush: Number(row?.withPush ?? 0) }
+      return {
+        role,
+        users: Number(row?.users ?? 0),
+        withPush: Number(row?.withPush ?? 0)
+      }
     }),
     HttpStatusCodes.OK
   )

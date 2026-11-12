@@ -10,7 +10,12 @@ import { assertLocalDatabase } from '@/lib/local-database'
 import { createMailBatch } from '@/lib/mail-batch'
 import { pruneReminderDeliveries, sendReminderOnce } from '@/lib/reminder-delivery'
 
-const payload = { to: 'a@example.test', subject: 's', text: 't', html: 'h' }
+const payload = {
+  to: 'a@example.test',
+  subject: 's',
+  text: 't',
+  html: 'h'
+}
 
 beforeAll(async () => {
   assertLocalDatabase(env.DATABASE_URL, env.NODE_ENV)
@@ -66,8 +71,14 @@ describe('pruneReminderDeliveries', () => {
   it('removes only records older than a week', async () => {
     const now = new Date('2026-06-15T12:00:00Z')
     await db.insert(reminderDeliveries).values([
-      { key: 'old', createdAt: new Date('2026-06-01T12:00:00Z') },
-      { key: 'new', createdAt: new Date('2026-06-14T12:00:00Z') }
+      {
+        key: 'old',
+        createdAt: new Date('2026-06-01T12:00:00Z')
+      },
+      {
+        key: 'new',
+        createdAt: new Date('2026-06-14T12:00:00Z')
+      }
     ])
     await pruneReminderDeliveries(now)
     expect(await db.select().from(reminderDeliveries).where(eq(reminderDeliveries.key, 'old'))).toHaveLength(0)

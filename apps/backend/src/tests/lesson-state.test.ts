@@ -4,7 +4,13 @@ import { describe, expect, it } from 'vitest'
 import { lessonState } from '@/lib/lesson-state'
 
 const now = new Date('2026-03-10T15:30:00Z')
-const at = (iso: string, status: string, durationMinutes = 60) => lessonState({ status, startAt: new Date(iso), durationMinutes }, now)
+function at(iso: string, status: string, durationMinutes = 60) {
+  return lessonState({
+    status,
+    startAt: new Date(iso),
+    durationMinutes
+  }, now)
+}
 
 describe('lessonState', () => {
   it('reads done, upcoming, open and expired from the time', () => {

@@ -7,9 +7,11 @@ import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
 import { createErrorMessageSchema, createErrorSchema } from '@/lib/openapi/schemas'
 
 const tags = ['TutorSettings']
-const bearerAuth = [{
-  bearerAuth: [] as string[]
-}]
+const bearerAuth = [
+  {
+    bearerAuth: [] as string[]
+  }
+]
 
 const TutorIdParamsSchema = z.object({
   tutorId: z.uuid().openapi({

@@ -39,7 +39,10 @@ function forbidden(c: Context<AppBindings>) {
 }
 
 export const getPushConfig: AppRouteHandler<GetPushConfigRoute> = async (c) => {
-  return c.json({ enabled: isPushEnabled(), publicKey: getPushPublicKey() }, HttpStatusCodes.OK)
+  return c.json({
+    enabled: isPushEnabled(),
+    publicKey: getPushPublicKey()
+  }, HttpStatusCodes.OK)
 }
 
 export const subscribe: AppRouteHandler<SubscribeRoute> = async (c) => {
@@ -80,7 +83,10 @@ export const updatePreferences: AppRouteHandler<UpdatePreferencesRoute> = async 
     return forbidden(c)
   }
   const changes = c.req.valid('json')
-  const merged = { ...(await readPreferences(user.id)), ...changes }
+  const merged = {
+    ...(await readPreferences(user.id)),
+    ...changes
+  }
   await db.insert(notificationPreferences)
     .values({ userId: user.id, ...merged })
     .onConflictDoUpdate({ target: notificationPreferences.userId, set: merged })
@@ -90,7 +96,9 @@ export const updatePreferences: AppRouteHandler<UpdatePreferencesRoute> = async 
 // Lets a computer know whether the user already receives push on some device, the phone above all.
 export const getDevices: AppRouteHandler<GetDevicesRoute> = async (c) => {
   const currentUser = c.get('currentUser')!
-  const [row] = await db.select({ count: count() })
+  const [row] = await db.select({
+    count: count()
+  })
     .from(pushSubscriptions)
     .where(eq(pushSubscriptions.userId, currentUser.id))
   return c.json({ count: row?.count ?? 0 }, HttpStatusCodes.OK)
@@ -123,7 +131,9 @@ export const getInbox: AppRouteHandler<GetInboxRoute> = async (c) => {
     return forbidden(c)
   }
   const { cursor, limit } = c.req.valid('query')
-  const decoded = cursor ? inbox.decodeCursor(cursor) : null
+  const decoded = cursor
+    ? inbox.decodeCursor(cursor)
+    : null
   if (cursor && !decoded) {
     return c.json(buildErrorResponse('Cursore non valido'), HttpStatusCodes.UNPROCESSABLE_ENTITY)
   }
@@ -206,7 +216,10 @@ export const streamInbox: AppRouteHandler<StreamInboxRoute> = async (c) => {
         state.dirty = false
         const unread = await inbox.countUnread(user.id)
         if (!state.ended) {
-          await stream.writeSSE({ event: 'unread', data: JSON.stringify({ count: unread }) })
+          await stream.writeSSE({
+            event: 'unread',
+            data: JSON.stringify({ count: unread })
+          })
         }
       }
     }

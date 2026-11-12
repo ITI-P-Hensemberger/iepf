@@ -8,7 +8,9 @@ describe('redactSendError', () => {
       code: 'EENVELOPE',
       responseCode: 550,
       rejected: ['mario.rossi@example.test'],
-      envelope: { to: ['mario.rossi@example.test'] }
+      envelope: {
+        to: ['mario.rossi@example.test']
+      }
     })
     const redacted = redactSendError(error)
     expect(redacted.message).toBe('SMTP send failed: EENVELOPE (550)')

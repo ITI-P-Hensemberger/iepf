@@ -39,7 +39,13 @@ describe('timestamp columns', () => {
         await tx.execute(sql`select set_config('timezone', ${zone}, true)`)
         const before = Date.now()
         const [row] = await tx.insert(auditLogs)
-          .values({ action: 'GET /tz', method: 'GET', path: `/tz/${zone}`, status: 200, durationMs: 1 })
+          .values({
+            action: 'GET /tz',
+            method: 'GET',
+            path: `/tz/${zone}`,
+            status: 200,
+            durationMs: 1
+          })
           .returning({ createdAt: auditLogs.createdAt })
         // now() is the transaction start, so allow a little slack before `before`.
         expect(row.createdAt.getTime()).toBeGreaterThan(before - MINUTE)
@@ -81,7 +87,13 @@ describe('cutoffs against default created_at', () => {
   it('deletes an audit log exactly once its retention has passed', async () => {
     await db.delete(auditLogs)
     const [row] = await db.insert(auditLogs)
-      .values({ action: 'GET /cutoff', method: 'GET', path: '/cutoff', status: 200, durationMs: 1 })
+      .values({
+        action: 'GET /cutoff',
+        method: 'GET',
+        path: '/cutoff',
+        status: 200,
+        durationMs: 1
+      })
       .returning({ createdAt: auditLogs.createdAt })
     const expiry = row.createdAt.getTime() + AUDIT_LOG_RETENTION_DAYS * DAY
     expect((await cleanUpExpiredData(new Date(expiry - MINUTE))).auditLogs).toBe(0)

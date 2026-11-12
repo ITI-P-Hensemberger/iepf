@@ -11,9 +11,11 @@ import { createErrorMessageSchema, createErrorSchema, createPagedListSchema } fr
 import { queryBoolean } from '@/lib/zod-utils'
 
 const tags = ['TutorSubjects']
-const bearerAuth = [{
-  bearerAuth: [] as string[]
-}]
+const bearerAuth = [
+  {
+    bearerAuth: [] as string[]
+  }
+]
 
 const TutorIdParamsSchema = z.object({
   tutorId: z.uuid().openapi({
@@ -40,7 +42,13 @@ const listTutorsQuerySchema = z.object({
   isActive: queryBoolean().optional(),
   sectionId: z.uuid().optional(),
   year: z.coerce.number().int().optional(),
-  sortBy: z.enum(['firstName', 'lastName', 'email', 'year', 'sectionId']).default('lastName'),
+  sortBy: z.enum([
+    'firstName',
+    'lastName',
+    'email',
+    'year',
+    'sectionId'
+  ]).default('lastName'),
   sortDir: z.enum(['asc', 'desc']).default('asc'),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0)
@@ -149,7 +157,9 @@ export const addSubjectToTutor = createRoute({
       'Tutor or subject not found'
     ),
     [HttpStatusCodes.CONFLICT]: jsonContent(
-      createErrorSchema(z.object({ subjectId: z.string().min(1) })),
+      createErrorSchema(z.object({
+        subjectId: z.string().min(1)
+      })),
       'Subject already assigned'
     ),
     [HttpStatusCodes.FORBIDDEN]: jsonContent(

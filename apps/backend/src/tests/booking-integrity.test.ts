@@ -51,15 +51,23 @@ function request(path: string, options: { method?: string, token?: string, body?
     method: options.method ?? 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
-      ...(options.ip ? { 'x-forwarded-for': options.ip } : {})
+      ...(options.token
+        ? { Authorization: `Bearer ${options.token}` }
+        : {}),
+      ...(options.ip
+        ? { 'x-forwarded-for': options.ip }
+        : {})
     },
-    body: options.method === 'GET' ? undefined : JSON.stringify(options.body ?? {})
+    body: options.method === 'GET'
+      ? undefined
+      : JSON.stringify(options.body ?? {})
   })
 }
 
 async function login(email: string, password = DEV_PASSWORD) {
-  const response = await request('/auth/login', { body: { email, password } })
+  const response = await request('/auth/login', {
+    body: { email, password }
+  })
   expect(response.status).toBe(200)
   return (await response.json()).accessToken as string
 }
@@ -100,7 +108,12 @@ async function createTutor(year: number) {
     emailVerifiedAt: new Date()
   }).returning({ id: users.id })
   const [section] = await db.select({ id: classSections.id }).from(classSections).limit(1)
-  await db.insert(tutorProfiles).values({ userId: tutor.id, sectionId: section.id, year, isActive: true })
+  await db.insert(tutorProfiles).values({
+    userId: tutor.id,
+    sectionId: section.id,
+    year,
+    isActive: true
+  })
   await db.insert(tutorSettings).values({ tutorId: tutor.id, dailyCapacity: 20 })
   return tutor.id
 }
@@ -117,7 +130,10 @@ async function createLesson(seats: number, startAt = nextLessonDay(), tutorId = 
 }
 
 function book(lessonId: string, token: string) {
-  return request(`/lessons/${lessonId}/book`, { token, body: { topic: 'Equazioni' } })
+  return request(`/lessons/${lessonId}/book`, {
+    token,
+    body: { topic: 'Equazioni' }
+  })
 }
 
 function statuses(responses: Response[]) {
@@ -255,8 +271,18 @@ describe('booking integrity', () => {
   it('does not refund a cancellation after the cutoff', async () => {
     const student = await createStudent(2)
     const lessonId = await createLesson(1, new Date(Date.now() + 60 * 60 * 1000))
-    const [booking] = await db.insert(lessonBookings).values({ lessonId, studentId: student.id, subjectId, topic: 'Tardi' }).returning()
-    await db.insert(tokenLedger).values({ studentId: student.id, lessonId, delta: -1, reason: 'lesson_booking' })
+    const [booking] = await db.insert(lessonBookings).values({
+      lessonId,
+      studentId: student.id,
+      subjectId,
+      topic: 'Tardi'
+    }).returning()
+    await db.insert(tokenLedger).values({
+      studentId: student.id,
+      lessonId,
+      delta: -1,
+      reason: 'lesson_booking'
+    })
     const response = await request(`/lessons/${lessonId}/bookings/${booking.id}/cancel`, { method: 'PATCH', token: student.token })
     expect(response.status).toBe(200)
     expect(await getStudentTokenBalance(student.id)).toBe(1)
@@ -291,7 +317,12 @@ describe('booking integrity', () => {
   it('rejects a duplicate confirmed booking at database level but allows rebooking', async () => {
     const student = await createStudent(0)
     const lessonId = await createLesson(3)
-    const values = { lessonId, studentId: student.id, subjectId, topic: 'Doppia' }
+    const values = {
+      lessonId,
+      studentId: student.id,
+      subjectId,
+      topic: 'Doppia'
+    }
     const [first] = await db.insert(lessonBookings).values(values).returning()
     await expect(db.insert(lessonBookings).values(values)).rejects.toThrow()
     await db.update(lessonBookings).set({ status: 'canceled' }).where(eq(lessonBookings.id, first.id))
@@ -323,8 +354,14 @@ describe('booking integrity', () => {
 
   it('lists the manual changes with their author, newest first, and only to admins', async () => {
     const student = await createStudent(2)
-    await request(`/students/${student.id}/tokens/adjust`, { token: adminToken, body: { delta: 3, reason: 'Recupero' } })
-    await request(`/students/${student.id}/tokens/adjust`, { token: adminToken, body: { delta: -1, reason: 'Correzione' } })
+    await request(`/students/${student.id}/tokens/adjust`, {
+      token: adminToken,
+      body: { delta: 3, reason: 'Recupero' }
+    })
+    await request(`/students/${student.id}/tokens/adjust`, {
+      token: adminToken,
+      body: { delta: -1, reason: 'Correzione' }
+    })
 
     const response = await request(`/students/${student.id}/tokens/history`, { method: 'GET', token: adminToken })
     expect(response.status).toBe(200)
@@ -332,7 +369,10 @@ describe('booking integrity', () => {
     // The 2 hours of the start are automatic and stay out.
     expect(history.lessonTokens).toBe(4)
     expect(history.items.map((item: { delta: number, reason: string }) => [item.delta, item.reason]))
-      .toEqual([[-1, 'Correzione'], [3, 'Recupero']])
+      .toEqual([
+        [-1, 'Correzione'],
+        [3, 'Recupero']
+      ])
     expect(history.items[0].adminName).toEqual(expect.any(String))
 
     expect((await request(`/students/${student.id}/tokens/history`, { method: 'GET', token: tutorToken })).status).toBe(403)
@@ -344,10 +384,14 @@ describe('booking integrity', () => {
 
     expect((await remove({ password: 'sbagliata' })).status).toBe(403)
     expect((await remove()).status).not.toBe(204)
-    expect(await db.query.users.findFirst({ where: (fields, { eq }) => eq(fields.id, student.id) })).toBeDefined()
+    expect(await db.query.users.findFirst({
+      where: (fields, { eq }) => eq(fields.id, student.id)
+    })).toBeDefined()
 
     expect((await remove({ password: DEV_PASSWORD })).status).toBe(204)
-    expect(await db.query.users.findFirst({ where: (fields, { eq }) => eq(fields.id, student.id) })).toBeUndefined()
+    expect(await db.query.users.findFirst({
+      where: (fields, { eq }) => eq(fields.id, student.id)
+    })).toBeUndefined()
   })
 })
 
@@ -355,7 +399,13 @@ describe('reschedule in place', () => {
   function reschedule(lessonId: string, changes: Record<string, unknown> = {}, token = adminToken) {
     return request(`/lessons/${lessonId}/reschedule`, {
       token,
-      body: { tutorId: ids.tutor, subjectId, startAt: nextLessonDay().toISOString(), durationMinutes: 60, ...changes }
+      body: {
+        tutorId: ids.tutor,
+        subjectId,
+        startAt: nextLessonDay().toISOString(),
+        durationMinutes: 60,
+        ...changes
+      }
     })
   }
 
@@ -368,21 +418,37 @@ describe('reschedule in place', () => {
     const lessonId = await createLesson(3)
     expect((await book(lessonId, student.token)).status).toBe(201)
     const [booking] = await confirmedBookings(lessonId)
-    await db.update(lessonBookings).set({ studentPresence: true, studentPresenceAt: new Date() }).where(eq(lessonBookings.id, booking.id))
-    const [feedback] = await db.insert(lessonFeedback).values({ lessonId, bookingId: booking.id, authorUserId: ids.tutor, targetUserId: student.id, authorRole: 'tutor', rating: 5 }).returning()
+    await db.update(lessonBookings).set({
+      studentPresence: true,
+      studentPresenceAt: new Date()
+    }).where(eq(lessonBookings.id, booking.id))
+    const [feedback] = await db.insert(lessonFeedback).values({
+      lessonId,
+      bookingId: booking.id,
+      authorUserId: ids.tutor,
+      targetUserId: student.id,
+      authorRole: 'tutor',
+      rating: 5
+    }).returning()
 
     const newStart = nextLessonDay()
-    const response = await reschedule(lessonId, { startAt: newStart.toISOString() })
+    const response = await reschedule(lessonId, {
+      startAt: newStart.toISOString()
+    })
     expect(response.status).toBe(200)
     expect((await response.json()).lessonId).toBe(lessonId)
 
-    const lesson = await db.query.lessons.findFirst({ where: eq(lessons.id, lessonId) })
+    const lesson = await db.query.lessons.findFirst({
+      where: eq(lessons.id, lessonId)
+    })
     expect(lesson?.status).not.toBe('canceled')
     expect(lesson?.startAt.getTime()).toBe(newStart.getTime())
     const bookings = await db.select().from(lessonBookings).where(eq(lessonBookings.lessonId, lessonId))
     expect(bookings).toHaveLength(1)
     expect(bookings[0]).toMatchObject({ id: booking.id, status: 'confirmed', studentPresence: true })
-    expect(await db.query.lessonFeedback.findFirst({ where: eq(lessonFeedback.id, feedback.id) })).toMatchObject({ lessonId, bookingId: booking.id })
+    expect(await db.query.lessonFeedback.findFirst({
+      where: eq(lessonFeedback.id, feedback.id)
+    })).toMatchObject({ lessonId, bookingId: booking.id })
     expect(await getStudentTokenBalance(student.id)).toBe(1)
   })
 
@@ -397,35 +463,60 @@ describe('reschedule in place', () => {
 
     expect((await reschedule(lessonId, { subjectId: null })).status).toBe(200)
     expect((await confirmedBookings(lessonId))[0].subjectId).toBe(other.id)
-    expect((await db.query.lessons.findFirst({ where: eq(lessons.id, lessonId) }))?.subjectFromBooking).toBe(true)
+    expect((await db.query.lessons.findFirst({
+      where: eq(lessons.id, lessonId)
+    }))?.subjectFromBooking).toBe(true)
   })
 
   it('keeps a manual count for the same tutor and credits a new tutor only for marked presences', async () => {
     const lessonId = await createLesson(3)
     await db.update(lessons).set({ countsForTutor: true }).where(eq(lessons.id, lessonId))
     expect((await reschedule(lessonId)).status).toBe(200)
-    expect((await db.query.lessons.findFirst({ where: eq(lessons.id, lessonId) }))?.countsForTutor).toBe(true)
+    expect((await db.query.lessons.findFirst({
+      where: eq(lessons.id, lessonId)
+    }))?.countsForTutor).toBe(true)
 
     const otherTutor = await createTutor(5)
     expect((await reschedule(lessonId, { tutorId: otherTutor })).status).toBe(200)
-    expect((await db.query.lessons.findFirst({ where: eq(lessons.id, lessonId) }))).toMatchObject({ tutorId: otherTutor, countsForTutor: false, seats: 20 })
+    expect((await db.query.lessons.findFirst({
+      where: eq(lessons.id, lessonId)
+    }))).toMatchObject({ tutorId: otherTutor, countsForTutor: false, seats: 20 })
   })
 
   it('records each change with the names before and after, and nothing when nothing changed', async () => {
     const lessonId = await createLesson(3)
-    const lesson = await db.query.lessons.findFirst({ where: eq(lessons.id, lessonId) })
+    const lesson = await db.query.lessons.findFirst({
+      where: eq(lessons.id, lessonId)
+    })
     const otherTutor = await createTutor(5)
-    expect((await reschedule(lessonId, { startAt: lesson!.startAt.toISOString() })).status).toBe(200)
+    expect((await reschedule(lessonId, {
+      startAt: lesson!.startAt.toISOString()
+    })).status).toBe(200)
     expect(await history(lessonId)).toHaveLength(0)
 
     const newStart = nextLessonDay()
-    expect((await reschedule(lessonId, { startAt: newStart.toISOString(), tutorId: otherTutor, durationMinutes: 90 })).status).toBe(200)
+    expect((await reschedule(lessonId, {
+      startAt: newStart.toISOString(),
+      tutorId: otherTutor,
+      durationMinutes: 90
+    })).status).toBe(200)
     const [change] = await history(lessonId)
     expect(change).toMatchObject({
       actorId: ids.admin,
       actorRole: 'admin',
-      before: { startAt: lesson!.startAt.toISOString(), tutorId: ids.tutor, subjectId, durationMinutes: 60 },
-      after: { startAt: newStart.toISOString(), tutorId: otherTutor, tutorName: 'Integrity Tutor', subjectId, durationMinutes: 90 }
+      before: {
+        startAt: lesson!.startAt.toISOString(),
+        tutorId: ids.tutor,
+        subjectId,
+        durationMinutes: 60
+      },
+      after: {
+        startAt: newStart.toISOString(),
+        tutorId: otherTutor,
+        tutorName: 'Integrity Tutor',
+        subjectId,
+        durationMinutes: 90
+      }
     })
     expect(change.before.subjectName).toEqual(expect.any(String))
   })
@@ -467,7 +558,9 @@ describe('reschedule in place', () => {
   it('drops the history with a past lesson nobody booked', async () => {
     const lessonId = await createLesson(3)
     const past = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    expect((await reschedule(lessonId, { startAt: past.toISOString() })).status).toBe(200)
+    expect((await reschedule(lessonId, {
+      startAt: past.toISOString()
+    })).status).toBe(200)
     expect(await history(lessonId)).toHaveLength(1)
     await deleteUnbookedLessons(new Date())
     expect(await history(lessonId)).toHaveLength(0)
@@ -492,7 +585,10 @@ describe('one open lesson per time slot', () => {
   }
 
   function bookSubject(lessonId: string, token: string, subject?: string) {
-    return request(`/lessons/${lessonId}/book`, { token, body: { topic: 'Ripasso', subjectId: subject } })
+    return request(`/lessons/${lessonId}/book`, {
+      token,
+      body: { topic: 'Ripasso', subjectId: subject }
+    })
   }
 
   async function lessonRow(lessonId: string) {
@@ -611,7 +707,10 @@ describe('one open lesson per time slot', () => {
     const student = await createStudent(3)
     const startAt = nextLessonDay()
     const dayKey = schoolDayKey(startAt)
-    const range = new URLSearchParams({ from: schoolTime(dayKey).toISOString(), to: schoolTime(addDays(dayKey, 1)).toISOString() })
+    const range = new URLSearchParams({
+      from: schoolTime(dayKey).toISOString(),
+      to: schoolTime(addDays(dayKey, 1)).toISOString()
+    })
     await createOpenLesson(3, startAt)
     const summary = async (query: URLSearchParams) => {
       const response = await request(`/lessons/available/summary?${query}`, { method: 'GET', token: student.token })
@@ -622,15 +721,22 @@ describe('one open lesson per time slot', () => {
     // One open lesson counts for each subject its tutor teaches.
     expect(before.subjects.find(subject => subject.id === math)?.count).toBe(1)
     expect(before.subjects.find(subject => subject.id === physics)?.count).toBe(1)
-    expect(before.days).toEqual([{ day: dayKey, count: 1, booked: false }])
+    expect(before.days).toEqual([
+      { day: dayKey, count: 1, booked: false }
+    ])
 
     const later = new Date(startAt)
     later.setHours(later.getHours() + 1)
     const bookedLesson = await createOpenLesson(3, later)
     expect((await bookSubject(bookedLesson, student.token, math)).status).toBe(201)
-    const after = await summary(new URLSearchParams({ ...Object.fromEntries(range), subjectId: physics }))
+    const after = await summary(new URLSearchParams({
+      ...Object.fromEntries(range),
+      subjectId: physics
+    }))
     // One lesson a day: the rest of that day is no longer bookable for this student.
-    expect(after.days).toEqual([{ day: dayKey, count: 0, booked: true }])
+    expect(after.days).toEqual([
+      { day: dayKey, count: 0, booked: true }
+    ])
     expect(after.subjects).toEqual([])
   })
 
@@ -639,16 +745,24 @@ describe('one open lesson per time slot', () => {
     const startAt = nextLessonDay()
     const lessonId = await createOpenLesson(3, startAt)
     await bookSubject(lessonId, student.token, math)
-    const query = new URLSearchParams({ from: new Date(startAt.getTime() - 60_000).toISOString(), to: new Date(startAt.getTime() + 60_000).toISOString() })
+    const query = new URLSearchParams({
+      from: new Date(startAt.getTime() - 60_000).toISOString(),
+      to: new Date(startAt.getTime() + 60_000).toISOString()
+    })
     const schedule = async (token: string, extra: Record<string, string> = {}) => {
-      return request(`/lessons/schedule?${new URLSearchParams({ ...Object.fromEntries(query), ...extra })}`, { method: 'GET', token })
+      return request(`/lessons/schedule?${new URLSearchParams({
+        ...Object.fromEntries(query),
+        ...extra
+      })}`, { method: 'GET', token })
     }
 
     const mine = await schedule(tutorToken)
     expect(mine.status).toBe(200)
     const [item] = (await mine.json()).data as Array<{ id: string, subjectId: string, bookings: Array<{ studentId: string, topic: string, subjectId: string }> }>
     expect(item).toMatchObject({ id: lessonId, subjectId: math })
-    expect(item.bookings).toEqual([expect.objectContaining({ studentId: student.id, topic: 'Ripasso', subjectId: math })])
+    expect(item.bookings).toEqual([
+      expect.objectContaining({ studentId: student.id, topic: 'Ripasso', subjectId: math })
+    ])
 
     // A tutor asking for someone else's lessons still gets only their own.
     const otherTutor = await createTutor(5)
@@ -658,13 +772,24 @@ describe('one open lesson per time slot', () => {
     expect((await forAdmin.json()).data).toEqual([])
 
     expect((await schedule(student.token)).status).toBe(403)
-    const tooLong = new URLSearchParams({ from: startAt.toISOString(), to: new Date(startAt.getTime() + 20 * 24 * 60 * 60 * 1000).toISOString() })
+    const tooLong = new URLSearchParams({
+      from: startAt.toISOString(),
+      to: new Date(startAt.getTime() + 20 * 24 * 60 * 60 * 1000).toISOString()
+    })
     expect((await request(`/lessons/schedule?${tooLong}`, { method: 'GET', token: adminToken })).status).toBe(400)
   })
 
   it('opens an admin lesson created without a subject, like a generated one', async () => {
     for (const subject of [undefined, null]) {
-      const created = await request('/lessons', { token: adminToken, body: { tutorId: ids.tutor, subjectId: subject, startAt: nextLessonDay().toISOString(), durationMinutes: 60 } })
+      const created = await request('/lessons', {
+        token: adminToken,
+        body: {
+          tutorId: ids.tutor,
+          subjectId: subject,
+          startAt: nextLessonDay().toISOString(),
+          durationMinutes: 60
+        }
+      })
       expect(created.status).toBe(201)
       const { lessonId } = await created.json()
       expect(await lessonRow(lessonId)).toMatchObject({ subjectId: null, subjectFromBooking: true, status: 'scheduled' })
@@ -682,7 +807,12 @@ describe('one open lesson per time slot', () => {
   it('lists open lessons for admins without dropping them for a missing subject', async () => {
     const startAt = nextLessonDay()
     const lessonId = await createOpenLesson(3, startAt)
-    const query = new URLSearchParams({ tutorId: ids.tutor, subjectId: physics, from: startAt.toISOString(), to: startAt.toISOString() })
+    const query = new URLSearchParams({
+      tutorId: ids.tutor,
+      subjectId: physics,
+      from: startAt.toISOString(),
+      to: startAt.toISOString()
+    })
     const response = await request(`/lessons?${query}`, { method: 'GET', token: adminToken })
     const { data } = await response.json() as { data: Array<{ id: string, subjectId: string | null, subjectFromBooking: boolean }> }
     const [item] = data.filter(row => row.id === lessonId)
@@ -691,7 +821,10 @@ describe('one open lesson per time slot', () => {
 })
 
 describe('rate limits', () => {
-  const wrong = (email: string, ip: string) => request('/auth/login', { ip, body: { email, password: 'wrong-password' } })
+  const wrong = (email: string, ip: string) => request('/auth/login', {
+    ip,
+    body: { email, password: 'wrong-password' }
+  })
 
   it('limits guesses per account without blocking others on the same IP', async () => {
     const ip = '203.0.113.10'
@@ -709,8 +842,13 @@ describe('rate limits', () => {
     const ip = '203.0.113.20'
     let limited = 0
     for (let attempt = 0; attempt < 125; attempt += 1) {
-      const response = await request('/auth/login', { ip, body: { email: `unknown-${attempt}@example.test`, password: 'x' } })
-      limited += response.status === 429 ? 1 : 0
+      const response = await request('/auth/login', {
+        ip,
+        body: { email: `unknown-${attempt}@example.test`, password: 'x' }
+      })
+      limited += response.status === 429
+        ? 1
+        : 0
     }
     expect(limited).toBe(5)
   })
@@ -718,7 +856,10 @@ describe('rate limits', () => {
 
 describe('public and protected routes', () => {
   it('normalizes invited addresses so the account can log in', async () => {
-    const response = await request('/auth/tutor-invite', { token: adminToken, body: { email: ' Mario.Rossi@HENSEMBERGER.it ' } })
+    const response = await request('/auth/tutor-invite', {
+      token: adminToken,
+      body: { email: ' Mario.Rossi@HENSEMBERGER.it ' }
+    })
     expect(response.status).toBeLessThan(300)
     const invite = await db.query.tutorInviteTokens.findFirst({
       where: (fields, ops) => ops.ilike(fields.email, 'mario.rossi@hensemberger.it')
@@ -728,7 +869,11 @@ describe('public and protected routes', () => {
 
   it('finds the account whatever the case when requesting a password reset', async () => {
     const { id, email } = await createStudent(0)
-    const response = await request('/auth/password/reset/request', { body: { email: email.toUpperCase() } })
+    const response = await request('/auth/password/reset/request', {
+      body: {
+        email: email.toUpperCase()
+      }
+    })
     expect(response.status).toBe(200)
     expect(await db.select().from(passwordResetTokens).where(eq(passwordResetTokens.userId, id))).toHaveLength(1)
   })
@@ -736,7 +881,11 @@ describe('public and protected routes', () => {
   it('finds the account whatever the case when requesting email verification', async () => {
     const { id, email } = await createStudent(0)
     await db.update(users).set({ emailVerifiedAt: null }).where(eq(users.id, id))
-    const response = await request('/auth/verify-email/request', { body: { email: email.toUpperCase() } })
+    const response = await request('/auth/verify-email/request', {
+      body: {
+        email: email.toUpperCase()
+      }
+    })
     expect(response.status).toBe(200)
     expect(await db.select().from(emailVerificationTokens).where(eq(emailVerificationTokens.userId, id))).toHaveLength(1)
   })
@@ -745,43 +894,85 @@ describe('public and protected routes', () => {
     const email = `tutor-${crypto.randomUUID()}@hensemberger.it`
     const { token } = await issueTutorInviteToken(email)
     const [section] = await db.select({ id: classSections.id }).from(classSections).limit(1)
-    const body = { token, firstName: 'Nuovo', lastName: 'Tutor', password: 'Integrity123!', year: 4 }
+    const body = {
+      token,
+      firstName: 'Nuovo',
+      lastName: 'Tutor',
+      password: 'Integrity123!',
+      year: 4
+    }
 
-    const rejected = await request('/auth/tutor-invite/confirm', { body: { ...body, sectionId: crypto.randomUUID() } })
+    const rejected = await request('/auth/tutor-invite/confirm', {
+      body: {
+        ...body,
+        sectionId: crypto.randomUUID()
+      }
+    })
     expect(rejected.status).toBe(400)
-    expect(await db.query.users.findFirst({ where: eq(users.email, email) })).toBeUndefined()
+    expect(await db.query.users.findFirst({
+      where: eq(users.email, email)
+    })).toBeUndefined()
 
-    const confirmed = await request('/auth/tutor-invite/confirm', { body: { ...body, sectionId: section.id } })
+    const confirmed = await request('/auth/tutor-invite/confirm', {
+      body: { ...body, sectionId: section.id }
+    })
     expect(confirmed.status).toBe(201)
-    const user = await db.query.users.findFirst({ where: eq(users.email, email) })
-    expect(await db.query.tutorProfiles.findFirst({ where: (fields, ops) => ops.eq(fields.userId, user!.id) })).toBeDefined()
-    expect(await db.query.tutorSettings.findFirst({ where: (fields, ops) => ops.eq(fields.tutorId, user!.id) })).toBeDefined()
+    const user = await db.query.users.findFirst({
+      where: eq(users.email, email)
+    })
+    expect(await db.query.tutorProfiles.findFirst({
+      where: (fields, ops) => ops.eq(fields.userId, user!.id)
+    })).toBeDefined()
+    expect(await db.query.tutorSettings.findFirst({
+      where: (fields, ops) => ops.eq(fields.tutorId, user!.id)
+    })).toBeDefined()
 
-    const reused = await request('/auth/tutor-invite/confirm', { body: { ...body, sectionId: section.id } })
+    const reused = await request('/auth/tutor-invite/confirm', {
+      body: { ...body, sectionId: section.id }
+    })
     expect(reused.status).toBe(401)
   })
 
   it('lets only one concurrent confirmation spend an invite', async () => {
     const email = `admin-${crypto.randomUUID()}@hensemberger.it`
     const { token } = await issueAdminInviteToken(email)
-    const body = { token, firstName: 'Nuovo', lastName: 'Admin', password: 'Integrity123!' }
+    const body = {
+      token,
+      firstName: 'Nuovo',
+      lastName: 'Admin',
+      password: 'Integrity123!'
+    }
     const responses = await Promise.all([1, 2].map(() => request('/auth/admin-invite/confirm', { body })))
     expect(responses.map(response => response.status).sort()).toEqual([201, 401])
   })
 
   it('answers 409 to the loser of a concurrent registration, leaving one complete account', async () => {
     const email = `student-${crypto.randomUUID()}@hensemberger.it`
-    const body = { email, firstName: 'Nuovo', lastName: 'Studente', password: 'Integrity123!', year: 1 }
+    const body = {
+      email,
+      firstName: 'Nuovo',
+      lastName: 'Studente',
+      password: 'Integrity123!',
+      year: 1
+    }
     const responses = await Promise.all([1, 2, 3].map(() => request('/auth/register', { body })))
     expect(responses.map(response => response.status).sort()).toEqual([201, 409, 409])
     const rows = await db.select({ id: users.id }).from(users).where(eq(users.email, email))
     expect(rows).toHaveLength(1)
-    expect(await db.query.studentProfiles.findFirst({ where: (fields, ops) => ops.eq(fields.userId, rows[0].id) })).toBeDefined()
+    expect(await db.query.studentProfiles.findFirst({
+      where: (fields, ops) => ops.eq(fields.userId, rows[0].id)
+    })).toBeDefined()
   })
 
   it('recognizes a real unique violation as Drizzle reports it', async () => {
     const { email } = await createStudent(0)
-    const error = await db.insert(users).values({ email, firstName: 'A', lastName: 'B', passwordHash, role: 'student' }).catch(caught => caught)
+    const error = await db.insert(users).values({
+      email,
+      firstName: 'A',
+      lastName: 'B',
+      passwordHash,
+      role: 'student'
+    }).catch(caught => caught)
     expect(isUniqueConstraintError(error)).toBe(true)
   })
 
@@ -789,7 +980,14 @@ describe('public and protected routes', () => {
     const email = `tutor-${crypto.randomUUID()}@hensemberger.it`
     const { token } = await issueTutorInviteToken(email)
     const [section] = await db.select({ id: classSections.id }).from(classSections).limit(1)
-    const body = { token, firstName: 'Nuovo', lastName: 'Tutor', password: 'Integrity123!', year: 4, sectionId: section.id }
+    const body = {
+      token,
+      firstName: 'Nuovo',
+      lastName: 'Tutor',
+      password: 'Integrity123!',
+      year: 4,
+      sectionId: section.id
+    }
 
     await db.execute(sql`create function fail_for_test() returns trigger language plpgsql as $$ begin raise exception 'simulated failure'; end $$`)
     await db.execute(sql`create trigger fail_for_test before insert on tutor_settings for each row execute function fail_for_test()`)
@@ -800,14 +998,18 @@ describe('public and protected routes', () => {
       await db.execute(sql`drop trigger fail_for_test on tutor_settings`)
       await db.execute(sql`drop function fail_for_test()`)
     }
-    expect(await db.query.users.findFirst({ where: eq(users.email, email) })).toBeUndefined()
+    expect(await db.query.users.findFirst({
+      where: eq(users.email, email)
+    })).toBeUndefined()
 
     expect((await request('/auth/tutor-invite/confirm', { body })).status).toBe(201)
   })
 
   it('recognizes unique violations wrapped by Drizzle', () => {
     expect(isUniqueConstraintError({ code: '23505' })).toBe(true)
-    expect(isUniqueConstraintError({ cause: { code: '23505' } })).toBe(true)
+    expect(isUniqueConstraintError({
+      cause: { code: '23505' }
+    })).toBe(true)
     expect(isUniqueConstraintError({ code: '23503' })).toBe(false)
     expect(isUniqueConstraintError(new Error('other'))).toBe(false)
     expect(isUniqueConstraintError(null)).toBe(false)
@@ -889,20 +1091,40 @@ describe('school years', () => {
         firstName: 'Nuovo',
         lastName: 'Studente',
         password: 'Integrity123!',
-        ...(year === undefined ? {} : { year })
+        ...(year === undefined
+          ? {}
+          : { year })
       }
     })
   }
 
-  it.each([[1, 201], [4, 201], [0, 422], [5, 422], [undefined, 422]])('registers a student of year %s with status %i', async (year, status) => {
+  it.each([
+    [1, 201],
+    [4, 201],
+    [0, 422],
+    [5, 422],
+    [undefined, 422]
+  ])('registers a student of year %s with status %i', async (year, status) => {
     expect((await registerStudent(year)).status).toBe(status)
   })
 
-  it.each([[3, 201], [5, 201], [2, 422], [6, 422]])('confirms a tutor invite for year %i with status %i', async (year, status) => {
+  it.each([
+    [3, 201],
+    [5, 201],
+    [2, 422],
+    [6, 422]
+  ])('confirms a tutor invite for year %i with status %i', async (year, status) => {
     const { token } = await issueTutorInviteToken(`tutor-${crypto.randomUUID()}@hensemberger.it`)
     const [section] = await db.select({ id: classSections.id }).from(classSections).limit(1)
     const response = await request('/auth/tutor-invite/confirm', {
-      body: { token, firstName: 'Nuovo', lastName: 'Tutor', password: 'Integrity123!', sectionId: section.id, year }
+      body: {
+        token,
+        firstName: 'Nuovo',
+        lastName: 'Tutor',
+        password: 'Integrity123!',
+        sectionId: section.id,
+        year
+      }
     })
     expect(response.status).toBe(status)
   })
@@ -927,7 +1149,11 @@ describe('school years', () => {
     from.setHours(0, 0, 0, 0)
     const to = new Date(day)
     to.setHours(23, 59, 59, 999)
-    const params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString(), limit: '100' })
+    const params = new URLSearchParams({
+      from: from.toISOString(),
+      to: to.toISOString(),
+      limit: '100'
+    })
     const response = await request(`/lessons/available?${params}`, { method: 'GET', token })
     expect(response.status).toBe(200)
     return await response.json() as { data: Array<{ id: string }>, total: number }
@@ -948,7 +1174,9 @@ describe('school years', () => {
     const lessonId = await createLesson(1, day, await createTutor(tutorYear))
 
     const available = await availableOn(day, student.token)
-    expect(available.data.map(lesson => lesson.id)).toEqual(allowed ? [lessonId] : [])
+    expect(available.data.map(lesson => lesson.id)).toEqual(allowed
+      ? [lessonId]
+      : [])
     expect(available.total).toBe(allowed ? 1 : 0)
 
     const booked = await book(lessonId, student.token)
@@ -986,10 +1214,22 @@ describe('school year reset', () => {
 
   it('refuses non-admins, a missing confirmation and a wrong password', async () => {
     const before = await counts()
-    expect((await request(path, { token: tutorToken, body: { confirmation: 'RESET', password: DEV_PASSWORD } })).status).toBe(403)
-    expect((await request(path, { token: adminToken, body: { confirmation: 'NO', password: DEV_PASSWORD } })).status).toBe(422)
-    expect((await request(path, { token: adminToken, body: { confirmation: 'RESET' } })).status).toBe(422)
-    expect((await request(path, { token: adminToken, body: { confirmation: 'RESET', password: 'wrong' } })).status).toBe(403)
+    expect((await request(path, {
+      token: tutorToken,
+      body: { confirmation: 'RESET', password: DEV_PASSWORD }
+    })).status).toBe(403)
+    expect((await request(path, {
+      token: adminToken,
+      body: { confirmation: 'NO', password: DEV_PASSWORD }
+    })).status).toBe(422)
+    expect((await request(path, {
+      token: adminToken,
+      body: { confirmation: 'RESET' }
+    })).status).toBe(422)
+    expect((await request(path, {
+      token: adminToken,
+      body: { confirmation: 'RESET', password: 'wrong' }
+    })).status).toBe(403)
     expect(await counts()).toEqual(before)
   })
 
@@ -1005,10 +1245,18 @@ describe('school year reset', () => {
     }).returning({ id: users.id })
     await db.execute(sql`insert into admin_profiles (id, user_id, is_active) values (${crypto.randomUUID()}, ${otherAdmin.id}, true)`)
     // Admins cannot be impersonated any more; a token minted directly still checks the reset's own guard.
-    expect((await request('/admin/impersonate', { token: adminToken, body: { userId: otherAdmin.id } })).status).toBe(403)
-    const admin = await db.query.users.findFirst({ where: (fields, ops) => ops.eq(fields.email, 'admin@example.test') })
+    expect((await request('/admin/impersonate', {
+      token: adminToken,
+      body: { userId: otherAdmin.id }
+    })).status).toBe(403)
+    const admin = await db.query.users.findFirst({
+      where: (fields, ops) => ops.eq(fields.email, 'admin@example.test')
+    })
     const { token } = await createImpersonationToken(admin as AuthenticatedUser, { id: otherAdmin.id, email: 'other@example.test', role: 'admin' } as AuthenticatedUser)
-    const response = await request(path, { token, body: { confirmation: 'RESET', password: 'Integrity123!' } })
+    const response = await request(path, {
+      token,
+      body: { confirmation: 'RESET', password: 'Integrity123!' }
+    })
     expect(response.status).toBe(403)
     const after = await counts()
     expect(after.people).toBe(before.people)
@@ -1017,8 +1265,14 @@ describe('school year reset', () => {
 
   it('checks the password and the report before the reset, deleting nothing', async () => {
     const before = await counts()
-    const check = (password: string) => request(`${path}/check`, { token: adminToken, body: { password } })
-    expect((await request(`${path}/check`, { token: tutorToken, body: { password: DEV_PASSWORD } })).status).toBe(403)
+    const check = (password: string) => request(`${path}/check`, {
+      token: adminToken,
+      body: { password }
+    })
+    expect((await request(`${path}/check`, {
+      token: tutorToken,
+      body: { password: DEV_PASSWORD }
+    })).status).toBe(403)
     await recordReportExport(ids.admin)
     expect((await check('wrong')).status).toBe(403)
     expect((await check(DEV_PASSWORD)).status).toBe(204)
@@ -1047,15 +1301,27 @@ describe('school year reset', () => {
     expect(before.inbox).toBeGreaterThan(0)
     const report = await request('/admin/stats/report', { method: 'GET', token: adminToken })
     expect(report.status).toBe(200)
-    const response = await request(path, { token: adminToken, body: { confirmation: 'RESET', password: DEV_PASSWORD } })
+    const response = await request(path, {
+      token: adminToken,
+      body: { confirmation: 'RESET', password: DEV_PASSWORD }
+    })
     expect(response.status).toBe(200)
     // The next reset needs a new report.
     expect(await hasRecentReportExport(ids.admin)).toBe(false)
     const body = await response.json()
     expect(body.deletedStudents + body.deletedTutors).toBe(before.people)
     const after = await counts()
-    expect(after).toEqual({ people: 0, lessons: 0, ledger: 0, usage: 0, inbox: 0, admins: before.admins })
+    expect(after).toEqual({
+      people: 0,
+      lessons: 0,
+      ledger: 0,
+      usage: 0,
+      inbox: 0,
+      admins: before.admins
+    })
     // The links stay, with their clicks back to zero.
-    expect(await db.select({ slug: links.slug, clicks: links.clicks }).from(links)).toEqual([{ slug: 'form', clicks: 0 }])
+    expect(await db.select({ slug: links.slug, clicks: links.clicks }).from(links)).toEqual([
+      { slug: 'form', clicks: 0 }
+    ])
   })
 })

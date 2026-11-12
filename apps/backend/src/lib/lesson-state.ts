@@ -18,10 +18,15 @@ export function lessonState(lesson: LessonTiming, now = new Date()): LessonState
   if (lesson.status === 'canceled')
     return 'canceled'
   const ended = lesson.startAt.getTime() + lesson.durationMinutes * 60_000 <= now.getTime()
-  if (!ended)
-    return lesson.status === 'scheduled' ? 'open' : 'upcoming'
+  if (!ended) {
+    return lesson.status === 'scheduled'
+      ? 'open'
+      : 'upcoming'
+  }
   // Ended: with bookings it took place, without them it simply expired.
-  return lesson.status === 'scheduled' ? 'expired' : 'done'
+  return lesson.status === 'scheduled'
+    ? 'expired'
+    : 'done'
 }
 
 const ended = sql`${lessons.startAt} + ${lessons.durationMinutes} * interval '1 minute' <= now()`

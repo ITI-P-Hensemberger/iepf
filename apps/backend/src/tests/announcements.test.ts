@@ -22,9 +22,13 @@ async function call(path: string, options: { token?: string, method?: string, bo
     method: options.method ?? (options.body ? 'POST' : 'GET'),
     headers: {
       'Content-Type': 'application/json',
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {})
+      ...(options.token
+        ? { Authorization: `Bearer ${options.token}` }
+        : {})
     },
-    body: options.body ? JSON.stringify(options.body) : undefined
+    body: options.body
+      ? JSON.stringify(options.body)
+      : undefined
   })
 }
 
@@ -44,7 +48,10 @@ function popup(overrides: Record<string, unknown> = {}) {
 }
 
 async function create(overrides: Record<string, unknown> = {}) {
-  const response = await call('/admin/announcements', { token: tokens.admin, body: popup(overrides) })
+  const response = await call('/admin/announcements', {
+    token: tokens.admin,
+    body: popup(overrides)
+  })
   expect(response.status).toBe(201)
   return (await response.json()) as { id: string }
 }
@@ -60,8 +67,15 @@ beforeAll(async () => {
   await cleanDatabase()
   ids = await seedDevelopmentData()
   resetRateLimiters()
-  for (const role of ['admin', 'tutor', 'student', 'activator']) {
-    const login = await call('/auth/login', { body: { email: `${role}@example.test`, password: DEV_PASSWORD } })
+  for (const role of [
+    'admin',
+    'tutor',
+    'student',
+    'activator'
+  ]) {
+    const login = await call('/auth/login', {
+      body: { email: `${role}@example.test`, password: DEV_PASSWORD }
+    })
     tokens[role] = (await login.json()).accessToken
   }
 })
@@ -91,7 +105,10 @@ describe('admin management', () => {
   it('is only for admins', async () => {
     for (const role of ['student', 'tutor', 'activator']) {
       expect((await call('/admin/announcements', { token: tokens[role] })).status).toBe(403)
-      expect((await call('/admin/announcements', { token: tokens[role], body: popup() })).status).toBe(403)
+      expect((await call('/admin/announcements', {
+        token: tokens[role],
+        body: popup()
+      })).status).toBe(403)
     }
     expect((await call('/admin/announcements')).status).toBe(401)
   })
@@ -101,13 +118,20 @@ describe('admin management', () => {
       { linkUrl: 'javascript:alert(1)' },
       { linkUrl: null, linkLabel: 'Apri' },
       { roles: [] },
-      { roles: ['activator'] },
-      { roles: ['student', 'student'] },
+      {
+        roles: ['activator']
+      },
+      {
+        roles: ['student', 'student']
+      },
       { title: '   ' },
       { startsAt: '2026-11-10T10:00:00Z', expiresAt: '2026-11-09T10:00:00Z' }
     ]
     for (const overrides of invalid) {
-      const response = await call('/admin/announcements', { token: tokens.admin, body: popup(overrides) })
+      const response = await call('/admin/announcements', {
+        token: tokens.admin,
+        body: popup(overrides)
+      })
       expect(response.status, JSON.stringify(overrides)).toBe(422)
     }
   })
@@ -120,7 +144,12 @@ describe('admin management', () => {
       body: popup({ title: 'Cambiato', active: false })
     })
     expect(update.status).toBe(200)
-    expect(await update.json()).toMatchObject({ title: 'Cambiato', active: false, linkUrl: null, dismissals: 0 })
+    expect(await update.json()).toMatchObject({
+      title: 'Cambiato',
+      active: false,
+      linkUrl: null,
+      dismissals: 0
+    })
 
     const list = await (await call('/admin/announcements', { token: tokens.admin })).json()
     expect(list).toHaveLength(1)
@@ -132,8 +161,14 @@ describe('admin management', () => {
 
 describe('visibility', () => {
   it('reaches only the chosen roles', async () => {
-    await create({ title: 'Studenti', roles: ['student'] })
-    await create({ title: 'Tutor e admin', roles: ['tutor', 'admin'] })
+    await create({
+      title: 'Studenti',
+      roles: ['student']
+    })
+    await create({
+      title: 'Tutor e admin',
+      roles: ['tutor', 'admin']
+    })
     expect(await visibleTitles(tokens.student)).toEqual(['Studenti'])
     expect(await visibleTitles(tokens.tutor)).toEqual(['Tutor e admin'])
     expect(await visibleTitles(tokens.admin)).toEqual(['Tutor e admin'])
@@ -143,9 +178,19 @@ describe('visibility', () => {
   it('needs the switch on and the time window open, and no expiry means forever', async () => {
     const now = Date.now()
     await create({ title: 'Spento', active: false })
-    await create({ title: 'Futuro', startsAt: new Date(now + DAY).toISOString() })
-    await create({ title: 'Scaduto', expiresAt: new Date(now - 1000).toISOString() })
-    await create({ title: 'In corso', startsAt: new Date(now - DAY).toISOString(), expiresAt: new Date(now + DAY).toISOString() })
+    await create({
+      title: 'Futuro',
+      startsAt: new Date(now + DAY).toISOString()
+    })
+    await create({
+      title: 'Scaduto',
+      expiresAt: new Date(now - 1000).toISOString()
+    })
+    await create({
+      title: 'In corso',
+      startsAt: new Date(now - DAY).toISOString(),
+      expiresAt: new Date(now + DAY).toISOString()
+    })
     await create({ title: 'Perenne' })
     expect(await visibleTitles(tokens.student)).toEqual(['In corso', 'Perenne'])
   })
@@ -153,7 +198,9 @@ describe('visibility', () => {
 
 describe('dismissal', () => {
   it('hides a once_account popup for good, for that user only', async () => {
-    const { id } = await create({ roles: ['student', 'tutor'] })
+    const { id } = await create({
+      roles: ['student', 'tutor']
+    })
     expect((await call(`/announcements/${id}/dismiss`, { token: tokens.student, method: 'POST' })).status).toBe(204)
     expect((await call(`/announcements/${id}/dismiss`, { token: tokens.student, method: 'POST' })).status).toBe(204)
     expect(await visibleTitles(tokens.student)).toEqual([])
@@ -175,7 +222,10 @@ describe('dismissal', () => {
 
   it('stores nothing while an admin impersonates the user', async () => {
     const { id } = await create()
-    const impersonation = await call('/admin/impersonate', { token: tokens.admin, body: { userId: ids.student } })
+    const impersonation = await call('/admin/impersonate', {
+      token: tokens.admin,
+      body: { userId: ids.student }
+    })
     expect(impersonation.status).toBe(200)
     const { token } = await impersonation.json()
     expect((await call(`/announcements/${id}/dismiss`, { token, method: 'POST' })).status).toBe(204)
@@ -184,7 +234,9 @@ describe('dismissal', () => {
   })
 
   it('is refused for popups the user cannot see', async () => {
-    const { id } = await create({ roles: ['tutor'] })
+    const { id } = await create({
+      roles: ['tutor']
+    })
     expect((await call(`/announcements/${id}/dismiss`, { token: tokens.student, method: 'POST' })).status).toBe(404)
   })
 })
@@ -192,8 +244,12 @@ describe('dismissal', () => {
 describe('retention', () => {
   it('forgets who closed popups expired long ago, never those without expiry', async () => {
     const now = new Date()
-    const old = await create({ expiresAt: new Date(now.getTime() - (EXPIRED_POPUP_DISMISSALS_DAYS + 1) * DAY).toISOString() })
-    const recent = await create({ expiresAt: new Date(now.getTime() - DAY).toISOString() })
+    const old = await create({
+      expiresAt: new Date(now.getTime() - (EXPIRED_POPUP_DISMISSALS_DAYS + 1) * DAY).toISOString()
+    })
+    const recent = await create({
+      expiresAt: new Date(now.getTime() - DAY).toISOString()
+    })
     const forever = await create()
     for (const { id } of [old, recent, forever]) {
       await db.insert(announcementDismissals).values({ announcementId: id, userId: ids.student })

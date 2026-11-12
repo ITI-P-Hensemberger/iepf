@@ -50,9 +50,13 @@ async function call(path: string, options: { token?: string, method?: string, bo
     method: options.method ?? (options.body ? 'POST' : 'GET'),
     headers: {
       'Content-Type': 'application/json',
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {})
+      ...(options.token
+        ? { Authorization: `Bearer ${options.token}` }
+        : {})
     },
-    body: options.body ? JSON.stringify(options.body) : undefined
+    body: options.body
+      ? JSON.stringify(options.body)
+      : undefined
   })
 }
 
@@ -65,8 +69,21 @@ function mailsTo(role: string) {
 }
 
 async function lessonWithBooking(startAt: Date, present: boolean | null = null) {
-  const [lesson] = await db.insert(lessons).values({ tutorId: ids.tutor, subjectId, startAt, durationMinutes: 60, seats: 2, status: 'confirmed' }).returning({ id: lessons.id })
-  const [booking] = await db.insert(lessonBookings).values({ lessonId: lesson.id, studentId: ids.student, subjectId, topic: 'Argomento', studentPresence: present }).returning({ id: lessonBookings.id })
+  const [lesson] = await db.insert(lessons).values({
+    tutorId: ids.tutor,
+    subjectId,
+    startAt,
+    durationMinutes: 60,
+    seats: 2,
+    status: 'confirmed'
+  }).returning({ id: lessons.id })
+  const [booking] = await db.insert(lessonBookings).values({
+    lessonId: lesson.id,
+    studentId: ids.student,
+    subjectId,
+    topic: 'Argomento',
+    studentPresence: present
+  }).returning({ id: lessonBookings.id })
   return { lessonId: lesson.id, bookingId: booking.id }
 }
 
@@ -76,7 +93,9 @@ beforeAll(async () => {
   ids = await seedDevelopmentData()
   resetRateLimiters()
   for (const role of ['admin', 'tutor', 'student']) {
-    const login = await call('/auth/login', { body: { email: `${role}@example.test`, password: DEV_PASSWORD } })
+    const login = await call('/auth/login', {
+      body: { email: `${role}@example.test`, password: DEV_PASSWORD }
+    })
     tokens[role] = (await login.json()).accessToken
   }
   subjectId = (await db.query.subjects.findFirst())!.id
@@ -89,7 +108,10 @@ beforeEach(async () => {
   setPushConfig({
     publicKey: 'test-public-key',
     transport: async (target: WebPushTarget, payload: Buffer) => {
-      pushes.push({ to: target.endpoint.split('/').at(-1)!, payload: JSON.parse(payload.toString()) })
+      pushes.push({
+        to: target.endpoint.split('/').at(-1)!,
+        payload: JSON.parse(payload.toString())
+      })
       return { status: 201 }
     }
   })
@@ -108,7 +130,17 @@ afterAll(async () => {
 
 describe('always-on kinds', () => {
   it('reach a student who switched every kind off', async () => {
-    const off = await call('/notifications/preferences', { token: tokens.student, method: 'PUT', body: { bookings: false, reminders: false, feedback: false, lessons: false, account: false } })
+    const off = await call('/notifications/preferences', {
+      token: tokens.student,
+      method: 'PUT',
+      body: {
+        bookings: false,
+        reminders: false,
+        feedback: false,
+        lessons: false,
+        account: false
+      }
+    })
     expect(off.status).toBe(200)
     expect(await off.json()).not.toHaveProperty('account')
 
@@ -142,10 +174,16 @@ describe('always-on kinds', () => {
 describe('presence', () => {
   it('tells the student by push as well as by email', async () => {
     const { lessonId, bookingId } = await lessonWithBooking(new Date(Date.now() - 30 * 60 * 1000))
-    const marked = await call(`/lessons/${lessonId}/bookings/${bookingId}/presence`, { token: tokens.tutor, method: 'PATCH', body: { present: true } })
+    const marked = await call(`/lessons/${lessonId}/bookings/${bookingId}/presence`, {
+      token: tokens.tutor,
+      method: 'PATCH',
+      body: { present: true }
+    })
     expect(marked.status).toBe(200)
     await waitForPendingPush()
-    expect(pushesTo('student').map(push => [push.payload.title, push.payload.category])).toEqual([['Presenza confermata', 'updates']])
+    expect(pushesTo('student').map(push => [push.payload.title, push.payload.category])).toEqual([
+      ['Presenza confermata', 'updates']
+    ])
     expect(mailsTo('student').map(mail => mail.subject)).toEqual(['Presenza confermata'])
   })
 
@@ -155,7 +193,10 @@ describe('presence', () => {
     await lessonWithBooking(new Date('2031-09-10T14:00:00'), true)
     await lessonWithBooking(new Date('2031-09-10T15:10:00'))
     const run = async (now: Date) => {
-      const batches = { mail: createMailBatch(), push: createPushBatch() }
+      const batches = {
+        mail: createMailBatch(),
+        push: createPushBatch()
+      }
       const found = await remindMissingPresence(batches, now)
       await batches.push.finish()
       await batches.mail.finish()
@@ -164,7 +205,9 @@ describe('presence', () => {
 
     expect(await run(new Date('2031-09-10T15:19:00'))).toBe(0)
     expect(await run(new Date('2031-09-10T15:25:00'))).toBe(1)
-    expect(pushesTo('tutor').map(push => [push.payload.title, push.payload.url])).toEqual([['Presenze da segnare', `/tutor/lessons/${unmarked.lessonId}`]])
+    expect(pushesTo('tutor').map(push => [push.payload.title, push.payload.url])).toEqual([
+      ['Presenze da segnare', `/tutor/lessons/${unmarked.lessonId}`]
+    ])
     expect(pushesTo('admin').map(push => push.payload.title)).toEqual(['Presenze non segnate'])
     expect(mailsTo('tutor').map(mail => mail.subject)).toEqual(['Segna le presenze'])
     expect(mailsTo('admin').map(mail => mail.subject)).toEqual(['Presenze non segnate'])
@@ -179,7 +222,10 @@ describe('presence', () => {
   it('follows the admin\'s switches for presence still to mark', async () => {
     await db.insert(notificationPreferences).values({ userId: ids.admin, emailAdminMissingPresence: false })
     await lessonWithBooking(new Date('2031-09-11T15:00:00'))
-    const batches = { mail: createMailBatch(), push: createPushBatch() }
+    const batches = {
+      mail: createMailBatch(),
+      push: createPushBatch()
+    }
     await remindMissingPresence(batches, new Date('2031-09-11T15:30:00'))
     await batches.push.finish()
     await batches.mail.finish()
@@ -191,24 +237,41 @@ describe('presence', () => {
 describe('lesson hours', () => {
   it('tell the student when an admin changes them', async () => {
     const before = await getStudentTokenBalance(ids.student)
-    const adjusted = await call(`/students/${ids.student}/tokens/adjust`, { token: tokens.admin, body: { delta: 2, reason: 'Recupero' } })
+    const adjusted = await call(`/students/${ids.student}/tokens/adjust`, {
+      token: tokens.admin,
+      body: { delta: 2, reason: 'Recupero' }
+    })
     expect(adjusted.status).toBe(200)
     await waitForPendingPush()
-    expect(pushesTo('student').map(push => [push.payload.title, push.payload.category])).toEqual([['Ore di lezione aggiunte', 'account']])
+    expect(pushesTo('student').map(push => [push.payload.title, push.payload.category])).toEqual([
+      ['Ore di lezione aggiunte', 'account']
+    ])
     expect(String(pushesTo('student')[0].payload.body)).toContain(`Ore rimanenti: ${before + 2}.`)
     expect(mailsTo('student').map(mail => mail.subject)).toEqual(['Ore di lezione aggiunte'])
   })
 
   it('tell the student when a booking uses the last one', async () => {
     const balance = await getStudentTokenBalance(ids.student)
-    await call(`/students/${ids.student}/tokens/adjust`, { token: tokens.admin, body: { delta: 1 - balance, reason: 'Prova' } })
+    await call(`/students/${ids.student}/tokens/adjust`, {
+      token: tokens.admin,
+      body: { delta: 1 - balance, reason: 'Prova' }
+    })
     const startAt = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000)
     startAt.setHours(14, 0, 0, 0)
-    const [lesson] = await db.insert(lessons).values({ tutorId: ids.tutor, subjectId, startAt, durationMinutes: 60, seats: 2 }).returning({ id: lessons.id })
+    const [lesson] = await db.insert(lessons).values({
+      tutorId: ids.tutor,
+      subjectId,
+      startAt,
+      durationMinutes: 60,
+      seats: 2
+    }).returning({ id: lessons.id })
     await waitForPendingPush()
     pushes = []
 
-    const booked = await call(`/lessons/${lesson.id}/book`, { token: tokens.student, body: { topic: 'Equazioni' } })
+    const booked = await call(`/lessons/${lesson.id}/book`, {
+      token: tokens.student,
+      body: { topic: 'Equazioni' }
+    })
     expect(booked.status).toBe(201)
     await waitForPendingPush()
     expect(pushesTo('student').map(push => push.payload.title).sort()).toEqual(['Ore di lezione finite', 'Prenotazione confermata'])
@@ -217,17 +280,27 @@ describe('lesson hours', () => {
 
 describe('profile changes by an admin', () => {
   it('reach the user by push, and a changed address hears it at the old one', async () => {
-    const changed = await call(`/users/${ids.student}`, { token: tokens.admin, method: 'PATCH', body: { email: 'studente.nuovo@hensemberger.it' } })
+    const changed = await call(`/users/${ids.student}`, {
+      token: tokens.admin,
+      method: 'PATCH',
+      body: { email: 'studente.nuovo@hensemberger.it' }
+    })
     expect(changed.status).toBe(200)
     await waitForPendingPush()
-    expect(pushesTo('student').map(push => [push.payload.title, push.payload.category])).toEqual([['Profilo aggiornato', 'account']])
+    expect(pushesTo('student').map(push => [push.payload.title, push.payload.category])).toEqual([
+      ['Profilo aggiornato', 'account']
+    ])
     expect(mailsTo('student').map(mail => mail.subject)).toEqual(['Il tuo indirizzo email è stato cambiato'])
     expect(mailsTo('student')[0].text).toContain('studente.nuovo@hensemberger.it')
     await db.update(users).set({ email: 'student@example.test' }).where(eq(users.id, ids.student))
   })
 
   it('stay quiet towards users who edit their own name', async () => {
-    const own = await call(`/users/${ids.tutor}`, { token: tokens.tutor, method: 'PATCH', body: { firstName: 'Tutor' } })
+    const own = await call(`/users/${ids.tutor}`, {
+      token: tokens.tutor,
+      method: 'PATCH',
+      body: { firstName: 'Tutor' }
+    })
     expect(own.status).toBe(200)
     await waitForPendingPush()
     expect(pushesTo('tutor')).toHaveLength(0)

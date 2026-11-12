@@ -63,8 +63,15 @@ describe('local environment', () => {
     const repeated = await seedDevelopmentData()
     expect(repeated).toEqual(ids)
     const count = await db.execute(sql`select (select count(*)::int from users) as users, (select count(*)::int from lessons) as lessons, (select count(*)::int from lesson_bookings) as bookings, (select count(*)::int from token_ledger) as grants`)
-    expect(count.rows[0]).toEqual({ users: 4, lessons: 2, bookings: 1, grants: 2 })
-    const student = await db.query.users.findFirst({ where: (fields, ops) => ops.eq(fields.id, ids.student) })
+    expect(count.rows[0]).toEqual({
+      users: 4,
+      lessons: 2,
+      bookings: 1,
+      grants: 2
+    })
+    const student = await db.query.users.findFirst({
+      where: (fields, ops) => ops.eq(fields.id, ids.student)
+    })
     expect(student?.firstName).toBe('Edited locally')
   })
 
@@ -97,10 +104,14 @@ describe('local environment', () => {
     const { refreshToken: first } = await login.json()
     const { refreshToken: second } = await (await post('/auth/refresh', { refreshToken: first })).json()
     await db.update(refreshTokens)
-      .set({ rotatedAt: new Date(Date.now() - ROTATION_GRACE_MS) })
+      .set({
+        rotatedAt: new Date(Date.now() - ROTATION_GRACE_MS)
+      })
       .where(eq(refreshTokens.tokenHash, hashToken(first)))
     expect((await post('/auth/refresh', { refreshToken: second })).status).toBe(200)
-    expect(await db.query.refreshTokens.findFirst({ where: eq(refreshTokens.tokenHash, hashToken(first)) })).toBeUndefined()
+    expect(await db.query.refreshTokens.findFirst({
+      where: eq(refreshTokens.tokenHash, hashToken(first))
+    })).toBeUndefined()
   })
 
   it('authenticates all four demo roles and issues usable refresh tokens', async () => {
@@ -123,7 +134,9 @@ describe('local environment', () => {
     expect(retried.status).toBe(200)
     expect((await retried.json()).refreshToken).not.toBe(body.refreshToken)
     await db.update(refreshTokens)
-      .set({ rotatedAt: new Date(Date.now() - ROTATION_GRACE_MS) })
+      .set({
+        rotatedAt: new Date(Date.now() - ROTATION_GRACE_MS)
+      })
       .where(eq(refreshTokens.tokenHash, hashToken(refreshToken)))
     expect((await post('/auth/refresh', { refreshToken })).status).toBe(401)
   })
@@ -135,7 +148,12 @@ describe('local environment', () => {
       throw new Error('Email integration tests require local Mailpit')
     }
     const subject = `IEPF-test-${crypto.randomUUID()}`
-    await sendMail({ to: 'student@example.test', subject, text: 'Local email', html: '<strong>Local email</strong>' })
+    await sendMail({
+      to: 'student@example.test',
+      subject,
+      text: 'Local email',
+      html: '<strong>Local email</strong>'
+    })
     const response = await fetch(`${base}/api/v1/search?query=${encodeURIComponent(`subject:${subject}`)}`)
     expect(response.ok).toBe(true)
     const result = await response.json()
@@ -151,7 +169,10 @@ describe('local environment', () => {
     const before = await fetch(search).then(r => r.json())
     const previous = new Set(before.messages.map((message: { ID: string }) => message.ID))
     const require = createRequire(import.meta.url)
-    const result = spawnSync(process.execPath, [require.resolve('tsx/cli'), 'src/scripts/seed-full.ts'], {
+    const result = spawnSync(process.execPath, [
+      require.resolve('tsx/cli'),
+      'src/scripts/seed-full.ts'
+    ], {
       env: process.env,
       encoding: 'utf8',
       timeout: 90000
@@ -170,7 +191,9 @@ describe('local environment', () => {
     expect(counts.rows[0].settings).toBe(3)
     expect(counts.rows[0].generated_lessons).toBeGreaterThan(0)
     expect(counts.rows[0].feedback).toBeGreaterThan(0)
-    const student = await db.query.users.findFirst({ where: (fields, ops) => ops.eq(fields.email, 'mock.student-active-01@example.test') })
+    const student = await db.query.users.findFirst({
+      where: (fields, ops) => ops.eq(fields.email, 'mock.student-active-01@example.test')
+    })
     expect(student).toBeDefined()
     expect(await verifyPassword(student!.passwordHash, MOCK_PASSWORD)).toBe(true)
     // Existing demo/custom data must not become input to the full mock booking job.

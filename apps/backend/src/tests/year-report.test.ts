@@ -55,40 +55,209 @@ function sampleData(): ReportData {
     hasPush: role === 'student'
   })
   return {
-    people: [person('s1', 'student', 'Rossi & <Bianchi>', 2), person('s2', 'student', 'Verdi', 1), person('t1', 'tutor', 'Neri', 4), person('a1', 'admin', 'Admin', null)],
-    subjects: [{ id: 'm1', name: 'Matematica' }, { id: 'm2', name: 'Fisica' }],
-    tutorSubjects: [{ tutorId: 't1', subjectId: 'm1' }],
-    tutorCapacity: new Map([['t1', 2]]),
+    people: [
+      person('s1', 'student', 'Rossi & <Bianchi>', 2),
+      person('s2', 'student', 'Verdi', 1),
+      person('t1', 'tutor', 'Neri', 4),
+      person('a1', 'admin', 'Admin', null)
+    ],
+    subjects: [
+      { id: 'm1', name: 'Matematica' },
+      { id: 'm2', name: 'Fisica' }
+    ],
+    tutorSubjects: [
+      { tutorId: 't1', subjectId: 'm1' }
+    ],
+    tutorCapacity: new Map([
+      ['t1', 2]
+    ]),
     lessons: [
-      { id: 'l1', tutorId: 't1', subjectId: 'm1', startAt: day('2025-10-06T13:00:00Z'), durationMinutes: 60, seats: 2, status: 'confirmed', countsForTutor: true, generatedByJob: true },
-      { id: 'l2', tutorId: 't1', subjectId: 'm1', startAt: day('2025-11-03T13:00:00Z'), durationMinutes: 60, seats: 2, status: 'canceled', countsForTutor: false, generatedByJob: true }
+      {
+        id: 'l1',
+        tutorId: 't1',
+        subjectId: 'm1',
+        startAt: day('2025-10-06T13:00:00Z'),
+        durationMinutes: 60,
+        seats: 2,
+        status: 'confirmed',
+        countsForTutor: true,
+        generatedByJob: true
+      },
+      {
+        id: 'l2',
+        tutorId: 't1',
+        subjectId: 'm1',
+        startAt: day('2025-11-03T13:00:00Z'),
+        durationMinutes: 60,
+        seats: 2,
+        status: 'canceled',
+        countsForTutor: false,
+        generatedByJob: true
+      }
     ],
     bookings: [
-      { id: 'b1', lessonId: 'l1', studentId: 's1', subjectId: 'm1', topic: 'Equazioni\u0007 di secondo grado', status: 'confirmed', countsForStudent: true, presence: true, createdAt: day('2025-10-01T10:00:00Z'), canceledAt: null },
-      { id: 'b2', lessonId: 'l1', studentId: 's2', subjectId: 'm1', topic: 'Disequazioni', status: 'confirmed', countsForStudent: true, presence: false, createdAt: day('2025-10-02T10:00:00Z'), canceledAt: null }
+      {
+        id: 'b1',
+        lessonId: 'l1',
+        studentId: 's1',
+        subjectId: 'm1',
+        topic: 'Equazioni\u0007 di secondo grado',
+        status: 'confirmed',
+        countsForStudent: true,
+        presence: true,
+        createdAt: day('2025-10-01T10:00:00Z'),
+        canceledAt: null
+      },
+      {
+        id: 'b2',
+        lessonId: 'l1',
+        studentId: 's2',
+        subjectId: 'm1',
+        topic: 'Disequazioni',
+        status: 'confirmed',
+        countsForStudent: true,
+        presence: false,
+        createdAt: day('2025-10-02T10:00:00Z'),
+        canceledAt: null
+      }
     ],
-    feedback: [{ id: 'f1', lessonId: 'l1', authorUserId: 's1', targetUserId: 't1', authorRole: 'student', rating: 5, text: 'Chiaro "e" utile', createdAt: day('2025-10-07T10:00:00Z') }],
+    feedback: [
+      {
+        id: 'f1',
+        lessonId: 'l1',
+        authorUserId: 's1',
+        targetUserId: 't1',
+        authorRole: 'student',
+        rating: 5,
+        text: 'Chiaro "e" utile',
+        createdAt: day('2025-10-07T10:00:00Z')
+      }
+    ],
     feedbackVersions: [
-      { feedbackId: 'f1', lessonId: 'l1', authorUserId: 's1', targetUserId: 't1', authorRole: 'student', deletedAt: null, deletedByUserId: null, rating: 4, text: 'Chiaro', editorUserId: 's1', editorRole: 'student', createdAt: day('2025-10-07T10:00:00Z') },
-      { feedbackId: 'f1', lessonId: 'l1', authorUserId: 's1', targetUserId: 't1', authorRole: 'student', deletedAt: null, deletedByUserId: null, rating: 5, text: 'Chiaro "e" utile', editorUserId: 'a1', editorRole: 'admin', createdAt: day('2025-10-08T10:00:00Z') },
-      { feedbackId: 'f2', lessonId: 'l1', authorUserId: 't1', targetUserId: 's2', authorRole: 'tutor', deletedAt: day('2025-10-09T10:00:00Z'), deletedByUserId: 'a1', rating: 1, text: 'Testo tolto', editorUserId: 't1', editorRole: 'tutor', createdAt: day('2025-10-07T11:00:00Z') }
+      {
+        feedbackId: 'f1',
+        lessonId: 'l1',
+        authorUserId: 's1',
+        targetUserId: 't1',
+        authorRole: 'student',
+        deletedAt: null,
+        deletedByUserId: null,
+        rating: 4,
+        text: 'Chiaro',
+        editorUserId: 's1',
+        editorRole: 'student',
+        createdAt: day('2025-10-07T10:00:00Z')
+      },
+      {
+        feedbackId: 'f1',
+        lessonId: 'l1',
+        authorUserId: 's1',
+        targetUserId: 't1',
+        authorRole: 'student',
+        deletedAt: null,
+        deletedByUserId: null,
+        rating: 5,
+        text: 'Chiaro "e" utile',
+        editorUserId: 'a1',
+        editorRole: 'admin',
+        createdAt: day('2025-10-08T10:00:00Z')
+      },
+      {
+        feedbackId: 'f2',
+        lessonId: 'l1',
+        authorUserId: 't1',
+        targetUserId: 's2',
+        authorRole: 'tutor',
+        deletedAt: day('2025-10-09T10:00:00Z'),
+        deletedByUserId: 'a1',
+        rating: 1,
+        text: 'Testo tolto',
+        editorUserId: 't1',
+        editorRole: 'tutor',
+        createdAt: day('2025-10-07T11:00:00Z')
+      }
     ],
-    tokenBalances: new Map([['s1', 9], ['s2', 10]]),
-    subjectRequests: [{ studentId: 's2', subjectId: 'm2', createdAt: day('2025-10-05T10:00:00Z') }],
+    tokenBalances: new Map([
+      ['s1', 9],
+      ['s2', 10]
+    ]),
+    subjectRequests: [
+      {
+        studentId: 's2',
+        subjectId: 'm2',
+        createdAt: day('2025-10-05T10:00:00Z')
+      }
+    ],
     analytics: [
-      { day: '2025-10-06', event: 'active_users', detail: '', role: 'student', year: 2, count: 12 },
-      { day: '2025-10-06', event: 'push_sent', detail: 'reminders', role: '', year: 0, count: 10 },
-      { day: '2025-10-06', event: 'push_open', detail: 'reminders', role: 'student', year: 2, count: 4 },
-      { day: '2025-10-06', event: 'bell_open', detail: '', role: 'student', year: 2, count: 3 },
-      { day: '2025-10-06', event: 'link_click', detail: 'k1', role: '', year: 0, count: 4 },
-      { day: '2025-10-07', event: 'link_click', detail: 'k1', role: '', year: 0, count: 3 }
+      {
+        day: '2025-10-06',
+        event: 'active_users',
+        detail: '',
+        role: 'student',
+        year: 2,
+        count: 12
+      },
+      {
+        day: '2025-10-06',
+        event: 'push_sent',
+        detail: 'reminders',
+        role: '',
+        year: 0,
+        count: 10
+      },
+      {
+        day: '2025-10-06',
+        event: 'push_open',
+        detail: 'reminders',
+        role: 'student',
+        year: 2,
+        count: 4
+      },
+      {
+        day: '2025-10-06',
+        event: 'bell_open',
+        detail: '',
+        role: 'student',
+        year: 2,
+        count: 3
+      },
+      {
+        day: '2025-10-06',
+        event: 'link_click',
+        detail: 'k1',
+        role: '',
+        year: 0,
+        count: 4
+      },
+      {
+        day: '2025-10-07',
+        event: 'link_click',
+        detail: 'k1',
+        role: '',
+        year: 0,
+        count: 3
+      }
     ],
-    links: [{ id: 'k1', slug: 'iscrizioni', url: 'https://example.test/form', active: true, clicks: 41 }],
+    links: [
+      {
+        id: 'k1',
+        slug: 'iscrizioni',
+        url: 'https://example.test/form',
+        active: true,
+        clicks: 41
+      }
+    ],
     notifications: {
       keepDays: 90,
-      inbox: [{ category: 'bookings', total: 3, read: 1 }],
-      devices: [{ service: 'google', devices: 2, workingLast30Days: 1 }],
-      optOuts: [{ category: 'reminders', users: 1 }]
+      inbox: [
+        { category: 'bookings', total: 3, read: 1 }
+      ],
+      devices: [
+        { service: 'google', devices: 2, workingLast30Days: 1 }
+      ],
+      optOuts: [
+        { category: 'reminders', users: 1 }
+      ]
     }
   }
 }
@@ -101,7 +270,10 @@ describe('xlsx helpers', () => {
   })
 
   it('writes a zip that reads back', () => {
-    const files = unzip(zip([{ name: 'a.txt', data: 'ciao' }, { name: 'dir/è.xml', data: '<x/>' }]))
+    const files = unzip(zip([
+      { name: 'a.txt', data: 'ciao' },
+      { name: 'dir/è.xml', data: '<x/>' }
+    ]))
     expect(Object.fromEntries(files)).toEqual({ 'a.txt': 'ciao', 'dir/è.xml': '<x/>' })
   })
 })
@@ -117,8 +289,22 @@ describe('buildYearReport', () => {
   })
 
   it('has every sheet, and declares every part it contains', () => {
-    const names = [...workbook.matchAll(/<sheet name="([^"]+)"/g)].map(match => match[1])
-    expect(names).toEqual(['Riepilogo', 'Andamento', 'Classi', 'Studenti', 'Tutor', 'Lezioni', 'Prenotazioni', 'Feedback', 'Materie', 'Utilizzo', 'Notifiche'])
+    const names = [
+      ...workbook.matchAll(/<sheet name="([^"]+)"/g)
+    ].map(match => match[1])
+    expect(names).toEqual([
+      'Riepilogo',
+      'Andamento',
+      'Classi',
+      'Studenti',
+      'Tutor',
+      'Lezioni',
+      'Prenotazioni',
+      'Feedback',
+      'Materie',
+      'Utilizzo',
+      'Notifiche'
+    ])
     for (const name of files.keys()) {
       if (name.endsWith('.rels') || name === '[Content_Types].xml')
         continue
@@ -136,14 +322,29 @@ describe('buildYearReport', () => {
 
   it('lists the history of edited and deleted feedback under the feedback list', () => {
     const sheet = files.get('xl/worksheets/sheet8.xml')!
-    for (const text of ['Cronologia delle modifiche', 'Modifiche', '1 di 2', '2 di 2', 'Attuale', 'Precedente', 'Eliminato da Admin Nome', 'Testo tolto']) {
+    for (const text of [
+      'Cronologia delle modifiche',
+      'Modifiche',
+      '1 di 2',
+      '2 di 2',
+      'Attuale',
+      'Precedente',
+      'Eliminato da Admin Nome',
+      'Testo tolto'
+    ]) {
       expect(sheet).toContain(text)
     }
   })
 
   it('has a notifications sheet with coverage, push, panel and devices', () => {
     const sheet = files.get('xl/worksheets/sheet11.xml')!
-    for (const text of ['Chi riceve le notifiche push', 'Promemoria', 'Prenotazioni', 'Google (Chrome, Android)', 'Pannello aperto']) {
+    for (const text of [
+      'Chi riceve le notifiche push',
+      'Promemoria',
+      'Prenotazioni',
+      'Google (Chrome, Android)',
+      'Pannello aperto'
+    ]) {
       expect(sheet).toContain(text)
     }
   })
@@ -156,15 +357,21 @@ describe('buildYearReport', () => {
   })
 
   it('gives each table headers that match its first row', () => {
-    const tables = [...files.keys()].filter(name => name.startsWith('xl/tables/'))
+    const tables = [
+      ...files.keys()
+    ].filter(name => name.startsWith('xl/tables/'))
     expect(tables.length).toBeGreaterThanOrEqual(9)
     for (const name of tables) {
       const xml = files.get(name)!
       const headerRowNumber = /ref="[A-Z]+(\d+):/.exec(xml)![1]
-      const columns = [...xml.matchAll(/<tableColumn id="\d+" name="([^"]+)"/g)].map(match => match[1])
+      const columns = [
+        ...xml.matchAll(/<tableColumn id="\d+" name="([^"]+)"/g)
+      ].map(match => match[1])
       expect(columns.length, name).toBe(new Set(columns).size)
       // The sheet holding the table has those headers in the table's first row.
-      const sheetRels = [...files.entries()].find(([file, content]) => file.includes('worksheets/_rels') && content.includes(name.replace('xl/', '../')))!
+      const sheetRels = [
+        ...files.entries()
+      ].find(([file, content]) => file.includes('worksheets/_rels') && content.includes(name.replace('xl/', '../')))!
       const sheet = files.get(sheetRels[0].replace('_rels/', '').replace('.rels', ''))!
       const headerRow = new RegExp(`<row r="${headerRowNumber}"[^>]*>(.*?)</row>`).exec(sheet)![1]
       for (const column of columns) expect(headerRow, name).toContain(`<t xml:space="preserve">${column}</t>`)
@@ -172,11 +379,15 @@ describe('buildYearReport', () => {
   })
 
   it('draws native charts that point at existing sheets', () => {
-    const charts = [...files.keys()].filter(name => name.startsWith('xl/charts/'))
+    const charts = [
+      ...files.keys()
+    ].filter(name => name.startsWith('xl/charts/'))
     // Thirteen in a full report; the sample has no booking outcomes, so that chart is left out.
     expect(charts).toHaveLength(12)
     for (const name of charts) {
-      const refs = [...files.get(name)!.matchAll(/<c:f>'([^']+)'!/g)].map(match => match[1])
+      const refs = [
+        ...files.get(name)!.matchAll(/<c:f>'([^']+)'!/g)
+      ].map(match => match[1])
       expect(refs.length, name).toBeGreaterThan(0)
       for (const sheet of refs) expect(workbook, name).toContain(`name="${sheet}"`)
     }
@@ -192,7 +403,11 @@ describe('downloading the year report', () => {
     await cleanDatabase()
     ids = await seedDevelopmentData()
     for (const role of ['admin', 'student']) {
-      const response = await app.request('/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: `${role}@example.test`, password: DEV_PASSWORD }) })
+      const response = await app.request('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: `${role}@example.test`, password: DEV_PASSWORD })
+      })
       tokens[role] = (await response.json()).accessToken
     }
   })
@@ -202,19 +417,29 @@ describe('downloading the year report', () => {
     await closeDb()
   })
 
-  const get = (token: string) => app.request('/admin/stats/report', { headers: { Authorization: `Bearer ${token}` } })
+  const get = (token: string) => app.request('/admin/stats/report', {
+    headers: { Authorization: `Bearer ${token}` }
+  })
 
   it('is refused to non-admins and to an impersonated session', async () => {
     expect((await get(tokens.student)).status).toBe(403)
-    const impersonation = await app.request('/admin/impersonate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tokens.admin}` }, body: JSON.stringify({ userId: ids.student }) })
+    const impersonation = await app.request('/admin/impersonate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tokens.admin}` },
+      body: JSON.stringify({ userId: ids.student })
+    })
     const { token } = await impersonation.json()
     expect((await get(token)).status).toBe(403)
     expect(await hasRecentReportExport(ids.admin)).toBe(false)
   })
 
   it('gives the overview counts behind the stats page', async () => {
-    expect((await app.request('/admin/stats/overview', { headers: { Authorization: `Bearer ${tokens.student}` } })).status).toBe(403)
-    const response = await app.request('/admin/stats/overview', { headers: { Authorization: `Bearer ${tokens.admin}` } })
+    expect((await app.request('/admin/stats/overview', {
+      headers: { Authorization: `Bearer ${tokens.student}` }
+    })).status).toBe(403)
+    const response = await app.request('/admin/stats/overview', {
+      headers: { Authorization: `Bearer ${tokens.admin}` }
+    })
     expect(response.status).toBe(200)
     const body = await response.json()
     // The demo seed has one lesson with a booking and one without, tomorrow and the day after:

@@ -24,7 +24,9 @@ export function hasOpenSchoolDay(monday: Date, closureDates: Set<string>) {
 
 async function lessonsInWeek(monday: Date) {
   const end = schoolTime(addDays(schoolDayKey(monday), 7))
-  const [row] = await db.select({ total: count() })
+  const [row] = await db.select({
+    total: count()
+  })
     .from(lessons)
     .where(and(gte(lessons.startAt, monday), lt(lessons.startAt, end), ne(lessons.status, 'canceled')))
   return row?.total ?? 0

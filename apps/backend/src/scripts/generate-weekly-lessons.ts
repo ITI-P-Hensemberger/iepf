@@ -21,7 +21,9 @@ import { addDays, schoolDayKey, schoolTime, weekdayOf } from '@/lib/school-time'
 function getMondayKey(useToday: boolean): string {
   const todayKey = schoolDayKey(new Date())
   const weekday = weekdayOf(todayKey)
-  return useToday ? addDays(todayKey, 1 - weekday) : addDays(todayKey, 8 - weekday)
+  return useToday
+    ? addDays(todayKey, 1 - weekday)
+    : addDays(todayKey, 8 - weekday)
 }
 
 function slotStart(dayKey: string, time: string): Date {
@@ -44,7 +46,11 @@ async function getActiveTutors(mockOnly: boolean) {
       and(
         eq(users.role, 'tutor'),
         eq(tutorProfiles.isActive, true),
-        ...(mockOnly ? [ilike(users.email, MOCK_TUTOR_PATTERN)] : [])
+        ...(mockOnly
+          ? [
+              ilike(users.email, MOCK_TUTOR_PATTERN)
+            ]
+          : [])
       )
     )
 }
@@ -70,7 +76,9 @@ async function getClosureDates() {
     columns: { value: true }
   })
 
-  return Array.isArray(row?.value) ? (row?.value as string[]) : []
+  return Array.isArray(row?.value)
+    ? (row?.value as string[])
+    : []
 }
 
 async function getTutorAvailableWeekdays(tutorId: string) {
@@ -119,7 +127,9 @@ async function main() {
   const useToday = args.has('today') || args.has('--today')
   const mondayKey = getMondayKey(useToday)
   const targetMonday = schoolTime(mondayKey)
-  const minLessonDay = useToday ? addDays(schoolDayKey(new Date()), 1) : null
+  const minLessonDay = useToday
+    ? addDays(schoolDayKey(new Date()), 1)
+    : null
 
   process.stdout.write(`Generating lessons for week starting ${mondayKey}\n`)
   if (minLessonDay) {

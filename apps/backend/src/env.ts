@@ -10,14 +10,18 @@ import { isValidVapidKeys, isValidVapidSubject } from './lib/web-push'
 expand(config({
   path: path.resolve(
     process.cwd(),
-    process.env.ENV_FILE ?? (process.env.NODE_ENV === 'test' ? '.env.test' : '.env')
+    process.env.ENV_FILE ?? (process.env.NODE_ENV === 'test'
+      ? '.env.test'
+      : '.env')
   ),
   override: false
 }))
 
 function optionalText() {
   return z.preprocess(
-    value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    value => (typeof value === 'string' && value.trim() === ''
+      ? undefined
+      : value),
     z.string().min(1).optional()
   )
 }
@@ -25,7 +29,15 @@ function optionalText() {
 const EnvSchema = z.object({
   NODE_ENV: z.string().default('development'),
   PORT: z.coerce.number().default(9999),
-  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']),
+  LOG_LEVEL: z.enum([
+    'fatal',
+    'error',
+    'warn',
+    'info',
+    'debug',
+    'trace',
+    'silent'
+  ]),
   DATABASE_URL: z.url(),
   PASSWORD_SALT: z.string(),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
@@ -38,27 +50,39 @@ const EnvSchema = z.object({
   ADMIN_INVITE_TTL: z.coerce.number().int().positive().default(60 * 60 * 24 * 7),
   SITE_URL: z.url().optional(),
   SMTP_HOST: z.preprocess(
-    value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    value => (typeof value === 'string' && value.trim() === ''
+      ? undefined
+      : value),
     z.string().min(1).optional()
   ),
   SMTP_PORT: z.preprocess(
-    value => (value === '' ? undefined : value),
+    value => (value === ''
+      ? undefined
+      : value),
     z.coerce.number().int().positive().optional()
   ),
   SMTP_USER: z.preprocess(
-    value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    value => (typeof value === 'string' && value.trim() === ''
+      ? undefined
+      : value),
     z.string().min(1).optional()
   ),
   SMTP_PASS: z.preprocess(
-    value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    value => (typeof value === 'string' && value.trim() === ''
+      ? undefined
+      : value),
     z.string().min(1).optional()
   ),
   SMTP_FROM: z.preprocess(
-    value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    value => (typeof value === 'string' && value.trim() === ''
+      ? undefined
+      : value),
     z.string().min(1).optional()
   ),
   PROFANITY_EXTRA_WORDS: z.preprocess(
-    value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    value => (typeof value === 'string' && value.trim() === ''
+      ? undefined
+      : value),
     z.string().optional()
   ),
   SMTP_DEBUG: z.preprocess((value) => {
@@ -92,13 +116,25 @@ const EnvSchema = z.object({
   const vapid = [input.VAPID_PUBLIC_KEY, input.VAPID_PRIVATE_KEY, input.VAPID_SUBJECT]
   if (vapid.some(Boolean)) {
     if (!vapid.every(Boolean)) {
-      ctx.addIssue({ code: 'custom', path: ['VAPID_PUBLIC_KEY'], message: 'Set VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT together, or none of them' })
+      ctx.addIssue({
+        code: 'custom',
+        path: ['VAPID_PUBLIC_KEY'],
+        message: 'Set VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT together, or none of them'
+      })
     }
     else if (!isValidVapidKeys(input.VAPID_PUBLIC_KEY!, input.VAPID_PRIVATE_KEY!)) {
-      ctx.addIssue({ code: 'custom', path: ['VAPID_PRIVATE_KEY'], message: 'VAPID keys are not a valid P-256 key pair' })
+      ctx.addIssue({
+        code: 'custom',
+        path: ['VAPID_PRIVATE_KEY'],
+        message: 'VAPID keys are not a valid P-256 key pair'
+      })
     }
     else if (!isValidVapidSubject(input.VAPID_SUBJECT!)) {
-      ctx.addIssue({ code: 'custom', path: ['VAPID_SUBJECT'], message: 'Must be mailto: or https:// with a real domain (Apple rejects example.test and similar)' })
+      ctx.addIssue({
+        code: 'custom',
+        path: ['VAPID_SUBJECT'],
+        message: 'Must be mailto: or https:// with a real domain (Apple rejects example.test and similar)'
+      })
     }
   }
   if (input.NODE_ENV === 'production' && !input.SITE_URL) {
@@ -111,7 +147,13 @@ const EnvSchema = z.object({
     })
   }
   if (input.NODE_ENV === 'production') {
-    const required = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'] as const
+    const required = [
+      'SMTP_HOST',
+      'SMTP_PORT',
+      'SMTP_USER',
+      'SMTP_PASS',
+      'SMTP_FROM'
+    ] as const
     for (const key of required) {
       if (!input[key]) {
         ctx.addIssue({

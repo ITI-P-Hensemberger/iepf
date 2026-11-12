@@ -8,7 +8,9 @@ import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
 import { createErrorMessageSchema, createErrorSchema, IdUUIDParamsSchema } from '@/lib/openapi/schemas'
 
 const tags = ['Announcements']
-const security = [{ bearerAuth: [] as string[] }]
+const security = [
+  { bearerAuth: [] as string[] }
+]
 
 export const ANNOUNCEMENT_ROLES = ['student', 'tutor', 'admin'] as const
 export const TITLE_MAX = 120
@@ -46,10 +48,16 @@ export const announcementInputSchema = z.object({
   expiresAt: dateField
 }).refine(
   value => !value.startsAt || !value.expiresAt || new Date(value.expiresAt) > new Date(value.startsAt),
-  { message: 'La scadenza deve essere dopo l\'inizio', path: ['expiresAt'] }
+  {
+    message: 'La scadenza deve essere dopo l\'inizio',
+    path: ['expiresAt']
+  }
 ).refine(
   value => value.linkLabel === null || value.linkUrl !== null,
-  { message: 'Il testo del bottone serve solo con un link', path: ['linkLabel'] }
+  {
+    message: 'Il testo del bottone serve solo con un link',
+    path: ['linkLabel']
+  }
 )
 
 // What a viewer receives: no audience or authorship details.
@@ -120,7 +128,9 @@ export const adminCreate = createRoute({
   method: 'post',
   tags,
   security,
-  request: { body: jsonContentRequired(announcementInputSchema, 'The popup to create') },
+  request: {
+    body: jsonContentRequired(announcementInputSchema, 'The popup to create')
+  },
   responses: {
     [HttpStatusCodes.CREATED]: jsonContent(adminAnnouncementSchema, 'The created popup'),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(createErrorSchema(announcementInputSchema), 'Validation error(s)'),

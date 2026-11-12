@@ -295,7 +295,10 @@ async function main() {
   for (const lessonId of lessonsToConfirm) {
     await db
       .update(lessons)
-      .set({ status: 'confirmed', subjectId: lessonSubjects.get(lessonId) })
+      .set({
+        status: 'confirmed',
+        subjectId: lessonSubjects.get(lessonId)
+      })
       .where(eq(lessons.id, lessonId))
   }
 
@@ -372,7 +375,9 @@ async function main() {
         targetUserId: lesson.tutorId!,
         authorRole: 'student',
         rating: Math.floor(Math.random() * 5) + 1,
-        text: Math.random() > 0.5 ? sampleText('Tutor') : null
+        text: Math.random() > 0.5
+          ? sampleText('Tutor')
+          : null
       })
     }
 

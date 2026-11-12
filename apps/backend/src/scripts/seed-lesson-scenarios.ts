@@ -36,28 +36,98 @@ const SUBJECTS = {
 type SubjectKey = keyof typeof SUBJECTS
 
 const TUTORS = [
-  { alias: 'sara', firstName: 'Sara', lastName: 'Pellegrini', year: 5, capacity: 3, subjects: ['math', 'science'] },
-  { alias: 'luca', firstName: 'Luca', lastName: 'Verdi', year: 5, capacity: 1, subjects: ['computing'] },
-  { alias: 'giulia', firstName: 'Giulia', lastName: 'Bianchi', year: 3, capacity: 2, subjects: ['english', 'math'] }
+  {
+    alias: 'sara',
+    firstName: 'Sara',
+    lastName: 'Pellegrini',
+    year: 5,
+    capacity: 3,
+    subjects: ['math', 'science']
+  },
+  {
+    alias: 'luca',
+    firstName: 'Luca',
+    lastName: 'Verdi',
+    year: 5,
+    capacity: 1,
+    subjects: ['computing']
+  },
+  {
+    alias: 'giulia',
+    firstName: 'Giulia',
+    lastName: 'Bianchi',
+    year: 3,
+    capacity: 2,
+    subjects: ['english', 'math']
+  }
 ] as const
 
 const STUDENTS = [
-  { alias: 'anna', firstName: 'Anna', lastName: 'Villa', year: 1, tokens: 8 },
-  { alias: 'marco', firstName: 'Marco', lastName: 'Galli', year: 2, tokens: 8 },
-  { alias: 'elena', firstName: 'Elena', lastName: 'Riva', year: 1, tokens: 8 },
-  { alias: 'paolo', firstName: 'Paolo', lastName: 'Conti', year: 2, tokens: 8 },
+  {
+    alias: 'anna',
+    firstName: 'Anna',
+    lastName: 'Villa',
+    year: 1,
+    tokens: 8
+  },
+  {
+    alias: 'marco',
+    firstName: 'Marco',
+    lastName: 'Galli',
+    year: 2,
+    tokens: 8
+  },
+  {
+    alias: 'elena',
+    firstName: 'Elena',
+    lastName: 'Riva',
+    year: 1,
+    tokens: 8
+  },
+  {
+    alias: 'paolo',
+    firstName: 'Paolo',
+    lastName: 'Conti',
+    year: 2,
+    tokens: 8
+  },
   // Year 3: lessons by a year-3 tutor are hidden from them.
-  { alias: 'irene', firstName: 'Irene', lastName: 'Sala', year: 3, tokens: 8 },
+  {
+    alias: 'irene',
+    firstName: 'Irene',
+    lastName: 'Sala',
+    year: 3,
+    tokens: 8
+  },
   // No hours left: sees lessons but cannot book.
-  { alias: 'zero', firstName: 'Zeno', lastName: 'Ore', year: 1, tokens: 0 }
+  {
+    alias: 'zero',
+    firstName: 'Zeno',
+    lastName: 'Ore',
+    year: 1,
+    tokens: 0
+  }
 ] as const
 
 const email = (alias: string) => `scenario.${alias}@example.test`
 
 async function upsertUser(alias: string, firstName: string, lastName: string, role: 'tutor' | 'student', passwordHash: string) {
   // A rerun resets the password, so every scenario account opens with the demo one.
-  await db.insert(users).values({ email: email(alias), firstName, lastName, passwordHash, role, emailVerifiedAt: new Date() }).onConflictDoUpdate({ target: users.email, set: { passwordHash } })
-  const user = await db.query.users.findFirst({ where: (fields, ops) => ops.eq(fields.email, email(alias)), columns: { id: true } })
+  await db.insert(users).values({
+    email: email(alias),
+    firstName,
+    lastName,
+    passwordHash,
+    role,
+    emailVerifiedAt: new Date()
+  }).onConflictDoUpdate({
+    target: users.email,
+    set: { passwordHash }
+  })
+  const user = await db.query.users.findFirst({
+    where: (fields, ops) => ops.eq(fields.email, email(alias)),
+    columns: { id: true }
+  })
   return user!.id
 }
 
@@ -69,10 +139,16 @@ async function main() {
   const subjectIds = {} as Record<SubjectKey, string>
   for (const [key, subject] of Object.entries(SUBJECTS) as Array<[SubjectKey, typeof SUBJECTS[SubjectKey]]>) {
     await db.insert(subjects).values(subject).onConflictDoNothing({ target: subjects.canonicalName })
-    const row = await db.query.subjects.findFirst({ where: (fields, ops) => ops.eq(fields.canonicalName, subject.canonicalName), columns: { id: true } })
+    const row = await db.query.subjects.findFirst({
+      where: (fields, ops) => ops.eq(fields.canonicalName, subject.canonicalName),
+      columns: { id: true }
+    })
     subjectIds[key] = row!.id
   }
-  const devMath = (await db.query.tutorSubjects.findFirst({ where: (fields, ops) => ops.eq(fields.tutorId, ids.tutor), columns: { subjectId: true } }))!.subjectId
+  const devMath = (await db.query.tutorSubjects.findFirst({
+    where: (fields, ops) => ops.eq(fields.tutorId, ids.tutor),
+    columns: { subjectId: true }
+  }))!.subjectId
 
   // The demo tutor teaches three subjects with two seats a day.
   const tutorIds: Record<string, string> = { demo: ids.tutor }
@@ -82,8 +158,16 @@ async function main() {
   for (const tutor of TUTORS) {
     const id = await upsertUser(`tutor-${tutor.alias}`, tutor.firstName, tutor.lastName, 'tutor', passwordHash)
     tutorIds[tutor.alias] = id
-    await db.insert(tutorProfiles).values({ userId: id, sectionId: section.id, year: tutor.year, isActive: true }).onConflictDoNothing()
-    await db.insert(tutorSettings).values({ tutorId: id, dailyCapacity: tutor.capacity }).onConflictDoUpdate({ target: tutorSettings.tutorId, set: { dailyCapacity: tutor.capacity } })
+    await db.insert(tutorProfiles).values({
+      userId: id,
+      sectionId: section.id,
+      year: tutor.year,
+      isActive: true
+    }).onConflictDoNothing()
+    await db.insert(tutorSettings).values({ tutorId: id, dailyCapacity: tutor.capacity }).onConflictDoUpdate({
+      target: tutorSettings.tutorId,
+      set: { dailyCapacity: tutor.capacity }
+    })
     await db.delete(tutorSubjects).where(eq(tutorSubjects.tutorId, id))
     await db.insert(tutorSubjects).values(tutor.subjects.map(key => ({ tutorId: id, subjectId: subjectIds[key] })))
   }
@@ -92,7 +176,12 @@ async function main() {
   for (const student of STUDENTS) {
     const id = await upsertUser(`student-${student.alias}`, student.firstName, student.lastName, 'student', passwordHash)
     studentIds[student.alias] = id
-    await db.insert(studentProfiles).values({ userId: id, sectionId: section.id, year: student.year, isActive: true }).onConflictDoNothing()
+    await db.insert(studentProfiles).values({
+      userId: id,
+      sectionId: section.id,
+      year: student.year,
+      isActive: true
+    }).onConflictDoNothing()
   }
 
   // Start over: the scenario owns these tutors' lessons and these students' hours.
@@ -111,7 +200,9 @@ async function main() {
   let booked = 0
 
   interface Booking { student: string, subject: SubjectKey | 'devMath', topic: string, status?: 'confirmed' | 'canceled', presence?: boolean | null }
-  const subjectOf = (key: SubjectKey | 'devMath') => key === 'devMath' ? devMath : subjectIds[key]
+  const subjectOf = (key: SubjectKey | 'devMath') => key === 'devMath'
+    ? devMath
+    : subjectIds[key]
 
   async function lesson(tutor: string, startAt: Date, options: { subject?: SubjectKey | 'devMath', fixed?: boolean, status?: string, seats?: number, bookings?: Booking[] } = {}) {
     const confirmed = (options.bookings ?? []).filter(booking => (booking.status ?? 'confirmed') === 'confirmed')
@@ -120,12 +211,18 @@ async function main() {
     const [row] = await db.insert(lessons).values({
       tutorId: tutorIds[tutor],
       // A booked or admin-made lesson has a subject; a generated one waits for its first booking.
-      subjectId: fixed || confirmed.length > 0 ? subjectOf(firstSubject!) : null,
+      subjectId: fixed || confirmed.length > 0
+        ? subjectOf(firstSubject!)
+        : null,
       subjectFromBooking: !fixed,
       startAt,
       durationMinutes: 60,
-      seats: options.seats ?? (await db.query.tutorSettings.findFirst({ where: (fields, ops) => ops.eq(fields.tutorId, tutorIds[tutor]) }))!.dailyCapacity,
-      status: options.status ?? (confirmed.length > 0 ? 'confirmed' : 'scheduled'),
+      seats: options.seats ?? (await db.query.tutorSettings.findFirst({
+        where: (fields, ops) => ops.eq(fields.tutorId, tutorIds[tutor])
+      }))!.dailyCapacity,
+      status: options.status ?? (confirmed.length > 0
+        ? 'confirmed'
+        : 'scheduled'),
       countsForTutor: confirmed.some(booking => booking.presence != null),
       generatedByJob: !fixed
     }).returning({ id: lessons.id })
@@ -139,14 +236,30 @@ async function main() {
         topic: booking.topic,
         status,
         studentPresence: booking.presence ?? null,
-        studentPresenceAt: booking.presence == null ? null : new Date(startAt.getTime() + 10 * 60_000),
-        canceledAt: status === 'canceled' ? new Date(startAt.getTime() - 3 * 24 * 60 * 60_000) : null,
-        canceledBy: status === 'canceled' ? studentIds[booking.student] : null,
+        studentPresenceAt: booking.presence == null
+          ? null
+          : new Date(startAt.getTime() + 10 * 60_000),
+        canceledAt: status === 'canceled'
+          ? new Date(startAt.getTime() - 3 * 24 * 60 * 60_000)
+          : null,
+        canceledBy: status === 'canceled'
+          ? studentIds[booking.student]
+          : null,
         countsForStudent: status === 'confirmed'
       })
-      await db.insert(tokenLedger).values({ studentId: studentIds[booking.student], lessonId: row.id, delta: -1, reason: 'lesson_booking' })
+      await db.insert(tokenLedger).values({
+        studentId: studentIds[booking.student],
+        lessonId: row.id,
+        delta: -1,
+        reason: 'lesson_booking'
+      })
       if (status === 'canceled') {
-        await db.insert(tokenLedger).values({ studentId: studentIds[booking.student], lessonId: row.id, delta: 1, reason: 'lesson_cancel_student' })
+        await db.insert(tokenLedger).values({
+          studentId: studentIds[booking.student],
+          lessonId: row.id,
+          delta: 1,
+          reason: 'lesson_cancel_student'
+        })
       }
       booked += 1
     }
@@ -166,25 +279,61 @@ async function main() {
     // Demo tutor: Monday, Wednesday, Friday at 14:00 and 15:00, like the dev availability.
     if ([1, 3, 5].includes(weekday)) {
       if (past) {
-        await lesson('demo', at(14), { bookings: [
-          { student: 'demo', subject: 'devMath', topic: 'Disequazioni fratte', presence: true },
-          { student: 'anna', subject: 'devMath', topic: 'Sistemi lineari', presence: false }
-        ] })
-        await lesson('demo', at(15), { bookings: [{ student: 'marco', subject: 'physics', topic: 'Moto rettilineo uniforme', presence: null }] })
+        await lesson('demo', at(14), {
+          bookings: [
+            {
+              student: 'demo',
+              subject: 'devMath',
+              topic: 'Disequazioni fratte',
+              presence: true
+            },
+            {
+              student: 'anna',
+              subject: 'devMath',
+              topic: 'Sistemi lineari',
+              presence: false
+            }
+          ]
+        })
+        await lesson('demo', at(15), {
+          bookings: [
+            {
+              student: 'marco',
+              subject: 'physics',
+              topic: 'Moto rettilineo uniforme',
+              presence: null
+            }
+          ]
+        })
       }
       else if (day === demoDays[0]) {
         // Next lesson day: 14:00 already locked to Physics with one seat left, 15:00 still open.
-        await lesson('demo', at(14), { bookings: [{ student: 'anna', subject: 'physics', topic: 'Leggi di Newton, esercizi pag. 88' }] })
+        await lesson('demo', at(14), {
+          bookings: [
+            { student: 'anna', subject: 'physics', topic: 'Leggi di Newton, esercizi pag. 88' }
+          ]
+        })
         await lesson('demo', at(15))
       }
       else if (day === demoDays[1]) {
         // A slot whose only booking was canceled: open again, the booking keeps its subject.
-        await lesson('demo', at(14), { bookings: [{ student: 'elena', subject: 'english', topic: 'Past simple', status: 'canceled' }] })
+        await lesson('demo', at(14), {
+          bookings: [
+            {
+              student: 'elena',
+              subject: 'english',
+              topic: 'Past simple',
+              status: 'canceled'
+            }
+          ]
+        })
         // Full: both of the tutor's daily seats taken.
-        await lesson('demo', at(15), { bookings: [
-          { student: 'paolo', subject: 'devMath', topic: 'Logaritmi' },
-          { student: 'marco', subject: 'devMath', topic: 'Esponenziali' }
-        ] })
+        await lesson('demo', at(15), {
+          bookings: [
+            { student: 'paolo', subject: 'devMath', topic: 'Logaritmi' },
+            { student: 'marco', subject: 'devMath', topic: 'Esponenziali' }
+          ]
+        })
       }
       else if (!isToday) {
         // Untouched, as the Saturday job leaves them.
@@ -195,19 +344,42 @@ async function main() {
 
     // Sara (5ª, Matematica e Scienze, 3 posti): every weekday at 14:00, Tuesday and Thursday also at 15:00.
     if (past) {
-      await lesson('sara', at(14), { bookings: [{ student: 'paolo', subject: 'science', topic: 'La cellula', presence: true }] })
+      await lesson('sara', at(14), {
+        bookings: [
+          {
+            student: 'paolo',
+            subject: 'science',
+            topic: 'La cellula',
+            presence: true
+          }
+        ]
+      })
     }
     else if (!isToday) {
-      await lesson('sara', at(14), index % 2 === 0 ? {} : { bookings: [{ student: 'elena', subject: 'math', topic: 'Frazioni algebriche' }] })
+      await lesson('sara', at(14), index % 2 === 0
+        ? {}
+        : {
+            bookings: [
+              { student: 'elena', subject: 'math', topic: 'Frazioni algebriche' }
+            ]
+          })
       if ([2, 4].includes(weekday)) {
         // Canceled by the tutor: shown struck through to the admin, gone for students.
-        await lesson('sara', at(15), { status: day === firstThursday ? 'canceled' : undefined })
+        await lesson('sara', at(15), {
+          status: day === firstThursday
+            ? 'canceled'
+            : undefined
+        })
       }
     }
 
     // Luca (Informatica, 1 posto al giorno): 14:00 booked, so 15:00 is open but not bookable.
     if (!past && !isToday && weekday === 2) {
-      await lesson('luca', at(14), { bookings: [{ student: 'marco', subject: 'computing', topic: 'Cicli for in Python' }] })
+      await lesson('luca', at(14), {
+        bookings: [
+          { student: 'marco', subject: 'computing', topic: 'Cicli for in Python' }
+        ]
+      })
       await lesson('luca', at(15))
     }
     if (!past && !isToday && weekday === 4) {
@@ -224,17 +396,23 @@ async function main() {
   // Today, on a school day: a lesson under way (presence can be marked) and one nobody booked.
   if (weekdayOf(today) <= 5) {
     const started = new Date(Math.floor((now.getTime() - 30 * 60_000) / (5 * 60_000)) * 5 * 60_000)
-    await lesson('demo', started, { bookings: [
-      { student: 'paolo', subject: 'devMath', topic: 'Equazioni di secondo grado' },
-      { student: 'irene', subject: 'devMath', topic: 'Parabola e retta' }
-    ] })
+    await lesson('demo', started, {
+      bookings: [
+        { student: 'paolo', subject: 'devMath', topic: 'Equazioni di secondo grado' },
+        { student: 'irene', subject: 'devMath', topic: 'Parabola e retta' }
+      ]
+    })
     await lesson('sara', new Date(started.getTime() + 60 * 60_000))
   }
 
   // The demo student already has a lesson on the first bookable Tuesday: that day shows as taken.
   const tuesday = weekDays.find(day => day > addDays(today, 1) && weekdayOf(day) === 2)
   if (tuesday) {
-    await lesson('giulia', schoolTime(tuesday, 14), { bookings: [{ student: 'demo', subject: 'english', topic: 'Present perfect' }] })
+    await lesson('giulia', schoolTime(tuesday, 14), {
+      bookings: [
+        { student: 'demo', subject: 'english', topic: 'Present perfect' }
+      ]
+    })
   }
 
   process.stdout.write(`${[

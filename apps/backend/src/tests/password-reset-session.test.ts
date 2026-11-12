@@ -23,7 +23,9 @@ async function call(path: string, body: unknown, accessToken?: string) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+      ...(accessToken
+        ? { Authorization: `Bearer ${accessToken}` }
+        : {})
     },
     body: JSON.stringify(body)
   })
@@ -31,7 +33,12 @@ async function call(path: string, body: unknown, accessToken?: string) {
 
 async function login(email: string, password = DEV_PASSWORD) {
   const response = await call('/auth/login', { email, password })
-  return { status: response.status, body: response.status === 200 ? await response.json() as { accessToken: string, refreshToken: string } : null }
+  return {
+    status: response.status,
+    body: response.status === 200
+      ? await response.json() as { accessToken: string, refreshToken: string }
+      : null
+  }
 }
 
 async function check(token: string, accessToken?: string) {

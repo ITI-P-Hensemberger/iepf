@@ -272,14 +272,25 @@ async function listInvites(
   if (query.q) {
     conditions.push(ilike(table.email, `%${query.q}%`))
   }
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined
-  const direction = query.sortDir === 'desc' ? desc : asc
+  const whereClause = conditions.length > 0
+    ? and(...conditions)
+    : undefined
+  const direction = query.sortDir === 'desc'
+    ? desc
+    : asc
 
   const rows = await db
-    .select({ id: table.id, email: table.email, expiresAt: table.expiresAt, createdAt: table.createdAt })
+    .select({
+      id: table.id,
+      email: table.email,
+      expiresAt: table.expiresAt,
+      createdAt: table.createdAt
+    })
     .from(table)
     .where(whereClause)
-    .orderBy(direction(query.sortBy === 'createdAt' ? table.createdAt : table.expiresAt))
+    .orderBy(direction(query.sortBy === 'createdAt'
+      ? table.createdAt
+      : table.expiresAt))
     .limit(query.limit)
     .offset(query.offset)
 
@@ -567,7 +578,12 @@ export const confirmTutorInvite: AppRouteHandler<ConfirmTutorInviteRoute> = asyn
     return c.json(buildErrorResponse(HttpStatusPhrases.BAD_REQUEST), HttpStatusCodes.BAD_REQUEST)
   }
   const { inserted } = outcome
-  await recordActivationChange({ userId: inserted.id, isActive: true, reason: null, actorId: outcome.invitedById })
+  await recordActivationChange({
+    userId: inserted.id,
+    isActive: true,
+    reason: null,
+    actorId: outcome.invitedById
+  })
 
   const confirmation = buildRegistrationConfirmedMessage()
   sendMail({
@@ -699,7 +715,9 @@ export const confirmEmailVerification: AppRouteHandler<ConfirmEmailVerificationR
   const wasVerified = Boolean(user.emailVerifiedAt)
   if (!user.emailVerifiedAt) {
     await db.update(users)
-      .set({ emailVerifiedAt: new Date() })
+      .set({
+        emailVerifiedAt: new Date()
+      })
       .where(eq(users.id, user.id))
   }
 

@@ -82,7 +82,12 @@ async function main() {
       where(fields, operators) {
         return operators.inArray(fields.id, tutorIds)
       },
-      columns: { id: true, firstName: true, lastName: true, email: true }
+      columns: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true
+      }
     }),
     db.query.subjects.findMany({
       where(fields, operators) {
@@ -94,7 +99,12 @@ async function main() {
       where(fields, operators) {
         return operators.inArray(fields.id, studentIds)
       },
-      columns: { id: true, firstName: true, lastName: true, email: true }
+      columns: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true
+      }
     }),
     db.query.studentProfiles.findMany({
       where(fields, operators) {
@@ -137,7 +147,9 @@ async function main() {
     const tutor = tutorMap.get(lesson.tutorId)
     const subjectName = subjectMap.get(booking.subjectId)
     const profile = profileMap.get(booking.studentId)
-    const sectionName = profile?.sectionId ? sectionNameMap.get(profile.sectionId) ?? null : null
+    const sectionName = profile?.sectionId
+      ? sectionNameMap.get(profile.sectionId) ?? null
+      : null
     const classLabel = schoolClassLabel(profile?.year ?? null, sectionName)
 
     if (!tutor || !subjectName) {
@@ -183,7 +195,9 @@ async function main() {
       continue
     }
     const profile = profileMap.get(booking.studentId)
-    const sectionName = profile?.sectionId ? sectionNameMap.get(profile.sectionId) ?? null : null
+    const sectionName = profile?.sectionId
+      ? sectionNameMap.get(profile.sectionId) ?? null
+      : null
     const classLabel = schoolClassLabel(profile?.year ?? null, sectionName)
 
     if (!tutorLessonMap.has(lesson.tutorId)) {

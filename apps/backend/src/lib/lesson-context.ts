@@ -5,7 +5,12 @@ import { classLabel } from '@/lib/class-label'
 export async function lessonContext(lessonId: string, studentId: string) {
   const lesson = await db.query.lessons.findFirst({
     where: (fields, operators) => operators.eq(fields.id, lessonId),
-    columns: { id: true, startAt: true, tutorId: true, subjectId: true }
+    columns: {
+      id: true,
+      startAt: true,
+      tutorId: true,
+      subjectId: true
+    }
   })
   if (!lesson) {
     return null
@@ -21,16 +26,31 @@ export async function lessonContext(lessonId: string, studentId: string) {
     return null
   }
   const [subject, tutor, student, profile] = await Promise.all([
-    db.query.subjects.findFirst({ where: (fields, operators) => operators.eq(fields.id, subjectId), columns: { name: true } }),
-    db.query.users.findFirst({ where: (fields, operators) => operators.eq(fields.id, lesson.tutorId), columns: { firstName: true, lastName: true } }),
-    db.query.users.findFirst({ where: (fields, operators) => operators.eq(fields.id, studentId), columns: { firstName: true, lastName: true } }),
-    db.query.studentProfiles.findFirst({ where: (fields, operators) => operators.eq(fields.userId, studentId), columns: { sectionId: true, year: true } })
+    db.query.subjects.findFirst({
+      where: (fields, operators) => operators.eq(fields.id, subjectId),
+      columns: { name: true }
+    }),
+    db.query.users.findFirst({
+      where: (fields, operators) => operators.eq(fields.id, lesson.tutorId),
+      columns: { firstName: true, lastName: true }
+    }),
+    db.query.users.findFirst({
+      where: (fields, operators) => operators.eq(fields.id, studentId),
+      columns: { firstName: true, lastName: true }
+    }),
+    db.query.studentProfiles.findFirst({
+      where: (fields, operators) => operators.eq(fields.userId, studentId),
+      columns: { sectionId: true, year: true }
+    })
   ])
   if (!subject || !tutor || !student) {
     return null
   }
   const section = profile?.sectionId
-    ? await db.query.classSections.findFirst({ where: (fields, operators) => operators.eq(fields.id, profile.sectionId!), columns: { name: true } })
+    ? await db.query.classSections.findFirst({
+        where: (fields, operators) => operators.eq(fields.id, profile.sectionId!),
+        columns: { name: true }
+      })
     : undefined
   return {
     lessonId: lesson.id,

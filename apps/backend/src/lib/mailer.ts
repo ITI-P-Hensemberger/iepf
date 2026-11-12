@@ -112,7 +112,9 @@ export async function retryTemporarySmtpErrors<T>(
 // Nodemailer errors carry the recipients in their fields and message, and callers log them.
 export function redactSendError(error: unknown) {
   const { code, responseCode } = (error ?? {}) as { code?: string, responseCode?: number }
-  return new Error(`SMTP send failed: ${code ?? 'unknown'}${responseCode ? ` (${responseCode})` : ''}`)
+  return new Error(`SMTP send failed: ${code ?? 'unknown'}${responseCode
+    ? ` (${responseCode})`
+    : ''}`)
 }
 
 export function closeMailer() {

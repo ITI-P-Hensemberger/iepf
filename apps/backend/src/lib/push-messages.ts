@@ -33,14 +33,18 @@ const when = (date: Date) => capitalize(formatWhen(date))
 
 function lessonsUrl(role: Role, lessonId?: string) {
   if (role === 'tutor') {
-    return lessonId ? `/tutor/lessons/${lessonId}` : '/tutor/lessons'
+    return lessonId
+      ? `/tutor/lessons/${lessonId}`
+      : '/tutor/lessons'
   }
   return '/student/lessons'
 }
 
 export function bookingConfirmedPush(role: Role, params: { lessonId: string, subjectName: string, startAt: Date }): PushMessage {
   return {
-    title: role === 'student' ? 'Prenotazione confermata' : 'Nuova prenotazione',
+    title: role === 'student'
+      ? 'Prenotazione confermata'
+      : 'Nuova prenotazione',
     body: lines(params.subjectName, when(params.startAt)),
     url: lessonsUrl(role, params.lessonId),
     tag: `lesson-${params.lessonId}`
@@ -80,12 +84,20 @@ export function lessonChangedPush(role: Role, before: LessonVersion, after: Less
   // A lesson going back to no subject is not news for the people on it.
   const subjectChanged = before.subjectName !== after.subjectName && after.subjectName !== null
   const tutorNews = tutorChanged && role === 'student'
-  const changes = [timeChanged, durationChanged, subjectChanged, tutorNews].filter(Boolean).length
+  const changes = [
+    timeChanged,
+    durationChanged,
+    subjectChanged,
+    tutorNews
+  ].filter(Boolean).length
   if (changes === 0) {
     return null
   }
 
-  const base = { url: lessonsUrl(role, after.lessonId), tag: `lesson-${after.lessonId}` }
+  const base = {
+    url: lessonsUrl(role, after.lessonId),
+    tag: `lesson-${after.lessonId}`
+  }
   if (changes > 1) {
     return {
       ...base,
@@ -116,7 +128,9 @@ export function lessonChangedPush(role: Role, before: LessonVersion, after: Less
     return {
       ...base,
       title: 'Materia cambiata',
-      body: lines(when(after.startAt), `Ora è ${after.subjectName}${before.subjectName ? ` (prima ${before.subjectName})` : ''}.`)
+      body: lines(when(after.startAt), `Ora è ${after.subjectName}${before.subjectName
+        ? ` (prima ${before.subjectName})`
+        : ''}.`)
     }
   }
   return {
@@ -138,7 +152,9 @@ export function lessonReassignedPush(before: LessonVersion): PushMessage {
 export function lessonAssignedPush(after: LessonVersion, bookedStudents: number): PushMessage {
   const booked = bookedStudents === 0
     ? null
-    : bookedStudents === 1 ? '1 studente prenotato.' : `${bookedStudents} studenti prenotati.`
+    : bookedStudents === 1
+      ? '1 studente prenotato.'
+      : `${bookedStudents} studenti prenotati.`
   return {
     title: 'Nuova lezione assegnata',
     body: lines(after.subjectName, when(after.startAt), booked),
@@ -166,7 +182,9 @@ export function studentReminderPush(params: { lessonId: string, subjectName: str
 }
 
 export function tutorReminderPush(params: { startTimes: Date[], today: boolean }): PushMessage {
-  const first = params.startTimes.reduce((earliest, date) => (date < earliest ? date : earliest))
+  const first = params.startTimes.reduce((earliest, date) => (date < earliest
+    ? date
+    : earliest))
   const count = params.startTimes.length
   const when = params.today ? 'oggi' : 'domani'
   return {
@@ -195,7 +213,9 @@ export function activationChangedPush(isActive: boolean, reason: string | null =
     title: isActive ? 'Account attivato' : 'Account disattivato',
     body: isActive
       ? 'Il tuo account IEPF è attivo: ora puoi usare la piattaforma.'
-      : lines('Il tuo account IEPF è stato disattivato.', reason ? `Motivo: ${reason}` : 'Per informazioni contatta gli organizzatori.'),
+      : lines('Il tuo account IEPF è stato disattivato.', reason
+          ? `Motivo: ${reason}`
+          : 'Per informazioni contatta gli organizzatori.'),
     url: '/',
     tag: 'account'
   }
@@ -220,14 +240,20 @@ export function profileUpdatedPush(): PushMessage {
 }
 
 function hours(count: number) {
-  return count === 1 ? '1 ora' : `${count} ore`
+  return count === 1
+    ? '1 ora'
+    : `${count} ore`
 }
 
 export function lessonHoursChangedPush(params: { delta: number, balance: number }): PushMessage {
   return {
-    title: params.delta > 0 ? 'Ore di lezione aggiunte' : 'Ore di lezione tolte',
+    title: params.delta > 0
+      ? 'Ore di lezione aggiunte'
+      : 'Ore di lezione tolte',
     body: lines(
-      params.delta > 0 ? `Gli organizzatori ti hanno aggiunto ${hours(params.delta)}.` : `Gli organizzatori ti hanno tolto ${hours(-params.delta)}.`,
+      params.delta > 0
+        ? `Gli organizzatori ti hanno aggiunto ${hours(params.delta)}.`
+        : `Gli organizzatori ti hanno tolto ${hours(-params.delta)}.`,
       `Ore rimanenti: ${params.balance}.`
     ),
     url: '/profile',
@@ -281,7 +307,9 @@ export function lowFeedbackPush(params: { authorRole: Role, rating: number, subj
   const fromStudent = params.authorRole === 'student'
   return {
     title: fromStudent ? 'Feedback basso da uno studente' : 'Feedback basso da un tutor',
-    body: lines(params.subjectName, when(params.startAt), fromStudent ? `Voto ${params.rating}/5 al tutor.` : `Voto ${params.rating}/5 a uno studente.`),
+    body: lines(params.subjectName, when(params.startAt), fromStudent
+      ? `Voto ${params.rating}/5 al tutor.`
+      : `Voto ${params.rating}/5 a uno studente.`),
     url: '/admin/feedback'
   }
 }

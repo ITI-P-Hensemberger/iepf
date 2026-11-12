@@ -19,10 +19,14 @@ export function createPino(destination?: DestinationStream, level = env.LOG_LEVE
   return pino({
     level,
     redact: { paths: REDACTED_LOG_PATHS, censor: '[redacted]' }
-  }, destination ?? (env.NODE_ENV === 'production' ? undefined : pretty()))
+  }, destination ?? (env.NODE_ENV === 'production'
+    ? undefined
+    : pretty()))
 }
 
 // Tests pass their own destination and level: the test environment logs nothing by default.
 export function pinoLogger(destination?: DestinationStream, level?: pino.LevelWithSilent) {
-  return logger({ pino: createPino(destination, level) })
+  return logger({
+    pino: createPino(destination, level)
+  })
 }

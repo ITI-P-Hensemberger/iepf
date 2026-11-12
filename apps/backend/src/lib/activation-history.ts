@@ -8,17 +8,29 @@ import { users } from '@/db/schemas/users.schema'
 // actorId is null only when nobody is known (an invite sent before inviters were recorded).
 export async function recordActivationChange(params: { userId: string, isActive: boolean, reason: string | null, actorId: string | null }) {
   const [actor, earlier] = await Promise.all([
-    params.actorId ? db.query.users.findFirst({ where: eq(users.id, params.actorId), columns: { firstName: true, lastName: true, role: true } }) : null,
-    db.query.activationEvents.findFirst({ where: eq(activationEvents.userId, params.userId), columns: { id: true } })
+    params.actorId
+      ? db.query.users.findFirst({
+          where: eq(users.id, params.actorId),
+          columns: { firstName: true, lastName: true, role: true }
+        })
+      : null,
+    db.query.activationEvents.findFirst({
+      where: eq(activationEvents.userId, params.userId),
+      columns: { id: true }
+    })
   ])
   // Any earlier event means the account went through this before: turning it on is a reactivation.
-  const kind = !params.isActive ? 'deactivated' : earlier ? 'reactivated' : 'activated'
+  const kind = !params.isActive
+    ? 'deactivated'
+    : earlier ? 'reactivated' : 'activated'
   await db.insert(activationEvents).values({
     userId: params.userId,
     kind,
     reason: params.isActive ? null : params.reason,
     actorId: params.actorId,
-    actorName: actor ? `${actor.firstName} ${actor.lastName}` : 'Sconosciuto',
+    actorName: actor
+      ? `${actor.firstName} ${actor.lastName}`
+      : 'Sconosciuto',
     actorRole: actor?.role ?? 'unknown'
   })
 }

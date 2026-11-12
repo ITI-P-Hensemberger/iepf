@@ -33,7 +33,9 @@ const shutdown = createShutdown({
       // Stop accepting first, then end the notification streams: server.close() waits for
       // every open response, and a stream would otherwise hold it until the timeout.
       const closed = new Promise<void>((resolve, reject) => {
-        server.close(error => error ? reject(error) : resolve())
+        server.close(error => error
+          ? reject(error)
+          : resolve())
       })
       await closeNotificationStreams()
       await closed

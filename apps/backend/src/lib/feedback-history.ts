@@ -52,7 +52,10 @@ export async function feedbackSummaries(feedbackIds: string[]) {
     .where(inArray(lessonFeedbackVersions.feedbackId, feedbackIds))
     .groupBy(lessonFeedbackVersions.feedbackId)
   for (const row of rows) {
-    summaries.set(row.feedbackId, { versionCount: Number(row.versionCount), lastEditorRole: row.lastEditorRole })
+    summaries.set(row.feedbackId, {
+      versionCount: Number(row.versionCount),
+      lastEditorRole: row.lastEditorRole
+    })
   }
   return summaries
 }
@@ -81,7 +84,9 @@ export async function listFeedbackVersions(feedbackId: string, authorUserId: str
     createdAt: row.createdAt.toISOString(),
     editorRole: row.editorRole,
     editorIsAuthor: row.editorUserId === authorUserId && row.editorRole !== 'admin',
-    editorName: withNames ? fullName(row.firstName, row.lastName) : null
+    editorName: withNames
+      ? fullName(row.firstName, row.lastName)
+      : null
   }))
 }
 

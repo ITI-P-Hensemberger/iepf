@@ -8,7 +8,9 @@ import { jsonContent, jsonContentRequired } from '@/lib/openapi/helpers'
 import { createErrorMessageSchema } from '@/lib/openapi/schemas'
 
 const tags = ['Analytics']
-const security = [{ bearerAuth: [] as string[] }]
+const security = [
+  { bearerAuth: [] as string[] }
+]
 
 export const MAX_EVENTS_PER_BATCH = 50
 export const MAX_COUNT_PER_EVENT = 50

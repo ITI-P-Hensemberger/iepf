@@ -18,27 +18,57 @@ import { assertLocalDatabase } from '@/lib/local-database'
 import { hashPassword } from '@/lib/password'
 
 export const DEV_PASSWORD = 'LocalDemo123!'
-export const DEV_ROLES = ['admin', 'activator', 'tutor', 'student'] as const
+export const DEV_ROLES = [
+  'admin',
+  'activator',
+  'tutor',
+  'student'
+] as const
 
 export async function seedDevelopmentData() {
   assertLocalDatabase(env.DATABASE_URL, env.NODE_ENV)
   const passwordHash = await hashPassword(DEV_PASSWORD)
   return db.transaction(async (tx) => {
-    const [section] = await tx.insert(classSections).values({ name: 'DEV' }).onConflictDoUpdate({ target: classSections.name, set: { name: 'DEV' } }).returning()
-    const [subject] = await tx.insert(subjects).values({ name: 'Matematica demo', canonicalName: 'dev_math' }).onConflictDoUpdate({ target: subjects.canonicalName, set: { canonicalName: 'dev_math' } }).returning()
+    const [section] = await tx.insert(classSections).values({ name: 'DEV' }).onConflictDoUpdate({
+      target: classSections.name,
+      set: { name: 'DEV' }
+    }).returning()
+    const [subject] = await tx.insert(subjects).values({ name: 'Matematica demo', canonicalName: 'dev_math' }).onConflictDoUpdate({
+      target: subjects.canonicalName,
+      set: { canonicalName: 'dev_math' }
+    }).returning()
     const ids: Record<string, string> = {}
     for (const role of DEV_ROLES) {
       const email = `${role}@example.test`
-      await tx.insert(users).values({ email, firstName: 'Demo', lastName: role, passwordHash, role, emailVerifiedAt: new Date() }).onConflictDoNothing({ target: users.email })
-      const user = await tx.query.users.findFirst({ where: (fields, ops) => ops.eq(fields.email, email) })
+      await tx.insert(users).values({
+        email,
+        firstName: 'Demo',
+        lastName: role,
+        passwordHash,
+        role,
+        emailVerifiedAt: new Date()
+      }).onConflictDoNothing({ target: users.email })
+      const user = await tx.query.users.findFirst({
+        where: (fields, ops) => ops.eq(fields.email, email)
+      })
       if (!user || user.role !== role) {
         throw new Error(`Demo email already belongs to another role: ${email}`)
       }
       ids[role] = user.id
     }
     await tx.insert(adminProfiles).values({ userId: ids.admin, isActive: true }).onConflictDoNothing()
-    await tx.insert(studentProfiles).values({ userId: ids.student, sectionId: section.id, year: 2, isActive: true }).onConflictDoNothing()
-    await tx.insert(tutorProfiles).values({ userId: ids.tutor, sectionId: section.id, year: 4, isActive: true }).onConflictDoNothing()
+    await tx.insert(studentProfiles).values({
+      userId: ids.student,
+      sectionId: section.id,
+      year: 2,
+      isActive: true
+    }).onConflictDoNothing()
+    await tx.insert(tutorProfiles).values({
+      userId: ids.tutor,
+      sectionId: section.id,
+      year: 4,
+      isActive: true
+    }).onConflictDoNothing()
     await tx.insert(tutorSettings).values({ tutorId: ids.tutor, dailyCapacity: 2 }).onConflictDoNothing()
     await tx.insert(tutorSubjects).values({ tutorId: ids.tutor, subjectId: subject.id }).onConflictDoNothing()
     await tx.insert(tutorWeekdayAvailability).values([1, 3, 5].map(weekday => ({
@@ -58,9 +88,26 @@ export async function seedDevelopmentData() {
     startAt.setHours(14, 0, 0, 0)
     const confirmedId = '00000000-0000-4000-8000-000000000102'
     await tx.insert(lessons).values([
-      { id: confirmedId, tutorId: ids.tutor, subjectId: subject.id, startAt, durationMinutes: 60, seats: 2, status: 'confirmed' },
+      {
+        id: confirmedId,
+        tutorId: ids.tutor,
+        subjectId: subject.id,
+        startAt,
+        durationMinutes: 60,
+        seats: 2,
+        status: 'confirmed'
+      },
       // Open like a generated lesson: the first booking picks the subject.
-      { id: '00000000-0000-4000-8000-000000000103', tutorId: ids.tutor, subjectId: null, subjectFromBooking: true, startAt: new Date(startAt.getTime() + 86400000), durationMinutes: 60, seats: 2, status: 'scheduled' }
+      {
+        id: '00000000-0000-4000-8000-000000000103',
+        tutorId: ids.tutor,
+        subjectId: null,
+        subjectFromBooking: true,
+        startAt: new Date(startAt.getTime() + 86400000),
+        durationMinutes: 60,
+        seats: 2,
+        status: 'scheduled'
+      }
     ]).onConflictDoNothing()
     await tx.insert(lessonBookings).values({
       id: '00000000-0000-4000-8000-000000000104',
@@ -77,7 +124,19 @@ export async function seedDevelopmentData() {
       reason: 'lesson_booking'
     }).onConflictDoNothing()
     await tx.insert(globalSettings).values([
-      { key: 'maintenance', value: { enabled: false, message: null, roles: ['student', 'tutor', 'admin', 'activator'] } },
+      {
+        key: 'maintenance',
+        value: {
+          enabled: false,
+          message: null,
+          roles: [
+            'student',
+            'tutor',
+            'admin',
+            'activator'
+          ]
+        }
+      },
       { key: 'serviceMessages', value: {} },
       { key: 'closureDates', value: [] }
     ]).onConflictDoNothing()

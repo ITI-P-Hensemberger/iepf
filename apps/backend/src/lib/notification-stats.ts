@@ -46,6 +46,9 @@ export async function readNotificationStats(): Promise<NotificationStats> {
     keepDays: KEEP_NOTIFICATIONS_DAYS,
     inbox: inbox.sort((a, b) => b.total - a.total),
     devices: devices.sort((a, b) => b.devices - a.devices),
-    optOuts: SWITCHABLE_CATEGORIES.map(category => ({ category, users: Number(optOuts?.[category] ?? 0) })).filter(row => row.users > 0)
+    optOuts: SWITCHABLE_CATEGORIES.map(category => ({
+      category,
+      users: Number(optOuts?.[category] ?? 0)
+    })).filter(row => row.users > 0)
   }
 }

@@ -94,7 +94,9 @@ export const listSubjectsForTutor: AppRouteHandler<ListSubjectsForTutorRoute> = 
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
-  const conditions = [eq(tutorSubjects.tutorId, tutorId)]
+  const conditions = [
+    eq(tutorSubjects.tutorId, tutorId)
+  ]
   if (query.q) {
     const q = `%${query.q}%`
     const search = or(
@@ -119,8 +121,12 @@ export const listSubjectsForTutor: AppRouteHandler<ListSubjectsForTutorRoute> = 
     .where(and(...conditions))
     .orderBy(
       query.sortBy === 'canonicalName'
-        ? (query.sortDir === 'desc' ? desc(subjects.canonicalName) : asc(subjects.canonicalName))
-        : (query.sortDir === 'desc' ? desc(subjects.name) : asc(subjects.name))
+        ? (query.sortDir === 'desc'
+            ? desc(subjects.canonicalName)
+            : asc(subjects.canonicalName))
+        : (query.sortDir === 'desc'
+            ? desc(subjects.name)
+            : asc(subjects.name))
     )
     .limit(query.limit)
     .offset(query.offset)
@@ -151,7 +157,9 @@ export const listTutorsForSubject: AppRouteHandler<ListTutorsForSubjectRoute> = 
     return c.json(buildErrorResponse(HttpStatusPhrases.NOT_FOUND), HttpStatusCodes.NOT_FOUND)
   }
 
-  const conditions = [eq(tutorSubjects.subjectId, subjectId)]
+  const conditions = [
+    eq(tutorSubjects.subjectId, subjectId)
+  ]
   if (query.q) {
     const q = `%${query.q}%`
     const search = or(
@@ -194,15 +202,25 @@ export const listTutorsForSubject: AppRouteHandler<ListTutorsForSubjectRoute> = 
     .orderBy((() => {
       switch (query.sortBy) {
         case 'firstName':
-          return query.sortDir === 'desc' ? desc(users.firstName) : asc(users.firstName)
+          return query.sortDir === 'desc'
+            ? desc(users.firstName)
+            : asc(users.firstName)
         case 'email':
-          return query.sortDir === 'desc' ? desc(users.email) : asc(users.email)
+          return query.sortDir === 'desc'
+            ? desc(users.email)
+            : asc(users.email)
         case 'year':
-          return query.sortDir === 'desc' ? desc(tutorProfiles.year) : asc(tutorProfiles.year)
+          return query.sortDir === 'desc'
+            ? desc(tutorProfiles.year)
+            : asc(tutorProfiles.year)
         case 'sectionId':
-          return query.sortDir === 'desc' ? desc(tutorProfiles.sectionId) : asc(tutorProfiles.sectionId)
+          return query.sortDir === 'desc'
+            ? desc(tutorProfiles.sectionId)
+            : asc(tutorProfiles.sectionId)
         default:
-          return query.sortDir === 'desc' ? desc(users.lastName) : asc(users.lastName)
+          return query.sortDir === 'desc'
+            ? desc(users.lastName)
+            : asc(users.lastName)
       }
     })())
     .limit(query.limit)

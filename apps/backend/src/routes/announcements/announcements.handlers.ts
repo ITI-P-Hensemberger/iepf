@@ -47,8 +47,12 @@ function isAdmin(c: Context<AppBindings>) {
 function toValues(input: AnnouncementInput) {
   return {
     ...input,
-    startsAt: input.startsAt ? new Date(input.startsAt) : null,
-    expiresAt: input.expiresAt ? new Date(input.expiresAt) : null
+    startsAt: input.startsAt
+      ? new Date(input.startsAt)
+      : null,
+    expiresAt: input.expiresAt
+      ? new Date(input.expiresAt)
+      : null
   }
 }
 
@@ -141,7 +145,10 @@ export const adminCreate: AppRouteHandler<AdminCreateRoute> = async (c) => {
     return forbidden(c)
   }
   const [row] = await db.insert(announcements)
-    .values({ ...toValues(c.req.valid('json')), createdBy: c.get('currentUser')!.id })
+    .values({
+      ...toValues(c.req.valid('json')),
+      createdBy: c.get('currentUser')!.id
+    })
     .returning()
   return c.json(toAdminPayload(row, 0), HttpStatusCodes.CREATED)
 }
@@ -158,7 +165,9 @@ export const adminUpdate: AppRouteHandler<AdminUpdateRoute> = async (c) => {
   if (!row) {
     return notFound(c)
   }
-  const [{ dismissals }] = await db.select({ dismissals: count() })
+  const [{ dismissals }] = await db.select({
+    dismissals: count()
+  })
     .from(announcementDismissals)
     .where(eq(announcementDismissals.announcementId, id))
   return c.json(toAdminPayload(row, dismissals), HttpStatusCodes.OK)

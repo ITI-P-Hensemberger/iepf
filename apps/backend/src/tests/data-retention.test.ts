@@ -43,7 +43,14 @@ afterAll(async () => {
 })
 
 function auditRow(path: string, createdAt: Date) {
-  return { action: `GET ${path}`, method: 'GET', path, status: 200, durationMs: 1, createdAt }
+  return {
+    action: `GET ${path}`,
+    method: 'GET',
+    path,
+    status: 200,
+    durationMs: 1,
+    createdAt
+  }
 }
 
 describe('cleanUpExpiredData', () => {
@@ -55,12 +62,23 @@ describe('cleanUpExpiredData', () => {
     const deleted = await cleanUpExpiredData(now)
     expect(deleted.auditLogs).toBe(1)
     const rows = await db.select({ path: auditLogs.path }).from(auditLogs)
-    expect(rows).toEqual([{ path: '/recent' }])
+    expect(rows).toEqual([
+      { path: '/recent' }
+    ])
   })
 
   it('deletes only expired tokens of every kind', async () => {
     const expiry = (days: number) => new Date(now.getTime() + days * DAY)
-    for (const [tag, expiresAt] of [['gone', expiry(-1)], ['kept', expiry(1)]] as const) {
+    for (const [tag, expiresAt] of [
+      [
+        'gone',
+        expiry(-1)
+      ],
+      [
+        'kept',
+        expiry(1)
+      ]
+    ] as const) {
       await db.insert(refreshTokens).values({ userId, tokenHash: `r-${tag}`, expiresAt })
       await db.insert(emailVerificationTokens).values({ userId, tokenHash: `e-${tag}`, expiresAt })
       await db.insert(passwordResetTokens).values({ userId, tokenHash: `p-${tag}`, expiresAt })
@@ -121,8 +139,20 @@ describe('deleteUnbookedLessons', () => {
     const todayBooked = await lesson('2026-06-15', 'confirmed')
     const tomorrowOpen = await lesson('2026-06-16')
     await db.insert(lessonBookings).values([
-      { lessonId: todayCanceledBooking, studentId: userId, subjectId: subject.id, topic: 'Annullata', status: 'canceled' },
-      { lessonId: todayBooked, studentId: userId, subjectId: subject.id, topic: 'Confermata', status: 'confirmed' }
+      {
+        lessonId: todayCanceledBooking,
+        studentId: userId,
+        subjectId: subject.id,
+        topic: 'Annullata',
+        status: 'canceled'
+      },
+      {
+        lessonId: todayBooked,
+        studentId: userId,
+        subjectId: subject.id,
+        topic: 'Confermata',
+        status: 'confirmed'
+      }
     ])
     const remaining = async () => new Set((await db.select({ id: lessons.id }).from(lessons)).map(row => row.id))
 

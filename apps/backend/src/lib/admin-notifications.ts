@@ -69,7 +69,12 @@ export function notifyLowFeedback(params: { lessonId: string, studentId: string,
   notifyAdmins('adminLowFeedback', async () => {
     const context = await lessonContext(params.lessonId, params.studentId)
     return context && {
-      push: lowFeedbackPush({ authorRole: params.authorRole, rating: params.rating, subjectName: context.subjectName, startAt: context.lessonStartAt }),
+      push: lowFeedbackPush({
+        authorRole: params.authorRole,
+        rating: params.rating,
+        subjectName: context.subjectName,
+        startAt: context.lessonStartAt
+      }),
       email: buildLowFeedbackAdminMessage({ ...context, authorRole: params.authorRole, rating: params.rating })
     }
   })

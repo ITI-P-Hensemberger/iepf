@@ -10,9 +10,11 @@ import { createErrorMessageSchema, createErrorSchema, createPagedListSchema, IdU
 import { queryBoolean } from '@/lib/zod-utils'
 
 const tags = ['Users']
-const bearerAuth = [{
-  bearerAuth: [] as string[]
-}]
+const bearerAuth = [
+  {
+    bearerAuth: [] as string[]
+  }
+]
 
 const tutorStudentDetailsSchema = z.object({
   id: z.string(),
@@ -26,7 +28,12 @@ const tutorStudentDetailsSchema = z.object({
 
 const listQuerySchema = z.object({
   q: z.string().min(1).optional(),
-  role: z.enum(['student', 'tutor', 'admin', 'activator']).optional(),
+  role: z.enum([
+    'student',
+    'tutor',
+    'admin',
+    'activator'
+  ]).optional(),
   isActive: queryBoolean().optional(),
   // Inactive students only: true for those turned off after being active, false for those never activated.
   deactivated: queryBoolean().optional(),
@@ -36,7 +43,16 @@ const listQuerySchema = z.object({
   // When the account was made: from the start of the first day to the end of the last one.
   createdFrom: z.iso.datetime().optional(),
   createdTo: z.iso.datetime().optional(),
-  sortBy: z.enum(['firstName', 'lastName', 'email', 'createdAt', 'activatedAt', 'sectionId', 'year', 'lessonTokens']).default('lastName'),
+  sortBy: z.enum([
+    'firstName',
+    'lastName',
+    'email',
+    'createdAt',
+    'activatedAt',
+    'sectionId',
+    'year',
+    'lessonTokens'
+  ]).default('lastName'),
   sortDir: z.enum(['asc', 'desc']).default('asc'),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0)

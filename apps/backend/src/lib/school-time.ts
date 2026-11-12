@@ -55,7 +55,9 @@ export function addDays(key: string, days: number): string {
 export function weekdayOf(key: string): number {
   const { year, month, day } = parseKey(key)
   const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay()
-  return weekday === 0 ? 7 : weekday
+  return weekday === 0
+    ? 7
+    : weekday
 }
 
 // The instant the school's clock reads hour:minute on that day.
@@ -71,7 +73,10 @@ export function schoolTime(key: string, hour = 0, minute = 0): Date {
 // [start, end) of the school day the instant falls on.
 export function schoolDayRange(date: Date): { start: Date, end: Date } {
   const key = schoolDayKey(date)
-  return { start: schoolTime(key), end: schoolTime(addDays(key, 1)) }
+  return {
+    start: schoolTime(key),
+    end: schoolTime(addDays(key, 1))
+  }
 }
 
 export function isSameSchoolDay(a: Date, b: Date) {

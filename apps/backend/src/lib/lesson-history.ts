@@ -18,7 +18,9 @@ export async function recordLessonChange(tx: DbTransaction, params: { lessonId: 
     before: params.before,
     after: params.after,
     actorId: params.actorId,
-    actorName: actor ? `${actor.firstName} ${actor.lastName}` : 'Sconosciuto',
+    actorName: actor
+      ? `${actor.firstName} ${actor.lastName}`
+      : 'Sconosciuto',
     actorRole: actor?.role ?? 'unknown'
   })
 }

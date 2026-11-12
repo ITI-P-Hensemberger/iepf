@@ -120,7 +120,14 @@ async function insertFromAnotherProcess(userId: string) {
   try {
     await other.query(
       'insert into notifications (id, user_id, category, title, body, url) values ($1, $2, $3, $4, $5, $6)',
-      [randomUUID(), userId, 'lessons', message.title, message.body, message.url]
+      [
+        randomUUID(),
+        userId,
+        'lessons',
+        message.title,
+        message.body,
+        message.url
+      ]
     )
   }
   finally {
@@ -133,7 +140,12 @@ beforeAll(async () => {
   await cleanDatabase()
   ids = await seedDevelopmentData()
   resetRateLimiters()
-  for (const role of ['admin', 'tutor', 'student', 'activator']) {
+  for (const role of [
+    'admin',
+    'tutor',
+    'student',
+    'activator'
+  ]) {
     tokens[role] = await login(role)
   }
 })

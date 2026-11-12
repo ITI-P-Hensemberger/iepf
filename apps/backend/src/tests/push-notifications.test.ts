@@ -40,8 +40,13 @@ let sent: Array<{ target: WebPushTarget, payload: Record<string, unknown> }>
 let nextStatus: (target: WebPushTarget) => number
 
 const transport: WebPushTransport = async (target, payload: Buffer) => {
-  sent.push({ target, payload: JSON.parse(payload.toString()) })
-  return { status: nextStatus(target) }
+  sent.push({
+    target,
+    payload: JSON.parse(payload.toString())
+  })
+  return {
+    status: nextStatus(target)
+  }
 }
 
 let ids: Record<string, string>
@@ -56,14 +61,24 @@ async function call(path: string, options: { token?: string, method?: string, bo
     method: options.method ?? (options.body ? 'POST' : 'GET'),
     headers: {
       'Content-Type': 'application/json',
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {})
+      ...(options.token
+        ? { Authorization: `Bearer ${options.token}` }
+        : {})
     },
-    body: options.body ? JSON.stringify(options.body) : undefined
+    body: options.body
+      ? JSON.stringify(options.body)
+      : undefined
   })
 }
 
 function subscribe(token: string, name: string, keys = { p256dh: P256DH, auth: AUTH }) {
-  return call('/notifications/push/subscriptions', { token, body: { endpoint: endpoint(name), keys } })
+  return call('/notifications/push/subscriptions', {
+    token,
+    body: {
+      endpoint: endpoint(name),
+      keys
+    }
+  })
 }
 
 beforeAll(async () => {
@@ -71,8 +86,15 @@ beforeAll(async () => {
   await cleanDatabase()
   ids = await seedDevelopmentData()
   resetRateLimiters()
-  for (const role of ['admin', 'tutor', 'student', 'activator']) {
-    const login = await call('/auth/login', { body: { email: `${role}@example.test`, password: DEV_PASSWORD } })
+  for (const role of [
+    'admin',
+    'tutor',
+    'student',
+    'activator'
+  ]) {
+    const login = await call('/auth/login', {
+      body: { email: `${role}@example.test`, password: DEV_PASSWORD }
+    })
     tokens[role] = (await login.json()).accessToken
   }
 })
@@ -144,7 +166,10 @@ describe('subscriptions', () => {
   it('refuses unknown push services and malformed keys', async () => {
     const internal = await call('/notifications/push/subscriptions', {
       token: tokens.student,
-      body: { endpoint: 'https://169.254.169.254/latest', keys: { p256dh: P256DH, auth: AUTH } }
+      body: {
+        endpoint: 'https://169.254.169.254/latest',
+        keys: { p256dh: P256DH, auth: AUTH }
+      }
     })
     expect(internal.status).toBe(422)
     expect((await subscribe(tokens.student, 'bad-keys', { p256dh: 'abc', auth: AUTH })).status).toBe(422)
@@ -153,13 +178,25 @@ describe('subscriptions', () => {
 
   it('is not for activators, nor for anyone being impersonated', async () => {
     expect((await subscribe(tokens.activator, 'activator')).status).toBe(403)
-    expect((await call('/notifications/push/subscriptions', { body: { endpoint: endpoint('x'), keys: { p256dh: P256DH, auth: AUTH } } })).status).toBe(401)
+    expect((await call('/notifications/push/subscriptions', {
+      body: {
+        endpoint: endpoint('x'),
+        keys: { p256dh: P256DH, auth: AUTH }
+      }
+    })).status).toBe(401)
 
-    const impersonation = await call('/admin/impersonate', { token: tokens.admin, body: { userId: ids.student } })
+    const impersonation = await call('/admin/impersonate', {
+      token: tokens.admin,
+      body: { userId: ids.student }
+    })
     expect(impersonation.status).toBe(200)
     const { token } = await impersonation.json()
     expect((await subscribe(token, 'impersonated')).status).toBe(403)
-    expect((await call('/notifications/preferences', { token, method: 'PUT', body: { reminders: false } })).status).toBe(403)
+    expect((await call('/notifications/preferences', {
+      token,
+      method: 'PUT',
+      body: { reminders: false }
+    })).status).toBe(403)
     expect(await db.select().from(pushSubscriptions)).toHaveLength(0)
   })
 
@@ -174,10 +211,22 @@ describe('subscriptions', () => {
 
   it('removes only the current user\'s device', async () => {
     await subscribe(tokens.student, 'mine')
-    await call('/notifications/push/subscriptions', { token: tokens.tutor, method: 'DELETE', body: { endpoint: endpoint('mine') } })
+    await call('/notifications/push/subscriptions', {
+      token: tokens.tutor,
+      method: 'DELETE',
+      body: {
+        endpoint: endpoint('mine')
+      }
+    })
     expect(await db.select().from(pushSubscriptions)).toHaveLength(1)
 
-    const removed = await call('/notifications/push/subscriptions', { token: tokens.student, method: 'DELETE', body: { endpoint: endpoint('mine') } })
+    const removed = await call('/notifications/push/subscriptions', {
+      token: tokens.student,
+      method: 'DELETE',
+      body: {
+        endpoint: endpoint('mine')
+      }
+    })
     expect(removed.status).toBe(204)
     expect(await db.select().from(pushSubscriptions)).toHaveLength(0)
   })
@@ -185,11 +234,15 @@ describe('subscriptions', () => {
 
 describe('logout', () => {
   it('keeps the device subscribed: students use their own phones', async () => {
-    const login = await call('/auth/login', { body: { email: 'student@example.test', password: DEV_PASSWORD } })
+    const login = await call('/auth/login', {
+      body: { email: 'student@example.test', password: DEV_PASSWORD }
+    })
     const { accessToken, refreshToken } = await login.json()
     await subscribe(accessToken, 'own-phone')
 
-    expect((await call('/auth/logout', { body: { refreshToken } })).status).toBe(204)
+    expect((await call('/auth/logout', {
+      body: { refreshToken }
+    })).status).toBe(204)
     expect(await deliverPush([ids.student], 'bookings', message)).toEqual({ delivered: 1, failed: 0 })
   })
 })
@@ -197,11 +250,27 @@ describe('logout', () => {
 describe('preferences', () => {
   it('starts with every kind enabled and changes one at a time', async () => {
     const initial = await call('/notifications/preferences', { token: tokens.student })
-    expect(await initial.json()).toMatchObject({ bookings: true, reminders: true, feedback: true, lessons: true, adminLowFeedback: true, emailAdminLowFeedback: true, adminMissingPresence: true })
+    expect(await initial.json()).toMatchObject({
+      bookings: true,
+      reminders: true,
+      feedback: true,
+      lessons: true,
+      adminLowFeedback: true,
+      emailAdminLowFeedback: true,
+      adminMissingPresence: true
+    })
 
-    const updated = await call('/notifications/preferences', { token: tokens.student, method: 'PUT', body: { reminders: false } })
+    const updated = await call('/notifications/preferences', {
+      token: tokens.student,
+      method: 'PUT',
+      body: { reminders: false }
+    })
     expect(await updated.json()).toMatchObject({ reminders: false, bookings: true })
-    const again = await call('/notifications/preferences', { token: tokens.student, method: 'PUT', body: { feedback: false } })
+    const again = await call('/notifications/preferences', {
+      token: tokens.student,
+      method: 'PUT',
+      body: { feedback: false }
+    })
     expect(await again.json()).toMatchObject({ reminders: false, feedback: false })
   })
 })
@@ -212,10 +281,17 @@ describe('delivery', () => {
     await subscribe(tokens.student, 'laptop')
 
     expect(await deliverPush([ids.student], 'reminders', message)).toEqual({ delivered: 2, failed: 0 })
-    expect(sent.map(({ target }) => target.endpoint).sort()).toEqual([endpoint('laptop'), endpoint('phone')])
+    expect(sent.map(({ target }) => target.endpoint).sort()).toEqual([
+      endpoint('laptop'),
+      endpoint('phone')
+    ])
     expect(sent[0].payload).toEqual({ ...message, category: 'reminders', badge: 0 })
 
-    await call('/notifications/preferences', { token: tokens.student, method: 'PUT', body: { reminders: false } })
+    await call('/notifications/preferences', {
+      token: tokens.student,
+      method: 'PUT',
+      body: { reminders: false }
+    })
     sent = []
     expect(await deliverPush([ids.student], 'reminders', message)).toEqual({ delivered: 0, failed: 0 })
     expect(await deliverPush([ids.student], 'bookings', message)).toEqual({ delivered: 2, failed: 0 })
@@ -225,11 +301,17 @@ describe('delivery', () => {
     await subscribe(tokens.student, 'gone')
     await subscribe(tokens.student, 'expired')
     await subscribe(tokens.student, 'alive')
-    nextStatus = target => target.endpoint.endsWith('gone') ? 410 : target.endpoint.endsWith('expired') ? 404 : 201
+    nextStatus = target => target.endpoint.endsWith('gone')
+      ? 410
+      : target.endpoint.endsWith('expired')
+        ? 404
+        : 201
 
     expect(await deliverPush([ids.student], 'bookings', message)).toEqual({ delivered: 1, failed: 0 })
     const rows = await db.select().from(pushSubscriptions)
-    expect(rows.map(row => row.endpoint)).toEqual([endpoint('alive')])
+    expect(rows.map(row => row.endpoint)).toEqual([
+      endpoint('alive')
+    ])
     expect(rows[0].lastSuccessAt).not.toBeNull()
   })
 
@@ -252,7 +334,12 @@ describe('delivery', () => {
     const [subject] = await db.query.subjects.findMany({ limit: 1 })
     const created = await call('/lessons', {
       token: tokens.admin,
-      body: { tutorId: ids.tutor, subjectId: subject.id, startAt: '2031-05-06T12:00:00.000Z', durationMinutes: 60 }
+      body: {
+        tutorId: ids.tutor,
+        subjectId: subject.id,
+        startAt: '2031-05-06T12:00:00.000Z',
+        durationMinutes: 60
+      }
     })
     expect(created.status).toBe(201)
     await waitForPendingPush()
@@ -273,7 +360,10 @@ describe('delivery', () => {
     expect(canceled.status).toBe(200)
     await waitForPendingPush()
 
-    expect(sent.map(({ target }) => target.endpoint).sort()).toEqual([endpoint('student-phone'), endpoint('tutor-phone')])
+    expect(sent.map(({ target }) => target.endpoint).sort()).toEqual([
+      endpoint('student-phone'),
+      endpoint('tutor-phone')
+    ])
     for (const { payload } of sent) {
       expect(payload.title).toBe('Prenotazione annullata')
       expect(JSON.stringify(payload)).not.toContain('Demo')
@@ -288,8 +378,21 @@ describe('app icon badge', () => {
     await subscribe(tokens.student, 'student-phone')
     await subscribe(tokens.tutor, 'tutor-phone')
     await db.insert(notifications).values([
-      { userId: ids.student, category: 'bookings', title: 'Old', body: 'B', url: '/' },
-      { userId: ids.student, category: 'bookings', title: 'Read', body: 'B', url: '/', readAt: new Date() }
+      {
+        userId: ids.student,
+        category: 'bookings',
+        title: 'Old',
+        body: 'B',
+        url: '/'
+      },
+      {
+        userId: ids.student,
+        category: 'bookings',
+        title: 'Read',
+        body: 'B',
+        url: '/',
+        readAt: new Date()
+      }
     ])
 
     notifyUsers([ids.student, ids.tutor], 'bookings', message)
@@ -348,30 +451,58 @@ describe('retention', () => {
 
     expect(await deleteStaleSubscriptions()).toBe(1)
     const rows = await db.select().from(pushSubscriptions)
-    expect(rows.map(row => row.endpoint)).toEqual([endpoint('recent')])
+    expect(rows.map(row => row.endpoint)).toEqual([
+      endpoint('recent')
+    ])
   })
 })
 
 describe('reschedule texts', () => {
-  const before = { lessonId: 'old', subjectName: 'Matematica', startAt: new Date('2031-05-06T12:00:00Z'), durationMinutes: 60 }
+  const before = {
+    lessonId: 'old',
+    subjectName: 'Matematica',
+    startAt: new Date('2031-05-06T12:00:00Z'),
+    durationMinutes: 60
+  }
 
   it('name the one thing that changed', () => {
-    expect(lessonChangedPush('student', before, { ...before, lessonId: 'new', startAt: new Date('2031-05-07T13:00:00Z') }, false)?.title).toBe('Lezione spostata')
-    expect(lessonChangedPush('student', before, { ...before, durationMinutes: 90 }, false)).toMatchObject({ title: 'Durata cambiata', body: expect.stringContaining('90 minuti') })
-    expect(lessonChangedPush('student', before, { ...before, subjectName: 'Fisica' }, false)).toMatchObject({ title: 'Materia cambiata', body: expect.stringContaining('Ora è Fisica (prima Matematica).') })
+    expect(lessonChangedPush('student', before, {
+      ...before,
+      lessonId: 'new',
+      startAt: new Date('2031-05-07T13:00:00Z')
+    }, false)?.title).toBe('Lezione spostata')
+    expect(lessonChangedPush('student', before, { ...before, durationMinutes: 90 }, false)).toMatchObject({
+      title: 'Durata cambiata',
+      body: expect.stringContaining('90 minuti')
+    })
+    expect(lessonChangedPush('student', before, { ...before, subjectName: 'Fisica' }, false)).toMatchObject({
+      title: 'Materia cambiata',
+      body: expect.stringContaining('Ora è Fisica (prima Matematica).')
+    })
     expect(lessonChangedPush('student', before, before, true)?.title).toBe('Tutor cambiato')
   })
 
   it('sum up several changes, and say nothing when nothing changed', () => {
-    const moved = { ...before, subjectName: 'Fisica', startAt: new Date('2031-05-07T13:00:00Z') }
-    expect(lessonChangedPush('student', before, moved, true)).toMatchObject({ title: 'Lezione modificata', body: expect.stringContaining('Con un altro tutor') })
+    const moved = {
+      ...before,
+      subjectName: 'Fisica',
+      startAt: new Date('2031-05-07T13:00:00Z')
+    }
+    expect(lessonChangedPush('student', before, moved, true)).toMatchObject({
+      title: 'Lezione modificata',
+      body: expect.stringContaining('Con un altro tutor')
+    })
     expect(lessonChangedPush('student', before, before, false)).toBeNull()
     // The tutor hears about a change of tutor from the reassignment messages instead.
     expect(lessonChangedPush('tutor', before, before, true)).toBeNull()
   })
   it('leave the subject out of a lesson nobody booked yet', () => {
     const open = { ...before, subjectName: null }
-    const later = { ...open, lessonId: 'new', startAt: new Date('2031-05-07T13:00:00Z') }
+    const later = {
+      ...open,
+      lessonId: 'new',
+      startAt: new Date('2031-05-07T13:00:00Z')
+    }
     const bodies = [
       lessonChangedPush('student', open, later, false)?.body,
       lessonChangedPush('student', open, { ...open, durationMinutes: 90 }, false)?.body,
@@ -394,10 +525,25 @@ describe('new lessons of the week', () => {
   const monday = new Date('2031-05-05T00:00:00')
 
   async function addStudent(email: string, year: number | null, isActive = true) {
-    const [student] = await db.insert(users).values({ email, firstName: 'S', lastName: 'S', passwordHash: 'unused', role: 'student' }).returning({ id: users.id })
+    const [student] = await db.insert(users).values({
+      email,
+      firstName: 'S',
+      lastName: 'S',
+      passwordHash: 'unused',
+      role: 'student'
+    }).returning({ id: users.id })
     const sectionId = (await db.query.classSections.findFirst())!.id
-    await db.insert(studentProfiles).values({ userId: student.id, sectionId, year, isActive })
-    await saveSubscription(student.id, { endpoint: endpoint(email), p256dh: P256DH, auth: AUTH })
+    await db.insert(studentProfiles).values({
+      userId: student.id,
+      sectionId,
+      year,
+      isActive
+    })
+    await saveSubscription(student.id, {
+      endpoint: endpoint(email),
+      p256dh: P256DH,
+      auth: AUTH
+    })
     return student.id
   }
 
@@ -411,7 +557,10 @@ describe('new lessons of the week', () => {
     // Tutors of the 4th year can teach the 2nd year, not the 4th.
     expect(await notifyStudentsOfNewLessons(batch, monday, [3, 4])).toBe(2)
     await batch.finish()
-    expect(sent.map(({ target }) => target.endpoint).sort()).toEqual([endpoint('no-year@example.test'), endpoint('year-2')])
+    expect(sent.map(({ target }) => target.endpoint).sort()).toEqual([
+      endpoint('no-year@example.test'),
+      endpoint('year-2')
+    ])
     expect(sent[0].payload).toMatchObject({ title: 'Nuove lezioni disponibili', url: '/student/book' })
 
     const rerun = createPushBatch()
@@ -432,24 +581,53 @@ describe('reschedule notifications', () => {
   let subjectId: string
 
   beforeAll(async () => {
-    const [tutor] = await db.insert(users).values({ email: 'other-tutor@example.test', firstName: 'T', lastName: 'T', passwordHash: 'unused', role: 'tutor' }).returning({ id: users.id })
+    const [tutor] = await db.insert(users).values({
+      email: 'other-tutor@example.test',
+      firstName: 'T',
+      lastName: 'T',
+      passwordHash: 'unused',
+      role: 'tutor'
+    }).returning({ id: users.id })
     otherTutorId = tutor.id
     const sectionId = (await db.query.classSections.findFirst())!.id
-    await db.insert(tutorProfiles).values({ userId: otherTutorId, sectionId, year: 5, isActive: true })
+    await db.insert(tutorProfiles).values({
+      userId: otherTutorId,
+      sectionId,
+      year: 5,
+      isActive: true
+    })
     await db.insert(tutorSettings).values({ tutorId: otherTutorId, dailyCapacity: 3 })
     subjectId = (await db.query.subjects.findFirst())!.id
   })
 
   async function bookedLesson(startAt: string) {
-    const [lesson] = await db.insert(lessons).values({ tutorId: ids.tutor, subjectId, startAt: new Date(startAt), durationMinutes: 60, seats: 2, status: 'confirmed' }).returning({ id: lessons.id })
-    await db.insert(lessonBookings).values({ lessonId: lesson.id, studentId: ids.student, subjectId, topic: 'Argomento privato' })
+    const [lesson] = await db.insert(lessons).values({
+      tutorId: ids.tutor,
+      subjectId,
+      startAt: new Date(startAt),
+      durationMinutes: 60,
+      seats: 2,
+      status: 'confirmed'
+    }).returning({ id: lessons.id })
+    await db.insert(lessonBookings).values({
+      lessonId: lesson.id,
+      studentId: ids.student,
+      subjectId,
+      topic: 'Argomento privato'
+    })
     return lesson.id
   }
 
   async function reschedule(lessonId: string, changes: Record<string, unknown>) {
     const response = await call(`/lessons/${lessonId}/reschedule`, {
       token: tokens.admin,
-      body: { tutorId: ids.tutor, subjectId, startAt: '2031-06-02T12:00:00.000Z', durationMinutes: 60, ...changes }
+      body: {
+        tutorId: ids.tutor,
+        subjectId,
+        startAt: '2031-06-02T12:00:00.000Z',
+        durationMinutes: 60,
+        ...changes
+      }
     })
     expect(response.status).toBe(200)
     await waitForPendingPush()
@@ -463,7 +641,11 @@ describe('reschedule notifications', () => {
   beforeEach(async () => {
     await subscribe(tokens.student, 'student')
     await subscribe(tokens.tutor, 'tutor')
-    await saveSubscription(otherTutorId, { endpoint: endpoint('other-tutor'), p256dh: P256DH, auth: AUTH })
+    await saveSubscription(otherTutorId, {
+      endpoint: endpoint('other-tutor'),
+      p256dh: P256DH,
+      auth: AUTH
+    })
   })
 
   it('tells the student and the same tutor what moved', async () => {
@@ -488,7 +670,13 @@ describe('reschedule notifications', () => {
   })
 
   it('tells both tutors even when nobody booked', async () => {
-    const [lesson] = await db.insert(lessons).values({ tutorId: ids.tutor, subjectId, startAt: new Date('2031-06-16T12:00:00.000Z'), durationMinutes: 60, seats: 2 }).returning({ id: lessons.id })
+    const [lesson] = await db.insert(lessons).values({
+      tutorId: ids.tutor,
+      subjectId,
+      startAt: new Date('2031-06-16T12:00:00.000Z'),
+      durationMinutes: 60,
+      seats: 2
+    }).returning({ id: lessons.id })
     await reschedule(lesson.id, { startAt: '2031-06-16T12:00:00.000Z', tutorId: otherTutorId })
     expect(titlesFor('tutor')).toEqual(['Lezione riassegnata'])
     expect(titlesFor('other-tutor')).toEqual(['Nuova lezione assegnata'])
@@ -521,7 +709,10 @@ describe('phone setup from a computer', () => {
 
     // The student is rate limited by now: start over to reach the impersonation check.
     resetRateLimiters()
-    const impersonation = await call('/admin/impersonate', { token: tokens.admin, body: { userId: ids.student } })
+    const impersonation = await call('/admin/impersonate', {
+      token: tokens.admin,
+      body: { userId: ids.student }
+    })
     const { token } = await impersonation.json()
     expect((await call('/notifications/push/setup-link', { token, method: 'POST' })).status).toBe(403)
     resetRateLimiters()
@@ -547,16 +738,26 @@ describe('notification stats for admins', () => {
   it('counts panel notifications, devices per push service and kinds turned off', async () => {
     await db.delete(notifications)
     await subscribe(tokens.student, 'phone')
-    await call('/notifications/preferences', { token: tokens.student, method: 'PUT', body: { reminders: false } })
+    await call('/notifications/preferences', {
+      token: tokens.student,
+      method: 'PUT',
+      body: { reminders: false }
+    })
     notifyUsers([ids.student, ids.tutor], 'bookings', message)
     await waitForPendingPush()
     await call('/notifications/inbox/read-all', { token: tokens.student, method: 'POST' })
 
     expect((await call('/admin/stats/notifications', { token: tokens.student })).status).toBe(403)
     const stats = await (await call('/admin/stats/notifications', { token: tokens.admin })).json()
-    expect(stats.inbox).toEqual([{ category: 'bookings', total: 2, read: 1 }])
-    expect(stats.devices).toEqual([{ service: 'google', devices: 1, workingLast30Days: 1 }])
-    expect(stats.optOuts).toEqual([{ category: 'reminders', users: 1 }])
+    expect(stats.inbox).toEqual([
+      { category: 'bookings', total: 2, read: 1 }
+    ])
+    expect(stats.devices).toEqual([
+      { service: 'google', devices: 1, workingLast30Days: 1 }
+    ])
+    expect(stats.optOuts).toEqual([
+      { category: 'reminders', users: 1 }
+    ])
   })
 })
 

@@ -26,7 +26,9 @@ const tokens: Record<string, string> = {}
 async function call(path: string, options: { token?: string, method?: string } = {}) {
   return app.request(path, {
     method: options.method ?? 'GET',
-    headers: options.token ? { Authorization: `Bearer ${options.token}` } : {}
+    headers: options.token
+      ? { Authorization: `Bearer ${options.token}` }
+      : {}
   })
 }
 
@@ -57,7 +59,12 @@ beforeAll(async () => {
   await cleanDatabase()
   ids = await seedDevelopmentData()
   resetRateLimiters()
-  for (const role of ['admin', 'tutor', 'student', 'activator']) {
+  for (const role of [
+    'admin',
+    'tutor',
+    'student',
+    'activator'
+  ]) {
     const login = await app.request('/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -125,7 +132,11 @@ describe('reading', () => {
     expect(third.items).toHaveLength(5)
     expect(third.nextCursor).toBeNull()
 
-    const titles = [...first.items, ...second.items, ...third.items].map(item => item.title)
+    const titles = [
+      ...first.items,
+      ...second.items,
+      ...third.items
+    ].map(item => item.title)
     expect(new Set(titles).size).toBe(45)
   })
 

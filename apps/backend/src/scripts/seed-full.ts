@@ -34,7 +34,11 @@ try {
   }
   for (const [script, ...args] of steps) {
     process.stdout.write(`Full seed: ${script}\n`)
-    const result = spawnSync(process.execPath, [require.resolve('tsx/cli'), `src/scripts/${script}`, ...args], {
+    const result = spawnSync(process.execPath, [
+      require.resolve('tsx/cli'),
+      `src/scripts/${script}`,
+      ...args
+    ], {
       env: childEnv,
       stdio: 'inherit'
     })
