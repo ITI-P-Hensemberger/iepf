@@ -24,6 +24,8 @@ const tutorLessonCountSchema = z.object({
   firstName: z.string(),
   lastName: z.string(),
   sectionName: z.string().nullable(),
+  // Names of the subjects the tutor teaches, in alphabetical order.
+  subjects: z.array(z.string()),
   countedLessons: z.number().int().min(0),
   lessonsConfirmedCounted: z.number().int().min(0),
   lessonsConfirmedNotCounted: z.number().int().min(0),

@@ -61,6 +61,7 @@ type Tutor = {
   sectionName?: string | null
   year?: number | null
   isActive?: boolean | null
+  subjects?: string[]
 }
 
 type PendingInvite = {
@@ -613,6 +614,12 @@ export default function AdminTutorsPage() {
         cell: ({ row }) => (
           <span>{classLabel(row.original.year, row.original.sectionName) ?? '-'}</span>
         )
+      },
+      {
+        id: 'subjects',
+        header: 'Materie',
+        enableSorting: false,
+        cell: ({ row }) => row.original.subjects?.length ? row.original.subjects.join(', ') : '-'
       }
     ]
 
@@ -703,7 +710,7 @@ export default function AdminTutorsPage() {
                     id: 'active-tutor-search',
                     value: activeFilters.search,
                     onChange: (value) => setActiveFilters((prev) => ({ ...prev, search: value })),
-                    placeholder: 'Nome, cognome o email'
+                    placeholder: 'Nome, cognome, email o materia'
                   }}
                 />
                 <div className='mt-6'>
@@ -739,7 +746,7 @@ export default function AdminTutorsPage() {
                     id: 'inactive-tutor-search',
                     value: inactiveFilters.search,
                     onChange: (value) => setInactiveFilters((prev) => ({ ...prev, search: value })),
-                    placeholder: 'Nome, cognome o email'
+                    placeholder: 'Nome, cognome, email o materia'
                   }}
                 />
                 <div className='mt-6'>
