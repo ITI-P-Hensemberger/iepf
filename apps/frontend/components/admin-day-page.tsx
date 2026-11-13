@@ -193,7 +193,7 @@ export function DayOverview({
         {bookable && (
           <>
             <Figure label='Posti ancora prenotabili' value={summary.free} />
-            <Figure label='Senza materia' value={summary.open} />
+            <Figure label='Non prenotate' value={summary.open} />
           </>
         )}
       </div>
