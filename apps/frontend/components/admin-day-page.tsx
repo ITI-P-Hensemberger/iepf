@@ -182,13 +182,20 @@ export function DayOverview({
           )
           .map(([, list]) => list)
   const dim = cn(stale && 'opacity-60 transition-opacity')
+  // Once bookings close (20:00 the day before) both figures stay at 0: the nightly cleanup
+  // deletes the lessons nobody booked, and every booked one has its subject.
+  const bookable = lessons.some((lesson) => lesson.bookingsOpen)
   return (
     <>
-      <div className={cn('grid grid-cols-2 gap-3 sm:grid-cols-4', dim)} aria-busy={stale}>
+      <div className={cn('grid grid-cols-2 gap-3', bookable && 'sm:grid-cols-4', dim)} aria-busy={stale}>
         <Figure label='Lezioni' value={summary.slots} />
         <Figure label='Studenti prenotati' value={summary.booked} />
-        <Figure label='Posti ancora prenotabili' value={summary.free} />
-        <Figure label='Senza materia' value={summary.open} />
+        {bookable && (
+          <>
+            <Figure label='Posti ancora prenotabili' value={summary.free} />
+            <Figure label='Non prenotate' value={summary.open} />
+          </>
+        )}
       </div>
       {loading ? (
         <div className='space-y-2'>
@@ -231,6 +238,7 @@ function GroupRow({
   lessons: ScheduleLesson[]
   grouping: Grouping
 }) {
+  const here = useHere()
   const first = lessons[0]
   const booked = lessons
     .filter((lesson) => !isCanceled(lesson))
@@ -241,7 +249,9 @@ function GroupRow({
       <div className='sticky top-[var(--sticky-top)] z-10 -mx-4 bg-[var(--card)] px-4 py-1 sm:mx-0 sm:w-48 sm:shrink-0 sm:self-start sm:bg-transparent sm:px-0 sm:py-0'>
         {grouping === 'tutor' ? (
           <>
-            <div className='font-medium'>{first.tutorName}</div>
+            <Link className='font-medium text-[var(--primary-text)] hover:underline' href={withFrom(`/admin/tutors/${first.tutorId}`, here)}>
+              {first.tutorName}
+            </Link>
             <div className='text-xs text-muted-foreground'>
               {first.tutorYear ? `${first.tutorYear}ª · ` : ''}
               {booked}/{first.tutorDailyCapacity} posti del giorno

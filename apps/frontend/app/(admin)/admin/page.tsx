@@ -111,19 +111,21 @@ export default function AdminPage() {
             ) : (
               <ul className='divide-y rounded-lg border bg-card'>
                 {booked.map((lesson) => (
-                  <li key={lesson.id}>
-                    <Link href={withFrom(`/admin/lessons/${lesson.id}`, '/admin')} className='flex items-center gap-3 px-4 py-3 hover:bg-muted/50'>
-                      <div className='min-w-0 flex-1'>
-                        <div className='font-medium'>
-                          {capitalize(dayFormat.format(new Date(lesson.startAt)))} · {timeFormat.format(new Date(lesson.startAt))} · {subjectLabel(lesson)}
-                        </div>
-                        <div className='truncate text-sm text-muted-foreground'>
-                          {lesson.tutorName} con {lesson.bookings.map((booking) => booking.studentName).join(', ')}
-                        </div>
+                  // The lesson link covers the whole row; the tutor's link sits above it (no nested links).
+                  <li key={lesson.id} className='relative flex items-center gap-3 px-4 py-3 hover:bg-muted/50'>
+                    <div className='min-w-0 flex-1'>
+                      <Link href={withFrom(`/admin/lessons/${lesson.id}`, '/admin')} className='block font-medium after:absolute after:inset-0'>
+                        {capitalize(dayFormat.format(new Date(lesson.startAt)))} · {timeFormat.format(new Date(lesson.startAt))} · {subjectLabel(lesson)}
+                      </Link>
+                      <div className='truncate text-sm text-muted-foreground'>
+                        <Link href={withFrom(`/admin/tutors/${lesson.tutorId}`, '/admin')} className='relative text-[var(--primary-text)] hover:underline'>
+                          {lesson.tutorName}
+                        </Link>
+                        {' '}con {lesson.bookings.map((booking) => booking.studentName).join(', ')}
                       </div>
-                      <Badge variant='secondary'>{lesson.bookings.length}/{lesson.seats}</Badge>
-                      <ChevronRight className='h-4 w-4 text-muted-foreground' />
-                    </Link>
+                    </div>
+                    <Badge variant='secondary'>{lesson.bookings.length}/{lesson.seats}</Badge>
+                    <ChevronRight className='h-4 w-4 text-muted-foreground' />
                   </li>
                 ))}
               </ul>
