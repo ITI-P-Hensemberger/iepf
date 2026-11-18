@@ -341,7 +341,13 @@ describe('availability reminder', () => {
   })
 
   it('stays quiet when next week is closed on every school day', async () => {
-    const closed = ['2026-11-23', '2026-11-24', '2026-11-25', '2026-11-26', '2026-11-27']
+    const closed = [
+      '2026-11-23',
+      '2026-11-24',
+      '2026-11-25',
+      '2026-11-26',
+      '2026-11-27'
+    ]
     await db.update(globalSettings).set({ value: closed }).where(eq(globalSettings.key, 'closureDates'))
     try {
       expect(await remind()).toBe(0)
