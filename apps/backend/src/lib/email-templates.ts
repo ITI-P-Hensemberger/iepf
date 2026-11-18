@@ -822,7 +822,7 @@ export function buildMissingPresenceTutorMessage(params: {
   return compose({
     subject: 'Segna le presenze',
     blocks: [
-      para('La lezione è iniziata da 20 minuti e le presenze non sono ancora segnate.'),
+      para('La lezione è iniziata da 25 minuti e le presenze non sono ancora segnate.'),
       lessonCard(params.subjectName, params.lessonStartAt, [])
     ],
     action: {
@@ -841,7 +841,7 @@ export function buildMissingPresenceAdminMessage(params: {
   return compose({
     subject: 'Presenze non segnate',
     blocks: [
-      para('La lezione è iniziata da 20 minuti e il tutor non ha ancora segnato le presenze.'),
+      para('La lezione è iniziata da 25 minuti e il tutor non ha ancora segnato le presenze.'),
       lessonCard(params.subjectName, params.lessonStartAt, [
         field('Tutor', params.tutorName)
       ])

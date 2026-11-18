@@ -93,7 +93,7 @@ const ADMIN_LABELS: Array<{
     key: 'adminMissingPresence',
     label: 'Presenze non segnate',
     description:
-      "20 minuti dopo l'inizio di una lezione, se il tutor non ha ancora segnato le presenze."
+      "25 minuti dopo l'inizio di una lezione, se il tutor non ha ancora segnato le presenze."
   }
 ]
 
