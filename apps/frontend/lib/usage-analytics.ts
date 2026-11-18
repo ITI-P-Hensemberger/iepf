@@ -28,6 +28,8 @@ type PrivacySignals = {
 export function errorEventName(error: unknown, message: string): string | null {
   // Harmless browser notice about layout observers, not a bug.
   if (message.startsWith('ResizeObserver loop')) return null
+  // A script from another origin (an extension, an in-app browser): the browser hides everything, so it tells us nothing.
+  if (error == null && message.startsWith('Script error')) return null
   // An error event without an error object (a failed script, a browser notice).
   if (error == null) return 'ScriptError'
   return error instanceof Error && error.name ? error.name : 'Error'

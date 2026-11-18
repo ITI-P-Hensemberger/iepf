@@ -53,7 +53,8 @@ describe('error names', () => {
   it('tells apart real errors, events without an error and harmless notices', () => {
     expect(errorEventName(new TypeError('x'), 'x')).toBe('TypeError')
     expect(errorEventName(new Error('x'), 'x')).toBe('Error')
-    expect(errorEventName(null, 'Script error.')).toBe('ScriptError')
+    expect(errorEventName(null, 'Script error.')).toBeNull()
+    expect(errorEventName(null, 'Uncaught')).toBe('ScriptError')
     expect(errorEventName(null, 'ResizeObserver loop completed with undelivered notifications.')).toBeNull()
   })
 
