@@ -12,12 +12,13 @@ function formatWhen(date: Date) {
     day: 'numeric',
     month: 'long',
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
+    timeZone: SCHOOL_TIME_ZONE
   })
 }
 
 function formatTime(date: Date) {
-  return date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+  return date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: SCHOOL_TIME_ZONE })
 }
 
 // One fact per line: the lesson's subject, its moment, then what happened. The bell and most
@@ -282,7 +283,7 @@ export function missingPresenceTutorPush(params: { lessonId: string, subjectName
 }
 
 export function lessonsGeneratedPush(params: { count: number, weekStart: Date }): PushMessage {
-  const week = params.weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
+  const week = params.weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', timeZone: SCHOOL_TIME_ZONE })
   return {
     title: 'Lezioni della settimana assegnate',
     body: params.count === 1
@@ -307,7 +308,7 @@ export function availabilityReminderPush(weekStart: Date): PushMessage {
 }
 
 export function lessonsAvailablePush(weekStart: Date): PushMessage {
-  const week = weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
+  const week = weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', timeZone: SCHOOL_TIME_ZONE })
   return {
     title: 'Nuove lezioni disponibili',
     body: `Ci sono nuove lezioni per la settimana del ${week}: prenota quella che ti serve.`,
@@ -355,7 +356,7 @@ export function missingPresenceAdminPush(params: { lessonId: string, subjectName
 }
 
 export function emptyWeekPush(weekStart: Date): PushMessage {
-  const week = weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
+  const week = weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', timeZone: SCHOOL_TIME_ZONE })
   return {
     title: 'Nessuna lezione generata',
     body: `La settimana del ${week} è vuota: controlla disponibilità e materie dei tutor.`,

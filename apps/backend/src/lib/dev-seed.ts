@@ -16,6 +16,7 @@ import { users } from '@/db/schemas/users.schema'
 import env from '@/env'
 import { assertLocalDatabase } from '@/lib/local-database'
 import { hashPassword } from '@/lib/password'
+import { addDays, schoolDayKey, schoolTime } from '@/lib/school-time'
 
 export const DEV_PASSWORD = 'LocalDemo123!'
 export const DEV_ROLES = [
@@ -83,9 +84,8 @@ export async function seedDevelopmentData() {
       delta: 30,
       reason: 'initial_grant'
     }).onConflictDoNothing()
-    const startAt = new Date()
-    startAt.setDate(startAt.getDate() + 1)
-    startAt.setHours(14, 0, 0, 0)
+    // Tomorrow at 14:00 in Rome, whatever time zone the machine runs in.
+    const startAt = schoolTime(addDays(schoolDayKey(new Date()), 1), 14)
     const confirmedId = '00000000-0000-4000-8000-000000000102'
     await tx.insert(lessons).values([
       {
