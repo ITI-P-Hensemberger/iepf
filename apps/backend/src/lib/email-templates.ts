@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import env from '@/env'
+import { SCHOOL_TIME_ZONE } from '@/lib/school-time'
 
 const SUPPORT_EMAIL = 'iepf@hensemberger.it'
 
@@ -739,7 +740,12 @@ export function buildLessonsGeneratedMessage(params: {
 
 // Friday evening, before Saturday's generation of next week's lessons.
 export function buildAvailabilityReminderMessage(weekStart: Date) {
-  const week = weekStart.toLocaleDateString('it-IT', { year: 'numeric', month: 'long', day: '2-digit' })
+  const week = weekStart.toLocaleDateString('it-IT', {
+    year: 'numeric',
+    month: 'long',
+    day: '2-digit',
+    timeZone: SCHOOL_TIME_ZONE
+  })
   return compose({
     subject: 'Aggiorna le disponibilità entro sabato alle 12',
     title: 'Disponibilità della prossima settimana',

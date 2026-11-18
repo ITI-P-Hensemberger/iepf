@@ -2,6 +2,8 @@
 // subject and time only, never other people's names or the lesson topic.
 import type { PushMessage } from '@/lib/push'
 
+import { SCHOOL_TIME_ZONE } from '@/lib/school-time'
+
 type Role = 'student' | 'tutor'
 
 function formatWhen(date: Date) {
@@ -292,7 +294,7 @@ export function lessonsGeneratedPush(params: { count: number, weekStart: Date })
 }
 
 export function availabilityReminderPush(weekStart: Date): PushMessage {
-  const week = weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
+  const week = weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', timeZone: SCHOOL_TIME_ZONE })
   return {
     title: 'Disponibilità della prossima settimana',
     body: lines(
