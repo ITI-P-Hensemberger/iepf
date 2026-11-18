@@ -1,4 +1,4 @@
-// Purpose: Remind the tutor, and tell the admins, when a lesson started 20 minutes ago and
+// Purpose: Remind the tutor, and tell the admins, when a lesson started 25 minutes ago and
 // some of its students are still neither present nor absent.
 import { and, eq, gte, isNull, lte } from 'drizzle-orm'
 
@@ -16,9 +16,9 @@ import { missingPresenceAdminPush, missingPresenceTutorPush } from '@/lib/push-m
 import { sendReminderOnce, sendReminderPushOnce } from '@/lib/reminder-delivery'
 import { schoolDayRange } from '@/lib/school-time'
 
-export const MISSING_PRESENCE_MINUTES = 20
+export const MISSING_PRESENCE_MINUTES = 25
 
-// Today's lessons that started at least 20 minutes ago with a confirmed booking still unmarked.
+// Today's lessons that started at least 25 minutes ago with a confirmed booking still unmarked.
 export async function lessonsMissingPresence(now: Date) {
   const { start } = schoolDayRange(now)
   const startedBefore = new Date(now.getTime() - MISSING_PRESENCE_MINUTES * 60 * 1000)

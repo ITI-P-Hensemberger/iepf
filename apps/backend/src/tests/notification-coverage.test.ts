@@ -187,7 +187,7 @@ describe('presence', () => {
     expect(mailsTo('student').map(mail => mail.subject)).toEqual(['Presenza confermata'])
   })
 
-  it('reminds the tutor and tells the admins once, 20 minutes into the lesson', async () => {
+  it('reminds the tutor and tells the admins once, 25 minutes into the lesson', async () => {
     const startAt = new Date('2031-09-10T15:00:00')
     const unmarked = await lessonWithBooking(startAt)
     await lessonWithBooking(new Date('2031-09-10T14:00:00'), true)
@@ -203,7 +203,7 @@ describe('presence', () => {
       return found
     }
 
-    expect(await run(new Date('2031-09-10T15:19:00'))).toBe(0)
+    expect(await run(new Date('2031-09-10T15:24:00'))).toBe(0)
     expect(await run(new Date('2031-09-10T15:25:00'))).toBe(1)
     expect(pushesTo('tutor').map(push => [push.payload.title, push.payload.url])).toEqual([
       ['Presenze da segnare', `/tutor/lessons/${unmarked.lessonId}`]
@@ -212,8 +212,8 @@ describe('presence', () => {
     expect(mailsTo('tutor').map(mail => mail.subject)).toEqual(['Segna le presenze'])
     expect(mailsTo('admin').map(mail => mail.subject)).toEqual(['Presenze non segnate'])
 
-    // The 15:10 lesson is due only from 15:30.
-    await run(new Date('2031-09-10T15:29:00'))
+    // The 15:10 lesson is due only from 15:35.
+    await run(new Date('2031-09-10T15:34:00'))
     expect(pushesTo('tutor')).toHaveLength(1)
     expect(pushesTo('admin')).toHaveLength(1)
     expect(mails).toHaveLength(2)

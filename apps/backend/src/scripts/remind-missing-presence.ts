@@ -1,4 +1,4 @@
-// Purpose: Every few minutes: lessons started 20 minutes ago whose presence is not marked yet.
+// Purpose: Every few minutes: lessons started 25 minutes ago whose presence is not marked yet.
 import { closeDb } from '@/db'
 import { createMailBatch } from '@/lib/mail-batch'
 import { closeMailer } from '@/lib/mailer'
