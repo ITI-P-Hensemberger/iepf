@@ -38,7 +38,8 @@ export function DataTable<T>({ rows, rowKey, columns, isLoading, emptyMessage, p
   const firstLoad = useFirstLoad(isLoading)
   return (
     <div className='space-y-3'>
-      <div className='overflow-x-auto rounded-lg border lg:overflow-visible'>
+      {/* The tutor list is wider than the page below 1280px: scroll sideways in its box until then. */}
+      <div className='overflow-x-auto rounded-lg border xl:overflow-visible'>
         <Table>
           <TableHeader sticky className='bg-muted/50'>
             <TableRow>

@@ -49,7 +49,7 @@ function nameColumn<T extends Person>(header: string): StatsColumn<T> {
     cell: row => (
       <div className='min-w-0'>
         <div className='font-medium'>{row.lastName} {row.firstName}</div>
-        <div className='truncate text-xs text-muted-foreground'>{row.email}</div>
+        <div className='text-xs text-muted-foreground [overflow-wrap:anywhere]'>{row.email.split('@')[0]}<wbr />@{row.email.split('@')[1]}</div>
       </div>
     )
   }
