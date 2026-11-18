@@ -1,0 +1,11 @@
+[Unit]
+Description=IEPF remind-availability schedule
+
+[Timer]
+OnCalendar=Fri *-*-* 20:00:00 Europe/Rome
+Unit=iepf-job@remind-availability.service
+# Avoid duplicate email batches after downtime. Preserve existing cron behavior.
+Persistent=false
+
+[Install]
+WantedBy=timers.target

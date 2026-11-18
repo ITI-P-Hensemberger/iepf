@@ -1,5 +1,6 @@
 // Purpose: Pin the kinds nobody can switch off, and that what goes by email also reaches the
-// panel and the phone: presence, lesson hours, profile changes, presence still to mark.
+// panel and the phone: presence, lesson hours, profile changes, presence still to mark, the
+// tutors' availability reminder.
 import type { Buffer } from 'node:buffer'
 
 import { eq, like } from 'drizzle-orm'
@@ -10,6 +11,7 @@ import type { WebPushTarget } from '@/lib/web-push'
 
 import app from '@/app'
 import db, { closeDb } from '@/db'
+import { globalSettings } from '@/db/schemas/global-settings.schema'
 import { lessonBookings } from '@/db/schemas/lesson-bookings.schema'
 import { lessons } from '@/db/schemas/lessons.schema'
 import { notificationPreferences } from '@/db/schemas/notification-preferences.schema'
@@ -17,6 +19,7 @@ import { pushSubscriptions } from '@/db/schemas/push-subscriptions.schema'
 import { reminderDeliveries } from '@/db/schemas/reminder-deliveries.schema'
 import { users } from '@/db/schemas/users.schema'
 import env from '@/env'
+import { remindAvailability } from '@/lib/availability-reminder'
 import { cleanDatabase } from '@/lib/db-cleanup'
 import { DEV_PASSWORD, seedDevelopmentData } from '@/lib/dev-seed'
 import { getStudentTokenBalance } from '@/lib/lesson-tokens'
@@ -304,5 +307,48 @@ describe('profile changes by an admin', () => {
     expect(own.status).toBe(200)
     await waitForPendingPush()
     expect(pushesTo('tutor')).toHaveLength(0)
+  })
+})
+
+describe('availability reminder', () => {
+  // Friday 20 November 2026 at 20:00 in Rome; the next week starts on Monday 23.
+  const friday = new Date('2026-11-20T19:00:00Z')
+
+  async function remind() {
+    const mail = createMailBatch()
+    const push = createPushBatch()
+    const tutors = await remindAvailability({ mail, push }, friday)
+    await push.finish()
+    await mail.finish()
+    return tutors
+  }
+
+  it('reaches active tutors by email and push, once per week', async () => {
+    expect(await remind()).toBe(1)
+    expect(mailsTo('tutor').map(mail => mail.subject)).toEqual(['Aggiorna le disponibilità entro sabato alle 12'])
+    expect(mailsTo('tutor')[0].text).toContain('23 novembre 2026')
+    expect(pushesTo('tutor').map(push => [push.payload.title, push.payload.category])).toEqual([
+      ['Disponibilità della prossima settimana', 'reminders']
+    ])
+    expect(pushesTo('student')).toHaveLength(0)
+    expect(mailsTo('student')).toHaveLength(0)
+
+    pushes = []
+    mails.length = 0
+    await remind()
+    expect(pushes).toHaveLength(0)
+    expect(mails).toHaveLength(0)
+  })
+
+  it('stays quiet when next week is closed on every school day', async () => {
+    const closed = ['2026-11-23', '2026-11-24', '2026-11-25', '2026-11-26', '2026-11-27']
+    await db.update(globalSettings).set({ value: closed }).where(eq(globalSettings.key, 'closureDates'))
+    try {
+      expect(await remind()).toBe(0)
+      expect(mails).toHaveLength(0)
+    }
+    finally {
+      await db.update(globalSettings).set({ value: [] }).where(eq(globalSettings.key, 'closureDates'))
+    }
   })
 })

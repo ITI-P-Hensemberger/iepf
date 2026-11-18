@@ -10,6 +10,7 @@ case "${1:-}" in
   cleanup-data) TASK=cleanup:data ;;
   generate-lessons) TASK=generate:lessons ;;
   notify-admins) TASK=notify:admins ;;
+  remind-availability) TASK=remind:availability ;;
   remind-feedback) TASK=remind:feedback ;;
   remind-presence) TASK=remind:presence ;;
   remind-lessons-today) TASK=remind:lessons; ARGS=(-- --today) ;;

@@ -291,6 +291,19 @@ export function lessonsGeneratedPush(params: { count: number, weekStart: Date })
   }
 }
 
+export function availabilityReminderPush(weekStart: Date): PushMessage {
+  const week = weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
+  return {
+    title: 'Disponibilità della prossima settimana',
+    body: lines(
+      `Sabato alle 12 vengono create le lezioni della settimana del ${week}.`,
+      'Se qualcosa è cambiato, aggiorna le disponibilità entro allora.'
+    ),
+    url: '/profile?tab=availability',
+    tag: 'availability'
+  }
+}
+
 export function lessonsAvailablePush(weekStart: Date): PushMessage {
   const week = weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
   return {

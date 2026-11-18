@@ -737,6 +737,23 @@ export function buildLessonsGeneratedMessage(params: {
   })
 }
 
+// Friday evening, before Saturday's generation of next week's lessons.
+export function buildAvailabilityReminderMessage(weekStart: Date) {
+  const week = weekStart.toLocaleDateString('it-IT', { year: 'numeric', month: 'long', day: '2-digit' })
+  return compose({
+    subject: 'Aggiorna le disponibilità entro sabato alle 12',
+    title: 'Disponibilità della prossima settimana',
+    blocks: [
+      para(`Sabato alle 12 vengono create le lezioni della settimana che inizia il ${week}, in base alle tue disponibilità.`),
+      para('Se qualcosa è cambiato, aggiornale entro quell\'ora. Se va tutto bene, non devi fare nulla.')
+    ],
+    action: {
+      label: 'Vai alle disponibilità',
+      url: siteUrl('/profile', { tab: 'availability' })
+    }
+  })
+}
+
 // Admin notifications.
 
 export function buildLowFeedbackAdminMessage(params: {
