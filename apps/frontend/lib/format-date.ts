@@ -1,9 +1,8 @@
-const DEFAULT_TIME_ZONE = process.env.NEXT_PUBLIC_TIMEZONE ?? 'Europe/Rome'
+import { schoolFormat } from '@/lib/school-time'
 
-const ITALIAN_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('it-IT', {
+const ITALIAN_DATE_TIME_FORMATTER = schoolFormat({
   dateStyle: 'short',
-  timeStyle: 'short',
-  timeZone: DEFAULT_TIME_ZONE
+  timeStyle: 'short'
 })
 
 export function formatItalianDate(value?: string | null) {

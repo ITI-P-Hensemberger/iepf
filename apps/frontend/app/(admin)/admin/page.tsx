@@ -22,9 +22,10 @@ import { extractPayloadArray } from '@/lib/backend-response'
 import { isCanceled, subjectLabel, type ScheduleLesson } from '@/lib/lesson-schedule'
 import { addDaysToKey, dayKeyOf, dayRange } from '@/lib/school-week'
 import { useSession } from '@/lib/use-session'
+import { schoolFormat } from '@/lib/school-time'
 
-const timeFormat = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' })
-const dayFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })
+const timeFormat = schoolFormat({ hour: '2-digit', minute: '2-digit' })
+const dayFormat = schoolFormat({ weekday: 'short', day: 'numeric', month: 'short' })
 
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1)

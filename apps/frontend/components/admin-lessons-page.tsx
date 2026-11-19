@@ -53,6 +53,7 @@ import { type DateRange } from 'react-day-picker'
 
 import { extractPayloadArray } from '@/lib/backend-response'
 import { useResetOnChange } from '@/lib/use-reset-on-change'
+import { combineDayAndTime, endOfSchoolDayIso, parseDayParam, startOfSchoolDayIso } from '@/lib/school-time'
 
 const pageSize = 20
 const AVAILABLE_TIMES = ['13:00', '14:00', '15:00', '16:00']
@@ -114,36 +115,6 @@ function parseSortParam(value: string | null) {
   }
   const sortDir: 'asc' | 'desc' = direction === 'desc' ? 'desc' : 'asc'
   return { sortBy, sortDir }
-}
-
-function startOfDayIso(date: Date) {
-  const next = new Date(date)
-  next.setHours(0, 0, 0, 0)
-  return next.toISOString()
-}
-
-function endOfDayIso(date: Date) {
-  const next = new Date(date)
-  next.setHours(23, 59, 59, 999)
-  return next.toISOString()
-}
-
-function parseDateParam(value: string | null) {
-  if (!value) {
-    return undefined
-  }
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) {
-    return undefined
-  }
-  return parsed
-}
-
-function combineDateAndTime(date: Date, time: string) {
-  const [hours, minutes] = time.split(':').map(Number)
-  const combined = new Date(date)
-  combined.setHours(hours || 0, minutes || 0, 0, 0)
-  return combined
 }
 
 function formatStatusLabel(status?: string | null) {
@@ -257,8 +228,8 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
 
   const currentFilters = React.useMemo(() => {
     const sortParam = parseSortParam(searchParams.get('lessonSort'))
-    const fromParam = parseDateParam(searchParams.get('lessonFrom'))
-    const toParam = parseDateParam(searchParams.get('lessonTo'))
+    const fromParam = parseDayParam(searchParams.get('lessonFrom'))
+    const toParam = parseDayParam(searchParams.get('lessonTo'))
     return {
       search: searchParams.get('lessonQ') ?? '',
       tutorId: searchParams.get('lessonTutor') ?? '',
@@ -342,10 +313,10 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
       params.set('status', currentFilters.status)
     }
     if (currentFilters.dateRange?.from) {
-      params.set('from', startOfDayIso(currentFilters.dateRange.from))
+      params.set('from', startOfSchoolDayIso(currentFilters.dateRange.from))
     }
     if (currentFilters.dateRange?.to) {
-      params.set('to', endOfDayIso(currentFilters.dateRange.to))
+      params.set('to', endOfSchoolDayIso(currentFilters.dateRange.to))
     }
     // The field keeps what is typed (spaces included); the search ignores spaces at the ends.
     if (currentFilters.search.trim()) {
@@ -424,13 +395,13 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
       }
 
       if (nextRange?.from) {
-        params.set('lessonFrom', startOfDayIso(nextRange.from))
+        params.set('lessonFrom', startOfSchoolDayIso(nextRange.from))
       } else {
         params.delete('lessonFrom')
       }
 
       if (nextRange?.to) {
-        params.set('lessonTo', endOfDayIso(nextRange.to))
+        params.set('lessonTo', endOfSchoolDayIso(nextRange.to))
       } else {
         params.delete('lessonTo')
       }
@@ -514,7 +485,7 @@ export default function AdminLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
       tutorId: createForm.tutorId,
       // No subject: an open lesson, whose first booking picks one of the tutor's subjects.
       subjectId: createForm.subjectId || null,
-      startAt: combineDateAndTime(createForm.date, timeValue).toISOString()
+      startAt: combineDayAndTime(createForm.date, timeValue).toISOString()
     })
   }
 

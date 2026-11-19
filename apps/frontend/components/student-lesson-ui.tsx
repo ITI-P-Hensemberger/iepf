@@ -26,6 +26,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { capitalizeFirst } from '@/lib/capitalize'
 import { FEEDBACK_LOCKED_NOTICE, FeedbackHistoryToggle } from '@/components/feedback-history'
+import { schoolFormat, schoolTime } from '@/lib/school-time'
+import { addDaysToKey, dayKeyOf } from '@/lib/school-week'
 
 export type StudentLesson = {
   id: string
@@ -58,11 +60,11 @@ export type StudentFeedback = {
   editableUntil?: string | null
 }
 
-const editableDateFormat = new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+const editableDateFormat = schoolFormat({ day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
 
-const timeFormat = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' })
-const dayFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })
-const shortDayFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })
+const timeFormat = schoolFormat({ hour: '2-digit', minute: '2-digit' })
+const dayFormat = schoolFormat({ weekday: 'long', day: 'numeric', month: 'long' })
+const shortDayFormat = schoolFormat({ weekday: 'short', day: 'numeric', month: 'short' })
 
 export function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1)
@@ -78,10 +80,7 @@ function isCanceledStatus(status?: string | null) {
 
 // Bookings close, and a cancellation stops being refunded, at 20:00 the day before.
 export function refundDeadline(startAt: string) {
-  const deadline = new Date(startAt)
-  deadline.setDate(deadline.getDate() - 1)
-  deadline.setHours(20, 0, 0, 0)
-  return deadline
+  return schoolTime(addDaysToKey(dayKeyOf(new Date(startAt)), -1), 20)
 }
 
 export function lessonActions(lesson: StudentLesson, now = new Date()) {

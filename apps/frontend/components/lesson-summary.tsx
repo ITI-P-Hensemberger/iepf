@@ -7,9 +7,10 @@ import * as React from 'react'
 import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { schoolFormat } from '@/lib/school-time'
 
-const timeFormat = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' })
-const dayFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+const timeFormat = schoolFormat({ hour: '2-digit', minute: '2-digit' })
+const dayFormat = schoolFormat({ weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1)

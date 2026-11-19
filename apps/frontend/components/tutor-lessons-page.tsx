@@ -41,6 +41,7 @@ import { PushInviteCard } from '@/components/push-prompt'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api-fetch'
 import { useResetOnChange } from '@/lib/use-reset-on-change'
+import { endOfSchoolDayIso, parseDayParam, startOfSchoolDayIso } from '@/lib/school-time'
 
 const pageSize = 20
 
@@ -77,29 +78,6 @@ const defaultFilters: LessonFilters = {
   status: '',
   sortDir: 'desc',
   dateRange: undefined
-}
-
-function startOfDayIso(date: Date) {
-  const next = new Date(date)
-  next.setHours(0, 0, 0, 0)
-  return next.toISOString()
-}
-
-function endOfDayIso(date: Date) {
-  const next = new Date(date)
-  next.setHours(23, 59, 59, 999)
-  return next.toISOString()
-}
-
-function parseDateParam(value: string | null) {
-  if (!value) {
-    return undefined
-  }
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) {
-    return undefined
-  }
-  return parsed
 }
 
 function formatStatusLabel(status?: string | null) {
@@ -208,8 +186,8 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
   )
 
   const currentFilters = React.useMemo(() => {
-    const fromParam = parseDateParam(searchParams.get('lessonFrom'))
-    const toParam = parseDateParam(searchParams.get('lessonTo'))
+    const fromParam = parseDayParam(searchParams.get('lessonFrom'))
+    const toParam = parseDayParam(searchParams.get('lessonTo'))
     return {
       search: searchParams.get('lessonQ') ?? '',
       subjectId: searchParams.get('lessonSubject') ?? '',
@@ -255,10 +233,10 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
       params.set('status', currentFilters.status)
     }
     if (currentFilters.dateRange?.from) {
-      params.set('from', startOfDayIso(currentFilters.dateRange.from))
+      params.set('from', startOfSchoolDayIso(currentFilters.dateRange.from))
     }
     if (currentFilters.dateRange?.to) {
-      params.set('to', endOfDayIso(currentFilters.dateRange.to))
+      params.set('to', endOfSchoolDayIso(currentFilters.dateRange.to))
     }
     params.set('sortBy', 'startAt')
     // The field keeps what is typed (spaces included); the search ignores spaces at the ends.
@@ -334,13 +312,13 @@ export default function TutorLessonsPage({ viewSwitch }: { viewSwitch?: React.Re
       }
 
       if (nextRange?.from) {
-        params.set('lessonFrom', startOfDayIso(nextRange.from))
+        params.set('lessonFrom', startOfSchoolDayIso(nextRange.from))
       } else {
         params.delete('lessonFrom')
       }
 
       if (nextRange?.to) {
-        params.set('lessonTo', endOfDayIso(nextRange.to))
+        params.set('lessonTo', endOfSchoolDayIso(nextRange.to))
       } else {
         params.delete('lessonTo')
       }

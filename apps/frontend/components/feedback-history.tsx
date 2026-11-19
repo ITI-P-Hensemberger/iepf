@@ -2,8 +2,6 @@
 
 import { BlockSkeleton } from '@/components/loading'
 import * as React from 'react'
-import { format } from 'date-fns'
-import { it } from 'date-fns/locale'
 import { History } from 'lucide-react'
 
 import { StarRating } from '@/components/star-rating'
@@ -11,6 +9,10 @@ import { diffWords } from '@/lib/text-diff'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api-fetch'
+import { schoolFormat } from '@/lib/school-time'
+
+const dayFormat = schoolFormat({ day: 'numeric', month: 'short', year: 'numeric' })
+const timeFormat = schoolFormat({ hour: '2-digit', minute: '2-digit' })
 
 export type FeedbackVersion = {
   id: string
@@ -32,7 +34,8 @@ type FeedbackHistoryPayload = {
 export const FEEDBACK_LOCKED_NOTICE = 'Non è più modificabile: sono passati 7 giorni dalla lezione.'
 
 function when(iso: string) {
-  return format(new Date(iso), "d MMM yyyy', 'HH:mm", { locale: it })
+  const date = new Date(iso)
+  return `${dayFormat.format(date)}, ${timeFormat.format(date)}`
 }
 
 // "Modificato 2 volte · ultima modifica di un amministratore": shown under a feedback that changed.

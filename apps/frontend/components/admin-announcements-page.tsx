@@ -5,7 +5,6 @@ import { BlockSkeleton } from '@/components/loading'
 import { EmptyState } from '@/components/empty-state'
 import * as React from 'react'
 import { format } from 'date-fns'
-import { it } from 'date-fns/locale'
 import { CalendarIcon, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -51,6 +50,10 @@ import { cn } from '@/lib/utils'
 import { capitalizeFirst } from '@/lib/capitalize'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, jsonBody } from '@/lib/api-fetch'
+import { schoolDayKey, schoolFormat, schoolTime } from '@/lib/school-time'
+
+const dayFormat = schoolFormat({ day: 'numeric', month: 'short', year: 'numeric' })
+const timeFormat = schoolFormat({ hour: '2-digit', minute: '2-digit' })
 
 type Role = 'student' | 'tutor' | 'admin'
 
@@ -78,7 +81,7 @@ type Draft = {
   roles: Role[]
   dismissMode: DismissMode
   active: boolean
-  // datetime-local values, in the admin's time zone.
+  // datetime-local values, on Rome's clock.
   startsAt: string
   expiresAt: string
 }
@@ -131,11 +134,15 @@ const EMPTY_DRAFT: Draft = {
 }
 
 function toLocalInput(iso: string | null) {
-  return iso ? format(new Date(iso), "yyyy-MM-dd'T'HH:mm") : ''
+  if (!iso) return ''
+  const date = new Date(iso)
+  return `${schoolDayKey(date)}T${timeFormat.format(date)}`
 }
 
 function fromLocalInput(value: string) {
-  return value ? new Date(value).toISOString() : null
+  if (!value) return null
+  const [hours, minutes] = value.slice(11, 16).split(':').map(Number)
+  return schoolTime(value.slice(0, 10), hours, minutes).toISOString()
 }
 
 // Same picker as the rest of the app: an outline button that opens the shared Calendar.
@@ -218,7 +225,8 @@ function DateTimeField({
 }
 
 function formatDate(iso: string) {
-  return format(new Date(iso), 'd MMM yyyy, HH:mm', { locale: it })
+  const date = new Date(iso)
+  return `${dayFormat.format(date)}, ${timeFormat.format(date)}`
 }
 
 function draftFrom(announcement: Announcement): Draft {

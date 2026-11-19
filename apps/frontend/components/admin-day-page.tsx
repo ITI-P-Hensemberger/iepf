@@ -32,12 +32,13 @@ import { cn } from '@/lib/utils'
 import { useHere, withFrom } from '@/lib/back-link'
 import { StickyBar } from '@/components/sticky-bar'
 import { EmptyState } from '@/components/empty-state'
+import { schoolFormat, schoolTime } from '@/lib/school-time'
 
-const timeFormat = new Intl.DateTimeFormat('it-IT', {
+const timeFormat = schoolFormat({
   hour: '2-digit',
   minute: '2-digit'
 })
-const dayFormat = new Intl.DateTimeFormat('it-IT', {
+const dayFormat = schoolFormat({
   weekday: 'long',
   day: 'numeric',
   month: 'long'
@@ -105,7 +106,7 @@ export default function AdminDayPage() {
             <ChevronLeft className='h-4 w-4' />
           </Button>
           <span className='min-w-0 flex-1 truncate text-center font-medium sm:min-w-52 sm:flex-none'>
-            {capitalize(dayFormat.format(dateOfKey(dayKey)))}
+            {capitalize(dayFormat.format(schoolTime(dayKey, 12)))}
           </span>
           <Button
             variant='outline'

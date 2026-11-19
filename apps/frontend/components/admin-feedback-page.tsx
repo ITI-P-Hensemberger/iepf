@@ -56,6 +56,7 @@ import { StarRating } from '@/components/star-rating'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import { useResetOnChange } from '@/lib/use-reset-on-change'
+import { endOfSchoolDayIso, parseDayParam, startOfSchoolDayIso } from '@/lib/school-time'
 
 const pageSize = 20
 
@@ -186,29 +187,6 @@ function parseSortParam(value: string | null) {
   return { sortBy, sortDir }
 }
 
-function startOfDayIso(date: Date) {
-  const next = new Date(date)
-  next.setHours(0, 0, 0, 0)
-  return next.toISOString()
-}
-
-function endOfDayIso(date: Date) {
-  const next = new Date(date)
-  next.setHours(23, 59, 59, 999)
-  return next.toISOString()
-}
-
-function parseDateParam(value: string | null) {
-  if (!value) {
-    return undefined
-  }
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) {
-    return undefined
-  }
-  return parsed
-}
-
 function extractPayloadObject<T>(payload: unknown): T | null {
   if (!payload || typeof payload !== 'object') {
     return null
@@ -261,11 +239,11 @@ export default function AdminFeedbackPage() {
         ? (sortParam.sortBy as FeedbackFilters['sortBy'])
         : defaultFilters.sortBy
     const fromParam =
-      parseDateParam(searchParams.get('feedbackLessonFrom')) ??
-      parseDateParam(searchParams.get('feedbackFrom'))
+      parseDayParam(searchParams.get('feedbackLessonFrom')) ??
+      parseDayParam(searchParams.get('feedbackFrom'))
     const toParam =
-      parseDateParam(searchParams.get('feedbackLessonTo')) ??
-      parseDateParam(searchParams.get('feedbackTo'))
+      parseDayParam(searchParams.get('feedbackLessonTo')) ??
+      parseDayParam(searchParams.get('feedbackTo'))
     const roleParam =
       searchParams.get('feedbackRole') === 'tutor' ? 'tutor' : 'student'
     return {
@@ -338,13 +316,13 @@ export default function AdminFeedbackPage() {
       if (nextFilters.dateRange?.from) {
         params.set(
           'feedbackLessonFrom',
-          startOfDayIso(nextFilters.dateRange.from)
+          startOfSchoolDayIso(nextFilters.dateRange.from)
         )
       } else {
         params.delete('feedbackLessonFrom')
       }
       if (nextFilters.dateRange?.to) {
-        params.set('feedbackLessonTo', endOfDayIso(nextFilters.dateRange.to))
+        params.set('feedbackLessonTo', endOfSchoolDayIso(nextFilters.dateRange.to))
       } else {
         params.delete('feedbackLessonTo')
       }
@@ -384,10 +362,10 @@ export default function AdminFeedbackPage() {
       params.set('rating', currentFilters.rating)
     }
     if (currentFilters.dateRange?.from) {
-      params.set('lessonFrom', startOfDayIso(currentFilters.dateRange.from))
+      params.set('lessonFrom', startOfSchoolDayIso(currentFilters.dateRange.from))
     }
     if (currentFilters.dateRange?.to) {
-      params.set('lessonTo', endOfDayIso(currentFilters.dateRange.to))
+      params.set('lessonTo', endOfSchoolDayIso(currentFilters.dateRange.to))
     }
     // The field keeps what is typed (spaces included); the search ignores spaces at the ends.
     if (currentFilters.search.trim()) {
