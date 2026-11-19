@@ -1,6 +1,5 @@
 'use client'
 
-import { cn } from '@/lib/utils'
 
 import { nextSort, SortableHead, type SortDir } from '@/components/sortable-head'
 import { ListPagination } from '@/components/list-pagination'
@@ -193,7 +192,7 @@ function DataTable<TData>({
               </TableRow>
             ))}
           </TableHeader>
-          <TableBody className={cn(isLoading && 'opacity-60 transition-opacity')} aria-busy={isLoading}>
+          <TableBody busy={isLoading}>
             {firstLoad ? (
               <TableSkeletonRows columns={columns.length} />
             ) : table.getRowModel().rows.length ? (

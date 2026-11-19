@@ -68,7 +68,7 @@ export function DataTable<T>({ rows, rowKey, columns, isLoading, emptyMessage, p
               })}
             </TableRow>
           </TableHeader>
-          <TableBody className={cn(isLoading && !firstLoad && 'opacity-60 transition-opacity')} aria-busy={isLoading}>
+          <TableBody busy={isLoading && !firstLoad} aria-busy={isLoading}>
             {firstLoad
               ? <TableSkeletonRows columns={columns.length} />
               : rows.length === 0

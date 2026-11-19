@@ -348,17 +348,20 @@ export default function TutorLessonDetailsPage() {
                 const isSaving = Boolean(presenceSaving[booking.id])
                 return (
                   <div key={booking.id} className='space-y-3 rounded-lg border bg-card p-4'>
-                    <div className='flex items-start justify-between gap-2'>
+                    {/* On phones the badge (left) and actions (right) sit on a row above the name, so the name keeps the full width. */}
+                    <div className='flex flex-col-reverse gap-3 sm:flex-row sm:items-start sm:justify-between'>
                       <div className='min-w-0'>
                         <div className='font-medium'>{studentLabel(student)}</div>
                         {studentClassLabel(student) && <div className='text-sm text-muted-foreground'>{studentClassLabel(student)}</div>}
                       </div>
-                      <div className='flex shrink-0 flex-wrap items-center justify-end gap-2'>
-                        {!presenceOpen && state !== 'upcoming' && (
-                          <Badge variant={booking.studentPresence === true ? 'success' : booking.studentPresence === false ? 'destructive' : 'outline'}>
-                            {booking.studentPresence === true ? 'Presente' : booking.studentPresence === false ? 'Assente' : 'Presenza non segnata'}
-                          </Badge>
-                        )}
+                      <div className='flex items-center justify-between gap-2 sm:shrink-0'>
+                        <div className='flex flex-wrap items-center gap-2'>
+                          {!presenceOpen && state !== 'upcoming' && (
+                            <Badge variant={booking.studentPresence === true ? 'success' : booking.studentPresence === false ? 'destructive' : 'outline'}>
+                              {booking.studentPresence === true ? 'Presente' : booking.studentPresence === false ? 'Assente' : 'Presenza non segnata'}
+                            </Badge>
+                          )}
+                        </div>
                         {studentEmail && (
                           <Button asChild size='sm' variant='outline'>
                             <a href={`mailto:${studentEmail}`}><Mail className='h-4 w-4' /> Scrivi</a>

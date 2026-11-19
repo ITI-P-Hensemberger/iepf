@@ -133,7 +133,8 @@ export function StudentLessonCard({
   const actionClass = actionCount > 1 ? 'h-auto min-h-8 flex-1 whitespace-normal sm:flex-none' : undefined
   return (
     <div className={cn('space-y-3 rounded-lg border bg-card p-4', highlight && 'border-primary', canceled && 'opacity-70')}>
-      <div className='flex flex-wrap items-start justify-between gap-2'>
+      {/* On phones the badge sits above the title, so the title keeps the full width. */}
+      <div className='flex flex-col-reverse items-start gap-2 sm:flex-row sm:justify-between'>
         <div className='min-w-0'>
           <div className={cn('font-medium', highlight && 'text-lg')}>
             {showDay ? `${capitalize(shortDayFormat.format(start))} · ` : ''}
