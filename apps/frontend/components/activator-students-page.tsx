@@ -49,6 +49,7 @@ import { Checkbox } from './ui/checkbox'
 import { logout } from '@/lib/auth-client'
 import { classLabel } from '@/lib/class-label'
 import { useResetOnChange } from '@/lib/use-reset-on-change'
+import { endOfSchoolDayIso, schoolFormat, startOfSchoolDayIso } from '@/lib/school-time'
 
 const pageSize = 20
 
@@ -333,7 +334,8 @@ function CreatedRangeField({ id, value, onChange }: { id: string, value: DateRan
   )
 }
 
-const dayLabel = (value?: string | null) => value ? format(new Date(value), 'dd/MM/yyyy') : '-'
+const numericDate = schoolFormat({ day: '2-digit', month: '2-digit', year: 'numeric' })
+const dayLabel = (value?: string | null) => value ? numericDate.format(new Date(value)) : '-'
 
 // A day in the URL as 2026-11-08, read back as that day at midnight here.
 const toDayParam = (date: Date) => format(date, 'yyyy-MM-dd')
@@ -345,25 +347,13 @@ function fromDayParam(value: string | null) {
   return Number.isNaN(date.getTime()) ? undefined : date
 }
 
-function startOfDayIso(date: Date) {
-  const next = new Date(date)
-  next.setHours(0, 0, 0, 0)
-  return next.toISOString()
-}
-
-function endOfDayIso(date: Date) {
-  const next = new Date(date)
-  next.setHours(23, 59, 59, 999)
-  return next.toISOString()
-}
-
 // A list's request: active or waiting students, then the search, sort and page from the URL.
 function listQuery(filters: TableFilters & { page: number }, isActive: boolean) {
   const params = new URLSearchParams({ role: 'student', isActive: String(isActive) })
   if (filters.search.trim()) params.set('q', filters.search.trim())
   if (filters.created?.from && filters.created.to) {
-    params.set('createdFrom', startOfDayIso(filters.created.from))
-    params.set('createdTo', endOfDayIso(filters.created.to))
+    params.set('createdFrom', startOfSchoolDayIso(filters.created.from))
+    params.set('createdTo', endOfSchoolDayIso(filters.created.to))
   }
   params.set('sortBy', filters.sortBy)
   params.set('sortDir', filters.sortDir)

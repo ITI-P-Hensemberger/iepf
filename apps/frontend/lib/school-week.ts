@@ -1,22 +1,16 @@
-// School weeks seen from the browser: Monday to Friday, days named by their 'YYYY-MM-DD' key.
+// School weeks: Monday to Friday, days named by their 'YYYY-MM-DD' key on Rome's calendar.
+import { calendarDateOf, calendarKeyOf, schoolDayKey, schoolHour, schoolTime, schoolWeekday } from '@/lib/school-time'
 
-function pad(value: number) {
-  return String(value).padStart(2, '0')
-}
+// The Rome day an instant falls on.
+export const dayKeyOf = schoolDayKey
 
-export function dayKeyOf(date: Date) {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
-
-export function dateOfKey(key: string) {
-  const [year, month, day] = key.split('-').map(Number)
-  return new Date(year, month - 1, day)
-}
+// A key as a local midnight date: for calendars, and for its weekday.
+export const dateOfKey = calendarDateOf
 
 export function addDaysToKey(key: string, days: number) {
   const date = dateOfKey(key)
   date.setDate(date.getDate() + days)
-  return dayKeyOf(date)
+  return calendarKeyOf(date)
 }
 
 // The Monday of the week a day belongs to.
@@ -32,17 +26,15 @@ export function schoolDays(mondayKey: string) {
 // Bookings close at 20:00 the day before, so after Thursday 20:00 nothing is left to book
 // in this week: only next week's lessons remain.
 export function thisWeekBookable(now: Date) {
-  const weekday = now.getDay()
+  const weekday = schoolWeekday(now)
   if (weekday === 0 || weekday >= 5) return false
-  return weekday < 4 || now.getHours() < 20
+  return weekday < 4 || schoolHour(now) < 20
 }
 
 // The whole day, as the instants an API range filter expects.
 export function dayRange(key: string) {
-  const from = dateOfKey(key)
-  const to = dateOfKey(key)
-  to.setHours(23, 59, 59, 999)
-  return { from: from.toISOString(), to: to.toISOString() }
+  const to = new Date(schoolTime(addDaysToKey(key, 1)).getTime() - 1)
+  return { from: schoolTime(key).toISOString(), to: to.toISOString() }
 }
 
 export function weekRange(mondayKey: string) {
@@ -53,7 +45,7 @@ export function weekRange(mondayKey: string) {
 // assigned; from then on, and on Sunday, the next one.
 export function currentLessonMonday(now: Date) {
   const monday = mondayOf(dayKeyOf(now))
-  const weekday = now.getDay()
-  const nextWeekOut = weekday === 0 || (weekday === 6 && now.getHours() >= 12)
+  const weekday = schoolWeekday(now)
+  const nextWeekOut = weekday === 0 || (weekday === 6 && schoolHour(now) >= 12)
   return nextWeekOut ? addDaysToKey(monday, 7) : monday
 }

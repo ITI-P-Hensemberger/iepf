@@ -72,6 +72,7 @@ import { cn } from '@/lib/utils'
 import { capitalizeFirst } from '@/lib/capitalize'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, jsonBody } from '@/lib/api-fetch'
+import { schoolFormat, schoolTime } from '@/lib/school-time'
 
 type LessonAvailable = {
   id: string
@@ -115,10 +116,11 @@ type Booked = {
   bookingCutoff: string
 }
 
-const timeFormat = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' })
-const dayFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'short', day: 'numeric' })
-const longDayFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })
-const shortDateFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })
+const weekdayFormat = schoolFormat({ weekday: 'short' })
+const timeFormat = schoolFormat({ hour: '2-digit', minute: '2-digit' })
+const dayFormat = schoolFormat({ weekday: 'short', day: 'numeric' })
+const longDayFormat = schoolFormat({ weekday: 'long', day: 'numeric', month: 'long' })
+const shortDateFormat = schoolFormat({ weekday: 'short', day: 'numeric', month: 'short' })
 
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1)
@@ -131,7 +133,7 @@ function tutorLabel(lesson: LessonAvailable) {
 // "lun alle 20:00": when a lesson's bookings close.
 function cutoffLabel(iso: string) {
   const date = new Date(iso)
-  return `${new Intl.DateTimeFormat('it-IT', { weekday: 'short' }).format(date)} alle ${timeFormat.format(date)}`
+  return `${weekdayFormat.format(date)} alle ${timeFormat.format(date)}`
 }
 
 const noSubjects: SubjectOption[] = []
@@ -296,7 +298,7 @@ export default function StudentBookPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const weekLabel = `${dayFormat.format(new Date(`${days[0]}T12:00:00`))} – ${shortDateFormat.format(new Date(`${days[4]}T12:00:00`))}`
+  const weekLabel = `${dayFormat.format(schoolTime(days[0], 12))} – ${shortDateFormat.format(schoolTime(days[4], 12))}`
 
   return (
     <main className='flex-1'>
@@ -543,7 +545,7 @@ function DayStep({
           const past = day <= todayKey
           const count = info?.count ?? 0
           const disabled = past || info?.booked || count === 0
-          const date = new Date(`${day}T12:00:00`)
+          const date = schoolTime(day, 12)
           return (
             <button
               key={day}
@@ -557,8 +559,8 @@ function DayStep({
                 disabled && day !== dayKey && 'cursor-not-allowed opacity-50 hover:border-border'
               )}
             >
-              <span className='capitalize'>{new Intl.DateTimeFormat('it-IT', { weekday: 'short' }).format(date)}</span>
-              <span className='text-lg font-medium leading-none'>{date.getDate()}</span>
+              <span className='capitalize'>{weekdayFormat.format(date)}</span>
+              <span className='text-lg font-medium leading-none'>{Number(day.slice(8))}</span>
               <span className='text-xs'>
                 {summaryLoading
                   ? '…'
@@ -597,7 +599,7 @@ function DayStep({
       ) : (
         <div className={cn('space-y-2', lessonsStale && 'opacity-60 transition-opacity')} aria-busy={lessonsStale}>
           <h3 className='text-sm font-medium text-muted-foreground'>
-            {capitalize(longDayFormat.format(new Date(`${lessonsDay}T12:00:00`)))}
+            {capitalize(longDayFormat.format(schoolTime(lessonsDay, 12)))}
           </h3>
           {lessons.map((lesson) => (
             <LessonCard key={lesson.id} lesson={lesson} onBook={onBook} />

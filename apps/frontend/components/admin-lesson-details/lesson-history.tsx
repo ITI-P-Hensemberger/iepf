@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { apiFetch } from '@/lib/api-fetch'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { schoolFormat } from '@/lib/school-time'
 
 type LessonVersion = {
   startAt: string
@@ -24,13 +25,12 @@ type LessonChange = {
   createdAt: string
 }
 
-const dateTime = new Intl.DateTimeFormat('it-IT', {
+const dateTime = schoolFormat({
   day: '2-digit',
   month: '2-digit',
   year: 'numeric',
   hour: '2-digit',
-  minute: '2-digit',
-  timeZone: 'Europe/Rome'
+  minute: '2-digit'
 })
 
 const subjectLabel = (version: LessonVersion) => version.subjectId === null ? 'Aperta' : (version.subjectName ?? 'Materia eliminata')

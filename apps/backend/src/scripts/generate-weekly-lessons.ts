@@ -7,7 +7,7 @@ import { tutorProfiles } from '@/db/schemas/tutor-profiles.schema'
 import { users } from '@/db/schemas/users.schema'
 import { DEFAULT_TUTOR_SETTINGS } from '@/lib/constants'
 import { buildLessonsGeneratedMessage } from '@/lib/email-templates'
-import { notifyIfWeekEmpty } from '@/lib/empty-week'
+import { getClosureDates, notifyIfWeekEmpty } from '@/lib/empty-week'
 import { notifyStudentsOfNewLessons } from '@/lib/lessons-available'
 import { createMailBatch } from '@/lib/mail-batch'
 import { closeMailer } from '@/lib/mailer'
@@ -66,19 +66,6 @@ async function getTutorSettings(tutorId: string) {
   })
 
   return settings ?? DEFAULT_TUTOR_SETTINGS
-}
-
-async function getClosureDates() {
-  const row = await db.query.globalSettings.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.key, 'closureDates')
-    },
-    columns: { value: true }
-  })
-
-  return Array.isArray(row?.value)
-    ? (row?.value as string[])
-    : []
 }
 
 async function getTutorAvailableWeekdays(tutorId: string) {

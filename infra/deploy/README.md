@@ -85,7 +85,7 @@ Prima attivazione:
 4. Dopo il successo eseguire `bash /opt/iepf/current/install-timers.sh` sulla VPS: installa i timer e
    rimuove solo i vecchi cron IEPF. Gli orari sono in Europe/Rome: backup 02:00,
    pulizia dati 03:30, riepilogo admin 08:00, reminder lezioni oggi 12:00, domani 20:30,
-   feedback 17:00, presenze non segnate ogni 5 minuti dalle 08:00 alle 20:55 (lun-sab);
+   feedback 17:00, disponibilità tutor venerdì 20:00, presenze non segnate ogni 5 minuti dalle 08:00 alle 20:55 (lun-sab);
    generazione lezioni sabato 12:00. Non recupera automaticamente gli invii persi dopo un downtime.
 5. Rilasciare backend e frontend: le build e i successivi deploy sono automatici.
 

@@ -9,6 +9,7 @@ import { SessionRefresh } from '@/components/session-refresh'
 import { fakeClockScript, fakeNow } from '@/lib/fake-clock'
 import './fonts/roboto.css'
 import './globals.css'
+import { schoolFormat } from '@/lib/school-time'
 
 // The status bar and browser chrome follow the device theme, in the site's own colors
 // (--background of the light and dark themes).
@@ -41,7 +42,7 @@ export default function RootLayout({
       <body className='min-h-dvh flex flex-col'>
         {simulatedNow && (
           <div className='pointer-events-none fixed right-2 bottom-2 z-50 rounded-md bg-amber-500 px-2 py-1 text-xs font-medium text-black'>
-            Orologio simulato: {new Intl.DateTimeFormat('it-IT', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' }).format(new Date(simulatedNow))}
+            Orologio simulato: {schoolFormat({ weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(simulatedNow))}
           </div>
         )}
         <ThemeProvider

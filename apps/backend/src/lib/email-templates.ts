@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import env from '@/env'
+import { SCHOOL_TIME_ZONE } from '@/lib/school-time'
 
 const SUPPORT_EMAIL = 'iepf@hensemberger.it'
 
@@ -183,7 +184,8 @@ function formatLessonDate(date: Date) {
     month: 'long',
     day: '2-digit',
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
+    timeZone: SCHOOL_TIME_ZONE
   })
 }
 
@@ -722,7 +724,12 @@ export function buildLessonsGeneratedMessage(params: {
   count: number
   weekStart: Date
 }) {
-  const week = params.weekStart.toLocaleDateString('it-IT', { year: 'numeric', month: 'long', day: '2-digit' })
+  const week = params.weekStart.toLocaleDateString('it-IT', {
+    year: 'numeric',
+    month: 'long',
+    day: '2-digit',
+    timeZone: SCHOOL_TIME_ZONE
+  })
   return compose({
     subject: 'Lezioni della settimana assegnate',
     blocks: [
@@ -733,6 +740,28 @@ export function buildLessonsGeneratedMessage(params: {
     action: {
       label: 'Vai alle lezioni',
       url: siteUrl('/tutor/lessons')
+    }
+  })
+}
+
+// Friday evening, before Saturday's generation of next week's lessons.
+export function buildAvailabilityReminderMessage(weekStart: Date) {
+  const week = weekStart.toLocaleDateString('it-IT', {
+    year: 'numeric',
+    month: 'long',
+    day: '2-digit',
+    timeZone: SCHOOL_TIME_ZONE
+  })
+  return compose({
+    subject: 'Aggiorna le disponibilità entro sabato alle 12',
+    title: 'Disponibilità della prossima settimana',
+    blocks: [
+      para(`Sabato alle 12 vengono create le lezioni della settimana che inizia il ${week}, in base alle tue disponibilità.`),
+      para('Se qualcosa è cambiato, aggiornale entro quell\'ora. Se va tutto bene, non devi fare nulla.')
+    ],
+    action: {
+      label: 'Vai alle disponibilità',
+      url: siteUrl('/profile', { tab: 'availability' })
     }
   })
 }
@@ -854,7 +883,7 @@ export function buildMissingPresenceAdminMessage(params: {
 }
 
 export function buildEmptyWeekAdminMessage(weekStart: Date) {
-  const week = weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
+  const week = weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', timeZone: SCHOOL_TIME_ZONE })
   return compose({
     subject: 'Nessuna lezione generata',
     blocks: [

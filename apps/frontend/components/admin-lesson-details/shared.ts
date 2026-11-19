@@ -1,6 +1,9 @@
 // Purpose: Types and formatting helpers for the admin lesson details page.
 import { classLabel } from '@/lib/class-label'
 import { type SubjectOption } from '@/lib/lesson-subject'
+import { schoolFormat } from '@/lib/school-time'
+
+const timeFormat = schoolFormat({ hour: '2-digit', minute: '2-digit' })
 
 export const AVAILABLE_TIMES = ['13:00', '14:00', '15:00', '16:00']
 // Reschedule choice that leaves the subject to the bookings, as on generated lessons.
@@ -148,16 +151,7 @@ export function timeFromDate(value?: string | null) {
   if (Number.isNaN(parsed.getTime())) {
     return null
   }
-  const hours = `${parsed.getHours()}`.padStart(2, '0')
-  const minutes = `${parsed.getMinutes()}`.padStart(2, '0')
-  return `${hours}:${minutes}`
-}
-
-export function combineDateAndTime(date: Date, time: string) {
-  const [hours, minutes] = time.split(':').map(Number)
-  const combined = new Date(date)
-  combined.setHours(hours || 0, minutes || 0, 0, 0)
-  return combined
+  return timeFormat.format(parsed)
 }
 
 export function isCanceledBooking(status?: string | null) {

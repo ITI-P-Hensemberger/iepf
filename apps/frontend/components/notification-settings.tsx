@@ -43,7 +43,9 @@ const USER_LABELS: Array<{
   {
     key: 'reminders',
     label: 'Promemoria',
-    description: 'Le lezioni del giorno e del giorno dopo.'
+    description: 'Le lezioni del giorno e del giorno dopo.',
+    tutorDescription:
+      'Le lezioni del giorno e del giorno dopo, e il venerdì le disponibilità da aggiornare.'
   },
   {
     key: 'feedback',

@@ -10,14 +10,16 @@ import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { useHere, withFrom } from '@/lib/back-link'
 import { extractPayloadArray } from '@/lib/backend-response'
-import { addDaysToKey, dateOfKey, dayKeyOf } from '@/lib/school-week'
+import { addDaysToKey, dateOfKey, dayKeyOf, dayRange } from '@/lib/school-week'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api-fetch'
+import { calendarKeyOf, schoolFormat, schoolTime } from '@/lib/school-time'
 
 type ScheduleLesson = { id: string, startAt: string, status: string, bookings: unknown[] }
 type Impact = { lessons: number, students: number }
 
-const dayFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+const numericDate = schoolFormat({ day: 'numeric', month: 'numeric', year: 'numeric' })
+const dayFormat = schoolFormat({ weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1)
@@ -46,11 +48,9 @@ export function AdminClosures({
   const { data: scheduled } = useQuery({
     queryKey: ['lessons', 'schedule-ahead', todayKey],
     queryFn: async () => {
-      const from = dateOfKey(todayKey)
-      const to = dateOfKey(addDaysToKey(todayKey, LOOKAHEAD_DAYS))
-      to.setHours(23, 59, 59, 999)
+      const range = { from: dayRange(todayKey).from, to: dayRange(addDaysToKey(todayKey, LOOKAHEAD_DAYS)).to }
       return extractPayloadArray<ScheduleLesson>(await apiFetch(
-        `/api/lessons/schedule?${new URLSearchParams({ from: from.toISOString(), to: to.toISOString() })}`,
+        `/api/lessons/schedule?${new URLSearchParams(range)}`,
         'Impossibile caricare le lezioni.'
       ))
     },
@@ -100,7 +100,7 @@ export function AdminClosures({
           <Calendar
             mode='multiple'
             selected={selected}
-            onSelect={(next) => onChange(Array.from(new Set((next ?? []).map(dayKeyOf))))}
+            onSelect={(next) => onChange(Array.from(new Set((next ?? []).map(calendarKeyOf))))}
             // Lessons run Monday to Friday: weekends are closed anyway.
             disabled={(date) => date.getDay() === 0 || date.getDay() === 6}
             numberOfMonths={1}
@@ -123,7 +123,7 @@ export function AdminClosures({
                   <li key={date} className='flex items-start gap-3 px-4 py-3'>
                     <CalendarOff className='mt-0.5 size-4 shrink-0 text-muted-foreground' aria-hidden />
                     <div className='min-w-0 flex-1'>
-                      <p className='font-medium'>{capitalize(dayFormat.format(dateOfKey(date)))}</p>
+                      <p className='font-medium'>{capitalize(dayFormat.format(schoolTime(date, 12)))}</p>
                       {found && found.lessons > 0 && (
                         <p className='mt-1 flex items-start gap-1.5 text-sm text-amber-700 dark:text-amber-400'>
                           <AlertTriangle className='mt-0.5 size-4 shrink-0' aria-hidden />
@@ -140,7 +140,7 @@ export function AdminClosures({
                     <Button
                       variant='ghost'
                       size='icon'
-                      aria-label={`Riapri ${dayFormat.format(dateOfKey(date))}`}
+                      aria-label={`Riapri ${dayFormat.format(schoolTime(date, 12))}`}
                       title='Riapri'
                       onClick={() => remove(date)}
                     >
@@ -160,7 +160,7 @@ export function AdminClosures({
               <ul className='mt-3 flex flex-wrap gap-2'>
                 {past.map(date => (
                   <li key={date} className='flex items-center gap-1 rounded-full border py-0.5 pr-1 pl-3'>
-                    {dateOfKey(date).toLocaleDateString('it-IT')}
+                    {numericDate.format(schoolTime(date, 12))}
                     <Button variant='ghost' size='icon' className='size-6' aria-label='Togli' onClick={() => remove(date)}>
                       <X className='size-3.5' />
                     </Button>

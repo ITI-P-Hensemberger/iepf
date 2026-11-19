@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { capitalizeFirst } from '@/lib/capitalize'
+import { schoolFormat } from '@/lib/school-time'
 
 const REASON_MAX = 500
 
@@ -42,13 +43,12 @@ const KIND_LABELS: Record<ActivationEvent['kind'], string> = {
 
 const ROLE_LABELS: Record<string, string> = { admin: 'admin', activator: 'attivatore' }
 
-const dateTime = new Intl.DateTimeFormat('it-IT', {
+const dateTime = schoolFormat({
   day: '2-digit',
   month: '2-digit',
   year: 'numeric',
   hour: '2-digit',
-  minute: '2-digit',
-  timeZone: 'Europe/Rome'
+  minute: '2-digit'
 })
 
 // Every activation and deactivation, newest first; loaded when opened, again after a change.

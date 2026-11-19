@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { addDays, endOfMonth, endOfWeek, format, isSameDay, startOfDay, startOfMonth, startOfWeek } from 'date-fns'
+import { addDays, endOfMonth, endOfWeek, format, isSameDay, startOfMonth, startOfWeek } from 'date-fns'
 import { CalendarIcon, X } from 'lucide-react'
 import type { DateRange, Matcher } from 'react-day-picker'
 
@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils'
 import { apiFetch } from '@/lib/api-fetch'
 import { useQuery } from '@tanstack/react-query'
+import { schoolToday } from '@/lib/school-time'
 
 // The date pickers of the site: a button that shows the choice, opening a calendar in a
 // popover. Ranges come with shortcuts and apply at once, without an "Applica" step.
@@ -134,7 +135,7 @@ export function DateRangePicker({
   className?: string
 }) {
   const [open, setOpen] = React.useState(false)
-  const today = startOfDay(new Date())
+  const today = schoolToday()
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -204,7 +205,7 @@ export function useSchoolDays() {
   })
   const closures = React.useMemo(() => closureKeys.map(key => new Date(`${key}T00:00:00`)), [closureKeys])
   return React.useMemo(() => ({
-    disabled: [{ dayOfWeek: [0, 6] }, { before: startOfDay(new Date()) }, ...closures] as Matcher[],
+    disabled: [{ dayOfWeek: [0, 6] }, { before: schoolToday() }, ...closures] as Matcher[],
     modifiers: { closed: closures }
   }), [closures])
 }

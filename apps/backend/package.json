@@ -29,6 +29,7 @@
     "seed:all-mock-data": "tsx src/scripts/seed-full.ts",
     "generate:lessons": "tsx src/scripts/generate-weekly-lessons.ts",
     "cleanup:data": "tsx src/scripts/cleanup-data.ts",
+    "remind:availability": "tsx src/scripts/remind-availability.ts",
     "remind:feedback": "tsx src/scripts/remind-missing-feedback.ts",
     "remind:lessons": "tsx src/scripts/remind-upcoming-lessons.ts",
     "remind:presence": "tsx src/scripts/remind-missing-presence.ts",

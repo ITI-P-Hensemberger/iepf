@@ -22,6 +22,20 @@ export function hasOpenSchoolDay(monday: Date, closureDates: Set<string>) {
   return false
 }
 
+// YYYY-MM-DD days the admins closed in the global settings.
+export async function getClosureDates() {
+  const row = await db.query.globalSettings.findFirst({
+    where(fields, operators) {
+      return operators.eq(fields.key, 'closureDates')
+    },
+    columns: { value: true }
+  })
+
+  return Array.isArray(row?.value)
+    ? (row?.value as string[])
+    : []
+}
+
 async function lessonsInWeek(monday: Date) {
   const end = schoolTime(addDays(schoolDayKey(monday), 7))
   const [row] = await db.select({

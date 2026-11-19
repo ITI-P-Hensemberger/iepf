@@ -5,7 +5,8 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { apiFetch, jsonBody } from '@/lib/api-fetch'
 import { extractPayloadArray } from '@/lib/backend-response'
 import type { Lesson, Tutor, Subject } from './shared'
-import { AVAILABLE_TIMES, OPEN_SUBJECT_VALUE, normalizePaged, timeFromDate, combineDateAndTime } from './shared'
+import { AVAILABLE_TIMES, OPEN_SUBJECT_VALUE, normalizePaged, timeFromDate } from './shared'
+import { calendarDateOf, combineDayAndTime, schoolDayKey } from '@/lib/school-time'
 
 const TUTORS_QUERY = 'role=tutor&limit=200&offset=0'
 const noTutors: Tutor[] = []
@@ -96,7 +97,7 @@ export function useRescheduleLesson({ lesson, reloadLessons }: { lesson: Lesson 
       subjectId: lesson.subjectFromBooking
         ? OPEN_SUBJECT_VALUE
         : (lesson.subjectId ?? ''),
-      date: new Date(lesson.startAt),
+      date: calendarDateOf(schoolDayKey(new Date(lesson.startAt))),
       time: timeValue
     })
     setIsRescheduleOpen(true)
@@ -140,7 +141,7 @@ export function useRescheduleLesson({ lesson, reloadLessons }: { lesson: Lesson 
       id: lesson.id,
       tutorId: rescheduleForm.tutorId,
       subjectId: rescheduleForm.subjectId === OPEN_SUBJECT_VALUE ? null : rescheduleForm.subjectId,
-      startAt: combineDateAndTime(rescheduleForm.date, timeValue).toISOString()
+      startAt: combineDayAndTime(rescheduleForm.date, timeValue).toISOString()
     })
   }
 

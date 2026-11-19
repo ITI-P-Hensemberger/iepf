@@ -13,13 +13,14 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { extractPayloadArray } from '@/lib/backend-response'
 import { isCanceled, lessonsByDay, type ScheduleLesson } from '@/lib/lesson-schedule'
-import { addDaysToKey, currentLessonMonday, dateOfKey, dayKeyOf, mondayOf, schoolDays, weekRange } from '@/lib/school-week'
+import { addDaysToKey, currentLessonMonday, dayKeyOf, mondayOf, schoolDays, weekRange } from '@/lib/school-week'
 import { cn } from '@/lib/utils'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api-fetch'
+import { schoolFormat, schoolTime } from '@/lib/school-time'
 
-const dayFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })
-const shortFormat = new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'short' })
+const dayFormat = schoolFormat({ weekday: 'long', day: 'numeric', month: 'long' })
+const shortFormat = schoolFormat({ day: 'numeric', month: 'short' })
 
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1)
@@ -74,7 +75,7 @@ export default function TutorWeekPage() {
             <ChevronLeft className='h-4 w-4' />
           </Button>
           <span className='min-w-0 flex-1 truncate text-center font-medium sm:min-w-40 sm:flex-none'>
-            {shortFormat.format(dateOfKey(days[0]))} – {shortFormat.format(dateOfKey(days[4]))}
+            {shortFormat.format(schoolTime(days[0], 12))} – {shortFormat.format(schoolTime(days[4], 12))}
           </span>
           <Button variant='outline' size='icon' aria-label='Settimana successiva' onClick={() => goToWeek(addDaysToKey(mondayKey, 7))}>
             <ChevronRight className='h-4 w-4' />
@@ -107,7 +108,7 @@ export default function TutorWeekPage() {
           return (
             <section key={day} className={cn('rounded-lg border bg-card', day < todayKey && 'opacity-80', stale && 'opacity-60 transition-opacity')} aria-busy={stale}>
               <header className='sticky top-[var(--sticky-top)] z-10 flex items-center gap-2 rounded-t-lg border-b bg-[var(--card)] px-4 py-2'>
-                <h3 className='font-medium'>{capitalize(dayFormat.format(dateOfKey(day)))}</h3>
+                <h3 className='font-medium'>{capitalize(dayFormat.format(schoolTime(day, 12)))}</h3>
                 {day === todayKey && <Badge>Oggi</Badge>}
               </header>
               {dayLessons.length === 0 ? (
