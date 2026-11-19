@@ -139,6 +139,10 @@ toasts ("Profilo aggiornato.", never "… con successo").
 **Mobile**: controls that must stay reachable go in `StickyBar`; anything sticking below them
 uses `top-[var(--sticky-top)]` (bars publish their height through `lib/sticky.ts`). Check every
 page at 375px.
+A card whose name or title has badges or buttons beside it puts them, on phones, on a row
+above the name (badges left, actions right: `flex-col-reverse … sm:flex-row`), so the name keeps
+the full width and never wraps under them; never `shrink-0` a group of several badges/buttons
+next to a name.
 
 **Colour (Grafite palette, `app/globals.css`)**
 - Only tokens: `bg-background`, `bg-card`, `bg-muted`, `text-muted-foreground`, `border`… Never

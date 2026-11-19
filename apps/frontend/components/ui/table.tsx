@@ -41,11 +41,20 @@ TableHeader.displayName = 'TableHeader'
 
 const TableBody = React.forwardRef<
   HTMLTableSectionElement,
-  React.HTMLAttributes<HTMLTableSectionElement>
->(({ className, ...props }, ref) => (
+  React.HTMLAttributes<HTMLTableSectionElement> & {
+    // Dims the rows while a new page or sort loads.
+    busy?: boolean
+  }
+>(({ className, busy = false, ...props }, ref) => (
   <tbody
     ref={ref}
-    className={cn('[&_tr:last-child]:border-0', className)}
+    aria-busy={busy || undefined}
+    className={cn(
+      '[&_tr:last-child]:border-0 [&>tr>td]:transition-opacity',
+      // On the cells, not the tbody: iOS Safari stops painting the cells of a translucent tbody.
+      busy && '[&>tr>td]:opacity-60',
+      className
+    )}
     {...props}
   />
 ))

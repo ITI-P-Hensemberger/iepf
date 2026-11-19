@@ -384,7 +384,8 @@ export default function AdminLessonDetailsPage() {
                 const isSaving = Boolean(presenceSaving[booking.id])
                 return (
                   <div key={booking.id} className={cn('space-y-3 rounded-lg border bg-card p-4', bookingCanceled && 'opacity-70')}>
-                    <div className='flex items-start justify-between gap-2'>
+                    {/* On phones badges (left) and actions (right) sit on a row above the name, so the name keeps the full width. */}
+                    <div className='flex flex-col-reverse gap-3 sm:flex-row sm:items-start sm:justify-between'>
                       <div className='min-w-0'>
                         {student ? (
                           <Link className='inline-flex items-center gap-1 font-medium text-[var(--primary-text)] hover:underline' href={withFrom(`/admin/students/${student.id}`, here)}>
@@ -395,33 +396,37 @@ export default function AdminLessonDetailsPage() {
                         )}
                         {studentClassLabel(student) && <div className='text-sm text-muted-foreground'>{studentClassLabel(student)}</div>}
                       </div>
-                      <div className='flex shrink-0 flex-wrap items-center justify-end gap-2'>
-                        {bookingCanceled && <Badge variant='outline'>{formatBookingStatus(booking.status)}</Badge>}
-                        <Badge variant={countsBadgeVariant(booking.countsForStudent)}>Ora: {countsBadgeLabel(booking.countsForStudent).toLowerCase()}</Badge>
-                        {student?.email && (
-                          <Button asChild size='sm' variant='outline'>
-                            <a href={`mailto:${student.email}`}><Mail className='h-4 w-4' /> Scrivi</a>
-                          </Button>
-                        )}
-                        <DropdownMenu
-                          open={selectedBooking?.id === booking.id}
-                          onOpenChange={(open) => setSelectedBooking(open ? booking : null)}
-                        >
-                          <DropdownMenuTrigger asChild>
-                            <Button variant='ghost' size='icon' className='h-8 w-8' aria-label='Altre azioni'>
-                              <MoreHorizontal className='h-4 w-4' />
+                      <div className='flex items-center justify-between gap-2 sm:shrink-0'>
+                        <div className='flex flex-wrap items-center gap-2'>
+                          {bookingCanceled && <Badge variant='outline'>{formatBookingStatus(booking.status)}</Badge>}
+                          <Badge variant={countsBadgeVariant(booking.countsForStudent)}>Ora: {countsBadgeLabel(booking.countsForStudent).toLowerCase()}</Badge>
+                        </div>
+                        <div className='flex shrink-0 items-center gap-2'>
+                          {student?.email && (
+                            <Button asChild size='sm' variant='outline'>
+                              <a href={`mailto:${student.email}`}><Mail className='h-4 w-4' /> Scrivi</a>
                             </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align='end'>
-                            <DropdownMenuItem onSelect={() => handleOpenTopicDialog(booking)}>Modifica argomento</DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => handleOpenCountsDialog(booking)}>Modifica conteggio ora</DropdownMenuItem>
-                            {!locked && (
-                              <DropdownMenuItem className='text-destructive' onSelect={() => handleOpenCancelDialog(booking)}>
-                                Annulla prenotazione
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                          )}
+                          <DropdownMenu
+                            open={selectedBooking?.id === booking.id}
+                            onOpenChange={(open) => setSelectedBooking(open ? booking : null)}
+                          >
+                            <DropdownMenuTrigger asChild>
+                              <Button variant='ghost' size='icon' className='h-8 w-8' aria-label='Altre azioni'>
+                                <MoreHorizontal className='h-4 w-4' />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align='end'>
+                              <DropdownMenuItem onSelect={() => handleOpenTopicDialog(booking)}>Modifica argomento</DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => handleOpenCountsDialog(booking)}>Modifica conteggio ora</DropdownMenuItem>
+                              {!locked && (
+                                <DropdownMenuItem className='text-destructive' onSelect={() => handleOpenCancelDialog(booking)}>
+                                  Annulla prenotazione
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
                     </div>
                     {(booking.topic || !locked) && (

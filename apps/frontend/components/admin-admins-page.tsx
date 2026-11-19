@@ -1,6 +1,5 @@
 'use client'
 
-import { cn } from '@/lib/utils'
 
 import { SortableHead } from '@/components/sortable-head'
 import { usePageBar } from '@/lib/sticky'
@@ -322,7 +321,7 @@ function DataTable<TData>({
               </TableRow>
             ))}
           </TableHeader>
-          <TableBody className={cn(isLoading && 'opacity-60 transition-opacity')} aria-busy={isLoading}>
+          <TableBody busy={isLoading}>
             {firstLoad ? (
               <TableSkeletonRows columns={columns.length} />
             ) : table.getRowModel().rows.length ? (
